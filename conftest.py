@@ -11,6 +11,12 @@ import socket
 
 import pytest
 
+# pytest's importlib mode names tier0/tests/*.py "tier0.tests.<file>". If the real
+# tier0 package isn't imported yet, pytest creates an empty stand-in "tier0" package
+# that hides it. This root conftest always loads first, so importing tier0 here
+# prevents that.
+import tier0  # noqa: F401
+
 
 class OutboundNetworkBlocked(RuntimeError):
     """Raised when a test tries to reach the network outside this machine."""
