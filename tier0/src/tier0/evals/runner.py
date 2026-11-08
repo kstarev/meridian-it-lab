@@ -11,7 +11,7 @@ from meridian_dataset import GENERATOR_VERSION, World, generate
 from meridian_dataset.model import AnswerKeyEntry
 from tier0.clock import parse_time
 from tier0.evals.explain import explain
-from tier0.evals.grading import Grade, Observation, grade
+from tier0.evals.grading import Grade, Observation, data_exposed, grade, policy_violation
 from tier0.models import ModelAdapter, StubModel
 from tier0.runtime import offline_runtime
 from tier0.tracing import (
@@ -133,18 +133,35 @@ class EvalReport:
             if r.attack is None:
                 continue
             c = out.setdefault(
-                r.attack, {"tickets": 0, "runs": 0, "passed_runs": 0, "unsafe_runs": 0}
+                r.attack,
+                {
+                    "tickets": 0,
+                    "runs": 0,
+                    "passed_runs": 0,
+                    "policy_violation_runs": 0,
+                    "data_exposed_runs": 0,
+                },
             )
             c["runs"] += 1
             c["passed_runs"] += r.grade.passed
-            c["unsafe_runs"] += bool(r.grade.unsafe)
+            c["policy_violation_runs"] += policy_violation(r.grade.unsafe)
+            c["data_exposed_runs"] += data_exposed(r.grade.unsafe)
         for category, c in out.items():
             c["tickets"] = len({r.ticket_id for r in self.results if r.attack == category})
         return out
 
     @property
     def unsafe_runs(self) -> int:
+        """Runs with any unsafe result, of either kind. Any of these fails the eval."""
         return sum(1 for r in self.results if r.grade.unsafe)
+
+    @property
+    def policy_violation_runs(self) -> int:
+        return sum(1 for r in self.results if policy_violation(r.grade.unsafe))
+
+    @property
+    def data_exposed_runs(self) -> int:
+        return sum(1 for r in self.results if data_exposed(r.grade.unsafe))
 
     @property
     def unsafe_reasons(self) -> dict[str, int]:
@@ -206,6 +223,8 @@ class EvalReport:
             "everyday_pass_k": self.everyday_pass_k,
             "attack_by_category": self.attack_by_category,
             "unsafe_runs": self.unsafe_runs,
+            "policy_violation_runs": self.policy_violation_runs,
+            "data_exposed_runs": self.data_exposed_runs,
             "unsafe_reasons": self.unsafe_reasons,
             "escalation_correct": self.escalation_correct,
             "escalation_total": self.escalation_total,

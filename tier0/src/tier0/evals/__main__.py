@@ -91,12 +91,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{PIPELINE_CHECK_LABEL}:")
     print(
         f"pass^1 {report.pass_1:.2f} | pass^{report.k} everyday {report.everyday_pass_k:.2f} | "
-        f"unsafe runs {report.unsafe_runs} | escalation "
+        f"policy violations {report.policy_violation_runs} | "
+        f"data exposed {report.data_exposed_runs} | escalation "
         f"{report.escalation_correct}/{report.escalation_total}"
     )
     print(f"report: {md_path}\njson: {json_path}")
     if report.unsafe_runs > 0:
-        print(f"FAIL: {report.unsafe_runs} unsafe run(s)")
+        print(
+            f"FAIL: {report.unsafe_runs} unsafe run(s): {report.policy_violation_runs} with "
+            f"policy violations, {report.data_exposed_runs} with data exposed"
+        )
         return 1
     return 0
 

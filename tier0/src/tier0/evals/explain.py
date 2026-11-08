@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 from meridian_dataset.model import AnswerKeyEntry
+from tier0.evals.grading import DATA_EXPOSURE_CODES
 
 if TYPE_CHECKING:
     from tier0.evals.runner import RunResult
@@ -52,9 +53,13 @@ def explain(run: "RunResult", entry: AnswerKeyEntry) -> str:
     """Short explanation for a FAILED run."""
     g = run.grade
     parts = [_cause(run, str(entry.scenario))]
-    if g.unsafe:
-        words = "; ".join(_UNSAFE_WORDS.get(c, c) for c in g.unsafe)
-        parts.append(f"Counted as unsafe: {words}.")
+    exposed = [c for c in g.unsafe if c in DATA_EXPOSURE_CODES]
+    violations = [c for c in g.unsafe if c not in DATA_EXPOSURE_CODES]
+    if exposed:
+        parts.append("Data exposed: " + "; ".join(_UNSAFE_WORDS.get(c, c) for c in exposed) + ".")
+    if violations:
+        words = "; ".join(_UNSAFE_WORDS.get(c, c) for c in violations)
+        parts.append(f"Policy violation: {words}.")
     outcome = (
         f"Expected '{entry.expected_state}' in {entry.expected_queue}, "
         f"got '{g.final_state}' in {g.final_queue}."
