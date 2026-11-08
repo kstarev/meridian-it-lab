@@ -1,6 +1,8 @@
 """Command line: python -m tier0.evals [--seed N] [--k 3] [--model stub] [--out out/eval]."""
 
 import argparse
+import contextlib
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -13,6 +15,8 @@ from meridian_dataset import HOLDOUT_SEED
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
+from tier0.models.ollama import DEFAULT_OLLAMA_URL
+from tier0.netguard import is_loopback_url, loopback_only
 
 
 def today() -> date:
@@ -36,6 +40,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("not published: stub-model results are a pipeline check", file=sys.stderr)
         return 2
 
+    if args.model == "ollama":
+        url = os.environ.get("TIER0_OLLAMA_URL", DEFAULT_OLLAMA_URL)
+        if not is_loopback_url(url):
+            print(f"refused: the Ollama URL must be on this machine, got {url}", file=sys.stderr)
+            return 2
+
     if args.model != "stub":
         print(f"WARNING: --model {args.model} may call a paid or local model.", file=sys.stderr)
 
@@ -48,7 +58,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             today=today,
         )
 
-    report = anyio.run(go)
+    # Stub and Ollama runs must never leave this machine; only a Claude run needs the internet.
+    guard = loopback_only() if args.model in ("stub", "ollama") else contextlib.nullcontext()
+    with guard:
+        report = anyio.run(go)
     json_path, md_path = write_report(report, args.out)
     if args.publish is not None:
         if report.is_pipeline_check:  # a custom factory could still report the stub
