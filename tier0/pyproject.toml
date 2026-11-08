@@ -3,7 +3,10 @@ name = "tier0"
 version = "0.1.0"
 description = "tier0: an AI service desk agent for Meridian (fictional). Runs offline on mocks and fake data."
 requires-python = ">=3.13,<3.14"
-dependencies = ["meridian-dataset"]
+dependencies = [
+    "meridian-dataset",
+    "pyjwt[crypto]==2.15.1",
+]
 
 [tool.uv.sources]
 meridian-dataset = { workspace = true }

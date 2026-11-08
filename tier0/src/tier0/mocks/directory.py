@@ -9,28 +9,11 @@ from typing import Any
 from meridian_dataset import World
 from meridian_dataset.model import Person
 from tier0.clock import Clock, format_time
+from tier0.directory_api import DirectoryError
+
+__all__ = ["CUSTOMER_ID", "DirectoryError", "DirectoryRead", "MockDirectory"]
 
 CUSTOMER_ID = "C0MERIDN1"
-
-
-class DirectoryError(Exception):
-    """An API error, carrying the same JSON body Google returns."""
-
-    def __init__(self, code: int, reason: str, message: str) -> None:
-        super().__init__(f"{code} {reason}: {message}")
-        self.code = code
-        self.reason = reason
-        self.message = message
-
-    @property
-    def body(self) -> dict[str, Any]:
-        return {
-            "error": {
-                "code": self.code,
-                "message": self.message,
-                "errors": [{"domain": "global", "reason": self.reason, "message": self.message}],
-            }
-        }
 
 
 @dataclass(frozen=True, slots=True)

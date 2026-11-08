@@ -1,0 +1,135 @@
+"""Turn an authenticated Slack event into a directory identity, or refuse."""
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+from tier0.directory_api import DirectoryApi, DirectoryError
+
+GATEWAY_PRINCIPAL = "tier0-gateway"
+# Only what the checks need (GDPR data minimisation).
+DIRECTORY_FIELDS = ("id", "primaryEmail", "suspended", "archived")
+
+
+class SlackUsersApi(Protocol):
+    """The one Slack call the binder needs."""
+
+    def users_info(self, user: str) -> dict[str, Any]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class BoundIdentity:
+    """A verified employee: the only thing a token may ever be minted for."""
+
+    directory_id: str
+    email: str
+    slack_user_id: str
+    slack_team_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class Unbound:
+    """No identity. `reason` says which check failed."""
+
+    reason: str
+    slack_user_id: str | None
+    slack_team_id: str | None
+
+
+class IdentityBinder:
+    """Bind a Slack message event to one active Meridian employee.
+
+    An outsider, a bot, a guest, a leaver or anyone not in the directory never
+    gets an identity, so no token is ever minted for them. No Directory read
+    happens before the Slack checks pass. The message text is never read.
+    """
+
+    def __init__(
+        self,
+        *,
+        slack: SlackUsersApi,
+        directory: DirectoryApi,
+        team_id: str,
+        app_id: str,
+        domain: str,
+    ) -> None:
+        self._slack = slack
+        self._directory = directory
+        self._team_id = team_id
+        self._app_id = app_id
+        self._suffix = "@" + domain.lower()
+
+    def bind(self, payload: Mapping[str, Any]) -> BoundIdentity | Unbound:
+        raw_team = payload.get("team_id")
+        envelope_team = raw_team if isinstance(raw_team, str) else None
+        event = payload.get("event")
+        raw_user = event.get("user") if isinstance(event, dict) else None
+        user_id = raw_user if isinstance(raw_user, str) and raw_user else None
+
+        def refuse(reason: str, team: str | None = envelope_team) -> Unbound:
+            return Unbound(reason=reason, slack_user_id=user_id, slack_team_id=team)
+
+        if (
+            payload.get("type") != "event_callback"
+            or payload.get("api_app_id") != self._app_id
+            or payload.get("team_id") != self._team_id
+        ):
+            return refuse("wrong_installation")
+
+        if (
+            not isinstance(event, dict)
+            or event.get("type") != "message"
+            or "subtype" in event
+            or "bot_id" in event
+            or user_id is None
+        ):
+            return refuse("not_a_user_message")
+
+        info = self._slack.users_info(user_id)
+        if not info.get("ok"):
+            return refuse("unknown_slack_user")
+        user = info.get("user")
+        if not isinstance(user, dict):
+            return refuse("unknown_slack_user")
+
+        # users.info is authoritative; event["user_team"] and friends are ignored.
+        info_team = user.get("team_id")
+        known_team = info_team if isinstance(info_team, str) else None
+        if user.get("is_bot") or user.get("is_app_user"):
+            return refuse("bot_user", known_team)
+        if user.get("deleted"):
+            return refuse("deactivated_slack_user", known_team)
+        if known_team != self._team_id:
+            return refuse("external_user", known_team)
+        if user.get("is_restricted") or user.get("is_ultra_restricted"):
+            return refuse("guest_user", known_team)
+
+        profile = user.get("profile")
+        email = profile.get("email") if isinstance(profile, dict) else None
+        if not isinstance(email, str) or not email.lower().endswith(self._suffix):
+            return refuse("no_company_email", known_team)
+
+        try:
+            resource = self._directory.users_get(
+                email, principal=GATEWAY_PRINCIPAL, fields=DIRECTORY_FIELDS
+            )
+        except DirectoryError as error:
+            return refuse(
+                "not_in_directory" if error.code == 404 else "directory_error", known_team
+            )
+
+        primary = resource.get("primaryEmail")
+        directory_id = resource.get("id")
+        if not isinstance(primary, str) or not isinstance(directory_id, str) or not directory_id:
+            return refuse("directory_error", known_team)
+        if primary.lower() != email.lower():
+            return refuse("email_mismatch", known_team)
+        if resource.get("suspended") or resource.get("archived"):
+            return refuse("suspended", known_team)
+
+        return BoundIdentity(
+            directory_id=directory_id,
+            email=primary,
+            slack_user_id=user_id,
+            slack_team_id=known_team,
+        )
