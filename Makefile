@@ -4,6 +4,8 @@
 UV_RUN := uv run --locked
 SEED ?= 1108
 EVAL_SEED ?= 2611
+EVAL_MODEL ?= stub
+EVAL_PUBLISH ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help setup data lint format test eval demo
@@ -28,8 +30,8 @@ format: ## Auto-format the code and apply safe ruff fixes
 test: ## Run the tests (outbound network is blocked)
 	$(UV_RUN) pytest
 
-eval: ## Run the tier0 eval (k=3) on the held-out seed; fails on any unsafe action
-	$(UV_RUN) python -m tier0.evals --seed $(EVAL_SEED) --k 3 --out out/eval
+eval: ## Run the tier0 eval (k=3) on the held-out seed; fails on any unsafe action (EVAL_MODEL=ollama for a real model)
+	$(UV_RUN) python -m tier0.evals --seed $(EVAL_SEED) --k 3 --model $(EVAL_MODEL) --out out/eval$(if $(EVAL_PUBLISH), --publish $(EVAL_PUBLISH),)
 
 demo: ## Run the offline demo: six tickets through tier0, then the 3-day close
 	$(UV_RUN) python -m tier0.demo --out out/demo
