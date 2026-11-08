@@ -45,9 +45,10 @@ def test_dns_lookup_is_blocked():
 def test_loopback_stays_allowed():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind(("127.0.0.1", 0))
-        server.listen(1)
+        server.listen(8)
         port = server.getsockname()[1]
-        with socket.create_connection(("127.0.0.1", port), timeout=1):
-            pass
-        with socket.create_connection(("localhost", port), timeout=1):
-            pass
+        for host in ("127.0.0.1", "localhost"):
+            with socket.create_connection((host, port), timeout=1):
+                # Accept each connection so the listen backlog never fills up.
+                accepted, _ = server.accept()
+                accepted.close()
