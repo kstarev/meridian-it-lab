@@ -1,20 +1,26 @@
 """Run the eval: every ticket k times, each on a fresh runtime (ADR-003)."""
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from meridian_dataset import GENERATOR_VERSION, World, generate
+from meridian_dataset.model import AnswerKeyEntry
 from tier0.clock import parse_time
-from tier0.evals.grading import Grade, Observation, grade
+from tier0.evals.explain import explain
+from tier0.evals.grading import Grade, Observation, data_exposed, grade, policy_violation
 from tier0.models import ModelAdapter, StubModel
 from tier0.runtime import offline_runtime
 from tier0.tracing import (
+    ERROR_TYPE,
     GEN_AI_OPERATION_NAME,
+    GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_TOOL_NAME,
     SEMCONV_VERSION,
+    TIER0_SESSION_KIND,
     Tracer,
     summarize,
 )
@@ -35,6 +41,12 @@ class RunResult:
     input_tokens: int
     output_tokens: int
     duration_ms: float
+    # Diagnostics for explaining failures (codes only, never model text).
+    category: str | None = None
+    action: str | None = None
+    reasons: tuple[str, ...] = ()
+    model_errors: tuple[str, ...] = ()
+    finish_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +80,15 @@ class EvalReport:
     results: tuple[RunResult, ...]
     # needs_human by ticket id, so escalation can be computed from results alone
     expected_queues: tuple[tuple[str, str], ...]  # (ticket_id, queue) where needs_human
+    run_date: str = "1970-01-01"
+    answer_key: tuple[AnswerKeyEntry, ...] = ()
+
+    def explanation(self, run: RunResult) -> str | None:
+        """Plain-English reason a run failed; None when it passed (or no key is known)."""
+        if run.grade.passed:
+            return None
+        entry = next((e for e in self.answer_key if e.ticket_id == run.ticket_id), None)
+        return explain(run, entry) if entry is not None else None
 
     @property
     def _by_ticket(self) -> dict[str, list[RunResult]]:
@@ -84,6 +105,14 @@ class EvalReport:
     @property
     def result_kind(self) -> str:
         return "pipeline_check" if self.is_pipeline_check else "model_eval"
+
+    @property
+    def mean_latency_ms(self) -> float:
+        return sum(r.duration_ms for r in self.results) / len(self.results) if self.results else 0.0
+
+    @property
+    def max_latency_ms(self) -> float:
+        return max((r.duration_ms for r in self.results), default=0.0)
 
     @property
     def pass_1(self) -> float:
@@ -104,18 +133,35 @@ class EvalReport:
             if r.attack is None:
                 continue
             c = out.setdefault(
-                r.attack, {"tickets": 0, "runs": 0, "passed_runs": 0, "unsafe_runs": 0}
+                r.attack,
+                {
+                    "tickets": 0,
+                    "runs": 0,
+                    "passed_runs": 0,
+                    "policy_violation_runs": 0,
+                    "data_exposed_runs": 0,
+                },
             )
             c["runs"] += 1
             c["passed_runs"] += r.grade.passed
-            c["unsafe_runs"] += bool(r.grade.unsafe)
+            c["policy_violation_runs"] += policy_violation(r.grade.unsafe)
+            c["data_exposed_runs"] += data_exposed(r.grade.unsafe)
         for category, c in out.items():
             c["tickets"] = len({r.ticket_id for r in self.results if r.attack == category})
         return out
 
     @property
     def unsafe_runs(self) -> int:
+        """Runs with any unsafe result, of either kind. Any of these fails the eval."""
         return sum(1 for r in self.results if r.grade.unsafe)
+
+    @property
+    def policy_violation_runs(self) -> int:
+        return sum(1 for r in self.results if policy_violation(r.grade.unsafe))
+
+    @property
+    def data_exposed_runs(self) -> int:
+        return sum(1 for r in self.results if data_exposed(r.grade.unsafe))
 
     @property
     def unsafe_reasons(self) -> dict[str, int]:
@@ -161,6 +207,9 @@ class EvalReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "run_date": self.run_date,
+            "mean_latency_ms": self.mean_latency_ms,
+            "max_latency_ms": self.max_latency_ms,
             "result_kind": self.result_kind,
             "label": PIPELINE_CHECK_LABEL if self.is_pipeline_check else None,
             "seed": self.seed,
@@ -174,6 +223,8 @@ class EvalReport:
             "everyday_pass_k": self.everyday_pass_k,
             "attack_by_category": self.attack_by_category,
             "unsafe_runs": self.unsafe_runs,
+            "policy_violation_runs": self.policy_violation_runs,
+            "data_exposed_runs": self.data_exposed_runs,
             "unsafe_reasons": self.unsafe_reasons,
             "escalation_correct": self.escalation_correct,
             "escalation_total": self.escalation_total,
@@ -204,6 +255,12 @@ class EvalReport:
                     "unsafe": list(r.grade.unsafe),
                     "final_state": r.grade.final_state,
                     "final_queue": r.grade.final_queue,
+                    "category": r.category,
+                    "action": r.action,
+                    "reasons": list(r.reasons),
+                    "model_errors": list(r.model_errors),
+                    "finish_reasons": list(r.finish_reasons),
+                    "explanation": self.explanation(r),
                 }
                 for r in self.results
             ],
@@ -230,6 +287,7 @@ def build_report(
     k: int,
     provider: str,
     model: str,
+    run_date: str = "1970-01-01",
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -244,6 +302,8 @@ def build_report(
         semconv_version=SEMCONV_VERSION,
         results=results,
         expected_queues=expected,
+        run_date=run_date,
+        answer_key=tuple(world.answer_key.entries),
     )
 
 
@@ -268,7 +328,7 @@ async def run_ticket(
     tracer = Tracer(out_dir=trace_dir)
     async with offline_runtime(world, model=model_factory(), tracer=tracer) as rt:
         rt.clock.advance_to(parse_time(ticket.received_at))
-        await rt.agent.handle(rt.slack.message_event(ticket))
+        outcome = await rt.agent.handle(rt.slack.message_event(ticket))
         rt.clock.advance(timedelta(days=3, minutes=1))
         rt.agent.sweep()
 
@@ -287,6 +347,7 @@ async def run_ticket(
             tokens_issued=len(rt.issuer.issued),
         )
         summaries = summarize(spans).values()
+        reasons, model_errors, finish_reasons = _diagnostics(spans)
     tracer.shutdown()
     return RunResult(
         ticket_id=ticket_id,
@@ -300,7 +361,47 @@ async def run_ticket(
         input_tokens=sum(s.input_tokens for s in summaries),
         output_tokens=sum(s.output_tokens for s in summaries),
         duration_ms=sum(s.duration_ms for s in summaries),
+        category=outcome.category,
+        action=outcome.action,
+        reasons=reasons,
+        model_errors=model_errors,
+        finish_reasons=finish_reasons,
     )
+
+
+def _diagnostics(spans: Any) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Codes from the intake session: why it escalated, model failures, finish reasons."""
+    intake = {
+        s.context.trace_id
+        for s in spans
+        if (s.attributes or {}).get(TIER0_SESSION_KIND) == "intake"
+    }
+    reasons: set[str] = set()
+    model_errors: list[str] = []
+    finish: list[str] = []
+    for s in spans:
+        if s.context.trace_id not in intake:
+            continue
+        attrs = s.attributes or {}
+        for ev in s.events:
+            ea = ev.attributes or {}
+            if ev.name == "tier0.escalated" and "reason" in ea:
+                reasons.add(str(ea["reason"]))
+            elif ev.name == "tier0.guard.blocked":
+                reasons.add("guard_blocked")
+            elif ev.name == "tier0.identity.unbound" and "reason" in ea:
+                reasons.add(str(ea["reason"]))
+            elif ev.name == "tier0.reply.not_sent":
+                reasons.add("reply_not_sent")
+        if attrs.get(GEN_AI_OPERATION_NAME) == "chat":
+            if ERROR_TYPE in attrs:
+                model_errors.append(str(attrs[ERROR_TYPE]))
+            else:
+                value = attrs.get(GEN_AI_RESPONSE_FINISH_REASONS) or ()
+                if isinstance(value, str):
+                    value = (value,)
+                finish.extend(str(v) for v in value)
+    return tuple(sorted(reasons)), tuple(model_errors), tuple(finish)
 
 
 async def run_eval(
@@ -309,6 +410,7 @@ async def run_eval(
     k: int = 3,
     model_factory: ModelFactory = StubModel,
     out_dir: Path | None = None,
+    today: Callable[[], date] | None = None,
 ) -> EvalReport:
     """Run every ticket k times, one after another."""
     world = generate(seed)
@@ -321,6 +423,13 @@ async def run_eval(
                     world, entry.ticket_id, run, model_factory=model_factory, out_dir=out_dir
                 )
             )
+    run_date = (today() if today is not None else datetime.now(UTC).date()).isoformat()
     return build_report(
-        world, tuple(results), seed=seed, k=k, provider=probe.provider, model=probe.model
+        world,
+        tuple(results),
+        seed=seed,
+        k=k,
+        provider=probe.provider,
+        model=probe.model,
+        run_date=run_date,
     )

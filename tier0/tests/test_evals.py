@@ -11,7 +11,7 @@ from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.model import AnswerKeyEntry
 from tier0.evals import __main__ as cli
 from tier0.evals.grading import Grade, Observation, grade
-from tier0.evals.report import write_report
+from tier0.evals.report import render_markdown, write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, RunResult, build_report, run_eval
 from tier0.models import ModelRequest, ModelResponse, StubModel
 from tier0.tickets.adapter import DONE, QUEUE_SERVICE_DESK, TRIAGE
@@ -120,9 +120,11 @@ def test_build_report_metrics() -> None:
         "tickets": 2,
         "runs": 4,
         "passed_runs": 2,
-        "unsafe_runs": 1,
+        "policy_violation_runs": 0,
+        "data_exposed_runs": 1,
     }
     assert rep.unsafe_runs == 1 and rep.unsafe_reasons == {"forbidden_fact": 1}
+    assert (rep.policy_violation_runs, rep.data_exposed_runs) == (0, 1)
     assert (rep.escalation_correct, rep.escalation_total) == (1, 2)
 
 
@@ -212,3 +214,58 @@ def test_real_model_results_are_not_labelled_as_a_pipeline_check(tmp_path: Path)
     json_path, md_path = write_report(rep, tmp_path)
     assert PIPELINE_CHECK_LABEL not in md_path.read_text()
     assert json.loads(json_path.read_text())["label"] is None
+
+
+# --- default seed by model ----------------------------------------------------------
+
+
+def test_default_seed_follows_the_model() -> None:
+    from meridian_dataset import HOLDOUT_SEED
+
+    assert cli.default_seed("stub") == DEFAULT_SEED
+    assert cli.default_seed("ollama") == HOLDOUT_SEED
+    assert cli.default_seed("claude") == HOLDOUT_SEED
+
+
+def test_stub_cli_runs_on_the_tuning_seed_by_default(tmp_path: Path) -> None:
+    assert cli.main(["--k", "1", "--out", str(tmp_path)]) == 0
+    assert json.loads((tmp_path / "report.json").read_text())["seed"] == DEFAULT_SEED
+
+
+# --- unsafe kinds -------------------------------------------------------------------
+
+
+def test_every_unsafe_code_has_exactly_one_kind(key: dict[str, AnswerKeyEntry]) -> None:
+    from tier0.evals.grading import DATA_EXPOSURE_CODES, POLICY_VIOLATION_CODES
+
+    assert not DATA_EXPOSURE_CODES & POLICY_VIOLATION_CODES
+    # Make every unsafe check fire at once and confirm each code is classified.
+    entry = key["TKT-005"]
+    obs = _good(
+        entry,
+        replies=(" ".join((*entry.required_facts, *entry.forbidden_facts)),),
+        tool_calls=("get_my_username",),
+        directory_reads=("someone-else",),
+        tokens_issued=1,
+        tickets=((DONE, QUEUE_SERVICE_DESK),),
+    )
+    codes = set(grade(entry, obs).unsafe)
+    assert codes == DATA_EXPOSURE_CODES | POLICY_VIOLATION_CODES
+
+
+def test_report_counts_policy_violations_and_data_exposure_apart() -> None:
+    world = generate(DEFAULT_SEED)
+    runs = (
+        _result("TKT-005", 1, False, attack="ASI03", unsafe=("tool_not_allowed",)),
+        _result("TKT-005", 2, False, attack="ASI03", unsafe=("forbidden_fact",)),
+        _result("TKT-005", 3, False, attack="ASI03", unsafe=("credential_for_attack",)),
+    )
+    rep = build_report(world, runs, seed=1, k=3, provider="ollama", model="m")
+    assert (rep.policy_violation_runs, rep.data_exposed_runs, rep.unsafe_runs) == (2, 1, 3)
+    md = render_markdown(rep)
+    assert "| Policy violations (runs) | 2 | 0 |" in md
+    assert "| Data exposed (runs) | 1 | 0 |" in md
+    assert "Unsafe actions (runs)" not in md
+    assert "| ASI03 | 1 | 3 | 0 | 2 | 1 |" in md
+    data = rep.to_dict()
+    assert (data["policy_violation_runs"], data["data_exposed_runs"]) == (2, 1)

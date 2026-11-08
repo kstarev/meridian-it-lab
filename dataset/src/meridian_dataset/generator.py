@@ -21,19 +21,19 @@ from meridian_dataset.model import (
     World,
 )
 from meridian_dataset.names import (
-    COLLEAGUE_TEXTS,
     DEPARTMENTS,
-    DUPLICATE_TEXTS,
     FAMILY_NAMES,
     GIVEN_NAMES,
+    HELD_OUT_POOL,
     HUBS,
-    NORMAL_TEXTS,
-    UNAUTHENTICATED_TEXTS,
+    MESSAGE_POOLS,
+    TUNING_POOL,
 )
 
-GENERATOR_VERSION = "0.1.0"
+GENERATOR_VERSION = "0.2.0"
 DEFAULT_SEED = 1108
-# Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001).
+# Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001). The held-out seed also
+# gets its own message wording, never shared with the tuning seeds (ADR-013).
 HOLDOUT_SEED = 2611
 
 DOMAIN = "meridian.example"
@@ -83,12 +83,23 @@ def _others(people: tuple[Person, ...], person: Person) -> tuple[str, ...]:
     return tuple(sorted(p.primary_email for p in people if p != person))
 
 
-def generate(seed: int = DEFAULT_SEED) -> World:
+def split_for_seed(seed: int) -> str:
+    """The held-out seed uses the held-out message pool; every other seed uses tuning."""
+    return HELD_OUT_POOL.name if seed == HOLDOUT_SEED else TUNING_POOL.name
+
+
+def generate(seed: int = DEFAULT_SEED, *, split: str | None = None) -> World:
     """Build the whole world for one seed: people, Slack, tickets and answer key.
 
     Every random choice goes through one rng in a fixed order, so changing the
     order of the calls below changes the data (and the golden hash test).
+    `split` overrides the message pool, so tests can build held-out style worlds
+    from other seeds; by default it follows the seed (ADR-013).
     """
+    pool_name = split if split is not None else split_for_seed(seed)
+    if pool_name not in MESSAGE_POOLS:
+        raise ValueError(f"unknown split {pool_name!r}; choose from {sorted(MESSAGE_POOLS)}")
+    pool = MESSAGE_POOLS[pool_name]
     rng = random.Random(seed)
 
     # Slack team
@@ -188,9 +199,9 @@ def generate(seed: int = DEFAULT_SEED) -> World:
 
     eligible = [p for p in built if p.status == "active" and p != alex_second]
     normal_senders = rng.sample(eligible, 3)
-    normal_texts = rng.sample(NORMAL_TEXTS, 3)
+    normal_texts = rng.sample(pool.normal, 3)
 
-    duplicate_text = rng.choice(DUPLICATE_TEXTS).format(other_email=alex_first.primary_email)
+    duplicate_text = rng.choice(pool.duplicate).format(other_email=alex_first.primary_email)
 
     manager = rng.choice(managers)
     reports = [p for p in built if p.status == "active" and p.manager_id == manager.directory_id]
@@ -200,9 +211,9 @@ def generate(seed: int = DEFAULT_SEED) -> World:
             p for p in built if p.status == "active" and p.manager_id == manager.directory_id
         ]
     target = rng.choice(reports)
-    colleague_text = rng.choice(COLLEAGUE_TEXTS).format(target=target.full_name)
+    colleague_text = rng.choice(pool.colleague).format(target=target.full_name)
 
-    unauth_text = rng.choice(UNAUTHENTICATED_TEXTS)
+    unauth_text = rng.choice(pool.unauthenticated)
 
     def meridian_ticket(number: int, sender: Person, text: str) -> Ticket:
         return Ticket(
@@ -327,6 +338,7 @@ def generate(seed: int = DEFAULT_SEED) -> World:
     return World(
         seed=seed,
         generator_version=GENERATOR_VERSION,
+        message_pool=pool.name,
         reference_time=_format_time(REFERENCE_TIME),
         domain=DOMAIN,
         identity_recovery_url=IDENTITY_RECOVERY_URL,
