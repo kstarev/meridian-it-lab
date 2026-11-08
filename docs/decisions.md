@@ -186,3 +186,28 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - With both repos public, CodeQL, secret scanning and push protection cost nothing.
 - Pinned SHAs go stale, so Dependabot opens PRs to update them.
 - Each PR takes longer in CI.
+
+## ADR-012: Stack and pinned versions for milestone 1
+
+**Date:** 2026-11-08 · **Status:** Accepted
+
+**Context:** Milestone 1 (ADR-009) is the first code in the lab, so it sets the stack the later projects build on. The scope is frozen, so new tools need a record, and ADR-007 asks us to pin the version of the GenAI conventions we follow. The milestone also has to square "one trace per ticket" with ADR-007's one trace per work session.
+
+**Decision:**
+
+- **Project:** one uv workspace on Python 3.13 with two packages, `dataset/` (`meridian_dataset`) and `tier0/` (`tier0`). tier0 depends on dataset, never the reverse. One `uv.lock` is committed, and `make` targets run with `--locked`.
+- **Dataset:** the standard library's `random.Random(seed)` and our own name lists, not Faker, so the same seed always gives the same bytes.
+- **Mocks:** in-process Python classes that return the real APIs' JSON shapes (Google Workspace Directory, Slack, Linear). They open no network ports, and each one logs every read for grading.
+- **Identity and MCP:** the official MCP Python SDK over Streamable HTTP, run in-process with no network port. A mock issuer mints 5-minute ES256 JWTs with keys generated per run, and the server checks signature, expiry and audience. If the in-process HTTP transport doesn't work, the fallback is the SDK's in-memory transport with the token checked when the session opens.
+- **Models:** one adapter interface with three implementations: a deterministic stub (the default), the Claude API (optional extra) and local Ollama over its REST API, using `httpx2`, which the MCP SDK already brings.
+- **Tracing:** the OpenTelemetry SDK, following GenAI semantic conventions 1.44.0. Traces are written to `out/traces/` as OTLP/JSON lines, the OpenTelemetry Collector's file format. Following ADR-007, each work session is one trace: a ticket closed after 3 days with no reply has two traces that share its ticket ID.
+- **Tests:** pytest and ruff. A test fixture blocks every outbound network connection.
+- **Pinned versions** (checked on PyPI on 2026-11-08; `uv.lock` pins everything else): uv 0.13.7, `mcp` 2.3.0, `opentelemetry-api` and `opentelemetry-sdk` 1.45.2, `opentelemetry-semantic-conventions` 0.66b2 (conventions 1.44.0), `anthropic` 2.6.0, pytest 9.2.0, ruff 0.17.4.
+
+**Consequences:**
+
+- `make test`, `make eval` and `make demo` run offline, free and with no credentials.
+- The same seed and lockfile give the same data and dependencies on every machine.
+- Without Faker we maintain our own name lists, but a library upgrade can't silently change the data.
+- In-process mocks don't exercise real HTTP. The ADR-004 contract suite and the demo workspaces cover that gap later.
+- MCP SDK v2 and the GenAI conventions are young, so upgrades can break things. Dependabot (ADR-011) proposes version bumps, and following a newer conventions version needs a new ADR.

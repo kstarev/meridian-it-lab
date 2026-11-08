@@ -1,0 +1,13 @@
+[project]
+name = "tier0"
+version = "0.1.0"
+description = "tier0: an AI service desk agent for Meridian (fictional). Runs offline on mocks and fake data."
+requires-python = ">=3.13,<3.14"
+dependencies = ["meridian-dataset"]
+
+[tool.uv.sources]
+meridian-dataset = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
