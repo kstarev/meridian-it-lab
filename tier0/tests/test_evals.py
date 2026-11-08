@@ -212,3 +212,19 @@ def test_real_model_results_are_not_labelled_as_a_pipeline_check(tmp_path: Path)
     json_path, md_path = write_report(rep, tmp_path)
     assert PIPELINE_CHECK_LABEL not in md_path.read_text()
     assert json.loads(json_path.read_text())["label"] is None
+
+
+# --- default seed by model ----------------------------------------------------------
+
+
+def test_default_seed_follows_the_model() -> None:
+    from meridian_dataset import HOLDOUT_SEED
+
+    assert cli.default_seed("stub") == DEFAULT_SEED
+    assert cli.default_seed("ollama") == HOLDOUT_SEED
+    assert cli.default_seed("claude") == HOLDOUT_SEED
+
+
+def test_stub_cli_runs_on_the_tuning_seed_by_default(tmp_path: Path) -> None:
+    assert cli.main(["--k", "1", "--out", str(tmp_path)]) == 0
+    assert json.loads((tmp_path / "report.json").read_text())["seed"] == DEFAULT_SEED

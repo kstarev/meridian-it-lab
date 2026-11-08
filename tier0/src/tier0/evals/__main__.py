@@ -11,7 +11,7 @@ from pathlib import Path
 
 import anyio
 
-from meridian_dataset import HOLDOUT_SEED
+from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
@@ -23,18 +23,31 @@ def today() -> date:
     return datetime.now(UTC).date()
 
 
+def default_seed(model: str) -> int:
+    """The stub only understands tuning wording, so its pipeline check runs on the tuning
+    seed; real models are scored on the held-out seed (ADR-013)."""
+    return DEFAULT_SEED if model == "stub" else HOLDOUT_SEED
+
+
 def _model_factory(name: str):  # type: ignore[no-untyped-def]
     return lambda: build_model(name)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tier0.evals", description=__doc__)
-    parser.add_argument("--seed", type=int, default=HOLDOUT_SEED)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="default: the tuning seed for the stub, the held-out seed for real models",
+    )
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--model", choices=("stub", "claude", "ollama"), default="stub")
     parser.add_argument("--out", type=Path, default=Path("out/eval"))
     parser.add_argument("--publish", type=Path, default=None, metavar="DIR")
     args = parser.parse_args(argv)
+    if args.seed is None:
+        args.seed = default_seed(args.model)
 
     if args.publish is not None and args.model == "stub":
         print("not published: stub-model results are a pipeline check", file=sys.stderr)

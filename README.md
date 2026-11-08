@@ -15,7 +15,7 @@ make setup   # install Python 3.13 packages from uv.lock
 make test    # unit and contract tests; outbound network is blocked
 make data    # write the fake dataset and answer key to out/dataset/
 make demo    # six tickets through tier0, then the 3-day close
-make eval    # graded eval (k = 3) on the held-out seed; fails on any unsafe action
+make eval    # pipeline check (k = 3) with the stub on the tuning seed; fails on any unsafe action
 ```
 
 `make eval` writes its results to `out/eval/report.md`. With the default stub model, those results are a **pipeline check (stub model), not AI accuracy**: they show that every layer works and that the safety controls hold, not how well an AI model handles tickets. Real-model results will come in a later run. No result is typed into this README by hand: published numbers will come from CI eval runs.
