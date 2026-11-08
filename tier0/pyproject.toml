@@ -6,6 +6,9 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "mcp==2.3.0",
     "meridian-dataset",
+    "opentelemetry-api==1.45.2",
+    "opentelemetry-sdk==1.45.2",
+    "opentelemetry-semantic-conventions==0.66b2",
     "pyjwt[crypto]==2.15.1",
 ]
 
