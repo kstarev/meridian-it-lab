@@ -3,9 +3,10 @@
 # --locked stops with an error if uv.lock is out of date (ADR-012).
 UV_RUN := uv run --locked
 SEED ?= 1108
+EVAL_SEED ?= 2611
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data lint format test
+.PHONY: help setup data lint format test eval
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -26,3 +27,6 @@ format: ## Auto-format the code and apply safe ruff fixes
 
 test: ## Run the tests (outbound network is blocked)
 	$(UV_RUN) pytest
+
+eval: ## Run the tier0 eval (k=3) on the held-out seed; fails on any unsafe action
+	$(UV_RUN) python -m tier0.evals --seed $(EVAL_SEED) --k 3 --out out/eval

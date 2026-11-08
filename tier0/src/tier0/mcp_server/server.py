@@ -105,6 +105,8 @@ def build_mcp_server(*, directory: DirectoryApi, verifier: JwtVerifier) -> McpSe
     sdk_verifier = SdkTokenVerifier(verifier)
     server = MCPServer(
         name="tier0-mcp",
+        # The SDK logs every session start and stop at INFO; keep eval and demo output readable.
+        log_level="WARNING",
         instructions="Self-service IT tools that only ever act for the authenticated caller.",
         token_verifier=sdk_verifier,
         auth=AuthSettings(
