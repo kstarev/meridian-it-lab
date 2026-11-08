@@ -6,7 +6,7 @@ SEED ?= 1108
 EVAL_SEED ?= 2611
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data lint format test eval
+.PHONY: help setup data lint format test eval demo
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,3 +30,6 @@ test: ## Run the tests (outbound network is blocked)
 
 eval: ## Run the tier0 eval (k=3) on the held-out seed; fails on any unsafe action
 	$(UV_RUN) python -m tier0.evals --seed $(EVAL_SEED) --k 3 --out out/eval
+
+demo: ## Run the offline demo: six tickets through tier0, then the 3-day close
+	$(UV_RUN) python -m tier0.demo --out out/demo

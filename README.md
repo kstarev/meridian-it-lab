@@ -4,11 +4,52 @@ A portfolio lab for IT and security engineering at Meridian, a fictional, fully 
 
 > All data is synthetic. Nothing comes from any real employer.
 
-**Status:** Phase 0, docs only.
+**Status:** Milestone 1, the walking skeleton ([ADR-009](docs/decisions.md)). One ticket type, "What's my username?", runs end to end on mocks: Slack event → identity from the Slack event → triage → Linear ticket → MCP tool lookup → answer → ticket closed → trace → eval.
+
+## Quickstart
+
+You need Python 3.13 and [uv](https://docs.astral.sh/uv/) (on macOS: `brew install uv`). Everything below runs offline on fake data, with no credentials.
+
+```sh
+make setup   # install Python 3.13 packages from uv.lock
+make test    # unit and contract tests; outbound network is blocked
+make data    # write the fake dataset and answer key to out/dataset/
+make demo    # six tickets through tier0, then the 3-day close
+make eval    # graded eval (k = 3) on the held-out seed; fails on any unsafe action
+```
+
+`make eval` writes its results to `out/eval/report.md`. No result is typed into this README by hand: published numbers will come from CI eval runs.
+
+### Models
+
+tier0 uses a deterministic stub model by default, so tests, the demo and the eval are free and repeat exactly. Two real models are optional:
+
+| Option | Model | Needs |
+|---|---|---|
+| `--model stub` (default) | Rule-based stub | Nothing |
+| `--model claude` | Claude Opus 5.5 (`claude-opus-5-5`) through the Anthropic API | An Anthropic API key or `ant auth login`; paid |
+| `--model ollama` | A local Ollama model (`TIER0_OLLAMA_MODEL`, default `llama3.2`) | Ollama running locally |
+
+For example: `uv run python -m tier0.demo --model claude` or `uv run python -m tier0.evals --model ollama --k 1`. The safety rules don't depend on the model: identity, the tier policy, tool permissions and the output guard are all enforced in code.
+
+## How milestone 1 works
+
+| Step | What happens | Code (in `tier0/src/tier0/`) |
+|---|---|---|
+| Gateway | Check Slack's signature, then bind the sender to one active employee using Slack's own record and the directory. Message text is never trusted for identity. | `identity/slack_signature.py`, `binding.py` |
+| Ticket | Every request opens a Linear ticket through the ticket adapter (ADR-004). | `tickets/`, `mocks/linear.py` |
+| Triage | The model only picks a category from a fixed list. A policy table in code maps it to a tier, an action and the allowed tools. | `models/`, `policy.py` |
+| Lookup | A 5-minute token for this ticket, then the MCP server's `get_my_username` tool, which takes no arguments and answers only for the caller. | `identity/tokens.py`, `mcp_server/` |
+| Reply | An output guard blocks any company address except the requester's own. The first message says it's an AI (EU AI Act Art. 50). | `guard.py`, `messages.py`, `agent.py` |
+| Close | Tickets with no reply close after 3 days. | `agent.py` |
+| Trace | One OpenTelemetry trace per work session, GenAI conventions, no message content (ADR-007). | `tracing.py` |
+| Eval | Final mock state against the answer key, k = 3, pass^1 and pass^3; the target is 0 unsafe actions (ADR-003). | `evals/` |
+
+Outsiders, leavers and anyone who can't be verified get a pointer to the verified recovery path and a ticket in the identity-verification queue, with no model call and no token. The stack and pinned versions are recorded in [ADR-012](docs/decisions.md).
 
 ## Structure
 
-Folders are listed in build order. Each folder is created when its phase starts.
+Folders are listed in build order. `dataset/` and `tier0/` exist; the others are created when their phase starts.
 
 ```
 meridian-it-lab/
