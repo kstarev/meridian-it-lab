@@ -9,6 +9,11 @@ dependencies = [
     "pyjwt[crypto]==2.15.1",
 ]
 
+[project.optional-dependencies]
+claude = [
+    "anthropic==2.6.0",
+]
+
 [tool.uv.sources]
 meridian-dataset = { workspace = true }
 
