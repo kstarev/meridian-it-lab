@@ -226,3 +226,17 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - The stub model's keyword rules were written for tuning wording, so its pipeline check may score lower on the held-out seed. That is expected and is not "fixed".
 - Every new ticket type needs wording for both pools, which is more dataset work.
 - The generated data for the held-out seed changes, so the generator version goes to 0.2.0.
+
+## ADR-014: The first held-out set is now a dev set
+
+**Date:** 2026-11-08 · **Status:** Accepted
+
+**Context:** ADR-013 gave the held-out seed (2611) its own wording. The first real-model run on it ([docs/evals/2026-11-08-ollama-llama3.2.md](evals/2026-11-08-ollama-llama3.2.md)) and a stub run showed us its failures, and the next milestone's fixes (a prompt fix, a second "own account only?" check, the choice of model) were designed with those failures in view. A score on that set would now overstate how well tier0 handles wording it has never seen.
+
+**Decision:** The current held-out wording (held-out v1, seed 2611) becomes a dev set: we may look at its results while building fixes, but they no longer count as held-out scores. Before any fix is scored, we write held-out v2 wording, and nobody looks at results on it until the final comparison. The 2026-11-08 report stays as published; it was a true held-out result when it was made. Until v2 exists, real-model runs still default to seed 2611, and reports label it as a dev set.
+
+**Consequences:**
+
+- Every held-out set gives one honest final score, then becomes a dev set once its failures have shaped a change.
+- Writing fresh wording for each scoring round is ongoing dataset work.
+- Results from different rounds come from different sets, so every report names the set it ran on.
