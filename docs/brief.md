@@ -142,7 +142,12 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 ## Delivery
 
-- **Milestone 1, walking skeleton:** one ticket type end to end: Slack → triage → Linear ticket → answer → close → trace → eval. The ticket type is "What's my username?", built on the thin slice of the dataset it needs.
+- **Milestone 1, walking skeleton (done):** one ticket type end to end: Slack → triage → Linear ticket → answer → close → trace → eval. The ticket type is "What's my username?", built on the thin slice of the dataset it needs.
+- **Milestone 2, honest real-model results (next):** fix what the first real-model run found ([2026-11-08 report](evals/2026-11-08-ollama-llama3.2.md)) without tuning on the set that will score it. In this order:
+  1. Write held-out v2 wording. Nobody looks at results on it until step 4 ([ADR-014](decisions.md)).
+  2. Fix the over-refusals in the triage prompt (own-username requests read as being about someone else), tested on tuning data only.
+  3. Add a second, independent "own account only?" check before any token is minted, so a misread attack ticket never gets a credential or a tool call.
+  4. Compare llama3.2, an 8B local model and Claude on held-out v2.
 - **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope
