@@ -211,3 +211,18 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - Without Faker we maintain our own name lists, but a library upgrade can't silently change the data.
 - In-process mocks don't exercise real HTTP. The ADR-004 contract suite and the demo workspaces cover that gap later.
 - MCP SDK v2 and the GenAI conventions are young, so upgrades can break things. Dependabot (ADR-011) proposes version bumps, and following a newer conventions version needs a new ADR.
+
+## ADR-013: Tuning and held-out messages never share wording
+
+**Date:** 2026-11-08 · **Status:** Accepted
+
+**Context:** ADR-001 says we tune on one seed and score on a held-out seed. But the seed only changed which people and templates were drawn from one shared pool of message templates, so the held-out tickets reused the exact sentences we tuned on. A score on that seed said little about wording the system had never seen.
+
+**Decision:** Message templates come in two separate pools, `tuning` and `held_out`, with different wording for every scenario. The held-out seed (2611) uses only the held-out pool; every other seed uses the tuning pool. A test proves the pools share no sentence, and that no ticket text from the tuning seeds appears in the held-out world. Nothing — code, prompts, stub rules or tests — is changed because of a held-out result: if something fails there, we explain it, propose a fix and check it on tuning data first.
+
+**Consequences:**
+
+- Held-out scores now measure wording the system was never tuned on.
+- The stub model's keyword rules were written for tuning wording, so its pipeline check may score lower on the held-out seed. That is expected and is not "fixed".
+- Every new ticket type needs wording for both pools, which is more dataset work.
+- The generated data for the held-out seed changes, so the generator version goes to 0.2.0.
