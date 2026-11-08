@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# meridian-it-lab: generated datasets, traces and eval reports.
+# Rebuild them with make; never commit them.
+out/

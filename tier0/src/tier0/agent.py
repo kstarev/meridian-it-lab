@@ -1,0 +1,438 @@
+"""The service-desk agent: Slack event in, ticket and reply out.
+
+Every safety rule is enforced here in code, never left to the model: the
+signature check, event dedupe, identity binding, the policy table, the
+self-only tool call and the output guard. Every failure path fails closed:
+the ticket goes to a person and nothing unsafe is posted.
+"""
+
+import contextlib
+import json
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import timedelta
+from typing import Any, Literal, Protocol
+
+from tier0 import messages
+from tier0.clock import Clock, parse_time
+from tier0.guard import check_reply
+from tier0.identity.binding import BoundIdentity, IdentityBinder, Unbound
+from tier0.identity.slack_signature import SignatureError, verify_slack_request
+from tier0.identity.tokens import TokenIssuer
+from tier0.mcp_server.client import McpAuthError, McpToolError, open_session
+from tier0.mocks.slack import SlackHttpRequest
+from tier0.models import CATEGORIES, OTHER, TRIAGE_SCHEMA, ModelAdapter, ModelError, ModelRequest
+from tier0.policy import (
+    POLICY,
+    TOOL_GET_MY_USERNAME,
+    PolicyRule,
+    PolicyViolation,
+    check_tool_call,
+    decide,
+)
+from tier0.tickets.adapter import (
+    AWAITING_REPLY,
+    CANCELED,
+    DONE,
+    IN_PROGRESS,
+    QUEUE_IDENTITY_VERIFICATION,
+    QUEUE_SERVICE_DESK,
+    TODO,
+    TRIAGE,
+    SlackUserRef,
+    TicketAdapter,
+    TicketRecord,
+)
+from tier0.tracing import Session, Tracer
+
+# Bot echoes (including tier0's own replies) must never open tickets, or the bot would loop.
+IGNORED_REASONS = frozenset({"wrong_installation", "not_a_user_message", "bot_user"})
+TOKEN_URL = "https://auth.tier0.meridian.example/tokens/{jti}"  # noqa: S105 - a URL, not a secret
+
+
+@dataclass(frozen=True, slots=True)
+class Outcome:
+    status: Literal["handled", "ignored", "rejected", "duplicate"]
+    reason: str | None = None
+    ticket: str | None = None
+    action: str | None = None
+    category: str | None = None
+    state: str | None = None
+    trace_id: str | None = None
+
+
+class SlackApi(Protocol):
+    def chat_post_message(
+        self, *, channel: str, text: str, thread_ts: str | None = None
+    ) -> dict[str, Any]: ...
+
+
+class _SendBlocked(Exception):
+    """The output guard blocked a message. Nothing was posted."""
+
+    def __init__(self, count: int) -> None:
+        super().__init__("blocked by the output guard")
+        self.count = count
+
+
+class _SendFailed(Exception):
+    """Slack did not accept the message."""
+
+
+class ServiceDeskAgent:
+    def __init__(
+        self,
+        *,
+        slack: SlackApi,
+        signing_secret: bytes,
+        binder: IdentityBinder,
+        tickets: TicketAdapter,
+        issuer: TokenIssuer,
+        mcp_app: Any,
+        model: ModelAdapter,
+        tracer: Tracer,
+        clock: Clock,
+        domain: str,
+        recovery_url: str,
+        policy: Mapping[str, PolicyRule] = POLICY,
+        close_after: timedelta = timedelta(days=3),
+    ) -> None:
+        self._slack = slack
+        self._secret = signing_secret
+        self._binder = binder
+        self._tickets = tickets
+        self._issuer = issuer
+        self._mcp_app = mcp_app
+        self._model = model
+        self._tracer = tracer
+        self._clock = clock
+        self._domain = domain
+        self._recovery_url = recovery_url
+        self._policy = policy
+        self._close_after = close_after
+        self._seen_event_ids: set[str] = set()
+        self._disclosed: set[str] = set()
+
+    # --- intake ---------------------------------------------------------------
+
+    async def handle(self, request: SlackHttpRequest) -> Outcome:
+        try:
+            verify_slack_request(
+                request.headers,
+                request.body,
+                signing_secret=self._secret,
+                now=self._clock.now(),
+            )
+        except SignatureError as error:
+            return Outcome("rejected", error.reason)
+
+        try:
+            payload = json.loads(request.body)
+        except ValueError:
+            return Outcome("rejected", "malformed_body")
+        if not isinstance(payload, dict):
+            return Outcome("rejected", "malformed_body")
+
+        event_id = payload.get("event_id")
+        if isinstance(event_id, str):
+            if event_id in self._seen_event_ids:
+                return Outcome("duplicate")
+            self._seen_event_ids.add(event_id)
+
+        bound = self._binder.bind(payload)
+        if isinstance(bound, Unbound) and bound.reason in IGNORED_REASONS:
+            return Outcome("ignored", bound.reason)
+
+        event = payload.get("event")
+        channel = event.get("channel") if isinstance(event, dict) else None
+        raw_text = event.get("text", "") if isinstance(event, dict) else ""
+        text = raw_text if isinstance(raw_text, str) else ""
+        user_id = bound.slack_user_id
+        team_id = bound.slack_team_id or payload.get("team_id")
+        if not (
+            isinstance(channel, str)
+            and isinstance(user_id, str)
+            and isinstance(team_id, str)
+            and channel
+            and user_id
+        ):
+            return Outcome("rejected", "malformed_event")
+        sender = SlackUserRef(team_id=team_id, user_id=user_id)
+
+        if isinstance(bound, Unbound):
+            return await self._handle_unbound(bound, channel, text, sender)
+        return await self._handle_bound(bound, channel, text, sender)
+
+    async def _handle_unbound(
+        self, unbound: Unbound, channel: str, text: str, sender: SlackUserRef
+    ) -> Outcome:
+        ticket = self._tickets.open_ticket(
+            title="Identity verification needed",
+            description=text,
+            queue=QUEUE_IDENTITY_VERIFICATION,
+            requester=sender,
+        )
+        identifier = ticket.identifier
+        try:
+            with self._tracer.session(ticket_id=identifier, kind="intake") as s:
+                s.event("tier0.identity.unbound", reason=unbound.reason)
+                try:
+                    self._send(
+                        channel,
+                        sender.user_id,
+                        messages.unverified(self._recovery_url),
+                        None,
+                    )
+                except (_SendBlocked, _SendFailed):
+                    s.event("tier0.reply.not_sent", reason="send_failed")
+                self._tickets.add_comment(
+                    identifier,
+                    f"tier0: identity not verified ({unbound.reason}); routed to identity "
+                    "verification. No account data was shared.",
+                )
+                return Outcome(
+                    "handled",
+                    unbound.reason,
+                    identifier,
+                    "verify_identity",
+                    None,
+                    TODO,
+                    s.trace_id,
+                )
+        except Exception:
+            self._best_effort_triage(identifier)
+            raise
+
+    async def _handle_bound(
+        self, bound: BoundIdentity, channel: str, text: str, sender: SlackUserRef
+    ) -> Outcome:
+        ticket = self._tickets.open_ticket(
+            title="IT request via Slack",
+            description=text,
+            queue=QUEUE_SERVICE_DESK,
+            requester=sender,
+        )
+        identifier = ticket.identifier
+        try:
+            with self._tracer.session(
+                ticket_id=identifier, kind="intake", requester_id=bound.directory_id
+            ) as s:
+                self._tickets.set_state(identifier, IN_PROGRESS)
+                category = self._triage(s, text)
+                rule = decide(category, self._policy)
+                s.event(
+                    "tier0.policy.decision",
+                    category=rule.category,
+                    tier=rule.tier,
+                    action=rule.action,
+                )
+                self._tickets.add_comment(
+                    identifier,
+                    f"tier0: triaged as {category}; policy: Tier {rule.tier}, "
+                    f"action {rule.action}.",
+                )
+                if rule.action == "refuse":
+                    action, state = self._refuse(s, identifier, channel, bound)
+                elif rule.action == "answer":
+                    action, state = await self._answer(s, identifier, channel, bound, rule)
+                else:
+                    action, state = self._escalate(s, identifier, channel, bound, "policy_escalate")
+                return Outcome("handled", None, identifier, action, category, state, s.trace_id)
+        except Exception:
+            self._best_effort_triage(identifier)
+            raise
+
+    # --- steps ----------------------------------------------------------------
+
+    def _triage(self, s: Session, text: str) -> str:
+        try:
+            response = s.chat(
+                self._model,
+                ModelRequest(
+                    task="triage",
+                    system=messages.TRIAGE_SYSTEM,
+                    user=text,
+                    json_schema=TRIAGE_SCHEMA,
+                ),
+            )
+        except ModelError:
+            return OTHER
+        if response.finish_reason == "refusal":
+            return OTHER
+        try:
+            parsed = json.loads(response.text)
+        except ValueError:
+            return OTHER
+        # Exactly the schema: one key. Extra keys such as "tier" mean the model is off-script.
+        if not isinstance(parsed, dict) or set(parsed) != {"category"}:
+            return OTHER
+        value = parsed["category"]
+        return value if isinstance(value, str) and value in CATEGORIES else OTHER
+
+    def _refuse(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity
+    ) -> tuple[str, str]:
+        try:
+            self._send(
+                channel,
+                bound.slack_user_id,
+                messages.refuse_someone_else(self._recovery_url),
+                bound.email,
+            )
+        except (_SendBlocked, _SendFailed) as error:
+            return self._send_problem(s, identifier, channel, bound, error)
+        self._tickets.add_comment(
+            identifier, "tier0: refused: the request is about someone else (ASI03)."
+        )
+        self._tickets.set_state(identifier, CANCELED)
+        return "refuse", CANCELED
+
+    def _escalate(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, code: str
+    ) -> tuple[str, str]:
+        s.event("tier0.escalated", reason=code)
+        try:
+            self._send(channel, bound.slack_user_id, messages.HANDOFF, bound.email)
+        except (_SendBlocked, _SendFailed):
+            s.event("tier0.reply.not_sent", reason="send_failed")
+        self._tickets.add_comment(identifier, f"tier0: handed to a person ({code}).")
+        self._tickets.set_state(identifier, TRIAGE)
+        return "escalate", TRIAGE
+
+    def _send_problem(
+        self,
+        s: Session,
+        identifier: str,
+        channel: str,
+        bound: BoundIdentity,
+        error: _SendBlocked | _SendFailed,
+    ) -> tuple[str, str]:
+        if isinstance(error, _SendBlocked):
+            return self._guard_blocked(s, identifier, channel, bound, error.count)
+        return self._escalate(s, identifier, channel, bound, "send_failed")
+
+    def _guard_blocked(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, count: int
+    ) -> tuple[str, str]:
+        s.event("tier0.guard.blocked", count=count)
+        try:
+            self._send(channel, bound.slack_user_id, messages.GUARD_FALLBACK, bound.email)
+        except (_SendBlocked, _SendFailed):
+            s.event("tier0.reply.not_sent", reason="send_failed")
+        self._tickets.add_comment(
+            identifier, "tier0: reply blocked by the output guard; handed to a person."
+        )
+        self._tickets.set_state(identifier, TRIAGE)
+        return "escalate", TRIAGE
+
+    async def _answer(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, rule: PolicyRule
+    ) -> tuple[str, str]:
+        try:
+            check_tool_call(rule, TOOL_GET_MY_USERNAME)
+        except PolicyViolation:
+            return self._escalate(s, identifier, channel, bound, "policy_violation")
+
+        issued = self._issuer.mint(bound, ticket_id=identifier, scopes=rule.scopes)
+        # The JWT ID only, never the token itself.
+        self._tickets.add_link(
+            identifier,
+            title=f"Access token {issued.jti}",
+            url=TOKEN_URL.format(jti=issued.jti),
+        )
+
+        result: dict[str, Any] | None = None
+        try:
+            with s.tool(TOOL_GET_MY_USERNAME, call_id=f"{identifier}-1"):
+                async with open_session(self._mcp_app, issued.token) as mcp:
+                    result = await mcp.call_tool(TOOL_GET_MY_USERNAME)
+        except (McpAuthError, McpToolError):
+            return self._escalate(s, identifier, channel, bound, "tool_failed")
+        username = result.get("username") if isinstance(result, dict) else None
+        if not isinstance(username, str) or not username:
+            return self._escalate(s, identifier, channel, bound, "tool_failed")
+
+        body = self._compose_reply(s, username)
+        try:
+            self._send(channel, bound.slack_user_id, body, bound.email)
+        except _SendBlocked as error:
+            return self._guard_blocked(s, identifier, channel, bound, error.count)
+        except _SendFailed:
+            return self._escalate(s, identifier, channel, bound, "send_failed")
+        self._tickets.add_comment(
+            identifier,
+            "tier0: answered with the requester's own username from the directory "
+            "(self-only lookup).",
+        )
+        self._tickets.set_state(identifier, AWAITING_REPLY)
+        return "answer", AWAITING_REPLY
+
+    def _compose_reply(self, s: Session, username: str) -> str:
+        """Ask the model for friendly wording; fall back to the fixed template."""
+        try:
+            response = s.chat(
+                self._model,
+                ModelRequest(
+                    task="reply",
+                    system=messages.REPLY_SYSTEM,
+                    user=messages.reply_prompt(username),
+                    facts={"username": username},
+                ),
+            )
+        except ModelError:
+            return messages.username_answer(username)
+        text = response.text
+        if response.finish_reason == "refusal" or not text.strip() or username not in text:
+            return messages.username_answer(username)
+        return text
+
+    # --- sending --------------------------------------------------------------
+
+    def _send(self, channel: str, user_id: str, body: str, requester_email: str | None) -> None:
+        """Post one message, guarded. The guard runs on every message, ours included."""
+        first = user_id not in self._disclosed
+        full_text = messages.with_disclosure(body) if first else body
+        verdict = check_reply(full_text, requester_email=requester_email, domain=self._domain)
+        if not verdict.allowed:
+            raise _SendBlocked(len(verdict.blocked))
+        response = self._slack.chat_post_message(channel=channel, text=full_text)
+        if not response.get("ok"):
+            raise _SendFailed
+        self._disclosed.add(user_id)
+
+    def _best_effort_triage(self, identifier: str) -> None:
+        # The caller re-raises the original error, so a failure here is not reported.
+        with contextlib.suppress(Exception):
+            self._tickets.set_state(identifier, TRIAGE)
+
+    # --- sweep ----------------------------------------------------------------
+
+    def sweep(self) -> tuple[Outcome, ...]:
+        """Close tickets that have waited for a reply for `close_after`."""
+        outcomes: list[Outcome] = []
+        for ticket in self._tickets.find_tickets(state=AWAITING_REPLY):
+            if self._should_close(ticket):
+                with self._tracer.session(ticket_id=ticket.identifier, kind="sweep") as s:
+                    self._tickets.add_comment(
+                        ticket.identifier, "tier0: closed after 3 days with no reply."
+                    )
+                    self._tickets.set_state(ticket.identifier, DONE)
+                    s.event("tier0.ticket.closed", reason="no_reply_3_days")
+                    outcomes.append(
+                        Outcome(
+                            "handled",
+                            ticket=ticket.identifier,
+                            action="close",
+                            state=DONE,
+                            trace_id=s.trace_id,
+                        )
+                    )
+        return tuple(outcomes)
+
+    def _should_close(self, ticket: TicketRecord) -> bool:
+        changed = parse_time(ticket.state_changed_at)
+        if self._clock.now() - changed < self._close_after:
+            return False
+        return not any(
+            c.author != "tier0" and parse_time(c.created_at) >= changed for c in ticket.comments
+        )
