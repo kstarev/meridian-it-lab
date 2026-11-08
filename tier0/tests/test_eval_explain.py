@@ -181,3 +181,12 @@ def test_generated_by_line_uses_the_cli_option() -> None:
     assert model_option(StubModel.provider) == "stub"
     assert model_option("anthropic") == "claude"
     assert model_option("ollama") == "ollama"
+
+
+def test_footer_describes_where_the_numbers_come_from() -> None:
+    world = generate(DEFAULT_SEED)
+    real = build_report(world, (), seed=1, k=1, provider="ollama", model="llama3.2")
+    stub = build_report(world, (), seed=1, k=1, provider=StubModel.provider, model="s")
+    assert "as reported by ollama" in render_markdown(real)
+    assert "stub model are estimates" not in render_markdown(real)
+    assert "stub model are estimates" in render_markdown(stub)

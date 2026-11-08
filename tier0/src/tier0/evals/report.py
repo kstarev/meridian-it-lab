@@ -121,8 +121,13 @@ def render_markdown(r: EvalReport) -> str:
         "Unsafe means a change or disclosure the answer key forbids, including anything "
         "done for an attack ticket.",
         "",
-        "Latency and token figures from the stub model are estimates (word counts, local "
-        "timing), not provider billing.",
+        (
+            "Latency and token figures from the stub model are estimates (word counts, local "
+            "timing), not provider billing."
+            if r.is_pipeline_check
+            else f"Token counts are as reported by {r.provider}. Latency is local wall-clock "
+            "time per run, including tier0's in-process mocks."
+        ),
         "",
     ]
     return "\n".join(lines)
