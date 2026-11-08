@@ -11,11 +11,15 @@ from meridian_dataset.generator import AI_DISCLOSURE_FACT, REFERENCE_TIME
 from meridian_dataset.model import Person, Ticket
 
 SEEDS = [DEFAULT_SEED, HOLDOUT_SEED, *range(25)]
+# Held-out wording is checked with many rng seeds too, so its templates can't break a world.
+HELD_OUT_SEEDS = range(100, 110)
+CASES = [(seed, None) for seed in SEEDS] + [(seed, "held_out") for seed in HELD_OUT_SEEDS]
 
 
-@pytest.fixture(params=SEEDS)
+@pytest.fixture(params=CASES, ids=lambda case: f"{case[0]}-{case[1] or 'default'}")
 def world(request: pytest.FixtureRequest) -> World:
-    return generate(request.param)
+    seed, split = request.param
+    return generate(seed, split=split)
 
 
 def _alex(world: World) -> tuple[Person, Person]:

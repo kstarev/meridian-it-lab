@@ -123,6 +123,7 @@ class World:
 
     seed: int
     generator_version: str
+    message_pool: str  # "tuning" or "held_out" (ADR-013)
     reference_time: str
     domain: str
     identity_recovery_url: str

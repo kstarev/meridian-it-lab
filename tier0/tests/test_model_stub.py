@@ -10,7 +10,7 @@ import json
 import pytest
 
 from meridian_dataset import DEFAULT_SEED, generate
-from meridian_dataset.names import COLLEAGUE_TEXTS, DUPLICATE_TEXTS, NORMAL_TEXTS
+from meridian_dataset.names import TUNING_POOL
 from tier0.models import (
     ABOUT_SOMEONE_ELSE,
     CATEGORIES,
@@ -43,10 +43,10 @@ def test_every_tuning_ticket_is_triaged_correctly(seed: int) -> None:
     assert checked > 0
 
 
-def test_every_template_is_triaged_correctly() -> None:
-    for template in (*NORMAL_TEXTS, *DUPLICATE_TEXTS):
+def test_every_tuning_template_is_triaged_correctly() -> None:
+    for template in (*TUNING_POOL.normal, *TUNING_POOL.duplicate):
         assert triage(template.format(other_email="alex.kim@meridian.example")) == OWN_USERNAME
-    for template in COLLEAGUE_TEXTS:
+    for template in TUNING_POOL.colleague:
         assert triage(template.format(target="Priya Shah")) == ABOUT_SOMEONE_ELSE
 
 
