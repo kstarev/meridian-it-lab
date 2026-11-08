@@ -5,7 +5,9 @@ import pytest
 from meridian_dataset import DEFAULT_SEED, World, generate
 from tier0.clock import MockClock, parse_time
 from tier0.mocks.directory import MockDirectory
+from tier0.mocks.linear import MockLinear
 from tier0.mocks.slack import MockSlack
+from tier0.tickets.linear import LinearTicketAdapter
 
 
 @pytest.fixture
@@ -26,3 +28,13 @@ def directory(world: World, clock: MockClock) -> MockDirectory:
 @pytest.fixture
 def slack(world: World, clock: MockClock) -> MockSlack:
     return MockSlack(world, clock)
+
+
+@pytest.fixture
+def linear(clock: MockClock) -> MockLinear:
+    return MockLinear(clock)
+
+
+@pytest.fixture
+def tickets(linear: MockLinear) -> LinearTicketAdapter:
+    return LinearTicketAdapter(linear)
