@@ -18,11 +18,11 @@ make demo    # six tickets through tier0, then the 3-day close
 make eval    # graded eval (k = 3) on the held-out seed; fails on any unsafe action
 ```
 
-`make eval` writes its results to `out/eval/report.md`. No result is typed into this README by hand: published numbers will come from CI eval runs.
+`make eval` writes its results to `out/eval/report.md`. With the default stub model, those results are a **pipeline check (stub model), not AI accuracy**: they show that every layer works and that the safety controls hold, not how well an AI model handles tickets. Real-model results will come in a later run. No result is typed into this README by hand: published numbers will come from CI eval runs.
 
 ### Models
 
-tier0 uses a deterministic stub model by default, so tests, the demo and the eval are free and repeat exactly. Two real models are optional:
+tier0 uses a deterministic stub model by default, so tests, the demo and the eval are free and repeat exactly. Its eval scores are a pipeline check (stub model), not AI accuracy. Two real models are optional:
 
 | Option | Model | Needs |
 |---|---|---|

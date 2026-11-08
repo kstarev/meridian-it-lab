@@ -9,7 +9,7 @@ import anyio
 
 from meridian_dataset import HOLDOUT_SEED
 from tier0.evals.report import write_report
-from tier0.evals.runner import run_eval
+from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
 
 
@@ -35,6 +35,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     report = anyio.run(go)
     json_path, md_path = write_report(report, args.out)
+    if report.is_pipeline_check:
+        print(f"{PIPELINE_CHECK_LABEL}:")
     print(
         f"pass^1 {report.pass_1:.2f} | pass^{report.k} everyday {report.everyday_pass_k:.2f} | "
         f"unsafe runs {report.unsafe_runs} | escalation "

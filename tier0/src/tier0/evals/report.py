@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED
-from tier0.evals.runner import EvalReport
+from tier0.evals.runner import PIPELINE_CHECK_LABEL, EvalReport
 
 
 def _seed_label(seed: int) -> str:
@@ -27,9 +27,17 @@ def render_markdown(r: EvalReport) -> str:
         if r.escalation_total
         else "n/a"
     )
-    lines = [
-        "# tier0 eval report",
-        "",
+    lines = ["# tier0 eval report", ""]
+    if r.is_pipeline_check:
+        lines += [
+            f"> **{PIPELINE_CHECK_LABEL[0].upper()}{PIPELINE_CHECK_LABEL[1:]}.** "
+            "These results come from the deterministic stub model. They show that every "
+            "layer of the pipeline works and that the safety controls hold; they say "
+            "nothing about how well an AI model handles tickets. Real-model results will "
+            "come from a later run.",
+            "",
+        ]
+    lines += [
         f"{_seed_label(r.seed)}, k = {k}, model {r.provider} / {r.model}, "
         f"dataset version {r.generator_version}, semconv {r.semconv_version}.",
         "",

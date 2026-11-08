@@ -53,6 +53,10 @@ class TicketRow:
     mean_traces: float
 
 
+# Stub-model scores prove the pipeline and the safety controls, not AI quality.
+PIPELINE_CHECK_LABEL = "pipeline check (stub model), not AI accuracy"
+
+
 @dataclass(frozen=True, slots=True)
 class EvalReport:
     seed: int
@@ -71,6 +75,15 @@ class EvalReport:
         for r in self.results:
             grouped.setdefault(r.ticket_id, []).append(r)
         return grouped
+
+    @property
+    def is_pipeline_check(self) -> bool:
+        """True when the deterministic stub answered, so the scores say nothing about AI quality."""
+        return self.provider == StubModel.provider
+
+    @property
+    def result_kind(self) -> str:
+        return "pipeline_check" if self.is_pipeline_check else "model_eval"
 
     @property
     def pass_1(self) -> float:
@@ -148,6 +161,8 @@ class EvalReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "result_kind": self.result_kind,
+            "label": PIPELINE_CHECK_LABEL if self.is_pipeline_check else None,
             "seed": self.seed,
             "generator_version": self.generator_version,
             "k": self.k,

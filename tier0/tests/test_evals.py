@@ -1,6 +1,7 @@
 """The eval: grading, metrics, and the end-to-end run against the offline mocks."""
 
 import dataclasses
+import json
 from pathlib import Path
 
 import anyio
@@ -11,7 +12,7 @@ from meridian_dataset.model import AnswerKeyEntry
 from tier0.evals import __main__ as cli
 from tier0.evals.grading import Grade, Observation, grade
 from tier0.evals.report import write_report
-from tier0.evals.runner import RunResult, build_report, run_eval
+from tier0.evals.runner import PIPELINE_CHECK_LABEL, RunResult, build_report, run_eval
 from tier0.models import ModelRequest, ModelResponse, StubModel
 from tier0.tickets.adapter import DONE, QUEUE_SERVICE_DESK, TRIAGE
 
@@ -185,3 +186,29 @@ def test_cli_default_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert cli.main(["--seed", str(DEFAULT_SEED), "--k", "1", "--out", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert str(tmp_path / "report.md") in out and (tmp_path / "report.json").exists()
+
+
+# --- labelling ----------------------------------------------------------------------
+
+
+def test_stub_results_are_labelled_as_a_pipeline_check(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["--seed", str(DEFAULT_SEED), "--k", "1", "--out", str(tmp_path)]) == 0
+    assert PIPELINE_CHECK_LABEL in capsys.readouterr().out
+    md = (tmp_path / "report.md").read_text()
+    # At the top: the first line after the title.
+    assert md.splitlines()[2].lower().startswith(f"> **{PIPELINE_CHECK_LABEL.lower()}")
+    data = json.loads((tmp_path / "report.json").read_text())
+    assert data["result_kind"] == "pipeline_check" and data["label"] == PIPELINE_CHECK_LABEL
+
+
+def test_real_model_results_are_not_labelled_as_a_pipeline_check(tmp_path: Path) -> None:
+    world = generate(DEFAULT_SEED)
+    rep = build_report(
+        world, (_result("TKT-001", 1, True),), seed=1, k=1, provider="anthropic", model="m"
+    )
+    assert not rep.is_pipeline_check and rep.result_kind == "model_eval"
+    json_path, md_path = write_report(rep, tmp_path)
+    assert PIPELINE_CHECK_LABEL not in md_path.read_text()
+    assert json.loads(json_path.read_text())["label"] is None
