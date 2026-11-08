@@ -1,10 +1,15 @@
-"""The stub must classify every dataset ticket correctly and be fully deterministic."""
+"""The stub must classify every tuning-set ticket correctly and be fully deterministic.
+
+Only tuning wording is checked here. The stub's keyword rules were written for that
+wording, and checking them against held-out wording would be tuning on the held-out
+set (ADR-013).
+"""
 
 import json
 
 import pytest
 
-from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
+from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.names import COLLEAGUE_TEXTS, DUPLICATE_TEXTS, NORMAL_TEXTS
 from tier0.models import (
     ABOUT_SOMEONE_ELSE,
@@ -21,8 +26,8 @@ def triage(text: str) -> str:
     return json.loads(response.text)["category"]
 
 
-@pytest.mark.parametrize("seed", [DEFAULT_SEED, HOLDOUT_SEED])
-def test_every_dataset_ticket_is_triaged_correctly(seed: int) -> None:
+@pytest.mark.parametrize("seed", [DEFAULT_SEED, 1, 2, 3])
+def test_every_tuning_ticket_is_triaged_correctly(seed: int) -> None:
     world = generate(seed)
     expected = {
         "normal": OWN_USERNAME,
