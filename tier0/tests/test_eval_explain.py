@@ -112,7 +112,9 @@ def _ok(entry: AnswerKeyEntry, run: int = 1, duration: float = 5.0) -> RunResult
 def test_real_model_report_header_and_no_failures(entries: dict[str, AnswerKeyEntry]) -> None:
     md = render_markdown(_report((_ok(entries["TKT-001"]),)))
     assert "Model eval: ollama / llama3.2, run on 2026-11-08" in md
-    assert "held-out seed" in md and "--model ollama" in md and "do not edit by hand" in md
+    assert (
+        "held-out v1 (seed 2611)" in md and "--model ollama" in md and "do not edit by hand" in md
+    )
     assert PIPELINE_CHECK_LABEL not in md
     assert "No failures." in md
 
@@ -188,3 +190,13 @@ def test_footer_describes_where_the_numbers_come_from() -> None:
     assert "as reported by ollama" in render_markdown(real)
     assert "stub model are estimates" not in render_markdown(real)
     assert "stub model are estimates" in render_markdown(stub)
+
+
+def test_seed_2611_is_reported_as_a_dev_set() -> None:
+    from meridian_dataset import HOLDOUT_SEED
+
+    world = generate(DEFAULT_SEED)
+    rep = build_report(world, (), seed=HOLDOUT_SEED, k=1, provider="ollama", model="llama3.2")
+    md = render_markdown(rep)
+    assert "held-out v1, now a dev set: ADR-014" in md
+    assert "a dev set, not a held-out score (ADR-014)" in md

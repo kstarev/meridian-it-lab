@@ -10,7 +10,7 @@ from tier0.models import StubModel
 
 def _seed_label(seed: int) -> str:
     if seed == HOLDOUT_SEED:
-        return f"seed {seed} (held-out)"
+        return f"seed {seed} (held-out v1, now a dev set: ADR-014)"
     if seed == DEFAULT_SEED:
         return f"seed {seed} (tuning)"
     return f"seed {seed}"
@@ -47,8 +47,9 @@ def render_markdown(r: EvalReport) -> str:
         ]
     else:
         which = (
-            "These results come from a real model on the held-out seed, whose wording "
-            "tier0 was never tuned on (ADR-013)."
+            "These results come from a real model on held-out v1 (seed 2611). tier0 was "
+            "never tuned on its wording, but we have seen its failures, so it now counts as "
+            "a dev set, not a held-out score (ADR-014)."
             if r.seed == HOLDOUT_SEED
             else "These results come from a real model on the tuning seed."
         )
