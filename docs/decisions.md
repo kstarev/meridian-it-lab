@@ -154,3 +154,35 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - An ASI03 attack eval (asking for a colleague's username) is in place from day one.
 - It produces the first real numbers for the README and site.
 - ADR-001 still holds: work starts with the dataset, but only the slice the skeleton needs, and the generator grows ticket type by ticket type.
+
+## ADR-010: Memory as a reviewed Git repo
+
+**Date:** 2026-11-08 · **Status:** Accepted
+
+**Context:** Long-term memory is the main target for memory poisoning (ASI06): whatever gets in shapes every later answer. A store the agent writes to directly has no review step and a weak history.
+
+**Decision:** tier0's memory (learned runbooks, KB articles, resolved-ticket patterns) lives in a separate repo, meridian-memory, public for the portfolio with fake data only. The answering agent reads it read-only from a pinned commit; only the learning loop's GitHub App can open PRs. A ruleset on main requires a PR, code-owner review by the repo owner, signed commits and passing checks, with no bypass. Secret scanning and push protection are on. Entries carry provenance and a SHA-256 hash, CI scans every PR, retrieval code drops unverified, expired or tampered entries, and entries expire after 90 days unless re-verified. Evals use a local Git stand-in with the same checks. OWASP Agent Memory Guard is evaluated against the ASI06 attack set and adopted only if it catches attacks our checks miss without blocking clean entries; the outcome gets its own ADR.
+
+**Consequences:**
+
+- Every memory change has a reviewer, a diff and a revert path, so poisoning becomes a code-review problem that evals can test: 0 poisoned entries merged.
+- GitHub never lets a PR author approve their own PR, so every change, including the owner's, is a PR opened by the bot.
+- Because the repo is public, anyone can open a PR from a fork. A required check fails any PR the bot didn't open, so outside PRs are scanned and visible but never merged, and reviewers can see blocked poisoning attempts.
+- The GitHub App's tokens expire within an hour (ADR-002), and its API commits are signed by GitHub.
+- Git isn't a search index, so retrieval needs an index built from a pinned commit.
+- A real company would keep memory private instead: private repos in an organisation with GitHub Secret Protection and Code Security.
+
+## ADR-011: Security baseline
+
+**Date:** 2026-11-08 · **Status:** Accepted
+
+**Context:** tier0 is an agent with tools and credentials, and its supply chain (actions, dependencies, the MCP server) is part of the attack surface (ASI04, LLM03). Controls are only credible if each one traces to a framework item and a check.
+
+**Decision:** `docs/security.md` maps tier0's controls to the OWASP Top 10 for Agentic Applications 2026, the OWASP Top 10 for LLM Applications 2025, NIST SSDF (SP 800-218 and 800-218A) and the OWASP secure MCP server guide. CI runs CodeQL, Dependabot, gitleaks and an SBOM per release. Actions are pinned to commit SHAs and checked by zizmor. Workflow tokens are read-only by default, with per-job grants.
+
+**Consequences:**
+
+- Every control traces to a framework item and an automated check.
+- With both repos public, CodeQL, secret scanning and push protection cost nothing.
+- Pinned SHAs go stale, so Dependabot opens PRs to update them.
+- Each PR takes longer in CI.

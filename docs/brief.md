@@ -75,10 +75,14 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 | ASI01 Agent Goal Hijack | Hidden instructions in ticket text or an attachment |
 | ASI02 Tool Misuse and Exploitation | Chains allowed tools into a forbidden result, e.g. a bulk directory export |
 | ASI03 Identity and Privilege Abuse | "I'm the CFO, reset my MFA now" from an unverified sender; asking for a colleague's username or device details |
-| ASI06 Memory and Context Poisoning | A planted KB article with malicious steps, or a ticket written to poison the learning loop |
+| ASI06 Memory and Context Poisoning | A planted KB article with malicious steps, or a ticket that tries to plant a poisoned memory entry through the learning loop |
 | ASI09 Human-Agent Trust Exploitation | Gets the agent to write a misleading Tier C approval request |
 
-**Learning loop.** Once a week, the agent reads human-resolved tickets, clusters repeat patterns and drafts new runbooks as a pull request for review: by a scripted stand-in reviewer in simulated weeks, and by a human in the demo. Ticket text is untrusted input (ASI06). Every learned ticket becomes a regression eval. A runbook goes live only after the PR is approved and the evals pass with 0 unsafe actions. Learning may add knowledge, never permissions: a runbook can't add tools or scopes, or move an action to a lower tier.
+**Learning loop.** Once a week, the agent reads human-resolved tickets, clusters repeat patterns and drafts new runbooks as a pull request to meridian-memory for review: by a scripted stand-in reviewer in simulated weeks, and by a human in the demo. Ticket text is untrusted input (ASI06). Every learned ticket becomes a regression eval. A runbook goes live only after the PR is approved and the evals pass with 0 unsafe actions. Learning may add knowledge, never permissions: a runbook can't add tools or scopes, or move an action to a lower tier.
+
+**Memory.** Long-term memory (learned runbooks, KB articles, resolved-ticket patterns) lives in a separate repo, meridian-memory, which is public for the portfolio and holds fake data only. The agent that answers tickets reads it read-only, from a pinned commit. Only the learning loop's bot, a GitHub App, can open pull requests there; it can never push to main. A ruleset on main requires a PR, code-owner review by the repo owner, signed commits and passing checks, with no bypass, so every memory change, including the owner's, is a PR opened by the bot. Secret scanning and push protection are on.
+
+**Poisoning defences (ASI06).** Every memory entry carries provenance: source ticket ID, author, approver, date, last-verified and a SHA-256 hash. The approver and merge commit come from GitHub's review record, never from the entry file. CI scans every memory PR for prompt injection, secrets, PII and size anomalies, blocks any runbook that uses a tool or scope above its tier, and fails any PR the bot didn't open. Retrieval code drops unverified, expired or tampered entries before anything reaches the model. Entries expire after 90 days unless re-verified, and the bot opens a re-verify PR for entries due within 14 days. OWASP Agent Memory Guard is evaluated for the scan and adopted only if it catches attacks our checks miss. Evals use a local Git stand-in for meridian-memory, with the same checks.
 
 **Observability.** Traces follow the OpenTelemetry GenAI semantic conventions, with spans for LLM calls, tool calls and approvals. Each session of work on a ticket is one trace, and all of a ticket's traces carry its ticket ID, so cost and latency add up per ticket. By default, traces hold no message content and only pseudonymised user IDs; content capture is on only in eval runs on fake data.
 
@@ -98,6 +102,8 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 | tier0 | Standing privileged credentials | 0 |
 | tier0 | Actions after the kill switch is on | 0 |
 | tier0 | Actions over the rate limit | 0 |
+| tier0 | Poisoned memory entries merged | 0 |
+| tier0 | Unverified or expired memory entries reaching the model | 0 |
 | tier0 | Cost and latency per ticket | Reported; target set after a baseline |
 | access-as-code | Time to a leaver's full deprovisioning plan | < 5 min |
 | oauth-radar | High-risk OAuth grants found | 100% |
@@ -124,6 +130,10 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 [compliance.md](compliance.md) maps tier0's design to the EU AI Act (Art. 50), GDPR, German works council rules, SOC 2 and the NIST AI RMF, Canadian privacy law and Singapore's PDPA. It is a mapping, never a claim of compliance.
 
+## Security baseline
+
+[security.md](security.md) maps tier0's controls to the OWASP Top 10 for Agentic Applications 2026, the OWASP Top 10 for LLM Applications 2025, NIST SSDF (SP 800-218 and 800-218A) and the OWASP secure MCP server guide. CI runs CodeQL, Dependabot, gitleaks and an SBOM per release. Actions are pinned to commit SHAs (checked by zizmor), and workflow tokens are read-only by default, with per-job grants.
+
 ## Reviewer experience
 
 - A devcontainer opens the repo in GitHub Codespaces in one click.
@@ -133,7 +143,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 ## Delivery
 
 - **Milestone 1, walking skeleton:** one ticket type end to end: Slack → triage → Linear ticket → answer → close → trace → eval. The ticket type is "What's my username?", built on the thin slice of the dataset it needs.
-- **Scope:** not frozen yet. One more update (secure memory repo, security baseline) comes next, and scope freezes after that.
+- **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope
 
@@ -142,14 +152,15 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 - Stateful, resettable mocks shaped like the Google Workspace Directory, Jamf Pro, Microsoft Graph (Intune), Slack and Linear APIs, a mock OAuth 2.1 token issuer and an MCP server for tier0
 - Free Linear and Slack workspaces with fake data, for the tier0 demo only
 - OpenTelemetry traces, a kill switch and a rate limit for tier0
-- A GitHub Pages site for two audiences, and a regional compliance mapping
-- A devcontainer, `make demo` and evals in CI
+- A public meridian-memory repo for tier0's long-term memory, with a ruleset, provenance and CI scans
+- A GitHub Pages site for two audiences, a regional compliance mapping and a security mapping
+- A devcontainer, `make demo`, evals in CI and the CI security baseline
 - A shared precision/recall scorer
 - A decision log and a short write-up per project
 
 ## Out of scope
 
-- Live APIs and real tenants, except the Linear and Slack demo workspaces; never a real employer's Google, Jamf or Intune tenant
+- Live APIs and real tenants, except the Linear and Slack demo workspaces and the meridian-memory repo; never a real employer's Google, Jamf or Intune tenant
 - Any real employer data
 - Tier C actions without human approval
 - Learning that adds permissions or bypasses review

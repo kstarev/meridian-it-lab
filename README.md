@@ -12,7 +12,7 @@ Folders are listed in build order. Each folder is created when its phase starts.
 
 ```
 meridian-it-lab/
-├── docs/             brief.md, decisions.md, compliance.md
+├── docs/             brief.md, decisions.md, compliance.md, security.md
 ├── dataset/          1. seeded generator: people, devices, apps, access, OAuth grants,
 │                        tickets + planted problems + answer key + shared scorer
 ├── tier0/            2. AI service desk agent: answers, triages and acts through
@@ -22,8 +22,11 @@ meridian-it-lab/
 └── evidence/         5. generate SOC 2 / ISO 27001 evidence from the data
 ```
 
+tier0's long-term memory lives in a separate public repo, meridian-memory, where every change is a reviewed pull request ([ADR-010](docs/decisions.md)).
+
 ## Docs
 
 - [Brief](docs/brief.md): problem, fact sheet, top tickets, metrics, scope
 - [Decisions](docs/decisions.md): decision log
 - [Compliance mapping](docs/compliance.md): regional rules mapped to tier0's design (a mapping, not a claim of compliance)
+- [Security mapping](docs/security.md): controls mapped to OWASP, NIST SSDF and the OWASP MCP guide, plus the CI baseline
