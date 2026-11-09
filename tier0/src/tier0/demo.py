@@ -16,6 +16,7 @@ from meridian_dataset import DEFAULT_SEED, World, generate
 from tier0.clock import parse_time
 from tier0.models import build_model
 from tier0.runtime import offline_runtime
+from tier0.sealed import SealedSetError, require_unsealed
 from tier0.tracing import Tracer, summarize
 
 
@@ -130,6 +131,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"WARNING: --model {args.model} may call a paid or local model.", file=sys.stderr)
 
     world = generate(args.seed)
+    try:
+        require_unsealed(world)  # the demo never unseals held-out v2 (ADR-015)
+    except SealedSetError as error:
+        print(f"refused: {error}", file=sys.stderr)
+        return 2
     anyio.run(_run, world, args.model, args.out)
     return 0
 

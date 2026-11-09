@@ -11,12 +11,13 @@ from pathlib import Path
 
 import anyio
 
-from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED
+from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.netguard import is_loopback_url, loopback_only
+from tier0.sealed import SealedSetError, require_unsealed
 
 
 def today() -> date:
@@ -45,9 +46,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--model", choices=("stub", "claude", "ollama"), default="stub")
     parser.add_argument("--out", type=Path, default=Path("out/eval"))
     parser.add_argument("--publish", type=Path, default=None, metavar="DIR")
+    parser.add_argument(
+        "--final-comparison",
+        action="store_true",
+        help="unseal held-out v2 for milestone 2's final comparison (ADR-015)",
+    )
     args = parser.parse_args(argv)
     if args.seed is None:
         args.seed = default_seed(args.model)
+
+    try:
+        require_unsealed(generate(args.seed), final_comparison=args.final_comparison)
+    except SealedSetError as error:
+        print(f"refused: {error}", file=sys.stderr)
+        return 2
 
     if args.publish is not None and args.model == "stub":
         print("not published: stub-model results are a pipeline check", file=sys.stderr)
@@ -69,6 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             model_factory=_model_factory(args.model),
             out_dir=args.out,
             today=today,
+            final_comparison=args.final_comparison,
         )
 
     # Stub and Ollama runs must never leave this machine; only a Claude run needs the internet.

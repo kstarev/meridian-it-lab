@@ -20,6 +20,7 @@ from tier0.mocks.directory import MockDirectory
 from tier0.mocks.linear import MockLinear
 from tier0.mocks.slack import APP_ID, MockSlack
 from tier0.models import ModelAdapter, StubModel
+from tier0.sealed import require_unsealed
 from tier0.tickets.linear import LinearTicketAdapter
 from tier0.tracing import Tracer
 
@@ -47,9 +48,14 @@ async def offline_runtime(
     model: ModelAdapter | None = None,
     clock: MockClock | None = None,
     tracer: Tracer | None = None,
+    final_comparison: bool = False,
     **agent_options: Any,
 ) -> AsyncIterator[Runtime]:
-    """Build the whole agent against the mocks. `agent_options` go to ServiceDeskAgent."""
+    """Build the whole agent against the mocks. `agent_options` go to ServiceDeskAgent.
+
+    Refuses a sealed world (held-out v2) unless this is the final comparison (ADR-015).
+    """
+    require_unsealed(world, final_comparison=final_comparison)
     clock = clock if clock is not None else MockClock(parse_time(world.reference_time))
     tracer = tracer if tracer is not None else Tracer()
     model = model if model is not None else StubModel()

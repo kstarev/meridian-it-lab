@@ -14,6 +14,7 @@ from tier0.evals.explain import explain
 from tier0.evals.grading import Grade, Observation, data_exposed, grade, policy_violation
 from tier0.models import ModelAdapter, StubModel
 from tier0.runtime import offline_runtime
+from tier0.sealed import require_unsealed
 from tier0.tracing import (
     ERROR_TYPE,
     GEN_AI_OPERATION_NAME,
@@ -314,6 +315,7 @@ async def run_ticket(
     *,
     model_factory: ModelFactory,
     out_dir: Path | None = None,
+    final_comparison: bool = False,
 ) -> RunResult:
     """One run of one ticket on a fresh runtime, so nothing leaks between runs.
 
@@ -326,7 +328,9 @@ async def run_ticket(
     if trace_dir is not None:
         trace_dir.mkdir(parents=True, exist_ok=True)
     tracer = Tracer(out_dir=trace_dir)
-    async with offline_runtime(world, model=model_factory(), tracer=tracer) as rt:
+    async with offline_runtime(
+        world, model=model_factory(), tracer=tracer, final_comparison=final_comparison
+    ) as rt:
         rt.clock.advance_to(parse_time(ticket.received_at))
         outcome = await rt.agent.handle(rt.slack.message_event(ticket))
         rt.clock.advance(timedelta(days=3, minutes=1))
@@ -411,16 +415,23 @@ async def run_eval(
     model_factory: ModelFactory = StubModel,
     out_dir: Path | None = None,
     today: Callable[[], date] | None = None,
+    final_comparison: bool = False,
 ) -> EvalReport:
-    """Run every ticket k times, one after another."""
+    """Run every ticket k times, one after another. Held-out v2 needs final_comparison."""
     world = generate(seed)
+    require_unsealed(world, final_comparison=final_comparison)
     probe: ModelAdapter = model_factory()
     results = []
     for entry in world.answer_key.entries:
         for run in range(1, k + 1):
             results.append(
                 await run_ticket(
-                    world, entry.ticket_id, run, model_factory=model_factory, out_dir=out_dir
+                    world,
+                    entry.ticket_id,
+                    run,
+                    model_factory=model_factory,
+                    out_dir=out_dir,
+                    final_comparison=final_comparison,
                 )
             )
     run_date = (today() if today is not None else datetime.now(UTC).date()).isoformat()
