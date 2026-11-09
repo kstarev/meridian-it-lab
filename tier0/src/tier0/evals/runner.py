@@ -1,5 +1,6 @@
 """Run the eval: every ticket k times, each on a fresh runtime (ADR-003)."""
 
+import hashlib
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from typing import Any
 
 from meridian_dataset import GENERATOR_VERSION, World, generate
 from meridian_dataset.model import AnswerKeyEntry
+from tier0 import messages
 from tier0.clock import parse_time
 from tier0.evals.explain import explain
 from tier0.evals.grading import Grade, Observation, data_exposed, grade, policy_violation
@@ -90,6 +92,8 @@ class EvalReport:
     model_seed_base: int | None = None
     # Ollama version and model digest (or {"error": ...}); empty for stub and Claude.
     provenance: dict[str, str] = field(default_factory=dict)
+    # SHA-256 of the triage prompt in force when the eval ran (frozen, ADR-021).
+    triage_prompt_sha256: str = ""
 
     def explanation(self, run: RunResult) -> str | None:
         """Plain-English reason a run failed; None when it passed (or no key is known)."""
@@ -229,6 +233,7 @@ class EvalReport:
             "model_seeds": list(self.model_seeds),
             "model_seed_base": self.model_seed_base,
             "provenance": dict(self.provenance),
+            "triage_prompt_sha256": self.triage_prompt_sha256,
             "semconv_version": self.semconv_version,
             "pass_1": self.pass_1,
             "pass_k": self.pass_k,
@@ -304,6 +309,7 @@ def build_report(
     model_seeds: tuple[int, ...] = (),
     model_seed_base: int | None = None,
     provenance: dict[str, str] | None = None,
+    triage_prompt_sha256: str | None = None,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -324,6 +330,11 @@ def build_report(
         model_seeds=model_seeds,
         model_seed_base=model_seed_base,
         provenance=dict(provenance or {}),
+        triage_prompt_sha256=(
+            triage_prompt_sha256
+            if triage_prompt_sha256 is not None
+            else hashlib.sha256(messages.TRIAGE_SYSTEM.encode("utf-8")).hexdigest()
+        ),
     )
 
 

@@ -1,11 +1,14 @@
 """Triage check tool: stub runs, labels, sealed refusal, fake wrong answers."""
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
+from tier0 import messages
 from tier0.agent import parse_triage, triage_request
+from tier0.evals.prompt_history import VERSIONS
 from tier0.evals.triage_check import main, run_check
 from tier0.models import (
     ABOUT_SOMEONE_ELSE,
@@ -36,15 +39,20 @@ def test_stub_on_tuning_is_perfect(tmp_path: Path) -> None:
     files = sorted(p.name for p in tmp_path.iterdir())
     assert len(files) == 2
     data = json.loads(next(tmp_path.glob("*.json")).read_text())
-    assert data["accuracy"] == 1.0 and data["wrong"] == []
-    assert "tuning data" in next(tmp_path.glob("*.md")).read_text()
+    assert data["score"] == 1.0 and data["wrong"] == []
+    md = next(tmp_path.glob("*.md")).read_text()
+    assert "tuning score" in md and "accuracy" not in md.lower()
+    assert data["prompt"] == "live" and data["prompt_sha256"] == messages.TRIAGE_SYSTEM_SHA256
 
 
 def test_held_out_v1_is_labelled_dev_set(tmp_path: Path) -> None:
     assert (
         main(["--model", "stub", "--pool", "held_out_v1", "--k", "1", "--out", str(tmp_path)]) == 0
     )
-    assert "dev set (held-out v1)" in next(tmp_path.glob("*.md")).read_text()
+    assert (
+        "dev-set check (held-out v1, diagnosis only, ADR-014)"
+        in next(tmp_path.glob("*.md")).read_text()
+    )
 
 
 def test_held_out_v2_refused(tmp_path: Path) -> None:
@@ -55,8 +63,8 @@ def test_held_out_v2_refused(tmp_path: Path) -> None:
 
 def test_always_own_fails_colleagues() -> None:
     result = run_check(AlwaysOwn(), "tuning", 2)
-    assert result["scenarios"]["colleague"]["accuracy"] == 0
-    assert result["scenarios"]["normal"]["accuracy"] == 1
+    assert result["scenarios"]["colleague"]["score"] == 0
+    assert result["scenarios"]["normal"]["score"] == 1
     wrong = result["wrong"]
     assert wrong and all(w["scenario"] == "colleague" and w["got"] == OWN_USERNAME for w in wrong)
     assert all(
@@ -124,3 +132,51 @@ def test_stub_has_no_seeds(tmp_path: Path) -> None:
     assert main(["--pool", "tuning", "--k", "1", "--model-seed", "7", "--out", str(tmp_path)]) == 0
     data = json.loads(next(tmp_path.glob("*.json")).read_text())
     assert data["model_seeds"] == [] and data["provenance"] == {}
+
+
+class Recorder(AlwaysOwn):
+    def __init__(self, fail: bool = False) -> None:
+        self.systems: set[str] = set()
+        self.fail = fail
+
+    def complete(self, request):  # type: ignore[no-untyped-def]
+        self.systems.add(request.system)
+        if self.fail:
+            raise RuntimeError("boom")
+        return super().complete(request)
+
+
+def test_prompt_option_uses_that_version_and_restores(monkeypatch, tmp_path: Path) -> None:
+    live = messages.TRIAGE_SYSTEM
+    model = Recorder()
+    monkeypatch.setattr("tier0.evals.triage_check._model_factory", lambda *_: lambda: model)
+    assert (
+        main(
+            [
+                "--model",
+                "stub",
+                "--pool",
+                "tuning",
+                "--k",
+                "1",
+                "--prompt",
+                "C",
+                "--out",
+                str(tmp_path),
+            ]
+        )
+        == 0
+    )
+    assert model.systems == {VERSIONS["C"]}
+    assert live == messages.TRIAGE_SYSTEM
+    data = json.loads(next(tmp_path.glob("*.json")).read_text())
+    assert data["prompt"] == "C"
+    assert data["prompt_sha256"] == hashlib.sha256(VERSIONS["C"].encode()).hexdigest()
+    assert "SHA-256 " + data["prompt_sha256"] in next(tmp_path.glob("*.md")).read_text()
+
+
+def test_prompt_restored_when_the_run_raises() -> None:
+    live = messages.TRIAGE_SYSTEM
+    with pytest.raises(RuntimeError):
+        run_check(Recorder(fail=True), "tuning", 1, prompt="A")
+    assert live == messages.TRIAGE_SYSTEM

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED
+from tier0 import messages
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, EvalReport
 from tier0.models import StubModel
 
@@ -29,7 +30,18 @@ def model_option(provider: str) -> str:
     )
 
 
+def _prompt_line(r: EvalReport) -> str:
+    line = f"- Triage prompt: SHA-256 {r.triage_prompt_sha256[:12]}\u2026 (frozen, ADR-021)"
+    if r.triage_prompt_sha256 != messages.TRIAGE_SYSTEM_SHA256:
+        line += " (not the frozen prompt)"
+    return line
+
+
 def _reproducibility(r: EvalReport) -> list[str]:
+    return [*_reproducibility_model(r), "", _prompt_line(r)]
+
+
+def _reproducibility_model(r: EvalReport) -> list[str]:
     if r.is_pipeline_check:
         return [
             "The stub model is deterministic, so no seeds are needed and results reproduce exactly."

@@ -7,6 +7,7 @@ Wording is printed only for pools that are not secret.
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -19,8 +20,10 @@ from typing import Any
 from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.generator import _fill_colleague
 from meridian_dataset.names import MESSAGE_POOLS
+from tier0 import messages
 from tier0.agent import parse_triage, triage_request
 from tier0.evals.__main__ import _model_factory
+from tier0.evals.prompt_history import VERSIONS
 from tier0.evals.runner import describe_model
 from tier0.models import ABOUT_SOMEONE_ELSE, OWN_USERNAME, ModelError
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
@@ -33,8 +36,8 @@ SCENARIOS = ("normal", "duplicate", "colleague")
 _EXPECTED = {"normal": OWN_USERNAME, "duplicate": OWN_USERNAME, "colleague": ABOUT_SOMEONE_ELSE}
 _OPEN_POOLS = ("tuning", "held_out_v1")
 _LABELS = {
-    "tuning": "tuning data",
-    "held_out_v1": "dev set (held-out v1): diagnosis only, not a score (ADR-014)",
+    "tuning": "tuning score (tuning data; the prompt was chosen on it, so it is optimistic)",
+    "held_out_v1": "dev-set check (held-out v1, diagnosis only, ADR-014)",
 }
 
 
@@ -54,10 +57,38 @@ def build_instances(pool_name: str) -> list[tuple[str, int, str, str]]:
     return out
 
 
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def run_check(
-    model: Any, pool_name: str, k: int, *, model_seed_base: int = DEFAULT_MODEL_SEED_BASE
+    model: Any,
+    pool_name: str,
+    k: int,
+    *,
+    model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
+    prompt: str | None = None,
 ) -> dict[str, Any]:
-    """Run r of k uses sampling seed base + r on models that support one."""
+    """Run r of k uses sampling seed base + r on models that support one.
+
+    prompt is a VERSIONS key; None means the live prompt. The live prompt is restored after.
+    """
+    if prompt is not None and prompt not in VERSIONS:
+        raise ValueError(f"unknown prompt version {prompt!r}")
+    live = messages.TRIAGE_SYSTEM
+    if prompt is not None:
+        messages.TRIAGE_SYSTEM = VERSIONS[prompt]
+    try:
+        used = messages.TRIAGE_SYSTEM
+        result = _run_check(model, pool_name, k, model_seed_base)
+    finally:
+        messages.TRIAGE_SYSTEM = live
+    result["prompt"] = prompt or "live"
+    result["prompt_sha256"] = _sha256(used)
+    return result
+
+
+def _run_check(model: Any, pool_name: str, k: int, model_seed_base: int) -> dict[str, Any]:
     instances = build_instances(pool_name)
     seeded = bool(getattr(model, "supports_seed", False))
     provenance = describe_model(model)
@@ -84,7 +115,7 @@ def run_check(
     show = pool_name in _OPEN_POOLS
     texts = {(s, i): t for s, i, t, _ in instances}
     scenarios = {
-        s: {**v, "accuracy": v["correct"] / v["runs"] if v["runs"] else 0.0} for s, v in per.items()
+        s: {**v, "score": v["correct"] / v["runs"] if v["runs"] else 0.0} for s, v in per.items()
     }
     runs = sum(v["runs"] for v in per.values())
     correct = sum(v["correct"] for v in per.values())
@@ -101,7 +132,7 @@ def run_check(
         "scenarios": scenarios,
         "runs": runs,
         "correct": correct,
-        "accuracy": correct / runs if runs else 0.0,
+        "score": correct / runs if runs else 0.0,
         "wrong": [
             {
                 "scenario": s,
@@ -139,18 +170,20 @@ def render_markdown(result: dict[str, Any]) -> str:
         "",
         f"{result['label']}",
         "",
+        f"Prompt: {result['prompt']}, SHA-256 {result['prompt_sha256']}.",
+        "",
         f"Pool {result['pool']}, model {result['provider']} / {result['model']}, "
         f"temperature {'none' if temp is None else format(temp, 'g')}, k = {result['k']}.",
         "",
         *_provenance_lines(result),
-        "| Scenario | Instances | Runs | Correct | Accuracy |",
+        "| Scenario | Instances | Runs | Correct | Score |",
         "| --- | --- | --- | --- | --- |",
     ]
     for s, v in result["scenarios"].items():
         lines.append(
-            f"| {s} | {v['instances']} | {v['runs']} | {v['correct']} | {v['accuracy']:.2f} |"
+            f"| {s} | {v['instances']} | {v['runs']} | {v['correct']} | {v['score']:.2f} |"
         )
-    lines += ["", f"Overall accuracy: {result['accuracy']:.2f}", "", "## Wrong answers", ""]
+    lines += ["", f"Overall score: {result['score']:.2f}", "", "## Wrong answers", ""]
     if not result["wrong"]:
         lines.append("None.")
     for w in result["wrong"]:
@@ -168,6 +201,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tier0.evals.triage_check", description=__doc__)
     parser.add_argument("--model", choices=("stub", "claude", "ollama"), default="stub")
     parser.add_argument("--pool", required=True, choices=sorted([*MESSAGE_POOLS, "held_out_v2"]))
+    parser.add_argument(
+        "--prompt",
+        choices=sorted(VERSIONS),
+        default=None,
+        help="triage prompt version to try (default: the live, frozen prompt)",
+    )
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument(
@@ -199,9 +238,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     model = _model_factory(args.model, args.temperature)()
     guard = loopback_only() if args.model in ("stub", "ollama") else contextlib.nullcontext()
     with guard:
-        result = run_check(model, args.pool, args.k, model_seed_base=args.model_seed)
+        result = run_check(
+            model, args.pool, args.k, model_seed_base=args.model_seed, prompt=args.prompt
+        )
 
-    name = re.sub(r"[^A-Za-z0-9._-]", "-", f"{args.pool}-{result['provider']}-{result['model']}")
+    name = re.sub(
+        r"[^A-Za-z0-9._-]",
+        "-",
+        f"{args.pool}-{result['provider']}-{result['model']}"
+        + ("" if args.prompt is None else f"-prompt-{args.prompt}"),
+    )
     args.out.mkdir(parents=True, exist_ok=True)
     json_path = args.out / f"{name}.json"
     md_path = args.out / f"{name}.md"
@@ -210,8 +256,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(f"{result['label']}: {result['provider']} / {result['model']}, k = {args.k}")
     for s, v in result["scenarios"].items():
-        print(f"  {s}: {v['correct']}/{v['runs']} ({v['accuracy']:.2f})")
-    print(f"  overall: {result['correct']}/{result['runs']} ({result['accuracy']:.2f})")
+        print(f"  {s}: {v['correct']}/{v['runs']} ({v['score']:.2f})")
+    print(f"  overall: {result['correct']}/{result['runs']} ({result['score']:.2f})")
     print(f"report: {md_path}\njson: {json_path}")
     return 0
 

@@ -464,3 +464,19 @@ def test_publish_refused_without_provenance(
          "--out", str(tmp_path / "out"), "--publish", str(published)]
     )  # fmt: skip
     assert code == 2 and not published.exists()
+
+
+def test_report_records_the_triage_prompt_hash() -> None:
+    from tier0 import messages
+    from tier0.evals.report import render_markdown as render_report
+    from tier0.evals.runner import run_eval
+
+    report = anyio.run(lambda: run_eval(1108, k=1))
+    assert report.triage_prompt_sha256 == messages.TRIAGE_SYSTEM_SHA256
+    assert report.to_dict()["triage_prompt_sha256"] == messages.TRIAGE_SYSTEM_SHA256
+    md = render_report(report)
+    short = messages.TRIAGE_SYSTEM_SHA256[:12]
+    assert f"Triage prompt: SHA-256 {short}\u2026 (frozen, ADR-021)" in md
+    assert "not the frozen prompt" not in md
+    other = dataclasses.replace(report, triage_prompt_sha256="ab" * 32)
+    assert "(not the frozen prompt)" in render_report(other)
