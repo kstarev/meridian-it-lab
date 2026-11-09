@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from meridian_dataset import World
+from tier0.clock import MockClock
 from tier0.directory_api import DirectoryError
 from tier0.identity.binding import (
     DIRECTORY_FIELDS,
@@ -190,9 +191,17 @@ def test_normal_template_no_lookups(world: World, directory: MockDirectory) -> N
     assert directory.reads == ()
 
 
-def test_colleague_template_mentions_other(world: World, directory: MockDirectory) -> None:
+def _requester_email(world: World, ticket_id: str) -> str:
+    person = world.person_by_id(world.answer_key.entry(ticket_id).requester_directory_id or "")
+    assert person is not None
+    return person.primary_email.split("@", 1)[0]
+
+
+def test_colleague_template_mentions_other(named_colleague_world: World, clock: MockClock) -> None:
+    world = named_colleague_world
+    directory = MockDirectory(world, clock)
     res = MentionCheck(directory).check(
-        _text(world, "TKT-005"), _bound(world, "anika.sato"), domain=DOMAIN
+        _text(world, "TKT-005"), _bound(world, _requester_email(world, "TKT-005")), domain=DOMAIN
     )
     assert res.mentions_other_user
     assert res.others >= 1
@@ -247,3 +256,16 @@ def test_mcp_tools_exactly_get_my_username() -> None:
     from tier0.mcp_server.server import TOOL_ZONES
 
     assert sorted(TOOL_ZONES) == ["get_my_username"]
+
+
+def test_unnamed_colleague_request_mentions_nobody(
+    unnamed_colleague_world: World, clock: MockClock
+) -> None:
+    """ADR-023: the mention check can't see a colleague who isn't named; only the model
+    check stands in the way then."""
+    world = unnamed_colleague_world
+    res = MentionCheck(MockDirectory(world, clock)).check(
+        _text(world, "TKT-005"), _bound(world, _requester_email(world, "TKT-005")), domain=DOMAIN
+    )
+    assert res.others == 0
+    assert not res.mentions_other_user

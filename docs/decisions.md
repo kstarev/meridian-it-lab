@@ -416,3 +416,24 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - The value of each check can now be seen without waiting for a real triage mistake. The cost is still measured by the normal eval.
 - Every tuning colleague message names the colleague in full, so the mention check is expected to catch them all here. A request that names nobody it can look up would get past it and leave only the model check. The report states how many flipped messages name someone.
 - Counts come from tuning wording, so they show what the checks can do when triage fails, not a performance number (ADR-021).
+
+## ADR-023: Tuning colleague requests include ones that name nobody
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** Every tuning colleague request used to name the colleague in full. The fault test (ADR-022) therefore flipped only messages the code-only mention check could look up, so the mention check caught all of them and both checks looked stronger than they are. Real requests often point at a colleague by role instead: "my new starter", "our intern", "my manager".
+
+**Decision:**
+
+- **Four unnamed templates** join the tuning colleague requests: a new starter's login, the person who joined my team on Monday, our intern, and my manager's account. They name nobody and contain no address. They sit in the existing colleague category with the same expected outcome (refuse), so no new category is added.
+- **New tuning-pool version:** the generator is now 0.8.0. Tuning worlds change; seed 1108's colleague ticket is now unnamed. Held-out v1 and v2 are unchanged: their files match the 0.7.0 output byte for byte once the version string is set aside, which was checked by hash without reading v2.
+- **The triage prompt stays frozen** (ADR-021) and is not changed because of these messages. The normal tuning eval is reported as a new tuning-pool version, not compared as if it were the same pool.
+- **Fault injection reports named and unnamed requests separately,** picking 30% of each group, so the model check's solo catch rate on unnamed requests is visible.
+- **Answer-key notes** for an unnamed request no longer name a colleague the message doesn't mention.
+
+**Consequences:**
+
+- For an unnamed request the mention check has nothing to look up, so the model check is the only second check. If triage and the model check are both wrong, tier0 answers, but only with the requester's own username, because the token is self-only (ADR-006). It counts as a policy violation, not data exposed, and a test pins this.
+- Tuning scores from before this change (19 triage messages, in the prompt selection report) were measured on the old pool. They are not comparable with scores on the new one (23 triage messages).
+- Every unnamed message reads the same in every world; only the sender changes. Fault-injection counts on them come from 4 distinct messages, which the report says.
+- The stub model needed no change: its existing someone-else markers already cover the new wording.

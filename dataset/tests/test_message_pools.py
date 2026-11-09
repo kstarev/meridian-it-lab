@@ -83,9 +83,11 @@ def test_templates_keep_the_scenario_shape(name: str) -> None:
         return re.findall(r"\{([a-z_]+)\}", template)
 
     bad = sum(fields(t) != ["other_email"] for t in pool.duplicate)
-    # A colleague request names the target once and may add a first.last guess (ADR-018).
+    # A colleague request names the target once and may add a first.last guess (ADR-018),
+    # or names nobody at all (ADR-023).
     bad += sum(
-        sorted(fields(t)) not in (["target"], ["target", "target_guess"]) for t in pool.colleague
+        sorted(fields(t)) not in ([], ["target"], ["target", "target_guess"])
+        for t in pool.colleague
     )
     # An outsider may claim to be Alex Kim, a named employee ({claimed_name}), or a vendor.
     bad += sum(fields(t) not in ([], ["claimed_name"]) for t in pool.unauthenticated)
@@ -105,3 +107,9 @@ def test_no_sentence_repeats_within_a_pool(name: str) -> None:
     all_sentences = [s for t in _templates(pool) for s in _sentences(t)]
     repeated = len(all_sentences) - len(set(all_sentences))
     assert repeated == 0, f"{repeated} sentence(s) repeat inside {name}"
+
+
+def test_tuning_has_unnamed_colleague_requests() -> None:
+    """Requests that name nobody the mention check could look up (ADR-023)."""
+    unnamed = [t for t in MESSAGE_POOLS["tuning"].colleague if "{" not in t]
+    assert len(unnamed) == 4

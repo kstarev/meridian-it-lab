@@ -15,6 +15,36 @@ def world() -> World:
     return generate(DEFAULT_SEED)
 
 
+def _colleague_names_someone(world: World) -> bool:
+    ticket = next(t for t in world.tickets if t.id == "TKT-005")
+    return any(
+        p.full_name in ticket.text
+        for p in world.people
+        if p.slack_user_id != ticket.sender_slack_user_id
+    )
+
+
+def _first_tuning_world(named: bool) -> World:
+    # Tuning seeds only: the held-out seeds (2611, 3107) are far outside this range.
+    for seed in range(DEFAULT_SEED, DEFAULT_SEED + 100):
+        world = generate(seed)
+        if world.message_pool == "tuning" and _colleague_names_someone(world) == named:
+            return world
+    raise AssertionError("no such tuning world")
+
+
+@pytest.fixture
+def named_colleague_world() -> World:
+    """A tuning world whose colleague request (TKT-005) names the colleague."""
+    return _first_tuning_world(named=True)
+
+
+@pytest.fixture
+def unnamed_colleague_world() -> World:
+    """A tuning world whose colleague request (TKT-005) names nobody (ADR-023)."""
+    return _first_tuning_world(named=False)
+
+
 @pytest.fixture
 def clock(world: World) -> MockClock:
     return MockClock(parse_time(world.reference_time))

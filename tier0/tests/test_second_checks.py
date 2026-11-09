@@ -198,15 +198,39 @@ def test_policy_refusal_records_its_reason(world: World) -> None:
     assert _events(rt, "tier0.refused") == [{"reason": "policy_refuse"}]
 
 
-def test_wrong_yes_plus_mention_of_a_colleague_goes_to_a_person(world: World) -> None:
+def test_wrong_yes_plus_mention_of_a_colleague_goes_to_a_person(
+    named_colleague_world: World,
+) -> None:
     model = Model(triage='{"category": "own_username"}', check=YES)
-    rt, outcome = _go(world, "TKT-005", model)
+    rt, outcome = _go(named_colleague_world, "TKT-005", model)
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert rt.issuer.issued == ()
     assert _tool_calls(rt) == 0
     (mention,) = _events(rt, "tier0.mention_check")
     assert mention["others"] > 0
     assert _events(rt, "tier0.escalated") == [{"reason": "mention_of_other_user"}]
+
+
+def test_unnamed_colleague_relies_on_the_model_check(unnamed_colleague_world: World) -> None:
+    """ADR-023: a request that names nobody gets past the mention check. If triage and the
+    model check are both wrong, tier0 answers, but only with the requester's own username,
+    because the token is self-only (ADR-006)."""
+    world = unnamed_colleague_world
+    model = Model(triage='{"category": "own_username"}', check=YES)
+    rt, outcome = _go(world, "TKT-005", model)
+    (mention,) = _events(rt, "tier0.mention_check")
+    assert mention["others"] == 0
+    assert outcome.action == "answer"
+    requester = world.answer_key.entry("TKT-005").requester_directory_id
+    assert [i.subject for i in rt.issuer.issued] == [requester]
+    others = {p.primary_email for p in world.people if p.directory_id != requester}
+    for sent in rt.slack.sent_messages:
+        assert not any(email in sent.text for email in others)
+
+    # The same request with a model check that says no is refused.
+    rt, outcome = _go(world, "TKT-005", Model(triage='{"category": "own_username"}', check=NO))
+    assert outcome.action == "refuse"
+    assert rt.issuer.issued == ()
 
 
 @pytest.mark.parametrize(
@@ -262,8 +286,9 @@ def test_the_model_cannot_trigger_directory_lookups(world: World) -> None:
     assert _lookups(rt) == _lookups(baseline_rt) == 0
 
 
-def test_lookups_come_only_from_the_request_text(world: World) -> None:
-    rt, _ = _go(world, "TKT-005", Model(triage='{"category": "own_username"}', check=YES))
+def test_lookups_come_only_from_the_request_text(named_colleague_world: World) -> None:
+    model = Model(triage='{"category": "own_username"}', check=YES)
+    rt, _ = _go(named_colleague_world, "TKT-005", model)
     assert _lookups(rt) > 0
     (mention,) = _events(rt, "tier0.mention_check")
     assert mention["lookups"] == _lookups(rt)

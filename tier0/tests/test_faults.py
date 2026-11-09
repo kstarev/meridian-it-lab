@@ -11,11 +11,12 @@ from meridian_dataset.generator import HOLDOUT_V2_SEED
 from tier0 import messages
 from tier0.evals.faults import (
     COLLEAGUE,
-    FLIP_SCENARIOS,
-    OUTSIDER,
+    GROUPS,
+    FlipRun,
     FlipTriage,
     NotTuningError,
     build_fault_report,
+    candidates,
     main,
     render_markdown,
     require_tuning,
@@ -78,9 +79,11 @@ def test_flips_are_fixed_and_stratified() -> None:
     worlds = tuning_worlds(SEEDS)
     picked = select_flips(worlds, rate=0.3, fault_seed=22)
     assert picked == select_flips(worlds, rate=0.3, fault_seed=22)
-    for scenario in FLIP_SCENARIOS:
-        assert sum(1 for t in picked if t.scenario == scenario) == round(0.3 * len(SEEDS))
-    assert {t.scenario for t in picked} == {COLLEAGUE, OUTSIDER}
+    pool = candidates(worlds)
+    assert pool["colleague_named"] and pool["colleague_unnamed"]
+    for key, scenario, named in GROUPS:
+        n = sum(1 for t in picked if (t.scenario, t.named) == (scenario, named))
+        assert n == round(0.3 * len(pool[key]))
     for t in picked:
         assert worlds[t.world_seed].answer_key.entry(t.ticket_id).scenario == t.scenario
 
@@ -100,51 +103,69 @@ def test_only_the_triage_answer_flips() -> None:
     assert inner.requests[1] is check  # forwarded untouched
 
 
-def test_the_check_never_sees_the_flip() -> None:
-    """The check request carries only the raw message and the sender, as in production."""
+def _flip_once(named: bool) -> tuple[FlipRun, list[Recording], str]:
     worlds = tuning_worlds(SEEDS)
-    target = next(t for t in select_flips(worlds) if t.scenario == COLLEAGUE)
+    target = next(t for t in select_flips(worlds) if t.scenario == COLLEAGUE and t.named is named)
     made: list[Recording] = []
 
     def factory() -> Recording:
         made.append(Recording())
         return made[-1]
 
-    runs = anyio.run(lambda: run_faults(factory, worlds, [target], k=1))
+    (run,) = anyio.run(lambda: run_faults(factory, worlds, [target], k=1))
     ticket = next(t for t in worlds[target.world_seed].tickets if t.id == target.ticket_id)
+    return run, made, ticket.text
+
+
+def test_the_check_never_sees_the_flip() -> None:
+    """The check request carries only the raw message and the sender, as in production."""
+    run, made, text = _flip_once(named=True)
     checks = [r for m in made for r in m.requests if r.task == "own_account_check"]
     assert len(checks) == 1
     assert checks[0].system == messages.OWN_ACCOUNT_CHECK_SYSTEM
-    assert ticket.text in checks[0].user
+    assert text in checks[0].user
     for label in (OWN_USERNAME, ABOUT_SOMEONE_ELSE):
         assert label not in checks[0].user
     # The fake check said yes, so only the code-only mention check could stop it.
-    (run,) = runs
     assert run.flipped and run.real_triage == ABOUT_SOMEONE_ELSE
     assert run.result.own_account_check == "yes"
     assert run.mention_caught and not run.answered
+
+
+def test_an_unnamed_request_past_a_wrong_check_is_answered_but_exposes_nothing() -> None:
+    """ADR-023: with triage flipped and the model check wrong, nothing else stops an unnamed
+    request. It counts as a policy violation; the self-only token keeps data safe."""
+    run, _made, _text = _flip_once(named=False)
+    assert run.result.own_account_check == "yes"
+    assert not run.mention_caught
+    assert run.answered
+    assert run.policy_violation and not run.data_exposed
 
 
 def test_stub_fault_report_counts_add_up() -> None:
     data = build_fault_report({"stub": StubModel}, world_seeds=SEEDS, k=2)
     m = data["models"]["stub"]
     assert m["pipeline_check"]
-    c, o = m["summary"]["colleague"], m["summary"]["outsider"]
-    assert c["flipped_runs"] == c["runs"] == 2 * data["flipped_tickets"][COLLEAGUE]
-    assert (
-        c["both"] + c["model_check_only"] + c["mention_check_only"] + c["neither"]
-        == (c["flipped_runs"])
-    )
-    assert c["model_check_caught"] == c["both"] + c["model_check_only"]
-    assert c["mention_check_caught"] == c["both"] + c["mention_check_only"]
-    assert c["data_exposed_runs"] == 0
+    for key in ("colleague_named", "colleague_unnamed"):
+        c = m["summary"][key]
+        assert c["flipped_runs"] == c["runs"] == 2 * data["groups"][key]["flipped_tickets"]
+        assert (
+            c["both"] + c["model_check_only"] + c["mention_check_only"] + c["neither"]
+            == (c["flipped_runs"])
+        )
+        assert c["model_check_caught"] == c["both"] + c["model_check_only"]
+        assert c["mention_check_caught"] == c["both"] + c["mention_check_only"]
+        assert c["data_exposed_runs"] == 0
+    # Named requests are all visible to the mention check; unnamed ones never are.
+    named, unnamed = m["summary"]["colleague_named"], m["summary"]["colleague_unnamed"]
+    assert named["mention_check_caught"] == named["flipped_runs"] > 0
+    assert unnamed["mention_check_caught"] == 0 < unnamed["flipped_runs"]
     # Outsiders stop at identity binding: triage, and so the flip, never happens.
-    assert o["runs"] == 2 * data["flipped_tickets"][OUTSIDER]
+    o = m["summary"]["outsider"]
+    assert o["runs"] == 2 * data["groups"]["outsider"]["flipped_tickets"]
     assert o["reached_triage"] == 0
     assert o["handed_to_identity_verification"] == o["runs"]
     assert data["message_pool"] == "tuning"
-    # Every tuning colleague template names the colleague, so the mention check can see it.
-    assert data["colleague_named_in_full"] == data["flipped_tickets"][COLLEAGUE]
 
 
 def test_markdown_and_cli(tmp_path: Path) -> None:
@@ -158,3 +179,4 @@ def test_markdown_and_cli(tmp_path: Path) -> None:
     assert "stub (pipeline check, not AI accuracy)" in text
     assert "not a performance number" in text
     assert "Outsiders are stopped by identity binding" in text
+    assert "Its solo catch rate there" in text
