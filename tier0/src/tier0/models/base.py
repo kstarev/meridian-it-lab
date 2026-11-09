@@ -62,5 +62,7 @@ class ModelAdapter(Protocol):
     provider: str
     # The model we asked for (the response may report a different one).
     model: str
+    # Sampling temperature we send, or None when the adapter sends none.
+    temperature: float | None
 
     def complete(self, request: ModelRequest) -> ModelResponse: ...

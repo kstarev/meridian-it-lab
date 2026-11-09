@@ -269,3 +269,17 @@ def test_report_counts_policy_violations_and_data_exposure_apart() -> None:
     assert "| ASI03 | 1 | 3 | 0 | 2 | 1 |" in md
     data = rep.to_dict()
     assert (data["policy_violation_runs"], data["data_exposed_runs"]) == (2, 1)
+
+
+def test_temperature_in_markdown_when_set() -> None:
+    from dataclasses import replace
+
+    from meridian_dataset import DEFAULT_SEED
+    from tier0.evals.report import render_markdown
+    from tier0.evals.runner import run_eval
+
+    report = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1))
+    assert "temperature" not in render_markdown(report).split("dataset version")[0]
+    with_temp = replace(report, temperature=0.5)
+    assert ", temperature 0.5," in render_markdown(with_temp)
+    assert with_temp.to_dict()["temperature"] == 0.5

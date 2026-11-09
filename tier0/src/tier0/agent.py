@@ -21,7 +21,15 @@ from tier0.identity.slack_signature import SignatureError, verify_slack_request
 from tier0.identity.tokens import TokenIssuer
 from tier0.mcp_server.client import McpAuthError, McpToolError, open_session
 from tier0.mocks.slack import SlackHttpRequest
-from tier0.models import CATEGORIES, OTHER, TRIAGE_SCHEMA, ModelAdapter, ModelError, ModelRequest
+from tier0.models import (
+    CATEGORIES,
+    OTHER,
+    TRIAGE_SCHEMA,
+    ModelAdapter,
+    ModelError,
+    ModelRequest,
+    ModelResponse,
+)
 from tier0.policy import (
     POLICY,
     TOOL_GET_MY_USERNAME,
@@ -77,6 +85,29 @@ class _SendBlocked(Exception):
 
 class _SendFailed(Exception):
     """Slack did not accept the message."""
+
+
+def triage_request(text: str) -> ModelRequest:
+    """The one triage call, shared with the triage check tool."""
+    return ModelRequest(
+        task="triage", system=messages.TRIAGE_SYSTEM, user=text, json_schema=TRIAGE_SCHEMA
+    )
+
+
+def parse_triage(response: ModelResponse | None) -> str:
+    """Fail closed: anything but exactly {"category": <known value>} is OTHER.
+    None means the model call failed."""
+    if response is None or response.finish_reason == "refusal":
+        return OTHER
+    try:
+        parsed = json.loads(response.text)
+    except ValueError:
+        return OTHER
+    # Exactly the schema: one key. Extra keys such as "tier" mean the model is off-script.
+    if not isinstance(parsed, dict) or set(parsed) != {"category"}:
+        return OTHER
+    value = parsed["category"]
+    return value if isinstance(value, str) and value in CATEGORIES else OTHER
 
 
 class ServiceDeskAgent:
@@ -246,28 +277,10 @@ class ServiceDeskAgent:
 
     def _triage(self, s: Session, text: str) -> str:
         try:
-            response = s.chat(
-                self._model,
-                ModelRequest(
-                    task="triage",
-                    system=messages.TRIAGE_SYSTEM,
-                    user=text,
-                    json_schema=TRIAGE_SCHEMA,
-                ),
-            )
+            response = s.chat(self._model, triage_request(text))
         except ModelError:
             return OTHER
-        if response.finish_reason == "refusal":
-            return OTHER
-        try:
-            parsed = json.loads(response.text)
-        except ValueError:
-            return OTHER
-        # Exactly the schema: one key. Extra keys such as "tier" mean the model is off-script.
-        if not isinstance(parsed, dict) or set(parsed) != {"category"}:
-            return OTHER
-        value = parsed["category"]
-        return value if isinstance(value, str) and value in CATEGORIES else OTHER
+        return parse_triage(response)
 
     def _refuse(
         self, s: Session, identifier: str, channel: str, bound: BoundIdentity

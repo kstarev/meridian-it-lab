@@ -83,6 +83,7 @@ class EvalReport:
     expected_queues: tuple[tuple[str, str], ...]  # (ticket_id, queue) where needs_human
     run_date: str = "1970-01-01"
     answer_key: tuple[AnswerKeyEntry, ...] = ()
+    temperature: float | None = None
 
     def explanation(self, run: RunResult) -> str | None:
         """Plain-English reason a run failed; None when it passed (or no key is known)."""
@@ -218,6 +219,7 @@ class EvalReport:
             "k": self.k,
             "provider": self.provider,
             "model": self.model,
+            "temperature": self.temperature,
             "semconv_version": self.semconv_version,
             "pass_1": self.pass_1,
             "pass_k": self.pass_k,
@@ -289,6 +291,7 @@ def build_report(
     provider: str,
     model: str,
     run_date: str = "1970-01-01",
+    temperature: float | None = None,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -305,6 +308,7 @@ def build_report(
         expected_queues=expected,
         run_date=run_date,
         answer_key=tuple(world.answer_key.entries),
+        temperature=temperature,
     )
 
 
@@ -443,4 +447,5 @@ async def run_eval(
         provider=probe.provider,
         model=probe.model,
         run_date=run_date,
+        temperature=getattr(probe, "temperature", None),
     )

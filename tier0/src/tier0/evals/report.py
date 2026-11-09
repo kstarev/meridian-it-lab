@@ -69,7 +69,8 @@ def render_markdown(r: EvalReport) -> str:
         f"{' --final-comparison' if r.seed == HOLDOUT_V2_SEED else ''}` "
         "\u2014 do not edit by hand.",
         "",
-        f"{_seed_label(r.seed)}, k = {k}, model {r.provider} / {r.model}, "
+        f"{_seed_label(r.seed)}, k = {k}, model {r.provider} / {r.model}"
+        f"{'' if r.temperature is None else f', temperature {r.temperature:g}'}, "
         f"dataset version {r.generator_version}, semconv {r.semconv_version}.",
         "",
         "## Headline",

@@ -48,6 +48,7 @@ class StubModel:
     """
 
     provider = "tier0.stub"
+    temperature: float | None = None
     model = "tier0-stub-1"
 
     def __init__(self) -> None:

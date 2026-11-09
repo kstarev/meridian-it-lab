@@ -51,7 +51,7 @@ def test_request_shape_with_schema() -> None:
             {"role": "user", "content": "usr"},
         ],
         "stream": False,
-        "options": {"temperature": 0, "num_predict": 50},
+        "options": {"temperature": 0.5, "num_predict": 50},
         "format": TRIAGE_SCHEMA,
     }
 
@@ -97,3 +97,15 @@ def test_non_json_body_becomes_model_error() -> None:
     model = make_model(lambda _request: httpx2.Response(200, text="not json"))
     with pytest.raises(ModelError):
         model.complete(ModelRequest(task="reply", system="s", user="u"))
+
+
+def test_temperature_default_and_override() -> None:
+    model, seen = capture(REPLY)
+    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    assert json.loads(seen[0].content)["options"]["temperature"] == 0.5
+    assert model.temperature == 0.5
+    client = httpx2.Client(
+        base_url="http://x",
+        transport=httpx2.MockTransport(lambda r: httpx2.Response(200, json=REPLY)),
+    )
+    assert OllamaModel(client=client, temperature=0.2).temperature == 0.2

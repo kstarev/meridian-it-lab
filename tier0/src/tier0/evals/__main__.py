@@ -30,8 +30,11 @@ def default_seed(model: str) -> int:
     return DEFAULT_SEED if model == "stub" else HOLDOUT_SEED
 
 
-def _model_factory(name: str):  # type: ignore[no-untyped-def]
-    return lambda: build_model(name)
+def _model_factory(name: str, temperature: float | None = None):  # type: ignore[no-untyped-def]
+    if name != "ollama" or temperature is None:
+        return lambda: build_model(name)
+    env = {**os.environ, "TIER0_OLLAMA_TEMPERATURE": str(temperature)}
+    return lambda: build_model(name, env=env)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -44,6 +47,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--model", choices=("stub", "claude", "ollama"), default="stub")
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=None,
+        help="Ollama only (default 0.5); Claude and the stub ignore it",
+    )
     parser.add_argument("--out", type=Path, default=Path("out/eval"))
     parser.add_argument("--publish", type=Path, default=None, metavar="DIR")
     parser.add_argument(
@@ -71,6 +80,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"refused: the Ollama URL must be on this machine, got {url}", file=sys.stderr)
             return 2
 
+    if args.model == "claude" and args.temperature is not None:
+        print(
+            "WARNING: the Claude API does not accept temperature; --temperature is ignored.",
+            file=sys.stderr,
+        )
     if args.model != "stub":
         print(f"WARNING: --model {args.model} may call a paid or local model.", file=sys.stderr)
 
@@ -78,7 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return await run_eval(
             args.seed,
             k=args.k,
-            model_factory=_model_factory(args.model),
+            model_factory=_model_factory(args.model, args.temperature),
             out_dir=args.out,
             today=today,
             final_comparison=args.final_comparison,

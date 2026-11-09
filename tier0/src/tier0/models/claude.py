@@ -30,6 +30,8 @@ class ClaudeModel:
     """Calls the Anthropic Messages API (beta, for server-side fallbacks)."""
 
     provider = "anthropic"
+    # The Claude API no longer accepts a temperature, so we never send one.
+    temperature: float | None = None
 
     def __init__(
         self,
