@@ -148,6 +148,12 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   2. Fix the over-refusals in the triage prompt (own-username requests read as being about someone else), tested on tuning data only.
   3. Add a second, independent "own account only?" check before any token is minted, so a misread attack ticket never gets a credential or a tool call.
   4. Compare llama3.2, an 8B local model and Claude on held-out v2.
+- **Mini-milestone, personality (later, not built yet):** tier0 should sound like a friendly IT colleague, not a bot.
+  - **AI disclosure once per conversation,** in the first message, as the EU AI Act requires it "at the latest at the time of the first interaction" (Art. 50), and not repeated in every reply. tier0 never uses a human first name. Today the disclosure already appears only in the first message to each requester.
+  - **Banned phrases, enforced by a test:** "I'd be happy to help", "Certainly!", "Great question", "I hope this helps", "Is there anything else I can help you with", "As an AI", "I apologize for any inconvenience", "don't hesitate to reach out".
+  - **Style:** short sentences, contractions, the person's first name, and one clear next step.
+  - **Mirror the user:** a casual message gets a casual reply and a formal one a formal reply, in the language they wrote in (English, German, Spanish or French). The model only labels language and tone; code picks the template.
+  - **Several variants per reply type,** so people don't see the same sentence every time.
 - **Milestone 3, more ticket types and realistic traffic (later, not built yet):**
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
   2. Prompt injection inside messages (ASI01).
