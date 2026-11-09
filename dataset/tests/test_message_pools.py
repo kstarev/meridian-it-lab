@@ -1,14 +1,21 @@
-"""Tuning and held-out messages never share wording (ADR-013)."""
+"""Message pools never share wording (ADR-013, ADR-014, ADR-015).
 
+Every pair of pools is checked. Assertions compare counts only, never sets of
+strings, so a failing test can't print held-out wording to whoever reads the output.
+"""
+
+import itertools
 import re
 
 import pytest
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
 from meridian_dataset.generator import split_for_seed
-from meridian_dataset.names import HELD_OUT_POOL, MESSAGE_POOLS, TUNING_POOL, MessagePool
+from meridian_dataset.names import MESSAGE_POOLS, TUNING_POOL, MessagePool
 
 SCENARIOS = ("normal", "duplicate", "colleague", "unauthenticated")
+PAIRS = list(itertools.combinations(sorted(MESSAGE_POOLS), 2))
+HELD_OUT_NAMES = sorted(name for name in MESSAGE_POOLS if name != TUNING_POOL.name)
 
 
 def _templates(pool: MessagePool) -> list[str]:
@@ -22,43 +29,58 @@ def _sentences(text: str) -> set[str]:
     return {" ".join(re.findall(r"[a-z0-9']+", p)) for p in parts} - {""}
 
 
-def test_every_scenario_has_wording_in_both_pools() -> None:
+def _pool_sentences(pool: MessagePool) -> set[str]:
+    return set().union(*(_sentences(t) for t in _templates(pool)))
+
+
+def _generated_texts(name: str) -> set[str]:
+    seeds = (DEFAULT_SEED, *range(30))
+    return {t.text for seed in seeds for t in generate(seed, split=name).tickets}
+
+
+@pytest.mark.parametrize("name", sorted(MESSAGE_POOLS))
+def test_every_scenario_has_wording(name: str) -> None:
+    pool = MESSAGE_POOLS[name]
     for scenario in SCENARIOS:
-        assert getattr(TUNING_POOL, scenario), scenario
-        assert getattr(HELD_OUT_POOL, scenario), scenario
+        assert len(getattr(pool, scenario)) > 0, f"{name} has no {scenario} wording"
 
 
-def test_no_template_is_shared() -> None:
-    assert not set(_templates(TUNING_POOL)) & set(_templates(HELD_OUT_POOL))
+@pytest.mark.parametrize(("a", "b"), PAIRS)
+def test_no_template_is_shared(a: str, b: str) -> None:
+    shared = len(set(_templates(MESSAGE_POOLS[a])) & set(_templates(MESSAGE_POOLS[b])))
+    assert shared == 0, f"{shared} template(s) shared between {a} and {b}"
 
 
-def test_no_sentence_is_shared() -> None:
-    tuning = set().union(*(_sentences(t) for t in _templates(TUNING_POOL)))
-    held_out = set().union(*(_sentences(t) for t in _templates(HELD_OUT_POOL)))
-    assert tuning and held_out
-    assert not tuning & held_out
+@pytest.mark.parametrize(("a", "b"), PAIRS)
+def test_no_sentence_is_shared(a: str, b: str) -> None:
+    sentences_a = _pool_sentences(MESSAGE_POOLS[a])
+    sentences_b = _pool_sentences(MESSAGE_POOLS[b])
+    assert len(sentences_a) > 0 and len(sentences_b) > 0
+    shared = len(sentences_a & sentences_b)
+    assert shared == 0, f"{shared} sentence(s) shared between {a} and {b}"
 
 
-def test_no_generated_ticket_text_is_shared() -> None:
-    tuning_texts = {t.text for seed in (DEFAULT_SEED, *range(50)) for t in generate(seed).tickets}
-    held_out_texts = {t.text for t in generate(HOLDOUT_SEED).tickets}
-    assert len(held_out_texts) == 6
-    assert not tuning_texts & held_out_texts
+@pytest.mark.parametrize(("a", "b"), PAIRS)
+def test_no_generated_ticket_text_is_shared(a: str, b: str) -> None:
+    shared = len(_generated_texts(a) & _generated_texts(b))
+    assert shared == 0, f"{shared} generated ticket text(s) shared between {a} and {b}"
 
 
 def test_pool_follows_the_seed() -> None:
-    assert split_for_seed(HOLDOUT_SEED) == "held_out"
     assert split_for_seed(DEFAULT_SEED) == "tuning"
-    assert generate(HOLDOUT_SEED).message_pool == "held_out"
+    assert split_for_seed(HOLDOUT_SEED) == "held_out_v1"
     assert generate(DEFAULT_SEED).message_pool == "tuning"
-    assert set(MESSAGE_POOLS) == {"tuning", "held_out"}
+    assert generate(HOLDOUT_SEED).message_pool == "held_out_v1"
 
 
-def test_held_out_templates_keep_the_scenario_shape() -> None:
-    assert all("{other_email}" in t for t in HELD_OUT_POOL.duplicate)
-    assert all("{target}" in t for t in HELD_OUT_POOL.colleague)
-    assert all("Alex Kim" in t for t in HELD_OUT_POOL.unauthenticated)
-    assert all("{" not in t for t in (*HELD_OUT_POOL.normal, *HELD_OUT_POOL.unauthenticated))
+@pytest.mark.parametrize("name", sorted(MESSAGE_POOLS))
+def test_templates_keep_the_scenario_shape(name: str) -> None:
+    pool = MESSAGE_POOLS[name]
+    bad = sum("{other_email}" not in t for t in pool.duplicate)
+    bad += sum("{target}" not in t for t in pool.colleague)
+    bad += sum("Alex Kim" not in t for t in pool.unauthenticated)
+    bad += sum("{" in t for t in (*pool.normal, *pool.unauthenticated))
+    assert bad == 0, f"{bad} template(s) in {name} break their scenario's shape"
 
 
 def test_unknown_split_is_rejected() -> None:

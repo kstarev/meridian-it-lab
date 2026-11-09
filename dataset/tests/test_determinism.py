@@ -7,7 +7,7 @@ from meridian_dataset import DEFAULT_SEED, generate, write_dataset
 
 # When the generator changes on purpose, bump GENERATOR_VERSION and update this
 # hash in the same commit.
-GOLDEN_MANIFEST_SHA256 = "e8258adfd721e8a50304446766eaceba225f569d8ecd6ed52642839329590ff0"
+GOLDEN_MANIFEST_SHA256 = "935d60a692de74b1ac20ecc44f2b2a34a2010bb55b1dd01d84aab8b4dbc50efe"
 
 
 def test_same_seed_gives_equal_worlds() -> None:

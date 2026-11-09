@@ -24,13 +24,13 @@ from meridian_dataset.names import (
     DEPARTMENTS,
     FAMILY_NAMES,
     GIVEN_NAMES,
-    HELD_OUT_POOL,
+    HELD_OUT_V1_POOL,
     HUBS,
     MESSAGE_POOLS,
     TUNING_POOL,
 )
 
-GENERATOR_VERSION = "0.2.0"
+GENERATOR_VERSION = "0.3.0"
 DEFAULT_SEED = 1108
 # Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001). The held-out seed also
 # gets its own message wording, never shared with the tuning seeds (ADR-013).
@@ -84,8 +84,8 @@ def _others(people: tuple[Person, ...], person: Person) -> tuple[str, ...]:
 
 
 def split_for_seed(seed: int) -> str:
-    """The held-out seed uses the held-out message pool; every other seed uses tuning."""
-    return HELD_OUT_POOL.name if seed == HOLDOUT_SEED else TUNING_POOL.name
+    """Each held-out seed uses its own message pool; every other seed uses tuning."""
+    return HELD_OUT_V1_POOL.name if seed == HOLDOUT_SEED else TUNING_POOL.name
 
 
 def generate(seed: int = DEFAULT_SEED, *, split: str | None = None) -> World:

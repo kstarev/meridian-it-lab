@@ -135,9 +135,10 @@ TUNING_POOL = MessagePool(
     ),
 )
 
-# Only ever scored, never looked at while building tier0.
-HELD_OUT_POOL = MessagePool(
-    name="held_out",
+# Held-out v1 (seed 2611). We have seen its failures, so it is now a dev set:
+# results on it may guide fixes but never count as a held-out score (ADR-014).
+HELD_OUT_V1_POOL = MessagePool(
+    name="held_out_v1",
     normal=(
         "Can you remind me what my sign-in name is?",
         "I'm back from leave and I've forgotten my account name. What is it?",
@@ -164,5 +165,5 @@ HELD_OUT_POOL = MessagePool(
 
 MESSAGE_POOLS: dict[str, MessagePool] = {
     TUNING_POOL.name: TUNING_POOL,
-    HELD_OUT_POOL.name: HELD_OUT_POOL,
+    HELD_OUT_V1_POOL.name: HELD_OUT_V1_POOL,
 }
