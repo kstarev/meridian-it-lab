@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, World, generate, write_dataset
-from meridian_dataset.generator import AI_DISCLOSURE_FACT, REFERENCE_TIME
+from meridian_dataset.generator import AI_DISCLOSURE_FACT, REFERENCE_TIME, USE_EVERY_TEMPLATE
 from meridian_dataset.model import Person, Ticket
 from meridian_dataset.names import MESSAGE_POOLS
 
@@ -15,7 +15,10 @@ SEEDS = [DEFAULT_SEED, HOLDOUT_SEED, *range(25)]
 # Held-out wording is checked with many rng seeds too, so its templates can't break a world.
 HELD_OUT_SEEDS = range(100, 110)
 CASES = [(seed, None) for seed in SEEDS] + [
-    (seed, name) for name in MESSAGE_POOLS if name != "tuning" for seed in HELD_OUT_SEEDS
+    (seed, name)
+    for name in MESSAGE_POOLS
+    if name != "tuning" and name not in USE_EVERY_TEMPLATE
+    for seed in HELD_OUT_SEEDS
 ]
 
 

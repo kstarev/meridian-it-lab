@@ -88,3 +88,12 @@ def test_templates_keep_the_scenario_shape(name: str) -> None:
 def test_unknown_split_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown split"):
         generate(DEFAULT_SEED, split="test")
+
+
+# Tuning is left out: it predates this check and must not change (it repeats one sentence).
+@pytest.mark.parametrize("name", HELD_OUT_NAMES)
+def test_no_sentence_repeats_within_a_pool(name: str) -> None:
+    pool = MESSAGE_POOLS[name]
+    all_sentences = [s for t in _templates(pool) for s in _sentences(t)]
+    repeated = len(all_sentences) - len(set(all_sentences))
+    assert repeated == 0, f"{repeated} sentence(s) repeat inside {name}"
