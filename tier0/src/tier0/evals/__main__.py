@@ -12,6 +12,7 @@ from pathlib import Path
 import anyio
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
+from meridian_dataset.generator import HOLDOUT_V2_SEED
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
@@ -29,6 +30,11 @@ def default_seed(model: str) -> int:
     """The stub only understands tuning wording, so its pipeline check runs on the tuning
     seed; real models are scored on the held-out seed (ADR-013)."""
     return DEFAULT_SEED if model == "stub" else HOLDOUT_SEED
+
+
+def split_label(seed: int) -> str:
+    """Which message set a seed uses, for published file names."""
+    return {HOLDOUT_SEED: "held-out-v1", HOLDOUT_V2_SEED: "held-out-v2"}.get(seed, "tuning")
 
 
 def _model_factory(name: str, temperature: float | None = None):  # type: ignore[no-untyped-def]
@@ -124,12 +130,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 2
         name = re.sub(
-            r"[^A-Za-z0-9._-]", "-", f"{report.run_date}-{report.provider}-{report.model}"
+            r"[^A-Za-z0-9._-]",
+            "-",
+            f"{report.run_date}-{split_label(report.seed)}-{report.provider}-{report.model}",
         )
         args.publish.mkdir(parents=True, exist_ok=True)
         published = args.publish / f"{name}.md"
+        published_json = args.publish / f"{name}.json"
+        # Published reports are never edited or replaced.
+        taken = [p for p in (published, published_json) if p.exists()]
+        if taken:
+            print(f"not published: {taken[0]} already exists", file=sys.stderr)
+            return 2
         published.write_text(md_path.read_text())
-        print(f"published: {published}")
+        published_json.write_text(json_path.read_text())
+        print(f"published: {published}\npublished: {published_json}")
     if report.is_pipeline_check:
         print(f"{PIPELINE_CHECK_LABEL}:")
     print(

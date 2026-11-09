@@ -178,8 +178,13 @@ def test_publish_real_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     out, pub = tmp_path / "out", tmp_path / "pub"
     args = ["--seed", str(DEFAULT_SEED), "--k", "1", "--model", "ollama", "--out", str(out)]
     assert cli.main([*args, "--publish", str(pub)]) == 0
-    target = pub / "2026-11-08-ollama-llama3.2.md"
+    target = pub / "2026-11-08-tuning-ollama-llama3.2.md"
     assert target.read_text() == (out / "report.md").read_text()
+    assert target.with_suffix(".json").read_text() == (out / "report.json").read_text()
+    # A published report is never replaced.
+    before = target.read_text()
+    assert cli.main([*args, "--publish", str(pub)]) == 2
+    assert target.read_text() == before
 
 
 def test_publish_refused_for_stub(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

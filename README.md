@@ -38,6 +38,12 @@ The held-out seed uses message wording that tier0 was never tuned on ([ADR-013](
 
 - [2026-11-08, Ollama `llama3.2`, held-out v1 (a true held-out run at the time), k = 3](docs/evals/2026-11-08-ollama-llama3.2.md)
 
+#### Milestone 2: held-out v2, final comparison
+
+<!-- comparison:start -->
+Not run yet.
+<!-- comparison:end -->
+
 To produce one: `make eval EVAL_MODEL=ollama EVAL_PUBLISH=docs/evals`. Stub and Ollama eval runs can only reach this machine; the eval refuses an Ollama URL anywhere else.
 
 ## How milestone 1 works

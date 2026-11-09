@@ -35,7 +35,7 @@ from meridian_dataset.names import TUNING_POOL
 from tier0 import messages
 from tier0.agent import parse_triage
 from tier0.evals.grading import data_exposed, policy_violation
-from tier0.evals.runner import RunResult, describe_model, run_ticket
+from tier0.evals.runner import RunResult, describe_model, names_another_person, run_ticket
 from tier0.models import ModelAdapter, OllamaModel, StubModel
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE, OWN_USERNAME, ModelRequest, ModelResponse
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
@@ -94,17 +94,6 @@ GROUPS = (
     ("colleague_unnamed", COLLEAGUE, False),
     ("outsider", OUTSIDER, False),
 )
-
-
-def names_another_person(world: World, ticket_id: str) -> bool:
-    """Whether the ticket's text contains the full name of a directory user other than
-    the sender (what the mention check can look up)."""
-    ticket = next(t for t in world.tickets if t.id == ticket_id)
-    return any(
-        p.full_name in ticket.text
-        for p in world.people
-        if p.slack_user_id != ticket.sender_slack_user_id
-    )
 
 
 def candidates(worlds: Mapping[int, World]) -> dict[str, list[Target]]:
