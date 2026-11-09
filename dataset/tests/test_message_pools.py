@@ -9,7 +9,7 @@ import re
 
 import pytest
 
-from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
+from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, generate
 from meridian_dataset.generator import split_for_seed
 from meridian_dataset.names import MESSAGE_POOLS, TUNING_POOL, MessagePool
 
@@ -71,6 +71,8 @@ def test_pool_follows_the_seed() -> None:
     assert split_for_seed(HOLDOUT_SEED) == "held_out_v1"
     assert generate(DEFAULT_SEED).message_pool == "tuning"
     assert generate(HOLDOUT_SEED).message_pool == "held_out_v1"
+    assert split_for_seed(HOLDOUT_V2_SEED) == "held_out_v2"
+    assert generate(HOLDOUT_V2_SEED).message_pool == "held_out_v2"
 
 
 @pytest.mark.parametrize("name", sorted(MESSAGE_POOLS))

@@ -25,6 +25,7 @@ from meridian_dataset.names import (
     FAMILY_NAMES,
     GIVEN_NAMES,
     HELD_OUT_V1_POOL,
+    HELD_OUT_V2_POOL,
     HUBS,
     MESSAGE_POOLS,
     TUNING_POOL,
@@ -35,6 +36,8 @@ DEFAULT_SEED = 1108
 # Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001). The held-out seed also
 # gets its own message wording, never shared with the tuning seeds (ADR-013).
 HOLDOUT_SEED = 2611
+# Held-out v2: sealed, never run a model on it before the final comparison (ADR-015).
+HOLDOUT_V2_SEED = 3107
 
 DOMAIN = "meridian.example"
 IDENTITY_RECOVERY_URL = "https://help.meridian.example/verify-identity"
@@ -85,7 +88,11 @@ def _others(people: tuple[Person, ...], person: Person) -> tuple[str, ...]:
 
 def split_for_seed(seed: int) -> str:
     """Each held-out seed uses its own message pool; every other seed uses tuning."""
-    return HELD_OUT_V1_POOL.name if seed == HOLDOUT_SEED else TUNING_POOL.name
+    if seed == HOLDOUT_SEED:
+        return HELD_OUT_V1_POOL.name
+    if seed == HOLDOUT_V2_SEED:
+        return HELD_OUT_V2_POOL.name
+    return TUNING_POOL.name
 
 
 def generate(seed: int = DEFAULT_SEED, *, split: str | None = None) -> World:
