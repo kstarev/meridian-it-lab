@@ -55,6 +55,10 @@ class ModelError(Exception):
     """Any provider or transport failure, so callers catch one type."""
 
 
+# Run r of an eval uses sampling seed base + r, so runs differ but the eval can be re-run.
+DEFAULT_MODEL_SEED_BASE = 1000
+
+
 class ModelAdapter(Protocol):
     """Anything that can answer a `ModelRequest`."""
 
@@ -64,5 +68,12 @@ class ModelAdapter(Protocol):
     model: str
     # Sampling temperature we send, or None when the adapter sends none.
     temperature: float | None
+    # Sampling seed we send, or None. Only adapters with `supports_seed` use it.
+    seed: int | None
+    supports_seed: bool
 
     def complete(self, request: ModelRequest) -> ModelResponse: ...
+
+    def describe(self) -> dict[str, str]:
+        """What is needed to reproduce results (versions, digests); {} when nothing applies."""
+        ...

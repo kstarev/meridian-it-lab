@@ -7,7 +7,14 @@ from typing import Any
 import httpx2
 import pytest
 
-from tier0.models import TRIAGE_SCHEMA, ModelError, ModelRequest, OllamaModel
+from tier0.models import (
+    TRIAGE_SCHEMA,
+    ClaudeModel,
+    ModelError,
+    ModelRequest,
+    OllamaModel,
+    StubModel,
+)
 
 
 def make_model(handler: Callable[[httpx2.Request], httpx2.Response]) -> OllamaModel:
@@ -109,3 +116,63 @@ def test_temperature_default_and_override() -> None:
         transport=httpx2.MockTransport(lambda r: httpx2.Response(200, json=REPLY)),
     )
     assert OllamaModel(client=client, temperature=0.2).temperature == 0.2
+
+
+# --- seed and describe --------------------------------------------------------------
+
+
+def test_seed_sent_only_when_set() -> None:
+    model, seen = capture(REPLY)
+    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    assert "seed" not in json.loads(seen[0].content)["options"]
+    model.seed = 1001
+    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    assert json.loads(seen[1].content)["options"]["seed"] == 1001
+    assert model.supports_seed is True
+
+
+DIGEST = "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72"
+
+
+def describing(model_name: str, tags: Any, version: Any = None) -> OllamaModel:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/api/version":
+            return httpx2.Response(200, json={"version": "0.6.2"} if version is None else version)
+        return (
+            httpx2.Response(200, json=tags)
+            if request.url.path == "/api/tags"
+            else httpx2.Response(404)
+        )
+
+    client = httpx2.Client(base_url="http://x", transport=httpx2.MockTransport(handler))
+    return OllamaModel(client=client, model=model_name)
+
+
+@pytest.mark.parametrize(
+    ("asked", "listed"), [("llama3.2", "llama3.2:latest"), ("llama3.2:3b", "llama3.2:3b")]
+)
+def test_describe_finds_digest(asked: str, listed: str) -> None:
+    tags = {
+        "models": [{"name": "other:latest", "digest": "f" * 64}, {"name": listed, "digest": DIGEST}]
+    }
+    assert describing(asked, tags).describe() == {
+        "ollama_version": "0.6.2",
+        "model_digest": DIGEST,
+        "model_id": "a80c4f17acd5",
+    }
+
+
+def test_describe_errors_become_model_error() -> None:
+    with pytest.raises(ModelError):
+        describing("llama3.2", {"models": [{"name": "x:latest", "digest": DIGEST}]}).describe()
+    with pytest.raises(ModelError):
+        describing("llama3.2", {"nope": 1}).describe()
+    with pytest.raises(ModelError):
+        describing("llama3.2", {"models": []}, version={"nope": 1}).describe()
+    bad = httpx2.Client(
+        base_url="http://x",
+        transport=httpx2.MockTransport(lambda r: httpx2.Response(200, content=b"not json")),
+    )
+    with pytest.raises(ModelError):
+        OllamaModel(client=bad).describe()
+    assert StubModel().describe() == {} and ClaudeModel().describe() == {}

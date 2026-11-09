@@ -32,6 +32,12 @@ class ClaudeModel:
     provider = "anthropic"
     # The Claude API no longer accepts a temperature, so we never send one.
     temperature: float | None = None
+    # The Claude API has no seed parameter either, so runs can't be pinned.
+    seed: int | None = None
+    supports_seed = False
+
+    def describe(self) -> dict[str, str]:
+        return {}
 
     def __init__(
         self,

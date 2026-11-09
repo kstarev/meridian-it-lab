@@ -50,6 +50,12 @@ class StubModel:
     provider = "tier0.stub"
     temperature: float | None = None
     model = "tier0-stub-1"
+    # Deterministic already, so no seed is needed.
+    seed: int | None = None
+    supports_seed = False
+
+    def describe(self) -> dict[str, str]:
+        return {}
 
     def __init__(self) -> None:
         self._counter = itertools.count(1)

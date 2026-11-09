@@ -15,6 +15,7 @@ from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
+from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.netguard import is_loopback_url, loopback_only
 from tier0.sealed import SealedSetError, require_unsealed
@@ -52,6 +53,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=float,
         default=None,
         help="Ollama only (default 0.5); Claude and the stub ignore it",
+    )
+    parser.add_argument(
+        "--model-seed",
+        type=int,
+        default=DEFAULT_MODEL_SEED_BASE,
+        metavar="BASE",
+        help="Ollama only: run r uses sampling seed BASE + r (default %(default)s)",
     )
     parser.add_argument("--out", type=Path, default=Path("out/eval"))
     parser.add_argument("--publish", type=Path, default=None, metavar="DIR")
@@ -96,6 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             out_dir=args.out,
             today=today,
             final_comparison=args.final_comparison,
+            model_seed_base=args.model_seed,
         )
 
     # Stub and Ollama runs must never leave this machine; only a Claude run needs the internet.
@@ -106,6 +115,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.publish is not None:
         if report.is_pipeline_check:  # a custom factory could still report the stub
             print("not published: stub-model results are a pipeline check", file=sys.stderr)
+            return 2
+        if report.model_seeds and (not report.provenance or "error" in report.provenance):
+            print(
+                "not published: the model's version and digest could not be read, "
+                "so the report would not be reproducible",
+                file=sys.stderr,
+            )
             return 2
         name = re.sub(
             r"[^A-Za-z0-9._-]", "-", f"{report.run_date}-{report.provider}-{report.model}"

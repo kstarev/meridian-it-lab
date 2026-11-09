@@ -2,7 +2,7 @@
 
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -13,6 +13,7 @@ from tier0.clock import parse_time
 from tier0.evals.explain import explain
 from tier0.evals.grading import Grade, Observation, data_exposed, grade, policy_violation
 from tier0.models import ModelAdapter, StubModel
+from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.runtime import offline_runtime
 from tier0.sealed import require_unsealed
 from tier0.tracing import (
@@ -84,6 +85,11 @@ class EvalReport:
     run_date: str = "1970-01-01"
     answer_key: tuple[AnswerKeyEntry, ...] = ()
     temperature: float | None = None
+    # One Ollama sampling seed per run (base + run number); empty when the model has none.
+    model_seeds: tuple[int, ...] = ()
+    model_seed_base: int | None = None
+    # Ollama version and model digest (or {"error": ...}); empty for stub and Claude.
+    provenance: dict[str, str] = field(default_factory=dict)
 
     def explanation(self, run: RunResult) -> str | None:
         """Plain-English reason a run failed; None when it passed (or no key is known)."""
@@ -220,6 +226,9 @@ class EvalReport:
             "provider": self.provider,
             "model": self.model,
             "temperature": self.temperature,
+            "model_seeds": list(self.model_seeds),
+            "model_seed_base": self.model_seed_base,
+            "provenance": dict(self.provenance),
             "semconv_version": self.semconv_version,
             "pass_1": self.pass_1,
             "pass_k": self.pass_k,
@@ -292,6 +301,9 @@ def build_report(
     model: str,
     run_date: str = "1970-01-01",
     temperature: float | None = None,
+    model_seeds: tuple[int, ...] = (),
+    model_seed_base: int | None = None,
+    provenance: dict[str, str] | None = None,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -309,7 +321,18 @@ def build_report(
         run_date=run_date,
         answer_key=tuple(world.answer_key.entries),
         temperature=temperature,
+        model_seeds=model_seeds,
+        model_seed_base=model_seed_base,
+        provenance=dict(provenance or {}),
     )
+
+
+def seeded_model(model_factory: ModelFactory, model_seed: int | None) -> ModelAdapter:
+    """A fresh model; when it supports seeds and one is given, pinned to that seed."""
+    model: ModelAdapter = model_factory()
+    if model_seed is not None and getattr(model, "supports_seed", False):
+        model.seed = model_seed
+    return model
 
 
 async def run_ticket(
@@ -320,6 +343,7 @@ async def run_ticket(
     model_factory: ModelFactory,
     out_dir: Path | None = None,
     final_comparison: bool = False,
+    model_seed: int | None = None,
 ) -> RunResult:
     """One run of one ticket on a fresh runtime, so nothing leaks between runs.
 
@@ -333,7 +357,10 @@ async def run_ticket(
         trace_dir.mkdir(parents=True, exist_ok=True)
     tracer = Tracer(out_dir=trace_dir)
     async with offline_runtime(
-        world, model=model_factory(), tracer=tracer, final_comparison=final_comparison
+        world,
+        model=seeded_model(model_factory, model_seed),
+        tracer=tracer,
+        final_comparison=final_comparison,
     ) as rt:
         rt.clock.advance_to(parse_time(ticket.received_at))
         outcome = await rt.agent.handle(rt.slack.message_event(ticket))
@@ -412,6 +439,17 @@ def _diagnostics(spans: Any) -> tuple[tuple[str, ...], tuple[str, ...], tuple[st
     return tuple(sorted(reasons)), tuple(model_errors), tuple(finish)
 
 
+def describe_model(model: Any) -> dict[str, str]:
+    """The model's provenance, or {"error": <exception class>} when it can't be read."""
+    describe = getattr(model, "describe", None)
+    if describe is None:
+        return {}
+    try:
+        return dict(describe())
+    except Exception as exc:
+        return {"error": type(exc).__name__}
+
+
 async def run_eval(
     seed: int,
     *,
@@ -420,11 +458,14 @@ async def run_eval(
     out_dir: Path | None = None,
     today: Callable[[], date] | None = None,
     final_comparison: bool = False,
+    model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
 ) -> EvalReport:
     """Run every ticket k times, one after another. Held-out v2 needs final_comparison."""
     world = generate(seed)
     require_unsealed(world, final_comparison=final_comparison)
     probe: ModelAdapter = model_factory()
+    seeded = bool(getattr(probe, "supports_seed", False))
+    provenance = describe_model(probe)
     results = []
     for entry in world.answer_key.entries:
         for run in range(1, k + 1):
@@ -436,6 +477,7 @@ async def run_eval(
                     model_factory=model_factory,
                     out_dir=out_dir,
                     final_comparison=final_comparison,
+                    model_seed=model_seed_base + run if seeded else None,
                 )
             )
     run_date = (today() if today is not None else datetime.now(UTC).date()).isoformat()
@@ -448,4 +490,7 @@ async def run_eval(
         model=probe.model,
         run_date=run_date,
         temperature=getattr(probe, "temperature", None),
+        model_seeds=tuple(model_seed_base + r for r in range(1, k + 1)) if seeded else (),
+        model_seed_base=model_seed_base if seeded else None,
+        provenance=provenance,
     )

@@ -21,7 +21,9 @@ from meridian_dataset.generator import _fill_colleague
 from meridian_dataset.names import MESSAGE_POOLS
 from tier0.agent import parse_triage, triage_request
 from tier0.evals.__main__ import _model_factory
+from tier0.evals.runner import describe_model
 from tier0.models import ABOUT_SOMEONE_ELSE, OWN_USERNAME, ModelError
+from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.netguard import is_loopback_url, loopback_only
 from tier0.sealed import SealedSetError, require_unsealed
@@ -52,15 +54,23 @@ def build_instances(pool_name: str) -> list[tuple[str, int, str, str]]:
     return out
 
 
-def run_check(model: Any, pool_name: str, k: int) -> dict[str, Any]:
+def run_check(
+    model: Any, pool_name: str, k: int, *, model_seed_base: int = DEFAULT_MODEL_SEED_BASE
+) -> dict[str, Any]:
+    """Run r of k uses sampling seed base + r on models that support one."""
     instances = build_instances(pool_name)
+    seeded = bool(getattr(model, "supports_seed", False))
+    provenance = describe_model(model)
     per: dict[str, dict[str, int]] = {
         s: {"instances": 0, "runs": 0, "correct": 0} for s in SCENARIOS
     }
     wrong: Counter[tuple[str, int, str, str]] = Counter()
-    for scenario, index, text, expected in instances:
+    for scenario, _, _, _ in instances:
         per[scenario]["instances"] += 1
-        for _ in range(k):
+    for run in range(1, k + 1):
+        if seeded:
+            model.seed = model_seed_base + run
+        for scenario, index, text, expected in instances:
             try:
                 response = model.complete(triage_request(text))
             except ModelError:
@@ -85,6 +95,9 @@ def run_check(model: Any, pool_name: str, k: int) -> dict[str, Any]:
         "model": model.model,
         "temperature": getattr(model, "temperature", None),
         "k": k,
+        "model_seeds": [model_seed_base + r for r in range(1, k + 1)] if seeded else [],
+        "model_seed_base": model_seed_base if seeded else None,
+        "provenance": provenance,
         "scenarios": scenarios,
         "runs": runs,
         "correct": correct,
@@ -103,6 +116,22 @@ def run_check(model: Any, pool_name: str, k: int) -> dict[str, Any]:
     }
 
 
+def _provenance_lines(result: dict[str, Any]) -> list[str]:
+    seeds = result["model_seeds"]
+    prov = result["provenance"]
+    if not seeds:
+        return []
+    if "model_digest" in prov:
+        what = (
+            f"Model ID {prov['model_id']} (digest {prov['model_digest']}), "
+            f"Ollama version {prov['ollama_version']}"
+        )
+    else:
+        what = f"Model digest and Ollama version not recorded ({prov.get('error', 'unavailable')})"
+    listed = ", ".join(str(s) for s in seeds)
+    return [f"{what}. Seeds: {listed} (base {result['model_seed_base']} + run number).", ""]
+
+
 def render_markdown(result: dict[str, Any]) -> str:
     temp = result["temperature"]
     lines = [
@@ -113,6 +142,7 @@ def render_markdown(result: dict[str, Any]) -> str:
         f"Pool {result['pool']}, model {result['provider']} / {result['model']}, "
         f"temperature {'none' if temp is None else format(temp, 'g')}, k = {result['k']}.",
         "",
+        *_provenance_lines(result),
         "| Scenario | Instances | Runs | Correct | Accuracy |",
         "| --- | --- | --- | --- | --- |",
     ]
@@ -140,6 +170,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--pool", required=True, choices=sorted([*MESSAGE_POOLS, "held_out_v2"]))
     parser.add_argument("--k", type=int, default=3)
     parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument(
+        "--model-seed",
+        type=int,
+        default=DEFAULT_MODEL_SEED_BASE,
+        metavar="BASE",
+        help="Ollama only: run r uses sampling seed BASE + r (default %(default)s)",
+    )
     parser.add_argument("--out", type=Path, default=Path("out/triage_check"))
     args = parser.parse_args(argv)
 
@@ -162,7 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     model = _model_factory(args.model, args.temperature)()
     guard = loopback_only() if args.model in ("stub", "ollama") else contextlib.nullcontext()
     with guard:
-        result = run_check(model, args.pool, args.k)
+        result = run_check(model, args.pool, args.k, model_seed_base=args.model_seed)
 
     name = re.sub(r"[^A-Za-z0-9._-]", "-", f"{args.pool}-{result['provider']}-{result['model']}")
     args.out.mkdir(parents=True, exist_ok=True)

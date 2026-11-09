@@ -13,7 +13,7 @@ from tier0.evals import __main__ as cli
 from tier0.evals.grading import Grade, Observation, grade
 from tier0.evals.report import render_markdown, write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, RunResult, build_report, run_eval
-from tier0.models import ModelRequest, ModelResponse, StubModel
+from tier0.models import ModelError, ModelRequest, ModelResponse, StubModel
 from tier0.tickets.adapter import DONE, QUEUE_SERVICE_DESK, TRIAGE
 
 COLLEAGUE = "kenji.sato@meridian.example"
@@ -344,3 +344,123 @@ def test_non_probe_in_done_is_not_probe_answered(key: dict[str, AnswerKeyEntry])
     entry = dataclasses.replace(key["TKT-005"], confirm_guess=False)
     unsafe = grade(entry, _good(entry, tickets=((DONE, QUEUE_SERVICE_DESK),))).unsafe
     assert "probe_answered" not in unsafe
+
+
+# --- seeds, provenance and the Reproducibility section ------------------------------
+
+
+class SeededFake:
+    """Stub answers, but claims seed support and records the seed it was given."""
+
+    provider = "ollama"
+    model = "llama3.2"
+    temperature = 0.5
+    supports_seed = True
+    created: list["SeededFake"] = []  # noqa: RUF012
+
+    def __init__(self) -> None:
+        self.seed: int | None = None
+        self._stub = StubModel()
+        SeededFake.created.append(self)
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        return self._stub.complete(request)
+
+    def describe(self) -> dict[str, str]:
+        return {"ollama_version": "0.6.2", "model_digest": "ab" * 32, "model_id": "ab" * 6}
+
+
+class BrokenDescribe(SeededFake):
+    def describe(self) -> dict[str, str]:
+        raise ModelError("down")
+
+
+def test_each_run_gets_its_own_seed() -> None:
+    SeededFake.created.clear()
+    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=3, model_factory=SeededFake))
+    assert rep.model_seeds == (1001, 1002, 1003) and rep.model_seed_base == 1000
+    used = [m.seed for m in SeededFake.created[1:]]  # [0] is the probe
+    n = len(used) // 3
+    assert sorted(set(used)) == [1001, 1002, 1003] and all(used.count(s) == n for s in set(used))
+    assert rep.provenance["model_id"] == "ab" * 6
+
+
+def test_custom_seed_base_and_stub() -> None:
+    rep = anyio.run(
+        lambda: run_eval(DEFAULT_SEED, k=2, model_factory=SeededFake, model_seed_base=50)
+    )
+    assert rep.model_seeds == (51, 52) and rep.model_seed_base == 50
+    stub = anyio.run(lambda: run_eval(DEFAULT_SEED, k=2))
+    assert stub.model_seeds == () and stub.model_seed_base is None and stub.provenance == {}
+
+
+def test_describe_failure_is_recorded() -> None:
+    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1, model_factory=BrokenDescribe))
+    assert rep.provenance == {"error": "ModelError"}
+
+
+def _ollama_report() -> object:
+    return build_report(
+        generate(DEFAULT_SEED),
+        (_result("TKT-001", 1, True),),
+        seed=2611,
+        k=3,
+        provider="ollama",
+        model="llama3.2",
+        temperature=0.5,
+        model_seeds=(1001, 1002, 1003),
+        model_seed_base=1000,
+        provenance={"ollama_version": "0.6.2", "model_digest": "ab" * 32, "model_id": "ab" * 6},
+    )
+
+
+def test_reproducibility_section_for_seeded_model() -> None:
+    rep = _ollama_report()
+    md = render_markdown(rep)  # type: ignore[arg-type]
+    assert md.index("## Headline") < md.index("## Reproducibility") < md.index("## Tickets")
+    for text in (
+        "model ID " + "ab" * 6,
+        "ab" * 32,
+        "Ollama version: 0.6.2",
+        "Temperature: 0.5",
+        "Seeds: 1001, 1002, 1003 (base 1000 + run number)",
+        "These results reproduce on the same machine with the same model digest and Ollama "
+        "version. Small drift across hardware or Ollama versions is possible.",
+        "--temperature 0.5 --model-seed 1000",
+    ):
+        assert text in md
+    data = rep.to_dict()  # type: ignore[attr-defined]
+    assert data["model_seeds"] == [1001, 1002, 1003] and data["model_seed_base"] == 1000
+    assert data["provenance"]["model_id"] == "ab" * 6
+
+
+def test_reproducibility_section_for_stub_and_claude() -> None:
+    stub = render_markdown(anyio.run(lambda: run_eval(DEFAULT_SEED, k=1)))
+    assert "The stub model is deterministic, so no seeds are needed" in stub
+    assert "--model-seed" not in stub
+    claude = build_report(
+        generate(DEFAULT_SEED),
+        (_result("TKT-001", 1, True),),
+        seed=1,
+        k=1,
+        provider="anthropic",
+        model="m",
+    )
+    md = render_markdown(claude)
+    assert (
+        "The Claude API has no seed or temperature parameter, so runs can't be pinned; "
+        "results may vary between runs."
+    ) in md
+    assert claude.to_dict()["model_seeds"] == [] and claude.to_dict()["provenance"] == {}
+
+
+def test_publish_refused_without_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "build_model", lambda name: BrokenDescribe())
+    published = tmp_path / "pub"
+    code = cli.main(
+        ["--model", "ollama", "--seed", str(DEFAULT_SEED), "--k", "1",
+         "--out", str(tmp_path / "out"), "--publish", str(published)]
+    )  # fmt: skip
+    assert code == 2 and not published.exists()

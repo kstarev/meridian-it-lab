@@ -17,6 +17,7 @@ class OllamaModel:
     """Calls Ollama's /api/chat at a fixed, configurable temperature."""
 
     provider = "ollama"
+    supports_seed = True
 
     def __init__(
         self,
@@ -26,9 +27,11 @@ class OllamaModel:
         client: httpx2.Client | None = None,
         timeout: float = 60.0,
         temperature: float = DEFAULT_TEMPERATURE,
+        seed: int | None = None,
     ) -> None:
         self.model = model
         self.temperature: float | None = temperature
+        self.seed: int | None = seed
         self._client = client or httpx2.Client(base_url=base_url, timeout=timeout)
 
     def complete(self, request: ModelRequest) -> ModelResponse:
@@ -41,6 +44,8 @@ class OllamaModel:
             "stream": False,
             "options": {"temperature": self.temperature, "num_predict": request.max_tokens},
         }
+        if self.seed is not None:
+            body["options"]["seed"] = self.seed
         if request.json_schema is not None:
             # Ollama structured outputs accept a JSON schema here.
             body["format"] = request.json_schema
@@ -60,3 +65,22 @@ class OllamaModel:
             raise ModelError(f"Ollama request failed: {exc}") from exc
         except (ValueError, KeyError, TypeError) as exc:
             raise ModelError(f"Ollama returned an unexpected response: {exc}") from exc
+
+    def describe(self) -> dict[str, str]:
+        """Ollama version and the model's digest, so a report says exactly what ran."""
+        try:
+            version_response = self._client.get("/api/version")
+            version_response.raise_for_status()
+            version = str(version_response.json()["version"])
+            tags_response = self._client.get("/api/tags")
+            tags_response.raise_for_status()
+            models = tags_response.json()["models"]
+            wanted = self.model if ":" in self.model else f"{self.model}:latest"
+            digest = next(str(m["digest"]) for m in models if m["name"] == wanted)
+        except httpx2.HTTPError as exc:
+            raise ModelError(f"Ollama describe failed: {exc}") from exc
+        except StopIteration:
+            raise ModelError(f"Ollama does not list the model {self.model!r}") from None
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ModelError(f"Ollama returned an unexpected response: {exc}") from exc
+        return {"ollama_version": version, "model_digest": digest, "model_id": digest[:12]}

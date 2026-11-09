@@ -90,3 +90,37 @@ def test_parse_triage_ok_and_request() -> None:
     assert parse_triage(response('{"category": "about_someone_else"}')) == ABOUT_SOMEONE_ELSE
     req = triage_request("hi")
     assert req.task == "triage" and req.user == "hi" and req.json_schema is not None
+
+
+class SeededOwn(AlwaysOwn):
+    supports_seed = True
+
+    def __init__(self) -> None:
+        self.seed: int | None = None
+        self.seen: list[int | None] = []
+
+    def complete(self, request):  # type: ignore[no-untyped-def]
+        self.seen.append(self.seed)
+        return super().complete(request)
+
+    def describe(self) -> dict[str, str]:
+        return {"ollama_version": "0.6.2", "model_digest": "cd" * 32, "model_id": "cd" * 6}
+
+
+def test_seeds_per_run_and_provenance() -> None:
+    model = SeededOwn()
+    result = run_check(model, "tuning", 3, model_seed_base=500)
+    assert result["model_seeds"] == [501, 502, 503] and result["model_seed_base"] == 500
+    assert result["provenance"]["model_id"] == "cd" * 6
+    per_run = len(model.seen) // 3
+    assert model.seen == [501] * per_run + [502] * per_run + [503] * per_run
+    from tier0.evals.triage_check import render_markdown
+
+    md = render_markdown(result)
+    assert "cd" * 32 in md and "Seeds: 501, 502, 503" in md
+
+
+def test_stub_has_no_seeds(tmp_path: Path) -> None:
+    assert main(["--pool", "tuning", "--k", "1", "--model-seed", "7", "--out", str(tmp_path)]) == 0
+    data = json.loads(next(tmp_path.glob("*.json")).read_text())
+    assert data["model_seeds"] == [] and data["provenance"] == {}
