@@ -544,6 +544,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - Anything that isn't a plain first name is dropped.
   - An unverified sender is never greeted by name.
 - **AI disclosure once,** in the first message to a requester and in their language. Later messages greet by name only.
+- **A light closer, on two reply types only.** About a third of username answers and closing notes get one short line from a fixed list, with at most one emoji from 🔍 🙂 👋 ("Mystery solved 🔍", "Rätsel gelöst 🔍"). On a Friday in the requester's own time zone (Slack's `tz` from `users.info`), that line is "Have a good weekend!" or its translation. The same ticket hash picks it, so runs repeat exactly. Refusals, the outsider reply, hand-offs and the guard fallback never get one; tests check that, the one-emoji limit and the banned phrases.
 - **No user enumeration:** what a reply says depends only on the reply type, the requester's language and name, and the ticket, never on anyone the message mentions.
   - **One reply for every request about someone else.** The requester gets the colleague refusal whether tier0 refused the request or handed it to a person because another directory user or a role word was mentioned. The hand-off still happens, so IT sees it; only what the requester reads is the same. This is fixed in the reply, not the routing.
   - **Worded for both readers.** That reply says tier0 can only help with the requester's own account, tells them what the other person can do (message tier0 themselves, or use the identity-recovery link), and ends with one way out: if they meant their own account, ask again in one short line, like "what's my username?". The way out needs no new code, and a test sends each language's example line and checks it is answered.
@@ -558,7 +559,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - The ticket closes even if the note can't be sent.
 - **Grading:** the answer key keeps the English disclosure fact ("AI assistant"). The grader accepts the same disclosure in any of the four languages, from a list owned by the dataset package rather than by tier0's templates.
 
-**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (855). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
+**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (864). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
 
 **Consequences:**
 

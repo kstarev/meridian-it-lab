@@ -494,3 +494,90 @@ def test_refused_and_handed_off_look_the_same_to_the_requester() -> None:
     assert (refused_out.action, refused_out.state) == ("refuse", "Canceled")
     assert (handed_out.action, handed_out.state) == ("escalate", "Triage")
     assert refused == handed
+
+
+# --- the friendly closer (answer and auto_close only) ----------------------------------
+
+_EMOJI = re.compile("[\U0001f000-\U0001faff☀-➿]")
+
+
+def _every_closer() -> list[str]:
+    lines = [t for by_lang in replies.CLOSERS.values() for ts in by_lang.values() for t in ts]
+    return [*lines, *replies.FRIDAY_CLOSER.values()]
+
+
+def test_closers_are_short_friendly_and_clean() -> None:
+    assert set(replies.CLOSERS) == set(replies.CLOSER_TYPES) == {"answer", "auto_close"}
+    for by_lang in replies.CLOSERS.values():
+        assert set(by_lang) == set(replies.LANGUAGES)
+    assert set(replies.FRIDAY_CLOSER) == set(replies.LANGUAGES)
+    for line in _every_closer():
+        emoji = _EMOJI.findall(line)
+        assert len(emoji) <= 1, line
+        assert all(e in replies.ALLOWED_EMOJI for e in emoji), line
+        assert len(line.split()) <= 6, line
+        for phrase in BANNED:
+            assert phrase.lower() not in line.lower(), line
+
+
+@pytest.mark.parametrize(
+    "reply_type", ["refuse_colleague", "unverified", "handoff", "guard_fallback"]
+)
+def test_no_closer_on_refusal_outsider_handoff_or_guard(reply_type: str) -> None:
+    closers = _every_closer()
+    for language in replies.LANGUAGES:
+        for n in range(200):
+            for weekday in (None, 0, 4):
+                text = replies.body(reply_type, language, f"IT-{n}", weekday=weekday, **FIELDS)  # type: ignore[arg-type]
+                assert not any(c in text for c in closers), (reply_type, text)
+                assert not _EMOJI.search(text)
+
+
+def test_about_a_third_of_answers_get_one_closer_and_never_two() -> None:
+    closers = _every_closer()
+    for reply_type in ("answer", "auto_close"):
+        with_closer = 0
+        for n in range(600):
+            text = replies.body(reply_type, "en", f"IT-{n}", weekday=1, **FIELDS)  # type: ignore[arg-type]
+            found = [c for c in closers if c in text]
+            assert len(found) <= 1 and len(_EMOJI.findall(text)) <= 1, text
+            with_closer += bool(found)
+            assert text == replies.body(reply_type, "en", f"IT-{n}", weekday=1, **FIELDS)  # type: ignore[arg-type]
+        assert 150 <= with_closer <= 250, (reply_type, with_closer)
+
+
+def test_friday_gets_the_weekend_line() -> None:
+    key = next(f"IT-{n}" for n in range(100) if replies.closer("answer", "de", f"IT-{n}", 1))
+    assert replies.closer("answer", "de", key, replies.FRIDAY) == "Schönes Wochenende!"
+    assert replies.closer("answer", "en", key, replies.FRIDAY) == "Have a good weekend!"
+    assert replies.closer("answer", "en", key, None) in replies.CLOSERS["answer"]["en"]
+    assert replies.closer("handoff", "en", key, replies.FRIDAY) is None  # type: ignore[arg-type]
+
+
+def test_friday_is_the_requesters_friday() -> None:
+    """Local weekday from Slack's tz: late Thursday in New York is already Friday in
+    Singapore."""
+    from datetime import UTC, datetime
+
+    from tier0.agent import ServiceDeskAgent
+    from tier0.clock import MockClock
+
+    agent = ServiceDeskAgent.__new__(ServiceDeskAgent)
+    agent._clock = MockClock(datetime(2026, 11, 12, 20, 0, tzinfo=UTC))  # Thu 20:00 UTC
+    assert agent._weekday("America/New_York") == 3
+    assert agent._weekday("Asia/Singapore") == 4
+    assert agent._weekday(None) is None and agent._weekday("Not/AZone") is None
+
+
+def test_closers_never_reach_refusals_or_outsiders_end_to_end() -> None:
+    closers = _every_closer()
+    for seed in range(DEFAULT_SEED, DEFAULT_SEED + 20):
+        world = generate(seed)
+        if world.message_pool != "tuning":
+            continue
+        rt, outcomes = _deliver(world, list(world.tickets), sweep=True)
+        for outcome, msg in zip(outcomes, rt.slack.sent_messages, strict=False):
+            if outcome.action in ("refuse", "verify_identity", "escalate"):
+                assert not any(c in msg.text for c in closers), msg.text
+        for msg in rt.slack.sent_messages:
+            assert len(_EMOJI.findall(msg.text)) <= 1

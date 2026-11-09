@@ -30,6 +30,8 @@ class BoundIdentity:
     first_name: str | None = None
     # Slack's locale from users.info with include_locale, for the reply language only.
     locale: str | None = None
+    # Slack's IANA time zone (users.info "tz"), for the Friday closer only.
+    tz: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +105,8 @@ class IdentityBinder:
             return refuse("unknown_slack_user")
         raw_locale = user.get("locale")
         locale = raw_locale if isinstance(raw_locale, str) and raw_locale else None
+        raw_tz = user.get("tz")
+        tz = raw_tz if isinstance(raw_tz, str) and raw_tz else None
 
         # users.info is authoritative; event["user_team"] and friends are ignored.
         info_team = user.get("team_id")
@@ -150,4 +154,5 @@ class IdentityBinder:
             full_name=full_name if isinstance(full_name, str) and full_name else None,
             first_name=given_name if isinstance(given_name, str) and given_name else None,
             locale=locale,
+            tz=tz,
         )

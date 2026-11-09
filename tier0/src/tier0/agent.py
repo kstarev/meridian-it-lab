@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Literal, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tier0 import messages, replies
 from tier0.clock import Clock, parse_time
@@ -90,6 +91,7 @@ class _Audience:
     email: str | None  # the one company address the guard lets through
     language: replies.Language
     first_name: str | None
+    tz: str | None = None  # IANA time zone, for the Friday closer only
 
 
 def _audience(bound: BoundIdentity) -> _Audience:
@@ -98,6 +100,7 @@ def _audience(bound: BoundIdentity) -> _Audience:
         email=bound.email,
         language=replies.language_for(bound.locale),
         first_name=bound.first_name,
+        tz=bound.tz,
     )
 
 
@@ -553,7 +556,7 @@ class ServiceDeskAgent:
         included. The first message to a requester carries the AI disclosure."""
         first = to.user_id not in self._disclosed
         text = replies.compose(
-            replies.body(reply_type, to.language, key, **fields),
+            replies.body(reply_type, to.language, key, weekday=self._weekday(to.tz), **fields),
             to.language,
             first_name=to.first_name,
             first=first,
@@ -565,6 +568,15 @@ class ServiceDeskAgent:
         if not response.get("ok"):
             raise _SendFailed
         self._disclosed.add(to.user_id)
+
+    def _weekday(self, tz: str | None) -> int | None:
+        """The requester's local weekday, or None if their time zone is unknown."""
+        if not tz:
+            return None
+        try:
+            return self._clock.now().astimezone(ZoneInfo(tz)).weekday()
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
 
     def _best_effort_triage(self, identifier: str) -> None:
         # The caller re-raises the original error, so a failure here is not reported.
@@ -611,6 +623,7 @@ class ServiceDeskAgent:
         email = profile.get("email") if isinstance(profile, dict) else None
         first_name = profile.get("first_name") if isinstance(profile, dict) else None
         locale = user.get("locale")
+        tz = user.get("tz")
         opened = self._slack.conversations_open(users=user_id)
         channel = opened.get("channel") if opened.get("ok") else None
         channel_id = channel.get("id") if isinstance(channel, dict) else None
@@ -623,6 +636,7 @@ class ServiceDeskAgent:
             # Slack's profile name goes only to this same person, and compose() drops
             # anything that isn't a plain first name.
             first_name=first_name if isinstance(first_name, str) else None,
+            tz=tz if isinstance(tz, str) else None,
         )
         try:
             self._send(channel_id, to, "auto_close", ticket.identifier)

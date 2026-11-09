@@ -304,6 +304,46 @@ ASK_AGAIN: dict[Language, str] = {
     "fr": "Quel est mon identifiant ?",
 }
 
+# A light, friendly closer for the answer and the sweeper's note only: never a refusal,
+# the outsider reply, a hand-off or the guard fallback. About a third of those replies get
+# one, picked by the ticket hash like the variants, so runs repeat exactly.
+CLOSER_TYPES: frozenset[ReplyType] = frozenset({"answer", "auto_close"})
+CLOSER_SHARE = 3  # 1 in 3
+ALLOWED_EMOJI = ("🔍", "🙂", "👋")
+CLOSERS: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
+    "answer": {
+        "en": ("Mystery solved 🔍", "Happy signing in! 🙂", "One less thing to worry about."),
+        "de": ("Rätsel gelöst 🔍", "Viel Spaß beim Anmelden! 🙂", "Eine Sorge weniger."),
+        "es": ("Misterio resuelto 🔍", "¡Feliz inicio de sesión! 🙂", "Una preocupación menos."),
+        "fr": ("Mystère résolu 🔍", "Bonne connexion ! 🙂", "Un souci de moins."),
+    },
+    "auto_close": {
+        "en": ("Have a good one 🙂", "Take care!", "Talk soon 👋"),
+        "de": ("Mach's gut 🙂", "Bis bald!", "Bis dann 👋"),
+        "es": ("¡Que te vaya bien! 🙂", "¡Hasta pronto!", "Nos vemos 👋"),
+        "fr": ("Bonne journée 🙂", "À bientôt !", "À plus 👋"),
+    },
+}
+# On a Friday in the requester's time zone, the closer is this one instead.
+FRIDAY_CLOSER: dict[Language, str] = {
+    "en": "Have a good weekend!",
+    "de": "Schönes Wochenende!",
+    "es": "¡Buen fin de semana!",
+    "fr": "Bon week-end !",
+}
+FRIDAY = 4  # datetime.weekday()
+
+
+def closer(reply_type: ReplyType, language: Language, key: str, weekday: int | None) -> str | None:
+    """The closer for this reply, or None (most replies, and every non-closer type)."""
+    if reply_type not in CLOSER_TYPES or variant("closer", key, CLOSER_SHARE) != 0:
+        return None
+    if weekday == FRIDAY:
+        return FRIDAY_CLOSER[language]
+    options = CLOSERS[reply_type][language]
+    return options[variant("closer_line", key, len(options))]  # type: ignore[arg-type]
+
+
 # A first name is only used when it looks like one: letters, spaces, hyphens, apostrophes.
 _FIRST_NAME = re.compile(r"[^\W\d_]+(?:[ '\-][^\W\d_]+)*")
 _MAX_FIRST_NAME = 40
@@ -336,13 +376,24 @@ def variant(reply_type: ReplyType, key: str, count: int) -> int:
     return int.from_bytes(digest[:8], "big") % count
 
 
-def body(reply_type: ReplyType, language: Language, key: str, **fields: str) -> str:
-    """The reply text for one reply type, with its facts filled in."""
+def body(
+    reply_type: ReplyType,
+    language: Language,
+    key: str,
+    *,
+    weekday: int | None = None,
+    **fields: str,
+) -> str:
+    """The reply text for one reply type, with its facts filled in, and sometimes a
+    closer on its own line (answer and auto_close only). `weekday` is the requester's
+    local weekday (0 = Monday), or None when their time zone is unknown."""
     missing = [f for f in REQUIRED_FIELDS[reply_type] if not fields.get(f)]
     if missing:
         raise ValueError(f"{reply_type} needs {', '.join(missing)}")
     options = TEMPLATES[reply_type][language]
-    return options[variant(reply_type, key, len(options))].format(**fields)
+    text = options[variant(reply_type, key, len(options))].format(**fields)
+    extra = closer(reply_type, language, key, weekday)
+    return f"{text}\n{extra}" if extra else text
 
 
 def compose(text: str, language: Language, *, first_name: str | None, first: bool) -> str:
