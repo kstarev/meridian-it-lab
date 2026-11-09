@@ -157,6 +157,33 @@ def test_disclosure_only_in_the_first_message() -> None:
     assert replies.compose("Body.", "en", first_name=None, first=False) == "Body."
 
 
+def test_every_colleague_refusal_ends_with_the_way_out() -> None:
+    """One text for a refusal and a hand-off has to work for someone who asked about
+    their own login too: it says tier0 helps with their own account and ends by telling
+    them to ask again in one short line (ADR-028)."""
+    own = {"en": "own account", "de": "eigene", "es": "propia cuenta", "fr": "propre compte"}
+    for language, options in replies.TEMPLATES["refuse_colleague"].items():
+        for template in options:
+            text = template.format(**FIELDS)
+            assert own[language] in text
+            tail = text.rstrip(' "“»')
+            assert tail.endswith(replies.ASK_AGAIN[language]), template
+
+
+@pytest.mark.parametrize("language", replies.LANGUAGES)
+def test_the_way_out_works_with_no_new_code(language: str) -> None:
+    """Sending the example line gets the requester their own username."""
+    world = generate(DEFAULT_SEED)
+    base = next(t for t in world.tickets if world.answer_key.entry(t.id).scenario == "normal")
+    line = replies.ASK_AGAIN[language]  # type: ignore[index]
+    rt, (outcome,) = _deliver(world, [dataclasses.replace(base, text=line)])
+    assert outcome.action == "answer"
+    requester = world.person_by_slack_id(base.sender_slack_user_id)
+    assert requester is not None
+    (sent,) = (m.text for m in rt.slack.sent_messages)
+    assert requester.primary_email in sent
+
+
 # --- the grader accepts the disclosure in the reply language ---------------------------
 
 

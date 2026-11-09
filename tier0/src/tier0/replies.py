@@ -95,47 +95,71 @@ TEMPLATES: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
             "ça ne marche pas.",
         ),
     },
+    # One text for every request about someone else, refused or handed to a person
+    # (ADR-028). It also has to work for someone who asked about their own login and
+    # tripped a check: it ends with a way out that needs nothing new, asking again in one
+    # short line.
     "refuse_colleague": {
         "en": (
-            "I can only share a username with the person it belongs to. Ask them to message "
-            "me directly. If they can't sign in, they can verify their identity at "
-            "{recovery_url}.",
-            "That's not something I can share: a username only goes to its owner. They can "
-            "message me themselves, or verify their identity at {recovery_url} if they're "
-            "locked out.",
-            "I can't give out someone else's login. Please ask them to DM me. If they can't "
-            "get in, they can verify their identity at {recovery_url}.",
+            "I can only help with your own account, so I can't share someone else's login. "
+            "They can message me themselves, or verify their identity at {recovery_url} if "
+            "they're locked out. If you meant your own account, ask again in one short line, "
+            'like "what\'s my username?"',
+            "I only help people with their own account, so someone else's username isn't "
+            "mine to share. That person can DM me, or verify their identity at {recovery_url} "
+            "if they can't sign in. Meant your own account? Ask again in one short line, "
+            'like "what\'s my username?"',
+            "This looks like it's about someone else's account, and I can only help with "
+            "yours. They can ask me directly, or go to {recovery_url} to verify their "
+            "identity if they're locked out. If it was about your own account, send one "
+            'short line, like "what\'s my username?"',
         ),
         "de": (
-            "Einen Benutzernamen gebe ich nur an die Person, der er gehört. Bitte sie, mir "
-            "direkt zu schreiben. Kann sie sich nicht anmelden, bestätigt sie ihre Identität "
-            "unter {recovery_url}.",
-            "Das kann ich nicht weitergeben: Ein Benutzername geht nur an die Person, der er "
-            "gehört. Sie kann mir selbst schreiben oder ihre Identität unter {recovery_url} "
-            "bestätigen.",
-            "Die Anmeldedaten anderer gebe ich nicht heraus. Bitte die Person, mir eine "
-            "Direktnachricht zu schicken. Kommt sie nicht rein, kann sie ihre Identität unter "
-            "{recovery_url} bestätigen.",
+            "Ich kann nur bei deinem eigenen Konto helfen, deshalb gebe ich keine fremden "
+            "Anmeldedaten weiter. Die Person kann mir selbst schreiben oder ihre Identität "
+            "unter {recovery_url} bestätigen, falls sie ausgesperrt ist. Ging es um dein "
+            "eigenes Konto, frag noch einmal in einer kurzen Zeile, zum Beispiel: „Wie lautet "
+            "mein Benutzername?“",
+            "Ich helfe nur beim eigenen Konto, den Benutzernamen einer anderen Person kann ich "
+            "also nicht teilen. Sie kann mir direkt schreiben oder ihre Identität unter "
+            "{recovery_url} bestätigen, wenn sie sich nicht anmelden kann. Meintest du dein "
+            "eigenes Konto? Dann frag noch einmal in einer kurzen Zeile, etwa: „Wie lautet "
+            "mein Benutzername?“",
+            "Das klingt nach dem Konto einer anderen Person, und ich kann nur bei deinem "
+            "helfen. Die Person kann mich selbst fragen oder unter {recovery_url} ihre "
+            "Identität bestätigen, falls sie ausgesperrt ist. Ging es doch um dein eigenes "
+            "Konto, schick mir eine kurze Zeile wie: „Wie lautet mein Benutzername?“",
         ),
         "es": (
-            "Solo comparto un nombre de usuario con la persona a la que pertenece. Pídele que "
-            "me escriba directamente. Si no puede entrar, puede verificar su identidad en "
-            "{recovery_url}.",
-            "Eso no lo puedo compartir: un nombre de usuario solo va a su dueño. Esa persona "
-            "puede escribirme o verificar su identidad en {recovery_url} si no puede entrar.",
-            "No doy los datos de acceso de otra persona. Pídele que me mande un mensaje "
-            "directo. Si no puede entrar, puede verificar su identidad en {recovery_url}.",
+            "Solo puedo ayudarte con tu propia cuenta, así que no comparto los datos de acceso "
+            "de otra persona. Esa persona puede escribirme ella misma o verificar su identidad "
+            "en {recovery_url} si no puede entrar. Si te referías a tu propia cuenta, vuelve a "
+            "preguntar en una línea corta, por ejemplo: «¿Cuál es mi nombre de usuario?»",
+            "Solo ayudo con la cuenta propia, así que no puedo compartir el nombre de usuario "
+            "de otra persona. Puede escribirme directamente o verificar su identidad en "
+            "{recovery_url} si no puede iniciar sesión. ¿Era sobre tu propia cuenta? Pregunta "
+            "de nuevo en una línea corta, como: «¿Cuál es mi nombre de usuario?»",
+            "Esto parece ser sobre la cuenta de otra persona, y yo solo puedo ayudarte con la "
+            "tuya. Esa persona puede preguntarme directamente o ir a {recovery_url} para "
+            "verificar su identidad si no puede entrar. Si era sobre tu propia cuenta, mándame "
+            "una línea corta, como: «¿Cuál es mi nombre de usuario?»",
         ),
         "fr": (
-            "Je ne donne un nom d'utilisateur qu'à la personne à qui il appartient. "
-            "Demande-lui de m'écrire directement. Si elle ne peut pas se connecter, elle peut "
-            "vérifier son identité sur {recovery_url}.",
-            "Je ne peux pas partager ça : un nom d'utilisateur ne va qu'à son titulaire. Cette "
-            "personne peut m'écrire, ou vérifier son identité sur {recovery_url} si elle est "
-            "bloquée.",
-            "Je ne donne pas les identifiants de quelqu'un d'autre. Demande à cette personne "
-            "de m'écrire en direct. Si elle n'arrive pas à se connecter, elle peut vérifier "
-            "son identité sur {recovery_url}.",
+            "Je ne peux aider que pour ton propre compte, donc je ne partage pas les "
+            "identifiants de quelqu'un d'autre. Cette personne peut m'écrire elle-même ou "
+            "vérifier son identité sur {recovery_url} si elle est bloquée. Si tu parlais de "
+            "ton propre compte, repose la question en une ligne courte, par exemple : « Quel "
+            "est mon identifiant ? »",
+            "Je n'aide que pour son propre compte, donc je ne peux pas partager le nom "
+            "d'utilisateur d'une autre personne. Elle peut m'écrire directement ou vérifier "
+            "son identité sur {recovery_url} si elle n'arrive pas à se connecter. C'était pour "
+            "ton propre compte ? Redemande en une ligne courte, comme : « Quel est mon "
+            "identifiant ? »",
+            "On dirait que ça concerne le compte de quelqu'un d'autre, et je ne peux aider que "
+            "pour le tien. Cette personne peut me demander directement ou aller sur "
+            "{recovery_url} pour vérifier son identité si elle est bloquée. Si c'était pour "
+            "ton propre compte, envoie-moi une ligne courte, comme : « Quel est mon "
+            "identifiant ? »",
         ),
     },
     "unverified": {
@@ -269,6 +293,15 @@ TEMPLATES: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
             "chose, envoie-moi un nouveau message.",
         ),
     },
+}
+
+# The way out every colleague refusal ends with: a one-line request about the requester's
+# own account. Each of these is answered by the normal path, with no new code.
+ASK_AGAIN: dict[Language, str] = {
+    "en": "what's my username?",
+    "de": "Wie lautet mein Benutzername?",
+    "es": "¿Cuál es mi nombre de usuario?",
+    "fr": "Quel est mon identifiant ?",
 }
 
 # A first name is only used when it looks like one: letters, spaces, hyphens, apostrophes.
