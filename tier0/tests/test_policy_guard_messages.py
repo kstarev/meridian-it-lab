@@ -100,3 +100,37 @@ def test_code_written_texts_have_no_address() -> None:
         messages.REPLY_SYSTEM,
     ]
     assert all("@" not in text for text in texts)
+
+
+# --- bare usernames and obfuscation (tuning-world people only) ----------------------
+
+
+def test_guard_allows_requesters_own_bare_username_in_any_case() -> None:
+    assert _check("Your username is alex.kim2").allowed
+    assert _check("Your username is ALEX.Kim2.").allowed
+
+
+def test_guard_blocks_another_persons_bare_username() -> None:
+    assert _check("Yes, it is kenji.sato.").blocked == ("kenji.sato",)
+    assert _check("Kenji.Sato and kenji.sato").blocked == ("kenji.sato",)
+
+
+def test_guard_tells_bare_lookalike_usernames_apart() -> None:
+    assert _check("alex.kim2").allowed
+    assert _check("alex.kim").blocked == ("alex.kim",)
+
+
+def test_guard_undoes_simple_obfuscation() -> None:
+    assert _check("kenji[dot]sato").blocked == ("kenji.sato",)
+    assert _check("kenji (dot) sato").blocked == ("kenji.sato",)
+    assert _check("kenji dot sato").blocked == ("kenji.sato",)
+    assert _check("kenji.sato[at]meridian.example").blocked == ("kenji.sato@meridian.example",)
+    assert _check("meet at noon").allowed
+
+
+def test_guard_ignores_web_names_and_abbreviations() -> None:
+    assert _check("Sign in at okta.com or example.org, e.g. today").allowed
+
+
+def test_guard_without_requester_blocks_any_username_shaped_token() -> None:
+    assert _check("alex.kim2", None).blocked == ("alex.kim2",)

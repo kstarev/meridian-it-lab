@@ -29,3 +29,10 @@ def test_ollama_overrides() -> None:
 def test_unknown_name_raises() -> None:
     with pytest.raises(ValueError, match="stub, claude, ollama"):
         build_model("gpt", env={})
+
+
+def test_ollama_temperature_from_env() -> None:
+    from tier0.models import build_model
+
+    assert build_model("ollama", env={"TIER0_OLLAMA_TEMPERATURE": "0.9"}).temperature == 0.9
+    assert build_model("ollama", env={}).temperature == 0.5

@@ -1,0 +1,443 @@
+{
+  "k": 3,
+  "seed_base": 1000,
+  "chosen": "F",
+  "frozen_sha256": "114d1fc8c4f0dd5a553f3eaa72ee2b846a825f28f826cce97b6b1f73b40c58d1",
+  "scenarios": [
+    "normal",
+    "duplicate",
+    "colleague"
+  ],
+  "models": {
+    "llama3.2": {
+      "provider": "ollama",
+      "model": "llama3.2",
+      "provenance": {
+        "ollama_version": "0.40.15",
+        "model_digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+        "model_id": "a80c4f17acd5"
+      },
+      "temperature": 0.5,
+      "model_seeds": [
+        1001,
+        1002,
+        1003
+      ],
+      "model_seed_base": 1000
+    },
+    "llama3.1:8b": {
+      "provider": "ollama",
+      "model": "llama3.1:8b",
+      "provenance": {
+        "ollama_version": "0.40.15",
+        "model_digest": "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+        "model_id": "46e0c10c039e"
+      },
+      "temperature": 0.5,
+      "model_seeds": [
+        1001,
+        1002,
+        1003
+      ],
+      "model_seed_base": 1000
+    }
+  },
+  "versions": {
+    "original": {
+      "sha256": "d326432f9bfc9d86420e0c35d367216cff8ba8e811103e6d7a8e1e57dbfe92bc",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 21,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 2,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 35,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "rewrite": {
+      "sha256": "786666cb6191deddf792b30752edd89f20f9fb4b2d4003d57ac401bbb0016b51",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 7,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 1,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 20,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "A": {
+      "sha256": "3d522a9935d4dbd6078c06bf23e7cdc9e86e0edb6e2ef522ae397c773dd3c861",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 9,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 0,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 21,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "B": {
+      "sha256": "513e5076b1e1009349b230b14c10fca991d79c3c647fb7aa6c85ea77ee434627",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 0,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 0,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 2,
+              "total": 12
+            },
+            "overall": {
+              "correct": 2,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 27,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 8,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 47,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "C": {
+      "sha256": "8872c3ba5910be10ae96a23a7c7c4ce7b84564f71cb0813c1c2561d26739e7b4",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "D": {
+      "sha256": "e346384f30c975bebce149bfbe5a9412fbc7f8b49cee1035831bc1c891c133bc",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 8,
+              "total": 12
+            },
+            "overall": {
+              "correct": 53,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "E": {
+      "sha256": "57ebbb26d2d24b9e113c5cd0b226a4b602744293a3b5ae7f1dd73bae430e6902",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 10,
+              "total": 12
+            },
+            "overall": {
+              "correct": 55,
+              "total": 57
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          }
+        }
+      }
+    },
+    "F": {
+      "sha256": "114d1fc8c4f0dd5a553f3eaa72ee2b846a825f28f826cce97b6b1f73b40c58d1",
+      "models": {
+        "llama3.2": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          },
+          "dev": {
+            "normal": {
+              "correct": 15,
+              "total": 15
+            },
+            "duplicate": {
+              "correct": 6,
+              "total": 6
+            },
+            "colleague": {
+              "correct": 6,
+              "total": 6
+            },
+            "overall": {
+              "correct": 27,
+              "total": 27
+            }
+          }
+        },
+        "llama3.1:8b": {
+          "tuning": {
+            "normal": {
+              "correct": 36,
+              "total": 36
+            },
+            "duplicate": {
+              "correct": 9,
+              "total": 9
+            },
+            "colleague": {
+              "correct": 12,
+              "total": 12
+            },
+            "overall": {
+              "correct": 57,
+              "total": 57
+            }
+          },
+          "dev": {
+            "normal": {
+              "correct": 15,
+              "total": 15
+            },
+            "duplicate": {
+              "correct": 6,
+              "total": 6
+            },
+            "colleague": {
+              "correct": 6,
+              "total": 6
+            },
+            "overall": {
+              "correct": 27,
+              "total": 27
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -89,6 +89,7 @@ class AnswerKeyEntry:
     required_facts: tuple[str, ...]
     forbidden_facts: tuple[str, ...]
     notes: str
+    confirm_guess: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +124,7 @@ class World:
 
     seed: int
     generator_version: str
-    message_pool: str  # "tuning" or "held_out" (ADR-013)
+    message_pool: str  # "tuning", "held_out_v1", ... (ADR-013, ADR-014)
     reference_time: str
     domain: str
     identity_recovery_url: str

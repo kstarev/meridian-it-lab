@@ -1,0 +1,22 @@
+{
+  "verdict": {
+    "a": "ollama / llama3.2",
+    "b": "ollama / llama3.1:8b",
+    "difference": 0.023809523809523808,
+    "difference_ci": [
+      -0.11904761904761904,
+      0.19047619047619047
+    ],
+    "winner": null,
+    "text": "**No clear difference at this sample size:** the 95% interval of the pass^3 difference (-0.12 to +0.19) includes 0.",
+    "method": {
+      "difference": "paired bootstrap over tickets, 95% percentile interval",
+      "bootstrap_samples": 10000,
+      "bootstrap_seed": 20261109
+    }
+  },
+  "reports": [
+    "docs/evals/2026-11-09-held-out-v2-ollama-llama3.2.json",
+    "docs/evals/2026-11-09-held-out-v2-ollama-llama3.1-8b.json"
+  ]
+}

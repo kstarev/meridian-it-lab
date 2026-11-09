@@ -148,6 +148,44 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   2. Fix the over-refusals in the triage prompt (own-username requests read as being about someone else), tested on tuning data only.
   3. Add a second, independent "own account only?" check before any token is minted, so a misread attack ticket never gets a credential or a tool call.
   4. Compare llama3.2, an 8B local model and Claude on held-out v2.
+- **Mini-milestone, personality (later, not built yet):** tier0 should sound like a friendly IT colleague, not a bot.
+  - **AI disclosure once per conversation,** in the first message, as the EU AI Act requires it "at the latest at the time of the first interaction" (Art. 50), and not repeated in every reply. tier0 never uses a human first name. Today the disclosure already appears only in the first message to each requester.
+  - **Banned phrases, enforced by a test:** "I'd be happy to help", "Certainly!", "Great question", "I hope this helps", "Is there anything else I can help you with", "As an AI", "I apologize for any inconvenience", "don't hesitate to reach out".
+  - **Style:** short sentences, contractions, the person's first name, and one clear next step.
+  - **Mirror the user:** a casual message gets a casual reply and a formal one a formal reply, in the language they wrote in (English, German, Spanish or French). The model only labels language and tone; code picks the template.
+  - **Several variants per reply type,** so people don't see the same sentence every time.
+- **Mini-milestone, proactive posts (after personality; not built yet, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates.
+  - **Holiday notes:** short, warm, not-too-specific notes to #general (country channels optional, configurable).
+    - Holidays come from the Python `holidays` package for each country in the directory: national holidays only. German state holidays only change the IT coverage line. A few cultural days are opt-in per country (for example Halloween for the US and Canada), and the year-end note goes to everyone.
+    - Timing: the working day before, at 09:00 in that country's time zone, so people see it before they're off.
+    - Inclusive wording ("happy holidays", "Frohe Feiertage") that names the country, in English plus the local language.
+    - Useful, not just nice: each note says what IT coverage looks like ("IT is off tomorrow; I can still help with usernames; urgent issues go to on-call").
+  - **Pulse check:** if #it-help has had no human messages for 3 working days, tier0 posts one light, friendly check-in.
+    - Working days only: weekends and public holidays are skipped (the same `holidays` package), and it posts Tue–Thu around 10:00 Berlin time.
+    - One post per quiet streak: it can't fire again until a human posts, and at most once every 2 weeks. tier0's own messages never count as activity.
+    - Skipped on days with a holiday note, an active incident or reduced IT coverage.
+    - Each check-in ends with one useful tip or a reminder of what tier0 can do.
+  - **Safety (this bot can message the whole company):** text only from pre-approved templates in code, never written by the model, with rotating variants. A preview goes to #it-team 24 h before, with a cancel button. At most 1 proactive post per day overall, a kill switch and a dry-run mode. Mock Slack only; `make holidays-preview YEAR=2027` prints the full year's schedule.
+  - **Metric:** tickets opened within 24 h of a pulse check, to see whether it surfaces problems people weren't reporting.
+- **Milestone 3, more ticket types and realistic traffic (later, not built yet):**
+  1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
+  2. Prompt injection inside messages (ASI01).
+  3. Repeat same-day requests for one account, the pattern in Clorox v. Cognizant (2025).
+  4. Messages that ask several questions at once.
+  5. **A "realistic month":** a stream of ~300 mixed tickets, like a 230-person company's monthly help-desk traffic. Most are out of scope for tier0 (password and MFA resets, laptops, access requests, prompt injection, repeat callers) and must be handed to a person; only ~10–15% are own-username requests.
+     - Generated as template × persona × language × Slack noise, from at least 100 distinct templates written blind.
+     - Intervals bootstrap over templates, not tickets, because tickets from the same template aren't independent.
+     - New metrics: correct-handoff rate, out-of-scope tickets wrongly answered, and estimated IT hours saved per month.
+  6. **A verification ladder:** how much proof each tier needs before tier0 acts.
+     - **Rung 0 (built):** a signed Slack user ID, bound to the directory. Slack guests (`is_restricted` / `is_ultra_restricted`) and leavers or suspended accounts never get self-service; the identity binder has refused both since milestone 1.
+     - **Rung 1, context checks in code:** an out-of-office requester is denied; same-day repeat requests for one account, managed-device status and recent security changes are checked.
+     - **Rung 2, for Tier B:** a fresh SSO step-up per RFC 9470 (`max_age` and `acr_values`). Code checks `auth_time` and `acr`/`amr` in the returned token and fails closed. Alternative: an Okta Verify push with a number challenge, sent only to the requester's own bound account and rate-limited.
+     - **Rung 3, for Tier C (MFA and password resets):** a human only, with an ID check plus a call-back to the number on file or manager approval, then a notice to the user and their manager. tier0 only prepares the ticket.
+     - **Never accepted as proof:** date of birth, manager name, employee ID, username, security questions, or a phone number the caller supplies.
+     - Mocks: an Okta push, OIDC step-up tokens, a calendar and device assurance. Needles: an out-of-office requester, a guest, a hijacked Slack session, same-day repeats, and pushes aimed at a colleague.
+     - Metric: which rung stopped each attack.
+  7. **Held-out coverage for self-descriptions:** blind held-out messages where a new starter or intern describes themselves and asks for their own login, so the role signal's self-description exception (ADR-024) is measured on wording it wasn't shaped by. Held-out v2's normal messages predate the case.
+  8. **Narrow the self-description exception:** it should apply only when the login word refers to the speaker ("my login", "mein Benutzername", "mi usuario", "mon identifiant"). Then "I'm the manager, send me their login" still fires the role signal, which the milestone 2 version (ADR-024) does not.
 - **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope

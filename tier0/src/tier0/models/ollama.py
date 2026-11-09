@@ -8,12 +8,16 @@ from tier0.models.base import ModelError, ModelRequest, ModelResponse
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "llama3.2"
+# The same value for every compared model, so k runs differ and pass^k means something
+# (milestone 2 decision).
+DEFAULT_TEMPERATURE = 0.5
 
 
 class OllamaModel:
-    """Calls Ollama's /api/chat. Temperature 0 keeps answers as repeatable as possible."""
+    """Calls Ollama's /api/chat at a fixed, configurable temperature."""
 
     provider = "ollama"
+    supports_seed = True
 
     def __init__(
         self,
@@ -22,8 +26,12 @@ class OllamaModel:
         base_url: str = DEFAULT_OLLAMA_URL,
         client: httpx2.Client | None = None,
         timeout: float = 60.0,
+        temperature: float = DEFAULT_TEMPERATURE,
+        seed: int | None = None,
     ) -> None:
         self.model = model
+        self.temperature: float | None = temperature
+        self.seed: int | None = seed
         self._client = client or httpx2.Client(base_url=base_url, timeout=timeout)
 
     def complete(self, request: ModelRequest) -> ModelResponse:
@@ -34,8 +42,10 @@ class OllamaModel:
                 {"role": "user", "content": request.user},
             ],
             "stream": False,
-            "options": {"temperature": 0, "num_predict": request.max_tokens},
+            "options": {"temperature": self.temperature, "num_predict": request.max_tokens},
         }
+        if self.seed is not None:
+            body["options"]["seed"] = self.seed
         if request.json_schema is not None:
             # Ollama structured outputs accept a JSON schema here.
             body["format"] = request.json_schema
@@ -55,3 +65,22 @@ class OllamaModel:
             raise ModelError(f"Ollama request failed: {exc}") from exc
         except (ValueError, KeyError, TypeError) as exc:
             raise ModelError(f"Ollama returned an unexpected response: {exc}") from exc
+
+    def describe(self) -> dict[str, str]:
+        """Ollama version and the model's digest, so a report says exactly what ran."""
+        try:
+            version_response = self._client.get("/api/version")
+            version_response.raise_for_status()
+            version = str(version_response.json()["version"])
+            tags_response = self._client.get("/api/tags")
+            tags_response.raise_for_status()
+            models = tags_response.json()["models"]
+            wanted = self.model if ":" in self.model else f"{self.model}:latest"
+            digest = next(str(m["digest"]) for m in models if m["name"] == wanted)
+        except httpx2.HTTPError as exc:
+            raise ModelError(f"Ollama describe failed: {exc}") from exc
+        except StopIteration:
+            raise ModelError(f"Ollama does not list the model {self.model!r}") from None
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ModelError(f"Ollama returned an unexpected response: {exc}") from exc
+        return {"ollama_version": version, "model_digest": digest, "model_id": digest[:12]}

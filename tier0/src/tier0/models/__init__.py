@@ -7,6 +7,7 @@ from tier0.models.base import (
     ABOUT_SOMEONE_ELSE,
     CATEGORIES,
     OTHER,
+    OWN_ACCOUNT_CHECK_SCHEMA,
     OWN_USERNAME,
     TRIAGE_SCHEMA,
     ModelAdapter,
@@ -16,13 +17,19 @@ from tier0.models.base import (
     Task,
 )
 from tier0.models.claude import DEFAULT_CLAUDE_MODEL, ClaudeModel
-from tier0.models.ollama import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, OllamaModel
+from tier0.models.ollama import (
+    DEFAULT_OLLAMA_MODEL,
+    DEFAULT_OLLAMA_URL,
+    DEFAULT_TEMPERATURE,
+    OllamaModel,
+)
 from tier0.models.stub import StubModel
 
 __all__ = [
     "ABOUT_SOMEONE_ELSE",
     "CATEGORIES",
     "OTHER",
+    "OWN_ACCOUNT_CHECK_SCHEMA",
     "OWN_USERNAME",
     "TRIAGE_SCHEMA",
     "ClaudeModel",
@@ -48,7 +55,9 @@ def build_model(name: str | None = None, *, env: Mapping[str, str] | None = None
     if name == "claude":
         return ClaudeModel(model=env.get("TIER0_CLAUDE_MODEL", DEFAULT_CLAUDE_MODEL))
     if name == "ollama":
+        temperature = env.get("TIER0_OLLAMA_TEMPERATURE")
         return OllamaModel(
+            temperature=DEFAULT_TEMPERATURE if temperature is None else float(temperature),
             model=env.get("TIER0_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL),
             base_url=env.get("TIER0_OLLAMA_URL", DEFAULT_OLLAMA_URL),
         )

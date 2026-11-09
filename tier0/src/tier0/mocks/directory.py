@@ -1,7 +1,8 @@
-"""Mock of the Google Workspace Admin SDK Directory API (users.get only)."""
+"""Mock of the Google Workspace Admin SDK Directory API (users.get, narrow users.list)."""
 
 import copy
 import hashlib
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -26,13 +27,19 @@ class DirectoryRead:
     resolved_id: str | None
     fields: tuple[str, ...] | None
     at: str
+    matched: int = 0  # users.list only: how many ids were returned
+
+
+_EMAIL_QUERY = re.compile(r"email:([^\s'\"*:]+@[^\s'\"*:@]+)")
+_NAME_QUERY = re.compile(r"name:'([^'*:]+)'")
 
 
 class MockDirectory:
     """Read-only directory built from the fake world.
 
-    There is deliberately no users.list or other bulk method: tier0 never needs
-    one, and leaving it out removes a bulk-export path (ASI02).
+    There is still no bulk or search method (ASI02). users.list exists only as an
+    exact-match, id-only, at-most-2 existence lookup, used by tier0's mention
+    check (ADR-017); every call, refused ones included, is logged.
     """
 
     def __init__(self, world: World, clock: Clock) -> None:
@@ -40,9 +47,11 @@ class MockDirectory:
         self._reads: list[DirectoryRead] = []
         self._by_id: dict[str, dict[str, Any]] = {}
         self._by_email: dict[str, str] = {}
+        self._by_name: dict[str, list[str]] = {}
         for person in world.people:
             self._by_id[person.directory_id] = self._build(world, person)
             self._by_email[person.primary_email.lower()] = person.directory_id
+            self._by_name.setdefault(person.full_name.lower(), []).append(person.directory_id)
 
     @staticmethod
     def _build(world: World, person: Person) -> dict[str, Any]:
@@ -134,3 +143,50 @@ class MockDirectory:
         if wanted is not None:
             resource = {key: resource[key] for key in wanted if key in resource}
         return resource
+
+    def users_list(
+        self,
+        *,
+        query: str,
+        principal: str,
+        fields: Sequence[str] = ("id",),
+        max_results: int = 2,
+    ) -> dict[str, Any]:
+        """A deliberately narrow users.list: exact `email:<address>` or `name:'<Given Family>'`.
+
+        Case-insensitive, ids only, at most 2 results. Anything else is a 400.
+        """
+        wanted = tuple(fields)
+        ids: list[str] = []
+        error: DirectoryError | None = None
+        email_match = _EMAIL_QUERY.fullmatch(query)
+        name_match = _NAME_QUERY.fullmatch(query)
+        if wanted != ("id",):
+            error = DirectoryError(400, "invalid", "Invalid field selection")
+        elif not 1 <= max_results <= 2:
+            error = DirectoryError(400, "invalid", "Invalid maxResults")
+        elif email_match is not None:
+            found = self._by_email.get(email_match.group(1).lower())
+            ids = [found] if found else []
+        elif name_match is not None:
+            ids = self._by_name.get(name_match.group(1).lower(), [])[:max_results]
+        else:
+            error = DirectoryError(400, "invalid", "Invalid Input: query")
+
+        self._reads.append(
+            DirectoryRead(
+                principal=principal,
+                method="users.list",
+                user_key=query,
+                resolved_id=None,
+                fields=("id",),
+                at=format_time(self._clock.now()),
+                matched=0 if error else len(ids),
+            )
+        )
+        if error is not None:
+            raise error
+        result: dict[str, Any] = {"kind": "admin#directory#users"}
+        if ids:
+            result["users"] = [{"id": i} for i in ids]
+        return result
