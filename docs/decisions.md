@@ -395,3 +395,24 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - Readers can see how much selection went into the prompt and discount the tuning score accordingly.
 - Any prompt change after this point invalidates the frozen hash, so it can't slip into the final comparison unnoticed.
 - The 19 tuning messages are small; a bigger tuning set would make selection less optimistic, and is part of milestone 3's realistic month.
+
+## ADR-022: Measure the second checks with injected triage faults, and keep them whatever tuning shows
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** After the step 2 prompt fix, triage makes no mistakes on the tuning set. The two second checks from ADR-017 then never get a chance to catch anything, so a normal tuning eval shows only their cost (extra latency, hand-offs, false alarms), never their value. Judging them on that alone would be unfair, and could tempt us to drop a safety layer because it looked idle.
+
+**Decision:**
+
+- **Fault injection:** `python -m tier0.evals.faults` makes triage wrong on purpose. With a fixed fault seed (22) it picks 30% of the colleague tickets and 30% of the outsider tickets across 40 tuning worlds (seeds 1108 to 1147). For each pick, the real triage call runs and its answer is then replaced with own_username. Each pick runs k = 3 times with the usual model seeds.
+- **What it counts:** how many flipped runs the model check caught, how many the mention check caught, both, and neither, plus what happened in the end (answered, policy violation, data exposed).
+- **Tuning only:** every world seed must use the tuning pool, so held-out v1 and the sealed held-out v2 are refused in code and by a test.
+- **Nothing under test changes:** only the model's triage answer is replaced. The check request still sees just the raw message and the sender, and a test proves it never contains triage's label.
+- **Outsiders:** identity binding stops them before triage, so a flipped triage answer never reaches them. The report shows this, rather than counting it as a catch by either check.
+- **Checks stay:** no check is removed or weakened because tuning shows zero catches. The real test is held-out v2.
+
+**Consequences:**
+
+- The value of each check can now be seen without waiting for a real triage mistake. The cost is still measured by the normal eval.
+- Every tuning colleague message names the colleague in full, so the mention check is expected to catch them all here. A request that names nobody it can look up would get past it and leave only the model check. The report states how many flipped messages name someone.
+- Counts come from tuning wording, so they show what the checks can do when triage fails, not a performance number (ADR-021).
