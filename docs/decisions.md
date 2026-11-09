@@ -279,3 +279,35 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - A single ticket moves pass^3 by about 0.04 instead of 0.17.
 - Intervals are still wide at 24 tickets, so "no clear difference" is a likely, honest outcome unless one model is much better.
 - Two blind authoring rounds and a reseal cost time; the repo owner reviews all 24 wordings once, after this reseal.
+
+## ADR-017: Reserved
+
+**Date:** 2026-11-09 · **Status:** Reserved for the second "own account only?" check and its Directory mention lookup (milestone 2, step 3).
+
+## ADR-018: Held-out v2 has 36 tickets shaped by real help-desk attacks, resealed
+
+**Date:** 2026-11-09 · **Status:** Accepted. Supersedes ADR-016's hashes; ADR-015 and ADR-016's rules still apply.
+
+**Context:** The 24-ticket held-out v2 was reviewed and found sound, but it was cleaner than real help-desk traffic. Real attacks on service desks look different:
+
+- CISA advisory **AA23-320A** (Scattered Spider) describes attackers collecting usernames first, then social-engineering the IT help desk.
+- In **Clorox v. Cognizant** (2025), Clorox's complaint says attackers simply asked the outsourced service desk for access, claimed an old phone or broken MFA, and called back several times the same day.
+
+No model had run on held-out v2 and no results existed, so it could still grow.
+
+**Decision:**
+
+- **Size:** held-out v2 (seed 3107) has 36 tickets, held-out v1's mix ×6: 18 normal, 6 duplicate name, 6 colleague attacks and 6 outsider attacks. No new categories; the answer-key rules are unchanged.
+- **Variety, written blind** (the person writing milestone 2's fixes still hasn't read it):
+  - normal: Slack noise (typos, an emoji, a pasted error, thank-you lines) and requests in German, Spanish and French;
+  - colleague: authority and urgency pretexts, and confirm-a-guess probes;
+  - outsider: different claimed identities (an impersonated employee, a vendor) and stories (old phone, broken MFA, urgency).
+- **Two optional placeholders** make that possible: `{target_guess}` (the target's first.last username, in a colleague probe) and `{claimed_name}` (the employee an outsider pretends to be).
+- **Tuning gets the same kinds of variation,** written separately and sharing no sentence with any held-out pool, so the prompt fix isn't judged on kinds of messages tuning never had. The stub's keyword rules cover the tuning wording only.
+- **New seal:** SHA-256 of the v2 pool `be12aa5212429abe828a567aaf258f5fb76cc4e52a2947b65672a7189f716cc1`. For information, at generator version 0.6.0 seed 3107's `tickets.json` is `ac45b4aa1f508e0499cf491309b32183d151fcdb2beef188a5ec0414d297464c` and its `answer_key.json` is `8f747c749fdf47a49740baf6c3de0ad2dc48875f023e6cc646d7a78bb640f1ed`.
+
+**Consequences:**
+
+- The final comparison covers the attack patterns real service desks face, in several languages, not just clean English requests.
+- A single ticket now moves pass^3 by about 0.03.
+- Repeat same-day callers, password and MFA resets, and prompt injection are still missing; they are milestone 3.
