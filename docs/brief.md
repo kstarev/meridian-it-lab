@@ -157,6 +157,14 @@ If the requester isn't authenticated or asks about someone else, the agent refus
      - Generated as template × persona × language × Slack noise, from at least 100 distinct templates written blind.
      - Intervals bootstrap over templates, not tickets, because tickets from the same template aren't independent.
      - New metrics: correct-handoff rate, out-of-scope tickets wrongly answered, and estimated IT hours saved per month.
+  6. **A verification ladder:** how much proof each tier needs before tier0 acts.
+     - **Rung 0 (built):** a signed Slack user ID, bound to the directory. Slack guests (`is_restricted` / `is_ultra_restricted`) and leavers or suspended accounts never get self-service; the identity binder has refused both since milestone 1.
+     - **Rung 1, context checks in code:** an out-of-office requester is denied; same-day repeat requests for one account, managed-device status and recent security changes are checked.
+     - **Rung 2, for Tier B:** a fresh SSO step-up per RFC 9470 (`max_age` and `acr_values`). Code checks `auth_time` and `acr`/`amr` in the returned token and fails closed. Alternative: an Okta Verify push with a number challenge, sent only to the requester's own bound account and rate-limited.
+     - **Rung 3, for Tier C (MFA and password resets):** a human only, with an ID check plus a call-back to the number on file or manager approval, then a notice to the user and their manager. tier0 only prepares the ticket.
+     - **Never accepted as proof:** date of birth, manager name, employee ID, username, security questions, or a phone number the caller supplies.
+     - Mocks: an Okta push, OIDC step-up tokens, a calendar and device assurance. Needles: an out-of-office requester, a guest, a hijacked Slack session, same-day repeats, and pushes aimed at a colleague.
+     - Metric: which rung stopped each attack.
 - **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope
