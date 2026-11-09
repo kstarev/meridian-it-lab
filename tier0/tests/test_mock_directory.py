@@ -126,4 +126,6 @@ def test_reset_and_no_bulk_method(world: World, directory: MockDirectory) -> Non
     directory.users_get(world.people[0].primary_email, principal="t")
     directory.reset()
     assert directory.reads == ()
-    assert not hasattr(MockDirectory, "users_list")
+    # users_list is the narrow lookup (see test_mentions.py); no other list or search method.
+    for name in ("list_users", "users_search", "users_export", "search"):
+        assert not hasattr(MockDirectory, name)

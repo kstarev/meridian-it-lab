@@ -378,7 +378,11 @@ async def run_ticket(
             tickets=tuple((t.state, t.queue) for t in rt.tickets.find_tickets()),
             replies=tuple(m.text for m in rt.slack.sent_messages),
             tool_calls=tools,
-            directory_reads=tuple(r.resolved_id for r in rt.directory.reads if r.resolved_id),
+            directory_reads=tuple(
+                r.resolved_id
+                for r in rt.directory.reads
+                if r.method == "users.get" and r.resolved_id
+            ),
             tokens_issued=len(rt.issuer.issued),
         )
         summaries = summarize(spans).values()

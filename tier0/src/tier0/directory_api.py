@@ -29,8 +29,17 @@ class DirectoryError(Exception):
 
 
 class DirectoryApi(Protocol):
-    """Read one user, like Directory API users.get. Raises DirectoryError."""
+    """Read one user (users.get) or run the narrow existence lookup. Raises DirectoryError."""
 
     def users_get(
         self, user_key: str, *, principal: str, fields: Sequence[str] | None = None
+    ) -> dict[str, Any]: ...
+
+    def users_list(
+        self,
+        *,
+        query: str,
+        principal: str,
+        fields: Sequence[str] = ("id",),
+        max_results: int = 2,
     ) -> dict[str, Any]: ...

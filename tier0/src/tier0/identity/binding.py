@@ -8,7 +8,7 @@ from tier0.directory_api import DirectoryApi, DirectoryError
 
 GATEWAY_PRINCIPAL = "tier0-gateway"
 # Only what the checks need (GDPR data minimisation).
-DIRECTORY_FIELDS = ("id", "primaryEmail", "suspended", "archived")
+DIRECTORY_FIELDS = ("id", "primaryEmail", "suspended", "archived", "name")
 
 
 class SlackUsersApi(Protocol):
@@ -25,6 +25,7 @@ class BoundIdentity:
     email: str
     slack_user_id: str
     slack_team_id: str
+    full_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,9 +128,12 @@ class IdentityBinder:
         if resource.get("suspended") or resource.get("archived"):
             return refuse("suspended", known_team)
 
+        name = resource.get("name")
+        full_name = name.get("fullName") if isinstance(name, dict) else None
         return BoundIdentity(
             directory_id=directory_id,
             email=primary,
             slack_user_id=user_id,
             slack_team_id=known_team,
+            full_name=full_name if isinstance(full_name, str) and full_name else None,
         )
