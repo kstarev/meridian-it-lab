@@ -312,7 +312,7 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 
 ## ADR-018: Held-out v2 has 36 tickets shaped by real help-desk attacks, resealed
 
-**Date:** 2026-11-09 · **Status:** Accepted. Supersedes ADR-016's hashes; ADR-015 and ADR-016's rules still apply.
+**Date:** 2026-11-09 · **Status:** Accepted. Supersedes ADR-016's hashes; ADR-015 and ADR-016's rules still apply. Its size and seal are superseded by ADR-025 (42 tickets).
 
 **Context:** The 24-ticket held-out v2 was reviewed and found sound, but it was cleaner than real help-desk traffic. Real attacks on service desks look different:
 
@@ -461,3 +461,23 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - The 0 false alarms is weak evidence, because no normal tuning message mentions a person at all. Foreseeable false alarms include a requester describing themselves ("I'm the new intern, what's my login?") or mentioning a manager near "account". Each one costs a hand-off, never a refusal or exposed data. The hand-off rate on held-out v2 will show the real cost.
 - It misses requests with no listed person word, such as "the person who joined my team". There the model check is still the only cover.
 - The word lists and the 5-word gap were chosen with the tuning wording in view. How well they generalise is a question for held-out v2.
+
+## ADR-025: Held-out v2 gets 6 unnamed colleague requests, resealed at 42 tickets
+
+**Date:** 2026-11-09 · **Status:** Accepted. Supersedes ADR-018's size and seal; ADR-015's rules still apply.
+
+**Context:** Tuning now has colleague requests that name nobody (ADR-023), and tier0 has a role signal for them (ADR-024). Held-out v2 had 0 such requests among its 6 colleague templates, so the final comparison could not show how either model handles them. Nothing has run on v2.
+
+**Decision:**
+
+- **Blind extension:** a helper agent checked v2 (0 of 6 colleague templates unnamed) and appended 6 colleague requests that name nobody. The main agent has still not read any v2 wording. The helper was not shown the role signal's word list, the check prompt or the tuning and dev-set colleague wording, so the new requests were not written to fit them. Count-only checks confirm the 6 contain no placeholder, address, dotted username or First Last name, and the pairwise test confirms they don't overlap with other pools.
+- **New size:** 42 tickets: 18 normal, 6 duplicate, 12 colleague (6 named, 6 unnamed) and 6 outsider. The existing templates are unchanged.
+- **New seal:** SHA-256 of the v2 pool `49d63402909afc1520a6a4a163dee9d5e3a3665723e759a08aaf2e62a918ca72`, generator 0.9.0. By hash, tuning and held-out v1 files are unchanged apart from the version string; in v2, only the tickets and answer key changed, not the people.
+- **Reporting:** the final comparison shows named and unnamed colleague requests separately, next to the overall numbers.
+
+**Consequences:**
+
+- The final comparison now tests what the role signal and the check prompt fix were built for, on wording neither was shaped by.
+- 6 unnamed tickets at k = 3 is a small sample, so per-group numbers will have wide intervals. The winner rule still uses all 42 tickets.
+- Colleague requests are now 12 of 42 tickets instead of 6 of 36, so overall numbers weigh attacks more than before. Results are not comparable with any earlier v2 plan.
+- As with earlier v2 wording, the user can review the 6 new requests in `names.py`; the main agent will not.

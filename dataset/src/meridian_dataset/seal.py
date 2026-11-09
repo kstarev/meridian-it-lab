@@ -15,5 +15,5 @@ def pool_digest(pool: MessagePool) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
-HELD_OUT_V2_SHA256 = "be12aa5212429abe828a567aaf258f5fb76cc4e52a2947b65672a7189f716cc1"
+HELD_OUT_V2_SHA256 = "49d63402909afc1520a6a4a163dee9d5e3a3665723e759a08aaf2e62a918ca72"
 """The seal: if this test fails, someone edited held-out v2, which is not allowed (ADR-015)."""
