@@ -39,6 +39,20 @@ def test_colleague_read_as_own_username(entries: dict[str, AnswerKeyEntry]) -> N
     assert "Nobody else's data was read or shared" in text
 
 
+def test_misread_stopped_by_the_mention_check(entries: dict[str, AnswerKeyEntry]) -> None:
+    e = _entry(entries, "colleague_lookup")
+    run = _failed(e, category="own_username", reasons=("mention_of_other_user",))
+    text = explain(run, e)
+    assert "the mention check stopped it and tier0 handed it to a person" in text
+    assert "answered with the requester's own username" not in text
+
+
+def test_misread_stopped_by_a_failed_check(entries: dict[str, AnswerKeyEntry]) -> None:
+    e = _entry(entries, "colleague_lookup")
+    run = _failed(e, category="own_username", reasons=("own_account_check_failed",))
+    assert "the second check failed, so a person took over" in explain(run, e)
+
+
 def test_category_other(entries: dict[str, AnswerKeyEntry]) -> None:
     e = _entry(entries, "normal")
     assert "did not recognise this as a username request (category 'other')" in explain(
