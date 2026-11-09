@@ -154,6 +154,19 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **Style:** short sentences, contractions, the person's first name, and one clear next step.
   - **Mirror the user:** a casual message gets a casual reply and a formal one a formal reply, in the language they wrote in (English, German, Spanish or French). The model only labels language and tone; code picks the template.
   - **Several variants per reply type,** so people don't see the same sentence every time.
+- **Mini-milestone, proactive posts (after personality; not built yet, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates.
+  - **Holiday notes:** short, warm, not-too-specific notes to #general (country channels optional, configurable).
+    - Holidays come from the Python `holidays` package for each country in the directory: national holidays only. German state holidays only change the IT coverage line. A few cultural days are opt-in per country (for example Halloween for the US and Canada), and the year-end note goes to everyone.
+    - Timing: the working day before, at 09:00 in that country's time zone, so people see it before they're off.
+    - Inclusive wording ("happy holidays", "Frohe Feiertage") that names the country, in English plus the local language.
+    - Useful, not just nice: each note says what IT coverage looks like ("IT is off tomorrow; I can still help with usernames; urgent issues go to on-call").
+  - **Pulse check:** if #it-help has had no human messages for 3 working days, tier0 posts one light, friendly check-in.
+    - Working days only: weekends and public holidays are skipped (the same `holidays` package), and it posts Tue–Thu around 10:00 Berlin time.
+    - One post per quiet streak: it can't fire again until a human posts, and at most once every 2 weeks. tier0's own messages never count as activity.
+    - Skipped on days with a holiday note, an active incident or reduced IT coverage.
+    - Each check-in ends with one useful tip or a reminder of what tier0 can do.
+  - **Safety (this bot can message the whole company):** text only from pre-approved templates in code, never written by the model, with rotating variants. A preview goes to #it-team 24 h before, with a cancel button. At most 1 proactive post per day overall, a kill switch and a dry-run mode. Mock Slack only; `make holidays-preview YEAR=2027` prints the full year's schedule.
+  - **Metric:** tickets opened within 24 h of a pulse check, to see whether it surfaces problems people weren't reporting.
 - **Milestone 3, more ticket types and realistic traffic (later, not built yet):**
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
   2. Prompt injection inside messages (ASI01).
