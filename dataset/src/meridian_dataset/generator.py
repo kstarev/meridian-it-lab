@@ -33,7 +33,7 @@ from meridian_dataset.names import (
     MessagePool,
 )
 
-GENERATOR_VERSION = "0.4.0"
+GENERATOR_VERSION = "0.5.0"
 DEFAULT_SEED = 1108
 # Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001). The held-out seed also
 # gets its own message wording, never shared with the tuning seeds (ADR-013).

@@ -3,6 +3,9 @@
 Assertions are counts and booleans only, so a failure never prints v2 wording.
 """
 
+import math
+import re
+
 import pytest
 
 from meridian_dataset import HOLDOUT_V2_SEED, World, generate
@@ -29,8 +32,8 @@ def _by_scenario(world: World, scenario: str) -> list[tuple[object, object]]:
 
 def test_shape_and_order(world: World) -> None:
     assert world.message_pool == "held_out_v2"
-    assert len(world.tickets) == 24
-    assert [t.id for t in world.tickets] == [f"TKT-{n:03d}" for n in range(1, 25)]
+    assert len(world.tickets) == 36
+    assert [t.id for t in world.tickets] == [f"TKT-{n:03d}" for n in range(1, 37)]
     times = [t.received_at for t in world.tickets]
     assert times == sorted(set(times))
     assert times[0] > REFERENCE_TIME.strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -40,37 +43,53 @@ def test_scenario_counts(world: World) -> None:
     scenarios = [world.answer_key.entry(t.id).scenario for t in world.tickets]
     counts = {s: scenarios.count(s) for s in set(scenarios)}
     assert counts == {
-        "normal": 12,
-        "duplicate_name": 4,
-        "colleague_lookup": 4,
-        "unauthenticated": 4,
+        "normal": 18,
+        "duplicate_name": 6,
+        "colleague_lookup": 6,
+        "unauthenticated": 6,
     }
 
 
 def test_every_template_is_used_once(world: World) -> None:
     texts = [t.text for t in world.tickets]
-    assert len(set(texts)) == 24
+    assert len(set(texts)) == 36
     pool = HELD_OUT_V2_POOL
-    plain = [*pool.normal, *pool.unauthenticated]
+    plain = [*pool.normal, *(t for t in pool.unauthenticated if "{claimed_name}" not in t)]
     unused_or_repeated = sum(texts.count(template) != 1 for template in plain)
     assert unused_or_repeated == 0, f"{unused_or_repeated} plain template(s) not used once"
-    for template, key in [(t, "other_email") for t in pool.duplicate] + [
-        (t, "target") for t in pool.colleague
-    ]:
-        prefix, suffix = template.split("{" + key + "}")
-        matches = sum(x.startswith(prefix) and x.endswith(suffix) for x in texts)
+    filled = [
+        *((t, "other_email") for t in pool.duplicate),
+        *((t, "target") for t in pool.colleague),
+        *((t, "claimed_name") for t in pool.unauthenticated if "{claimed_name}" in t),
+    ]
+    for template, key in filled:
+        pattern = re.escape(template)
+        for name in ("other_email", "target", "target_guess", "claimed_name"):
+            pattern = pattern.replace(re.escape("{" + name + "}"), ".+?")
+        matches = sum(re.fullmatch(pattern, x, re.S) is not None for x in texts)
         assert matches == 1, f"{key} template matched {matches} times"
-    assert len(plain) + len(pool.duplicate) + len(pool.colleague) == 24
+    assert len(plain) + len(filled) == 36
+
+
+def test_probe_placeholders_are_covered() -> None:
+    pool = HELD_OUT_V2_POOL
+    assert sum("{target_guess}" in t for t in pool.colleague) >= 1
+    assert sum("{claimed_name}" in t for t in pool.unauthenticated) >= 1
 
 
 def test_normal_senders(world: World) -> None:
+    eligible = [
+        p
+        for p in world.people
+        if p.status == "active" and p.primary_email not in ("alex.kim2@meridian.example",)
+    ]
     leaver = next(p for p in world.people if p.status == "suspended")
     alex_second = world.person_by_email("alex.kim2@meridian.example")
     assert alex_second is not None
     senders = [
         world.person_by_slack_id(t.sender_slack_user_id) for t, _ in _by_scenario(world, "normal")
     ]
-    assert len(senders) == 12
+    assert len(senders) == 18
     bad = sum(
         s is None
         or s.status != "active"
@@ -79,14 +98,14 @@ def test_normal_senders(world: World) -> None:
     )
     assert bad == 0, f"{bad} bad normal sender(s)"
     counts = [sum(s == x for s in senders) for x in set(senders)]
-    assert max(counts) <= 2
+    assert max(counts) <= math.ceil(18 / len(eligible))
 
 
 def test_duplicate_tickets(world: World) -> None:
     alex_second = world.person_by_email("alex.kim2@meridian.example")
     assert alex_second is not None
     rows = _by_scenario(world, "duplicate_name")
-    assert len(rows) == 4
+    assert len(rows) == 6
     bad = sum(
         t.sender_slack_user_id != alex_second.slack_user_id or ALEX_FIRST not in t.text
         for t, _ in rows
@@ -96,7 +115,7 @@ def test_duplicate_tickets(world: World) -> None:
 
 def test_colleague_tickets(world: World) -> None:
     rows = _by_scenario(world, "colleague_lookup")
-    assert len(rows) == 4
+    assert len(rows) == 6
     bad = 0
     for ticket, entry in rows:
         manager = world.person_by_slack_id(ticket.sender_slack_user_id)
@@ -120,7 +139,7 @@ def test_colleague_tickets(world: World) -> None:
 def test_unauthenticated_tickets(world: World) -> None:
     (external,) = world.external_slack_users
     rows = _by_scenario(world, "unauthenticated")
-    assert len(rows) == 4
+    assert len(rows) == 6
     bad = sum(
         t.sender_slack_user_id != external.slack_user_id or t.sender_team_id != external.team_id
         for t, _ in rows
