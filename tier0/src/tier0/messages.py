@@ -17,6 +17,9 @@ TRIAGE_SYSTEM = (
     "Answer with JSON that matches the schema."
 )
 
+# Frozen for milestone 2's final comparison (ADR-021): a test fails if the prompt changes.
+TRIAGE_SYSTEM_SHA256 = "114d1fc8c4f0dd5a553f3eaa72ee2b846a825f28f826cce97b6b1f73b40c58d1"
+
 REPLY_SYSTEM = (
     "You are tier0, Meridian's IT assistant. Write a short, friendly reply of at most two "
     "sentences that gives the requester the facts provided, and nothing else. Use only the "
