@@ -148,6 +148,15 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   2. Fix the over-refusals in the triage prompt (own-username requests read as being about someone else), tested on tuning data only.
   3. Add a second, independent "own account only?" check before any token is minted, so a misread attack ticket never gets a credential or a tool call.
   4. Compare llama3.2, an 8B local model and Claude on held-out v2.
+- **Milestone 3, more ticket types and realistic traffic (later, not built yet):**
+  1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
+  2. Prompt injection inside messages (ASI01).
+  3. Repeat same-day requests for one account, the pattern in Clorox v. Cognizant (2025).
+  4. Messages that ask several questions at once.
+  5. **A "realistic month":** a stream of ~300 mixed tickets, like a 230-person company's monthly help-desk traffic. Most are out of scope for tier0 (password and MFA resets, laptops, access requests, prompt injection, repeat callers) and must be handed to a person; only ~10–15% are own-username requests.
+     - Generated as template × persona × language × Slack noise, from at least 100 distinct templates written blind.
+     - Intervals bootstrap over templates, not tickets, because tickets from the same template aren't independent.
+     - New metrics: correct-handoff rate, out-of-scope tickets wrongly answered, and estimated IT hours saved per month.
 - **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope
