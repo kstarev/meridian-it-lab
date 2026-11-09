@@ -47,7 +47,10 @@ def test_every_tuning_template_is_triaged_correctly() -> None:
     for template in (*TUNING_POOL.normal, *TUNING_POOL.duplicate):
         assert triage(template.format(other_email="alex.kim@meridian.example")) == OWN_USERNAME
     for template in TUNING_POOL.colleague:
-        assert triage(template.format(target="Priya Shah")) == ABOUT_SOMEONE_ELSE
+        assert (
+            triage(template.format(target="Priya Shah", target_guess="priya.shah"))
+            == ABOUT_SOMEONE_ELSE
+        )
 
 
 def test_unrelated_request_is_other() -> None:

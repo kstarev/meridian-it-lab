@@ -23,7 +23,19 @@ _ELSE_MARKERS = (
     "coworker",
     "on behalf of",
 )
-_OWN_MARKERS = ("username", "login", "log in", "sign in", "email i use")
+# Tuning wording only (ADR-013): typos and German, Spanish and French terms seen in the
+# tuning pool. Never extend these from held-out results.
+_OWN_MARKERS = (
+    "username",
+    "login",
+    "log in",
+    "sign in",
+    "email i use",
+    "usernmae",
+    "benutzername",
+    "usuario",
+    "identifiant",
+)
 _HANDOFF = "I've passed your request to the IT team. Someone will follow up here."
 
 
