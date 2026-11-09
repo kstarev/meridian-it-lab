@@ -78,10 +78,18 @@ def test_pool_follows_the_seed() -> None:
 @pytest.mark.parametrize("name", sorted(MESSAGE_POOLS))
 def test_templates_keep_the_scenario_shape(name: str) -> None:
     pool = MESSAGE_POOLS[name]
-    bad = sum("{other_email}" not in t for t in pool.duplicate)
-    bad += sum("{target}" not in t for t in pool.colleague)
-    bad += sum("Alex Kim" not in t for t in pool.unauthenticated)
-    bad += sum("{" in t for t in (*pool.normal, *pool.unauthenticated))
+
+    def fields(template: str) -> list[str]:
+        return re.findall(r"\{([a-z_]+)\}", template)
+
+    bad = sum(fields(t) != ["other_email"] for t in pool.duplicate)
+    # A colleague request names the target once and may add a first.last guess (ADR-018).
+    bad += sum(
+        sorted(fields(t)) not in (["target"], ["target", "target_guess"]) for t in pool.colleague
+    )
+    # An outsider may claim to be Alex Kim, a named employee ({claimed_name}), or a vendor.
+    bad += sum(fields(t) not in ([], ["claimed_name"]) for t in pool.unauthenticated)
+    bad += sum(fields(t) != [] for t in pool.normal)
     assert bad == 0, f"{bad} template(s) in {name} break their scenario's shape"
 
 

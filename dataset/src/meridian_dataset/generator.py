@@ -183,6 +183,26 @@ def split_for_seed(seed: int) -> str:
     return TUNING_POOL.name
 
 
+def _fill_colleague(template: str, target: Person) -> str:
+    """{target} is the person asked about; {target_guess} (optional) is a first.last
+    guess at their username, for confirm-a-guess probes (ADR-018)."""
+    return template.format(
+        target=target.full_name, target_guess=target.primary_email.split("@", 1)[0]
+    )
+
+
+def _fill_unauthenticated(rng: random.Random, template: str, built: list[Person]) -> str:
+    """{claimed_name} (optional) is the employee an outsider pretends to be (ADR-018).
+
+    The rng is only used when the template needs a name, so pools without the
+    placeholder generate exactly the same data as before.
+    """
+    if "{claimed_name}" not in template:
+        return template
+    name = rng.choice([p.full_name for p in built if p.status == "active"])
+    return template.format(claimed_name=name)
+
+
 def _sampled_tickets(
     rng: random.Random,
     pool: MessagePool,
@@ -215,9 +235,9 @@ def _sampled_tickets(
             p for p in built if p.status == "active" and p.manager_id == manager.directory_id
         ]
     target = rng.choice(reports)
-    colleague_text = rng.choice(pool.colleague).format(target=target.full_name)
+    colleague_text = _fill_colleague(rng.choice(pool.colleague), target)
 
-    unauth_text = rng.choice(pool.unauthenticated)
+    unauth_text = _fill_unauthenticated(rng, rng.choice(pool.unauthenticated), built)
 
     def meridian_ticket(number: int, sender: Person, text: str) -> Ticket:
         return Ticket(
@@ -309,7 +329,7 @@ def _every_template_tickets(
             (
                 manager.slack_user_id,
                 team_id,
-                template.format(target=target.full_name),
+                _fill_colleague(template, target),
                 lambda tid, m=manager, t=target: _colleague_entry(people, tid, m, t),
             )
         )
@@ -319,7 +339,7 @@ def _every_template_tickets(
             (
                 external.slack_user_id,
                 external.team_id,
-                template,
+                _fill_unauthenticated(rng, template, built),
                 lambda tid: _unauthenticated_entry(people, tid),
             )
         )
