@@ -16,6 +16,7 @@ from tier0.identity.binding import IdentityBinder
 from tier0.identity.tokens import JwtVerifier, TokenIssuer
 from tier0.mcp_server.client import serve_in_process
 from tier0.mcp_server.server import McpServerHandle, build_mcp_server
+from tier0.mentions import MentionCheck
 from tier0.mocks.directory import MockDirectory
 from tier0.mocks.linear import MockLinear
 from tier0.mocks.slack import APP_ID, MockSlack
@@ -86,7 +87,7 @@ async def offline_runtime(
             clock=clock,
             domain=world.domain,
             recovery_url=world.identity_recovery_url,
-            **agent_options,
+            **{"mention_check": MentionCheck(directory), **agent_options},
         )
         yield Runtime(
             world=world,

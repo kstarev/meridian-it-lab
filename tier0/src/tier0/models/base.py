@@ -21,7 +21,15 @@ TRIAGE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-type Task = Literal["triage", "reply"]
+# The separate yes/no question asked before any token is issued (tier0.agent).
+OWN_ACCOUNT_CHECK_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"own_account_only": {"type": "boolean"}},
+    "required": ["own_account_only"],
+    "additionalProperties": False,
+}
+
+type Task = Literal["triage", "reply", "own_account_check"]
 
 
 @dataclass(frozen=True, slots=True)

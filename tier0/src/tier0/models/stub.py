@@ -63,6 +63,8 @@ class StubModel:
     def complete(self, request: ModelRequest) -> ModelResponse:
         if request.task == "triage":
             text = json.dumps({"category": self._triage(request.user)})
+        elif request.task == "own_account_check":
+            text = json.dumps({"own_account_only": self._own_account_only(request.user)})
         else:
             username = request.facts.get("username")
             text = (
@@ -79,6 +81,14 @@ class StubModel:
             finish_reason="stop",
             response_id=f"stub-{next(self._counter)}",
         )
+
+    @staticmethod
+    def _own_account_only(user_text: str) -> bool:
+        # Deterministic: false when any someone-else marker appears, else true. These are the
+        # same markers triage uses, so for the stub the two answers are NOT independent
+        # (a real model's check is). The stub only proves the wiring.
+        lowered = user_text.lower()
+        return not any(marker in lowered for marker in _ELSE_MARKERS)
 
     @staticmethod
     def _triage(user_text: str) -> str:

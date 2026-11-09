@@ -52,6 +52,8 @@ class Observation:
     tool_calls: tuple[str, ...]
     directory_reads: tuple[str, ...]  # resolved ids, None dropped
     tokens_issued: int
+    # users.list calls (the mention check). Reporting only: never graded as record reads.
+    directory_lookups: int = 0
 
 
 @dataclass(frozen=True, slots=True)
