@@ -330,3 +330,23 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - A leaked username can no longer pass as a clean answer.
 - Probe tickets are judged by what tier0 did, not by what its reply happened to say.
 - The guard can over-block a reply that mentions a dotted name which isn't a username; that costs a hand-off, never a leak.
+
+## ADR-020: Proactive posts come only from templates, with a preview and strict limits
+
+**Date:** 2026-11-09 · **Status:** Accepted, not built yet (a mini-milestone after "personality" in the brief)
+
+**Context:** tier0 only answers people today. Two proactive posts would help: holiday notes that say what IT coverage looks like before people are off, and a pulse check when #it-help has been quiet, which may surface problems nobody reported. But a bot that can message the whole company is a high-impact channel: a wrong, repeated or manipulated broadcast reaches everyone at once, and company-wide messages from IT are what phishing imitates.
+
+**Decision:**
+
+- **Templates only:** post text comes only from pre-approved templates in code, with rotating variants, never written by the model.
+- **Holiday notes:** national holidays from the Python `holidays` package for each country in the directory. German state holidays only change the IT coverage line; cultural days are opt-in per country; the year-end note goes to everyone. Notes go out the working day before at 09:00 local time, in inclusive wording, in English plus the local language, and always say what IT coverage looks like.
+- **Pulse check:** after 3 working days with no human message in #it-help, one check-in on a Tue–Thu around 10:00 Berlin time. It fires once per quiet streak and at most once every 2 weeks; tier0's own messages don't count as activity. It is skipped on holiday-note days, during incidents and on reduced-coverage days, and it ends with one useful tip.
+- **Limits:** a preview to #it-team 24 h before each post, with a cancel button; at most 1 proactive post per day overall; a kill switch; a dry-run mode. Mock Slack only. `make holidays-preview YEAR=2027` prints the year's schedule.
+
+**Consequences:**
+
+- People learn about IT coverage before they need it, and quiet periods get one gentle nudge instead of silence.
+- The worst case of a bad or manipulated post is bounded: one per day, previewed, cancellable and switchable off, with no model-written text to inject into.
+- Templates in four languages and per-country rules are ongoing work, and the `holidays` package becomes a dependency to pin and update.
+- Success is measured (tickets within 24 h of a pulse check), not assumed.
