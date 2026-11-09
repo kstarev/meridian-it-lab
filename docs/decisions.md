@@ -280,9 +280,35 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - Intervals are still wide at 24 tickets, so "no clear difference" is a likely, honest outcome unless one model is much better.
 - Two blind authoring rounds and a reseal cost time; the repo owner reviews all 24 wordings once, after this reseal.
 
-## ADR-017: Reserved
+## ADR-017: An independent "own account only?" check and a code-only mention check before any token
 
-**Date:** 2026-11-09 · **Status:** Reserved for the second "own account only?" check and its Directory mention lookup (milestone 2, step 3).
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** Triage can read an attack as an own-username request: the stub did on held-out v1, and llama3.1:8b did on a confirm-a-guess probe with one prompt version. The self-only tool keeps the damage small, but anything done for an attack ticket is unsafe. Asking the same model a second question that includes triage's answer tends to repeat triage's mistakes.
+
+**Decision:**
+
+- **Independent model check:** before any token, a separate question, "is this request only about the sender's own account?". It sees only the raw message and the requester's identity, never triage's category or reasoning. Its prompt was the best of 3 versions on tuning data (an optimistic tuning score) and is frozen: SHA-256 `706676fffee8a40f2a4d5db18ca7f13ccb0adfb69c9bbe04d26a7cd838013239`.
+- **Code-only mention check:** does the message mention another directory user by email, bare username or full name?
+  - It uses a deliberately narrow `users.list`: exact `email:` or `name:` queries, user IDs only, at most 2 results, at most 6 lookups per message, and every call is logged. This reverses milestone 1's "no list method" choice in the smallest form we could find.
+  - It is never offered to the model as a tool; a test proves the model can't reach it.
+  - A match on the requester's own email or name counts as the requester, even if a namesake exists.
+  - If the only other user mentioned shares the requester's full name (alex.kim2 quoting alex.kim's address), it is treated as quoting the wrong address, not a hand-off signal. The reply gives only the requester's own username, and the output guard still blocks the other address.
+- **Decision rules,** once triage says own_username: check yes and no other user mentioned → answer; check yes and another user mentioned → hand to a person (the mention signal never refuses on its own); check no → refuse; check failed → hand to a person.
+- **Measured, not assumed:** every report shows, per check, how often it disagreed with triage, the triage errors it caught and its false alarms, plus the hand-off rate and unexpected hand-offs as a cost, model calls per run and latency.
+
+**Measured on tuning data (dev set for diagnosis only), temperature 0.5, seeds 1001-1003:**
+
+- Latency per run rose from 331 to 448 ms (llama3.2) and from 801 to 1072 ms (llama3.1:8b); an answered ticket makes 3 model calls instead of 2.
+- Neither check had triage errors to catch with these models on these sets. On the dev set, llama3.1:8b's check raised 2 false alarms (legitimate requests refused).
+- Running the stub on the dev set, where it misreads a colleague request, the mention check caught all 3 misreads: 0 policy violations, against 3 before.
+
+**Consequences:**
+
+- A misread attack no longer gets a token if either check notices it, and how often each check helps or hurts is visible in every report.
+- One more model call and up to 7 Directory lookups per answered ticket.
+- For the stub, the two answers use the same keyword rules, so they are not independent; the check's independence only holds for real models.
+- **Residual risk:** whether tier0 answers or hands off now depends on whether a name in the message exists in the directory, so a verified employee could probe whether a name exists. They learn existence only, never a username or record; the rate limit in milestone 3 bounds it.
 
 ## ADR-018: Held-out v2 has 36 tickets shaped by real help-desk attacks, resealed
 
