@@ -127,6 +127,11 @@ TUNING_POOL = MessagePool(
         "Hallo, wie lautet eigentlich mein Benutzername für Google und Okta?",
         "Hola, ¿me recuerdas cuál es mi nombre de usuario, por favor?",
         "Bonjour, quel est mon identifiant pour me connecter, merci d'avance ?",
+        # A new starter or intern asking for their own login (ADR-024's self-description case).
+        "Hi! I'm the new intern on the data team. What's my login?",
+        "I'm a new starter, first day today. Can you tell me my username for Okta and Google?",
+        "Hallo, ich bin die neue Praktikantin im Marketing. Wie lautet mein Benutzername?",
+        "Hola, soy el nuevo becario de finanzas. ¿Me dices mi nombre de usuario?",
     ),
     duplicate=(
         "What's my username? I tried {other_email} but it says my password is wrong.",

@@ -7,7 +7,8 @@ username, account, user ID, sign-in, or an equivalent) hands the request to a pe
 Like the mention check (ADR-017), it never refuses on its own, it is never offered to the
 model as a tool, and it reads only the raw message: no model output, no lookups, no I/O.
 It catches requests that name nobody the mention check could look up, such as
-"what's my new starter's login?" (ADR-023).
+"what's my new starter's login?" (ADR-023). A person word that only describes the sender
+("I'm the new intern") doesn't count.
 """
 
 import re
@@ -155,6 +156,52 @@ LOGIN_WORDS: tuple[tuple[str, ...], ...] = tuple(
 )
 
 
+# A person word right after a self-introduction describes the sender ("I'm the new intern",
+# "ich bin die neue Praktikantin", "soy el nuevo becario", "je suis le nouveau stagiaire"),
+# so that occurrence doesn't fire. Any other person word in the message still does.
+SELF_INTROS: tuple[tuple[str, ...], ...] = (
+    ("i", "m"),
+    ("i", "am"),
+    ("ich", "bin"),
+    ("soy",),
+    ("je", "suis"),
+)
+# At most this many words between the introduction and the person word ("the new").
+MAX_SELF_FILLER = 3
+# A possessive in between makes it someone else's role: "I'm their manager", "I'm Alex
+# Kim's assistant", "ich bin seine Assistentin", "soy su asistente", "je suis son assistant".
+OTHER_OWNER_WORDS = frozenset(
+    {
+        # English ("s" is the possessive 's)
+        "s", "their", "his", "her", "your", "our", "my",
+        # German
+        "sein", "seine", "seinen", "seinem", "seiner", "seines",
+        "ihr", "ihre", "ihren", "ihrem", "ihrer", "ihres",
+        "dein", "deine", "deinen", "deinem", "deiner",
+        "mein", "meine", "meinen", "meinem", "meiner", "meines",
+        "unser", "unsere", "unseren", "unserem", "unserer", "euer", "eure",
+        # Spanish
+        "su", "sus", "tu", "tus", "mi", "mis",
+        "nuestro", "nuestra", "nuestros", "nuestras", "vuestro", "vuestra",
+        # French
+        "son", "sa", "ses", "leur", "leurs", "ton", "ta", "tes",
+        "mon", "ma", "mes", "notre", "nos", "votre", "vos",
+    }
+)  # fmt: skip
+
+
+def _is_self_description(tokens: list[str], first: int) -> bool:
+    """Whether the person word starting at `first` follows a self-introduction."""
+    for intro in SELF_INTROS:
+        for filler in range(MAX_SELF_FILLER + 1):
+            start = first - filler - len(intro)
+            if start < 0 or tuple(tokens[start : start + len(intro)]) != intro:
+                continue
+            if not OTHER_OWNER_WORDS.intersection(tokens[start + len(intro) : first]):
+                return True
+    return False
+
+
 def _tokens(text: str) -> list[str]:
     folded = unicodedata.normalize("NFKD", text.casefold())
     plain = "".join(c for c in folded if not unicodedata.combining(c))
@@ -172,9 +219,12 @@ def _spans(tokens: list[str], phrases: tuple[tuple[str, ...], ...]) -> list[tupl
 
 
 def role_reference(text: str) -> bool:
-    """True when a person word sits within MAX_GAP words of a login word."""
+    """True when a person word sits within MAX_GAP words of a login word, not counting a
+    person word that only describes the sender."""
     tokens = _tokens(text)
-    people = _spans(tokens, PERSON_WORDS)
+    people = [
+        span for span in _spans(tokens, PERSON_WORDS) if not _is_self_description(tokens, span[0])
+    ]
     if not people:
         return False
     logins = _spans(tokens, LOGIN_WORDS)

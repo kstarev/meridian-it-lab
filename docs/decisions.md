@@ -454,6 +454,8 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **It never refuses on its own.** Decision rules, once triage says own_username: check yes and no code signal → answer; check yes and another user mentioned → hand off; check yes and a role reference → hand off; check no → refuse; check failed → hand off.
 - **Measured:** every run records `tier0.role_check` (matched yes or no, never the text), and reports show its row next to the other two checks: how often it disagreed with triage, the errors it caught and its false alarms.
 - **False alarms before wiring it in:** 0 of 12 normal tuning messages and 0 of 3 duplicate ones; on the dev set (diagnosis only), 0 of 7.
+- **Self-description exception** (added the same day): a person word right after a self-introduction ("I'm the new intern", "ich bin die neue Praktikantin", "soy el nuevo becario", "je suis le nouveau stagiaire") describes the sender and doesn't fire. Up to 3 words may sit in between, but not a possessive ("I'm their manager", "ich bin seine Assistentin" still fire). Any other person word in the same message still fires.
+- **Tuning messages for that case:** 4 normal tuning messages where a new starter or intern asks for their own login (English twice, German, Spanish), generator 0.10.0. Held-out v1 and v2 are unchanged by hash, and the v2 seal holds. Without the exception, the signal fired on 2 of the 4; with it, on 0 of 16 normal and 0 of 3 duplicate tuning messages. On 58 colleague-request texts (every tuning colleague ticket in 40 worlds, every template filled for every person, and the hand-written attack examples), it fires on exactly the same 36 with or without the exception.
 
 **Consequences:**
 
@@ -461,6 +463,8 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - The 0 false alarms is weak evidence, because no normal tuning message mentions a person at all. Foreseeable false alarms include a requester describing themselves ("I'm the new intern, what's my login?") or mentioning a manager near "account". Each one costs a hand-off, never a refusal or exposed data. The hand-off rate on held-out v2 will show the real cost.
 - It misses requests with no listed person word, such as "the person who joined my team". There the model check is still the only cover.
 - The word lists and the 5-word gap were chosen with the tuning wording in view. How well they generalise is a question for held-out v2.
+- The exception has a cost: a sender who only describes themselves ("I'm the manager here, send me the username for that account") no longer fires, which leaves the model check and the mention check. A test pins this.
+- Held-out v2's normal messages were written before this case was raised, so v2 doesn't measure the exception. That is a known limit, left for milestone 3.
 
 ## ADR-025: Held-out v2 gets 6 unnamed colleague requests, resealed at 42 tickets
 
