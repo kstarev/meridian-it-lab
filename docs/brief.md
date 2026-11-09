@@ -154,7 +154,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **Style:** short sentences, contractions, the person's first name, and one clear next step.
   - **Language from Slack, not the model:** the reply is in the language of the requester's Slack locale (`users.info` with `include_locale`): English, German, Spanish or French, else English. The model only classifies; code writes every reply. Mirroring a casual or formal tone is left out for now.
   - **Several variants per reply type,** so people don't see the same sentence every time.
-  - **No user enumeration:** a refusal or an outsider reply reads the same whether or not the person it mentions exists.
+  - **No user enumeration:** a refusal or an outsider reply reads the same whether or not the person it mentions exists, and a request about someone else always gets the refusal reply, even when tier0 hands it to a person.
   - **The sweeper's closing note** uses the same templates and locale.
 - **Mini-milestone, proactive posts (after personality; not built yet, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates.
   - **Holiday notes:** short, warm, not-too-specific notes to #general (country channels optional, configurable).

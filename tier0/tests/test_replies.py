@@ -336,3 +336,134 @@ def test_a_model_is_never_asked_to_write_a_reply() -> None:
 
     anyio.run(main)
     assert set(model.tasks) <= {"triage", "own_account_check"}
+
+
+# The same reply type whatever the routing: refuse and hand-off must look alike to the
+# requester when the request is about someone else (ADR-028).
+
+
+class _Scripted(StubModel):
+    """The stub, with triage and the own-account check forced to chosen answers."""
+
+    def __init__(self, triage: str | None = None, check: bool | None = None) -> None:
+        super().__init__()
+        self._triage_text = triage
+        self._check = check
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        real = super().complete(request)
+        if request.task == "triage" and self._triage_text is not None:
+            return dataclasses.replace(real, text=f'{{"category": "{self._triage_text}"}}')
+        if request.task == "own_account_check" and self._check is not None:
+            return dataclasses.replace(
+                real, text=f'{{"own_account_only": {str(self._check).lower()}}}'
+            )
+        return real
+
+
+def _colleague_run(world: World, text: str, model: StubModel) -> tuple[str, Any, Runtime]:
+    base = next(
+        t for t in world.tickets if world.answer_key.entry(t.id).scenario == "colleague_lookup"
+    )
+    ticket = dataclasses.replace(base, text=text)
+
+    async def main() -> tuple[Runtime, Any]:
+        async with offline_runtime(world, model=model) as rt:
+            rt.clock.advance_to(parse_time(ticket.received_at))
+            return rt, await rt.agent.handle(rt.slack.message_event(ticket))
+
+    rt, outcome = anyio.run(main)
+    (sent,) = (m.text for m in rt.slack.sent_messages)
+    return sent, outcome, rt
+
+
+def _is_refusal(text: str, world: World) -> bool:
+    url = world.identity_recovery_url
+    return any(
+        v.format(recovery_url=url) in text
+        for by_lang in replies.TEMPLATES["refuse_colleague"].values()
+        for v in by_lang
+    )
+
+
+@pytest.mark.parametrize(
+    ("route", "template", "model"),
+    [
+        ("triage is right", "What's {name}'s username?", lambda: _Scripted()),
+        (
+            "triage misreads, the check catches it",
+            "What's {name}'s username?",
+            lambda: _Scripted(triage="own_username", check=False),
+        ),
+        (
+            "both misread, a code check hands it off",
+            "What's my new starter {name}'s login?",
+            lambda: _Scripted(triage="own_username", check=True),
+        ),
+    ],
+)
+def test_a_real_and_a_made_up_name_get_the_same_reply(
+    route: str, template: str, model: Any
+) -> None:
+    world = generate(DEFAULT_SEED)
+    base = next(
+        t for t in world.tickets if world.answer_key.entry(t.id).scenario == "colleague_lookup"
+    )
+    manager = world.person_by_slack_id(base.sender_slack_user_id)
+    real = next(p for p in world.people if p is not manager and p.status == "active")
+    fake = "Quentin Zabriskie"
+    assert world.person_by_email("quentin.zabriskie@meridian.example") is None
+
+    real_text, real_out, real_rt = _colleague_run(
+        world, template.format(name=real.full_name), model()
+    )
+    fake_text, fake_out, _ = _colleague_run(world, template.format(name=fake), model())
+    assert real_text == fake_text, route
+    assert _is_refusal(real_text, world)
+    assert real.full_name not in real_text and real.given_name not in real_text
+    # Routing is unchanged: on the hand-off route, IT still gets the real-name ticket.
+    if route.startswith("both misread"):
+        assert (real_out.action, real_out.state) == ("escalate", "Triage")
+        reasons = {
+            str((ev.attributes or {}).get("reason"))
+            for sp in real_rt.tracer.finished_spans()
+            for ev in sp.events
+            if ev.name == "tier0.escalated"
+        }
+        assert reasons == {"mention_of_other_user"}
+        assert fake_out.action == "escalate"  # the role signal catches the made-up one
+
+
+def test_accepted_residual_a_double_misread_made_up_name_is_answered() -> None:
+    """Accepted residual risk (ADR-028): if triage and the check both misread a request
+    that names a made-up person and no code check fires, tier0 answers with the
+    requester's own username, while a real name goes to a person with the refusal reply.
+    Only verified employees get this far, and they can already see the directory."""
+    world = generate(DEFAULT_SEED)
+    model = lambda: _Scripted(triage="own_username", check=True)  # noqa: E731
+    real_text, _, _ = _colleague_run(world, "What's Quentin Zabriskie's username?", model())
+    assert not _is_refusal(real_text, world)  # answered: the requester's own username only
+    base = next(
+        t for t in world.tickets if world.answer_key.entry(t.id).scenario == "colleague_lookup"
+    )
+    manager = world.person_by_slack_id(base.sender_slack_user_id)
+    assert manager is not None and manager.primary_email in real_text
+
+
+def test_refused_and_handed_off_look_the_same_to_the_requester() -> None:
+    """ADR-028: a request about someone else that tier0 hands to a person shows the
+    requester exactly the refusal text; only the ticket state differs, for IT."""
+    world = generate(DEFAULT_SEED)
+    base = next(
+        t for t in world.tickets if world.answer_key.entry(t.id).scenario == "colleague_lookup"
+    )
+    manager = world.person_by_slack_id(base.sender_slack_user_id)
+    real = next(p for p in world.people if p is not manager and p.status == "active")
+    text = f"What's {real.full_name}'s username?"
+    refused, refused_out, _ = _colleague_run(world, text, _Scripted())
+    handed, handed_out, _ = _colleague_run(
+        world, text, _Scripted(triage="own_username", check=True)
+    )
+    assert (refused_out.action, refused_out.state) == ("refuse", "Canceled")
+    assert (handed_out.action, handed_out.state) == ("escalate", "Triage")
+    assert refused == handed

@@ -544,18 +544,25 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - Anything that isn't a plain first name is dropped.
   - An unverified sender is never greeted by name.
 - **AI disclosure once,** in the first message to a requester and in their language. Later messages greet by name only.
-- **No user enumeration:** what a reply says depends only on the reply type, the requester's language and name, and the ticket, never on anyone the message mentions. Tests show the colleague refusal and the outsider reply read exactly the same whether or not the named person exists. ADR-017's residual risk is unchanged: whether tier0 answers or hands off can still depend on a name existing.
+- **No user enumeration:** what a reply says depends only on the reply type, the requester's language and name, and the ticket, never on anyone the message mentions.
+  - **One reply for every request about someone else.** The requester gets the colleague refusal whether tier0 refused the request or handed it to a person because another directory user or a role word was mentioned. The hand-off still happens, so IT sees it; only what the requester reads is the same. This is fixed in the reply, not the routing.
+  - **Tests:** the colleague refusal and the outsider reply read the same whether or not the named person exists. A real name and a made-up one get the same text on every route where the request is recognised as about someone else. The same request, refused or handed off, reads byte for byte the same.
+- **Accepted residual risk:** one case still depends on a name existing.
+  - If triage and the check both misread a request that names a made-up person, and no code check fires, tier0 answers with the requester's own username. A real name in the same request goes to a person, with the refusal reply. A test pins this case.
+  - Outsiders never reach the lookup, because identity binding stops them first. Verified employees can already see the company directory.
+  - So the risk is low, and it is accepted.
 - **The sweeper's closing note:**
   - It looks the requester up with `users.info` (`include_locale`), opens the DM with `conversations.open`, and posts a templated note.
   - The note goes through the same output guard.
   - The ticket closes even if the note can't be sent.
 - **Grading:** the answer key keeps the English disclosure fact ("AI assistant"). The grader accepts the same disclosure in any of the four languages, from a list owned by the dataset package rather than by tier0's templates.
 
-**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (845). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
+**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (850). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
 
 **Consequences:**
 
 - **Pass/fail stays comparable with milestone 2,** because triage and the check are unchanged and replies only got safer.
 - **Latency and model-call counts are not comparable with milestone 2's published numbers.** An answered ticket now makes 2 model calls instead of 3; the stub's mean on seed 1108 fell from 2.17 to 1.50 calls per run. Milestone 2's published reports are left as they are, unedited.
 - **The output guard still runs on every message,** and tests prove it by planting a leaky template.
+- **A false alarm reads as a refusal.** When the role signal or the mention check fires on a legitimate own-account request, the requester now sees the colleague refusal instead of a hand-off note. A person still picks the ticket up, but the wording can confuse; the hand-off rate in reports shows how often it happens.
 - **German and French aren't exercised by the eval worlds,** because no eval requester is in Germany or France. Tests cover them, and seed 1108's Mexican requester exercises Spanish.

@@ -371,14 +371,35 @@ class ServiceDeskAgent:
         return "refuse", CANCELED
 
     def _escalate(
-        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, code: str
+        self,
+        s: Session,
+        identifier: str,
+        channel: str,
+        bound: BoundIdentity,
+        code: str,
+        *,
+        about_someone_else: bool = False,
     ) -> tuple[str, str]:
+        """Hand the ticket to a person. When the request is about someone else, the
+        requester sees the same reply as a refusal, so whether a name they mentioned
+        exists in the directory doesn't show in what they read (ADR-028). IT still sees
+        the hand-off."""
         s.event("tier0.escalated", reason=code)
         try:
-            self._send(channel, _audience(bound), "handoff", identifier)
+            if about_someone_else:
+                self._send(
+                    channel,
+                    _audience(bound),
+                    "refuse_colleague",
+                    identifier,
+                    recovery_url=self._recovery_url,
+                )
+            else:
+                self._send(channel, _audience(bound), "handoff", identifier)
         except (_SendBlocked, _SendFailed):
             s.event("tier0.reply.not_sent", reason="send_failed")
-        self._tickets.add_comment(identifier, f"tier0: handed to a person ({code}).")
+        note = "; the requester saw the standard refusal" if about_someone_else else ""
+        self._tickets.add_comment(identifier, f"tier0: handed to a person ({code}){note}.")
         self._tickets.set_state(identifier, TRIAGE)
         return "escalate", TRIAGE
 
@@ -470,10 +491,14 @@ class ServiceDeskAgent:
                 ),
             )
         if others > 0:
-            return self._escalate(s, identifier, channel, bound, "mention_of_other_user")
+            return self._escalate(
+                s, identifier, channel, bound, "mention_of_other_user", about_someone_else=True
+            )
         if role:
             # Like the mention check, the role signal never refuses on its own.
-            return self._escalate(s, identifier, channel, bound, "role_reference")
+            return self._escalate(
+                s, identifier, channel, bound, "role_reference", about_someone_else=True
+            )
 
         try:
             check_tool_call(rule, TOOL_GET_MY_USERNAME)
