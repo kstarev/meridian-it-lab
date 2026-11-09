@@ -16,6 +16,7 @@ from tier0.models import (
     CATEGORIES,
     OTHER,
     OWN_USERNAME,
+    ModelError,
     ModelRequest,
     StubModel,
 )
@@ -68,20 +69,16 @@ def test_same_request_gives_same_text() -> None:
     assert model.complete(request).text == model.complete(request).text
 
 
-def test_reply_with_facts_contains_username() -> None:
-    request = ModelRequest(task="reply", system="s", user="u", facts={"username": "alex.kim"})
-    assert "alex.kim" in StubModel().complete(request).text
-
-
-def test_reply_without_facts_is_handoff() -> None:
-    response = StubModel().complete(ModelRequest(task="reply", system="s", user="u"))
-    assert response.text == "I've passed your request to the IT team. Someone will follow up here."
+def test_unknown_task_is_a_model_error() -> None:
+    # The model only classifies; it never writes replies (ADR-028).
+    with pytest.raises(ModelError):
+        StubModel().complete(ModelRequest(task="reply", system="s", user="u"))  # type: ignore[arg-type]
 
 
 def test_token_counts_and_ids() -> None:
     model = StubModel()
-    first = model.complete(ModelRequest(task="reply", system="be nice", user="hello there"))
-    second = model.complete(ModelRequest(task="reply", system="be nice", user="hello there"))
+    first = model.complete(ModelRequest(task="triage", system="be nice", user="hello there"))
+    second = model.complete(ModelRequest(task="triage", system="be nice", user="hello there"))
     assert first.input_tokens == 4
     assert first.output_tokens > 0
     assert first.finish_reason == "stop"

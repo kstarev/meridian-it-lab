@@ -521,3 +521,41 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 - With 42 tickets, only a large gap can produce a winner. "No clear difference" is an expected, honest outcome, not a failure.
 - After this comparison, held-out v2's results are seen, so v2 becomes a dev set for any later work, as v1 did (ADR-014).
+
+## ADR-028: The model classifies, code speaks: replies come from templates in the requester's Slack language
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** The personality mini-milestone asks tier0 to sound like a friendly IT colleague: the AI disclosure once, no stock phrases, short sentences, the person's first name, one clear next step, and some variety. Until now the model worded the username answer, which the output guard had to police, and which no test could hold to a style. The brief also suggested the model label language and tone. Instead, the language comes from Slack, and tone mirroring is left out for now.
+
+**Decision:**
+
+- **Templates in code** (`tier0/replies.py`) for every message tier0 sends: the username answer, the colleague refusal, the outsider reply, the hand-off, the guard fallback and the sweeper's closing note. Each has 3 variants in English, German, Spanish and French. The variant is picked from a SHA-256 hash of the reply type and the ticket, never at random, so runs repeat exactly. German, Spanish and French use the informal form (du, tú, tu).
+- **The model never writes a reply.** The reply model call, its prompt and the `reply` task type are gone. The model only labels triage and the own-account check, whose prompts and frozen hashes are unchanged (ADR-017, ADR-021).
+- **Language from Slack:** the binder calls `users.info` with `include_locale`, as Slack's API does, and the reply uses that locale's language. Locales without templates (for example pt-BR or ja-JP) get English. The Slack mock derives the locale from the person's country, the same way it already derives the time zone, so the dataset and every eval world are unchanged.
+- **Style rules, enforced by tests:**
+  - none of the brief's banned phrases appears in any language;
+  - tier0 only ever introduces itself as tier0;
+  - sentences are short, and the English templates use contractions;
+  - every variant carries its facts (the username, or the recovery link).
+- **Names:**
+  - A verified requester is greeted by their directory first name, which is authoritative.
+  - The sweeper greets with Slack's profile first name, which reaches only that same person.
+  - Anything that isn't a plain first name is dropped.
+  - An unverified sender is never greeted by name.
+- **AI disclosure once,** in the first message to a requester and in their language. Later messages greet by name only.
+- **No user enumeration:** what a reply says depends only on the reply type, the requester's language and name, and the ticket, never on anyone the message mentions. Tests show the colleague refusal and the outsider reply read exactly the same whether or not the named person exists. ADR-017's residual risk is unchanged: whether tier0 answers or hands off can still depend on a name existing.
+- **The sweeper's closing note:**
+  - It looks the requester up with `users.info` (`include_locale`), opens the DM with `conversations.open`, and posts a templated note.
+  - The note goes through the same output guard.
+  - The ticket closes even if the note can't be sent.
+- **Grading:** the answer key keeps the English disclosure fact ("AI assistant"). The grader accepts the same disclosure in any of the four languages, from a list owned by the dataset package rather than by tier0's templates.
+
+**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (845). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
+
+**Consequences:**
+
+- **Pass/fail stays comparable with milestone 2,** because triage and the check are unchanged and replies only got safer.
+- **Latency and model-call counts are not comparable with milestone 2's published numbers.** An answered ticket now makes 2 model calls instead of 3; the stub's mean on seed 1108 fell from 2.17 to 1.50 calls per run. Milestone 2's published reports are left as they are, unedited.
+- **The output guard still runs on every message,** and tests prove it by planting a leaky template.
+- **German and French aren't exercised by the eval worlds,** because no eval requester is in Germany or France. Tests cover them, and seed 1108's Mexican requester exercises Spanish.

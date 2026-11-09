@@ -12,7 +12,7 @@ import anyio
 import pytest
 
 from meridian_dataset import World
-from tier0 import messages
+from tier0 import messages, replies
 from tier0.agent import (
     Outcome,
     own_account_check_request,
@@ -40,7 +40,7 @@ NO = '{"own_account_only": false}'
 
 
 class Model:
-    """Stub underneath; triage, check and reply can each be overridden. Records requests."""
+    """Stub underneath; triage and check can each be overridden. Records requests."""
 
     provider = "test"
     model = "scripted"
@@ -55,7 +55,6 @@ class Model:
         check: str | None = None,
         check_finish: str = "stop",
         check_error: bool = False,
-        reply: str | None = None,
     ) -> None:
         self.requests: list[ModelRequest] = []
         self.responses: list[str] = []
@@ -64,7 +63,6 @@ class Model:
         self._check = check
         self._check_finish = check_finish
         self._check_error = check_error
-        self._reply = reply
 
     def describe(self) -> dict[str, str]:
         return {}
@@ -82,8 +80,6 @@ class Model:
             )
         elif request.task == "triage" and self._triage is not None:
             real = dataclasses.replace(real, text=self._triage)
-        elif request.task == "reply" and self._reply is not None:
-            real = dataclasses.replace(real, text=self._reply)
         self.responses.append(real.text)
         return real
 
@@ -154,12 +150,13 @@ def test_parse(response: ModelResponse | None, expected: bool | None) -> None:
 # --- decisions ------------------------------------------------------------------------
 
 
-def test_normal_ticket_is_answered_with_three_model_calls(world: World) -> None:
+def test_normal_ticket_is_answered_with_two_model_calls(world: World) -> None:
+    # Triage and the check; the reply comes from a template, not a model (ADR-028).
     model = Model()
     rt, outcome = _go(world, "TKT-001", model)
     assert (outcome.action, outcome.state) == ("answer", AWAITING_REPLY)
-    assert [r.task for r in model.requests] == ["triage", "own_account_check", "reply"]
-    assert sum(s.model_calls for s in summarize(rt.tracer.finished_spans()).values()) == 3
+    assert [r.task for r in model.requests] == ["triage", "own_account_check"]
+    assert sum(s.model_calls for s in summarize(rt.tracer.finished_spans()).values()) == 2
     assert _lookups(rt) == 0
     assert _events(rt, "tier0.own_account_check") == [{"result": "yes"}]
     assert _events(rt, "tier0.mention_check") == [{"others": 0, "namesakes": 0, "lookups": 0}]
@@ -187,7 +184,12 @@ def test_misread_colleague_ticket_is_refused_by_the_check(world: World) -> None:
     assert _tool_calls(rt) == 0
     assert _events(rt, "tier0.refused") == [{"reason": "own_account_check_no"}]
     (sent,) = [m.text for m in rt.slack.sent_messages]
-    assert messages.refuse_someone_else(world.identity_recovery_url) in sent
+    refusals = [
+        v.format(recovery_url=world.identity_recovery_url)
+        for by_lang in replies.TEMPLATES["refuse_colleague"].values()
+        for v in by_lang
+    ]
+    assert any(r in sent for r in refusals)
     comments = rt.tickets.get_ticket(outcome.ticket or "").comments
     assert any("own-account check said" in c.body for c in comments)
 
@@ -284,7 +286,7 @@ def test_check_failure_goes_to_a_person(world: World, model: Model) -> None:
 def test_the_check_sees_only_the_sender_and_the_raw_message(world: World) -> None:
     model = Model()
     _go(world, "TKT-001", model)
-    triage, check, _reply = model.requests
+    triage, check = model.requests
     text = _ticket(world, "TKT-001").text
     lines = check.user.split("\n", 2)
     assert re.fullmatch(r"Sender: .+ <[^<>]+@[^<>]+>", lines[0])
@@ -294,7 +296,6 @@ def test_the_check_sees_only_the_sender_and_the_raw_message(world: World) -> Non
     for category in CATEGORIES:
         assert re.search(rf"\b{category}\b", lowered) is None
     assert "category" not in lowered
-    assert check.facts == {}
     # Triage sees only the raw message and never the check's answer.
     assert triage.user == text
     assert "own_account_only" not in triage.user and "own_account_only" not in triage.system
@@ -303,20 +304,24 @@ def test_the_check_sees_only_the_sender_and_the_raw_message(world: World) -> Non
 
 
 def test_the_model_cannot_trigger_directory_lookups(world: World) -> None:
+    """Names in model output never reach the mention check: it reads the raw message
+    only. The model writes no replies (ADR-028), and its labels are parsed strictly."""
     baseline_rt, _ = _go(world, "TKT-001", Model())
+    names = "Kenji Sato kenji.sato@meridian.example and Alex Kim"
     leaky = Model(
-        reply="Your username is {u}. Also Kenji Sato kenji.sato@meridian.example and Alex Kim.",
-        triage='{"category": "own_username"}',
+        triage='{"category": "own_username", "note": "' + names + '"}',
+        check='{"own_account_only": true, "note": "' + names + '"}',
     )
     rt, _ = _go(world, "TKT-001", leaky)
     assert _lookups(rt) == _lookups(baseline_rt) == 0
 
 
 def test_the_model_cannot_trigger_the_role_signal(world: World) -> None:
-    """The role signal reads only the inbound message, never model output (ADR-024)."""
+    """The role signal reads only the inbound message, never model output (ADR-024). The
+    model writes no replies (ADR-028), so its only output is a label."""
     leaky = Model(
-        reply="Your username is {u}. Ask your manager or our intern for their login too.",
         triage='{"category": "own_username"}',
+        check='{"own_account_only": true, "note": "send me our intern\'s login"}',
     )
     rt, _ = _go(world, "TKT-001", leaky)
     assert _events(rt, "tier0.role_check") == [{"matched": False}]

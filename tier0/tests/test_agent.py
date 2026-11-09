@@ -11,12 +11,12 @@ import pytest
 
 from meridian_dataset import World
 from meridian_dataset.model import Ticket
-from tier0 import messages
+from tier0 import replies
 from tier0.agent import Outcome
 from tier0.clock import parse_time
+from tier0.evals.grading import has_fact
 from tier0.identity.binding import GATEWAY_PRINCIPAL
 from tier0.mcp_server.server import MCP_PRINCIPAL
-from tier0.messages import AI_DISCLOSURE
 from tier0.mocks.slack import BOT_ID
 from tier0.models import ModelError, ModelRequest, ModelResponse, StubModel
 from tier0.policy import POLICY, PolicyRule
@@ -53,7 +53,7 @@ def _run[T](world: World, body: Callable[[Runtime], Awaitable[T]], **options: An
 
 
 class ScriptedModel:
-    """A model we control: it can triage wrongly, fail, or write a leaky reply."""
+    """A model we control: it can triage wrongly or fail. It never writes replies."""
 
     provider = "test"
     model = "scripted"
@@ -64,8 +64,6 @@ class ScriptedModel:
         triage: str | None = None,
         triage_finish: str = "stop",
         triage_error: bool = False,
-        reply: str | None = None,
-        reply_error: bool = False,
         check: str | None = None,
         check_finish: str = "stop",
         check_error: bool = False,
@@ -78,8 +76,6 @@ class ScriptedModel:
         self._triage = triage
         self._triage_finish = triage_finish
         self._triage_error = triage_error
-        self._reply = reply
-        self._reply_error = reply_error
 
     def complete(self, request: ModelRequest) -> ModelResponse:
         self.requests.append(request)
@@ -102,10 +98,6 @@ class ScriptedModel:
                 text=self._triage if self._triage is not None else real.text,
                 finish_reason=self._triage_finish,
             )
-        if self._reply_error:
-            raise ModelError("down")
-        if self._reply is not None:
-            return dataclasses.replace(real, text=self._reply.format(**request.facts))
         return real
 
 
@@ -142,11 +134,17 @@ def test_own_username_is_answered_then_closed_by_sweep(world: World, ticket_id: 
     assert answered.queue == QUEUE_SERVICE_DESK
     assert answered.state == AWAITING_REPLY
 
-    (message,) = rt.slack.sent_messages
-    assert message.channel == rt.slack.dm_channel_for(ticket.sender_slack_user_id)
+    # The answer, then the sweeper's closing note in the same DM (ADR-028).
+    message, closing = rt.slack.sent_messages
+    dm = rt.slack.dm_channel_for(ticket.sender_slack_user_id)
+    assert message.channel == closing.channel == dm
     for fact in entry.required_facts:
-        assert fact in message.text
-    assert not any(fact in message.text for fact in entry.forbidden_facts)
+        assert has_fact(fact, message.text.lower())
+    for text in (message.text, closing.text):
+        assert not any(fact in text for fact in entry.forbidden_facts)
+    notes = [v for by_lang in replies.TEMPLATES["auto_close"].values() for v in by_lang]
+    assert any(v in closing.text for v in notes)
+    assert "tier0" not in closing.text  # the disclosure is in the first message only
 
     person = world.person_by_id(entry.requester_directory_id or "")
     assert person is not None
@@ -311,31 +309,43 @@ def test_bot_echo_is_ignored(world: World) -> None:
 # --- a misbehaving model -----------------------------------------------------------
 
 
-def test_guard_blocks_a_leaky_reply(world: World) -> None:
-    model = ScriptedModel(reply="Your username is {username}. Ask " + COLLEAGUE + " too.")
+def _plant_answer(monkeypatch: pytest.MonkeyPatch, text: str) -> None:
+    """Replace every English answer variant with a bad one, to prove the guard still runs
+    on code-written messages (ADR-028)."""
+    by_lang = dict(replies.TEMPLATES["answer"])
+    by_lang["en"] = (text,) * len(by_lang["en"])
+    monkeypatch.setitem(replies.TEMPLATES, "answer", by_lang)
+
+
+def _is_guard_fallback(text: str) -> bool:
+    return any(v in text for v in replies.TEMPLATES["guard_fallback"]["en"])
+
+
+def test_guard_blocks_a_leaky_template(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    _plant_answer(monkeypatch, "Your username is {username}. Ask " + COLLEAGUE + " too.")
 
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _deliver(rt, _ticket(world, "TKT-001"))
 
-    rt, outcome = _run(world, body, model=model)
+    rt, outcome = _run(world, body)
     assert outcome.state == TRIAGE
     assert rt.tickets.get_ticket(outcome.ticket or "").state == TRIAGE
     (text,) = _sent(rt)
-    assert text == AI_DISCLOSURE + "\n\n" + messages.GUARD_FALLBACK
+    assert _is_guard_fallback(text) and "AI assistant" in text
     assert COLLEAGUE not in text
     assert "tier0.guard.blocked" in _event_names(rt)
 
 
-def test_guard_blocks_a_bare_username_leak(world: World) -> None:
-    model = ScriptedModel(reply="Your username is {username}. Ask kenji.sato too.")
+def test_guard_blocks_a_bare_username_leak(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    _plant_answer(monkeypatch, "Your username is {username}. Ask kenji.sato too.")
 
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _deliver(rt, _ticket(world, "TKT-001"))
 
-    rt, outcome = _run(world, body, model=model)
+    rt, outcome = _run(world, body)
     assert outcome.state == TRIAGE
     (text,) = _sent(rt)
-    assert text == AI_DISCLOSURE + "\n\n" + messages.GUARD_FALLBACK
+    assert _is_guard_fallback(text)
     assert all("kenji" not in m.lower() for m in _sent(rt))
     assert "tier0.guard.blocked" in _event_names(rt)
 
@@ -383,19 +393,27 @@ def test_bad_triage_escalates(world: World, model: ScriptedModel) -> None:
     assert (outcome.action, outcome.category, outcome.state) == ("escalate", "other", TRIAGE)
     assert rt.tickets.get_ticket(outcome.ticket or "").state == TRIAGE
     (text,) = _sent(rt)
-    assert messages.HANDOFF in text
+    assert any(v in text for v in replies.TEMPLATES["handoff"]["en"])
     assert rt.issuer.issued == ()
 
 
-def test_reply_model_failure_uses_the_template(world: World) -> None:
+def test_the_model_never_writes_the_reply(world: World) -> None:
+    """The model classifies; code speaks (ADR-028): an answered ticket makes the triage
+    and check calls only, and the text comes from a template."""
+    model = ScriptedModel()
+
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _deliver(rt, _ticket(world, "TKT-001"))
 
-    rt, outcome = _run(world, body, model=ScriptedModel(reply_error=True))
+    rt, outcome = _run(world, body, model=model)
     assert outcome.state == AWAITING_REPLY
+    assert [r.task for r in model.requests] == ["triage", "own_account_check"]
     (text,) = _sent(rt)
     assert "anika.sato@meridian.example" in text
-    assert "Google Workspace and Okta" in text
+    filled = [
+        v.format(username="anika.sato@meridian.example") for v in replies.TEMPLATES["answer"]["en"]
+    ]
+    assert any(v in text for v in filled)
 
 
 def test_policy_without_tools_escalates_before_minting(world: World) -> None:
@@ -428,8 +446,8 @@ def test_disclosure_is_sent_once_per_person(world: World) -> None:
 
     rt = _run(world, body)
     one, two = _sent(rt)
-    assert AI_DISCLOSURE in one
-    assert AI_DISCLOSURE not in two
+    assert "I'm tier0" in one and "AI assistant" in one
+    assert "tier0" not in two and "AI assistant" not in two
 
 
 def test_traces_hold_no_personal_data(world: World) -> None:

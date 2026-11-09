@@ -4,8 +4,7 @@ The agent only ever sees `ModelAdapter`, so the stub, Claude and Ollama are
 interchangeable and the safety rules never depend on which one is plugged in.
 """
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 OWN_USERNAME = "own_username"
@@ -29,21 +28,18 @@ OWN_ACCOUNT_CHECK_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-type Task = Literal["triage", "reply", "own_account_check"]
+# The model only classifies; replies come from code templates (ADR-028).
+type Task = Literal["triage", "own_account_check"]
 
 
 @dataclass(frozen=True, slots=True)
 class ModelRequest:
-    """One model call. `facts` are tool results (e.g. {"username": ...}).
-
-    Real models get the facts inside the prompt text; the stub reads them directly.
-    """
+    """One model call: a system prompt, the untrusted user text and an optional schema."""
 
     task: Task
     system: str
     user: str
     json_schema: dict[str, Any] | None = None
-    facts: Mapping[str, str] = field(default_factory=dict)
     max_tokens: int = 1024
 
 

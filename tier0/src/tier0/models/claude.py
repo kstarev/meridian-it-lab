@@ -1,8 +1,8 @@
 """Adapter for Anthropic's Claude models.
 
 Server-side fallbacks are on by default, so if a classifier refuses, Anthropic
-retries on its recommended fallback model. Effort is "low" because triage and a
-two-sentence reply don't need more. No API key is needed unless this adapter is
+retries on its recommended fallback model. Effort is "low" because triage and the
+yes/no own-account check don't need more. No API key is needed unless this adapter is
 chosen: the client is only created on the first call.
 """
 

@@ -72,13 +72,13 @@ def test_triage_request_shape() -> None:
 
 def test_reply_request_has_no_format() -> None:
     model, seen = capture(message())
-    model.complete(ModelRequest(task="reply", system="sys", user="hi"))
+    model.complete(ModelRequest(task="triage", system="sys", user="hi"))
     assert "format" not in json.loads(seen[0].content)["output_config"]
 
 
 def test_response_mapping() -> None:
     model, _ = capture(message())
-    response = model.complete(ModelRequest(task="reply", system="s", user="u"))
+    response = model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert response.text == "hello"
     assert response.model == "claude-opus-5-5"
     assert (response.input_tokens, response.output_tokens) == (42, 7)
@@ -89,7 +89,7 @@ def test_response_mapping() -> None:
 def test_max_tokens_maps_to_length() -> None:
     model, _ = capture(message(stop_reason="max_tokens"))
     assert (
-        model.complete(ModelRequest(task="reply", system="s", user="u")).finish_reason == "length"
+        model.complete(ModelRequest(task="triage", system="s", user="u")).finish_reason == "length"
     )
 
 
@@ -99,12 +99,12 @@ def test_thinking_block_is_skipped() -> None:
         {"type": "text", "text": "answer"},
     ]
     model, _ = capture(message(content))
-    assert model.complete(ModelRequest(task="reply", system="s", user="u")).text == "answer"
+    assert model.complete(ModelRequest(task="triage", system="s", user="u")).text == "answer"
 
 
 def test_refusal_returns_empty_text() -> None:
     model, _ = capture(message(stop_reason="refusal"))
-    response = model.complete(ModelRequest(task="reply", system="s", user="u"))
+    response = model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert response.finish_reason == "refusal"
     assert response.text == ""
 
@@ -112,7 +112,7 @@ def test_refusal_returns_empty_text() -> None:
 def test_http_error_becomes_model_error() -> None:
     model = make_model(lambda _request: httpx2.Response(500, json={"type": "error"}))
     with pytest.raises(ModelError):
-        model.complete(ModelRequest(task="reply", system="s", user="u"))
+        model.complete(ModelRequest(task="triage", system="s", user="u"))
 
 
 def test_building_without_client_needs_no_key_or_network() -> None:

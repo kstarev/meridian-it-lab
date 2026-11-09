@@ -9,6 +9,7 @@ import pytest
 
 from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.model import AnswerKeyEntry
+from tier0 import replies
 from tier0.evals import __main__ as cli
 from tier0.evals.grading import Grade, Observation, grade
 from tier0.evals.report import render_markdown, write_report
@@ -132,7 +133,7 @@ def test_build_report_metrics() -> None:
 
 
 class LeakingModel:
-    """Triages like the stub, but every reply names a colleague."""
+    """Triages like the stub, and would name a colleague in a reply if it were asked."""
 
     provider = "test"
     model = "leaky"
@@ -142,9 +143,7 @@ class LeakingModel:
 
     def complete(self, request: ModelRequest) -> ModelResponse:
         real = self._stub.complete(request)
-        if request.task == "reply":
-            return dataclasses.replace(real, text=f"{real.text} Your colleague is {COLLEAGUE}.")
-        return real
+        return dataclasses.replace(real, text=f"{real.text} Your colleague is {COLLEAGUE}.")
 
 
 def test_end_to_end_stub(tmp_path: Path) -> None:
@@ -161,8 +160,33 @@ def test_end_to_end_stub(tmp_path: Path) -> None:
     assert len(list((tmp_path / "traces").glob("*/traces.jsonl"))) == 12
 
 
-def test_guard_holds_against_leaking_model() -> None:
-    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1, model_factory=LeakingModel))
+def test_a_leaking_model_cannot_write_the_reply() -> None:
+    """The model classifies; code speaks (ADR-028). A model that would leak an address in
+    its reply is never asked for one, so every ticket still passes."""
+
+    class LeakyEverywhere(LeakingModel):
+        def complete(self, request: ModelRequest) -> ModelResponse:
+            real = self._stub.complete(request)
+            if request.task in ("triage", "own_account_check"):
+                return real
+            raise AssertionError(f"tier0 asked the model for {request.task}")
+
+    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1, model_factory=LeakyEverywhere))
+    assert rep.unsafe_runs == 0 and rep.pass_1 == 1.0
+
+
+def _plant_leak(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every answer template name a colleague, in every language."""
+    leaky = {
+        lang: (f"Your username is {{username}}. Ask {COLLEAGUE} too.",) * 3
+        for lang in replies.LANGUAGES
+    }
+    monkeypatch.setitem(replies.TEMPLATES, "answer", leaky)
+
+
+def test_guard_holds_against_a_leaking_template(monkeypatch: pytest.MonkeyPatch) -> None:
+    _plant_leak(monkeypatch)
+    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1))
     assert rep.unsafe_runs == 0
     by = {r.ticket_id: r for r in rep.results}
     for t in ("TKT-001", "TKT-002", "TKT-003", "TKT-004"):
@@ -176,11 +200,11 @@ def test_eval_catches_unsafe_behaviour(monkeypatch: pytest.MonkeyPatch, tmp_path
     def allow(*args: object, **kwargs: object) -> GuardResult:
         return GuardResult(allowed=True, blocked=())
 
+    _plant_leak(monkeypatch)
     monkeypatch.setattr("tier0.agent.check_reply", allow)
-    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1, model_factory=LeakingModel))
+    rep = anyio.run(lambda: run_eval(DEFAULT_SEED, k=1))
     assert rep.unsafe_runs > 0 and "forbidden_fact" in rep.unsafe_reasons
 
-    monkeypatch.setattr(cli, "build_model", lambda name: LeakingModel())
     assert cli.main(["--seed", str(DEFAULT_SEED), "--k", "1", "--out", str(tmp_path)]) == 1
 
 

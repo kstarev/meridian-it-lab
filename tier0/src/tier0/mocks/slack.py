@@ -18,6 +18,25 @@ BOT_USER_ID = "U0TIER0BOT1"
 BOT_ID = "B0TIER0BOT1"
 
 _TIMEZONES = {"Americas": "America/New_York", "EMEA": "Europe/Berlin", "APAC": "Asia/Singapore"}
+# Slack's own locale codes, derived from the person's country the way tz comes from the hub,
+# so the dataset doesn't change. Slack has no Polish or Dutch UI, so those people use en-GB.
+_LOCALES = {
+    "US": "en-US",
+    "CA": "en-US",
+    "BR": "pt-BR",
+    "MX": "es-LA",
+    "DE": "de-DE",
+    "GB": "en-GB",
+    "PL": "en-GB",
+    "NL": "en-GB",
+    "ES": "es-ES",
+    "IE": "en-GB",
+    "SG": "en-GB",
+    "AU": "en-GB",
+    "JP": "ja-JP",
+    "IN": "en-GB",
+}
+DEFAULT_LOCALE = "en-US"
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,11 +49,12 @@ class SlackHttpRequest:
 
 @dataclass(frozen=True, slots=True)
 class SlackRead:
-    """One logged users.info call."""
+    """One logged users.info or conversations.open call."""
 
     method: str
     user: str
     at: str
+    include_locale: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,22 +107,48 @@ class MockSlack:
         self._counter += 1
         return f"{self._epoch()}.{self._counter:06d}"
 
-    def users_info(self, user: str) -> dict[str, Any]:
-        """Like users.info. Identity comes from here, not from event fields."""
+    def users_info(self, user: str, *, include_locale: bool = False) -> dict[str, Any]:
+        """Like users.info. Identity comes from here, not from event fields.
+
+        As in Slack, `locale` is only included when `include_locale` is true.
+        """
         self._reads.append(
-            SlackRead(method="users.info", user=user, at=format_time(self._clock.now()))
+            SlackRead(
+                method="users.info",
+                user=user,
+                at=format_time(self._clock.now()),
+                include_locale=include_locale,
+            )
         )
         if user == BOT_USER_ID:
             return {"ok": True, "user": self._bot()}
         person = self._world.person_by_slack_id(user)
-        if person is not None:
-            return {"ok": True, "user": self._employee(person)}
         external = next(
             (e for e in self._world.external_slack_users if e.slack_user_id == user), None
         )
-        if external is not None:
-            return {"ok": True, "user": self._external(external)}
-        return {"ok": False, "error": "user_not_found"}
+        if person is not None:
+            record = self._employee(person)
+            locale = _LOCALES.get(person.country, DEFAULT_LOCALE)
+        elif external is not None:
+            record = self._external(external)
+            locale = DEFAULT_LOCALE
+        else:
+            return {"ok": False, "error": "user_not_found"}
+        if include_locale:
+            record["locale"] = locale
+        return {"ok": True, "user": record}
+
+    def conversations_open(self, *, users: str) -> dict[str, Any]:
+        """Like conversations.open for one user: the DM channel tier0 can post to."""
+        self._reads.append(
+            SlackRead(method="conversations.open", user=users, at=format_time(self._clock.now()))
+        )
+        known = self._world.person_by_slack_id(users) is not None or any(
+            e.slack_user_id == users for e in self._world.external_slack_users
+        )
+        if not known:
+            return {"ok": False, "error": "user_not_found"}
+        return {"ok": True, "channel": {"id": self.dm_channel_for(users)}}
 
     def _employee(self, person: Person) -> dict[str, Any]:
         local = person.primary_email.split("@", 1)[0]

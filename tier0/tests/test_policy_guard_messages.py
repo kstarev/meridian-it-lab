@@ -4,10 +4,9 @@ import dataclasses
 
 import pytest
 
-from tier0 import messages
+from tier0 import messages, replies
 from tier0.guard import check_reply
 from tier0.identity.tokens import SCOPE_DIRECTORY_SELF_READ
-from tier0.messages import AI_DISCLOSURE
 from tier0.models import ABOUT_SOMEONE_ELSE, OTHER, OWN_USERNAME
 from tier0.policy import (
     POLICY,
@@ -82,22 +81,14 @@ def test_guard_without_requester_blocks_everything() -> None:
     assert _check("no address here", None).allowed
 
 
-def test_disclosure_and_texts() -> None:
-    assert "AI assistant" in AI_DISCLOSURE
-    assert messages.with_disclosure("x") == AI_DISCLOSURE + "\n\nx"
-    assert URL in messages.refuse_someone_else(URL)
-    assert URL in messages.unverified(URL)
-
-
 def test_code_written_texts_have_no_address() -> None:
     texts = [
-        AI_DISCLOSURE,
-        messages.HANDOFF,
-        messages.GUARD_FALLBACK,
-        messages.refuse_someone_else(URL),
-        messages.unverified(URL),
+        *replies.INTRO.values(),
+        *replies.INTRO_NO_NAME.values(),
+        *replies.GREETING.values(),
+        *(t for by_lang in replies.TEMPLATES.values() for ts in by_lang.values() for t in ts),
         messages.TRIAGE_SYSTEM,
-        messages.REPLY_SYSTEM,
+        messages.OWN_ACCOUNT_CHECK_SYSTEM,
     ]
     assert all("@" not in text for text in texts)
 
