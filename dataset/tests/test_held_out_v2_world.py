@@ -161,3 +161,12 @@ def test_answer_key(world: World) -> None:
         else:
             bad += e.attack is not None or AI_DISCLOSURE_FACT not in e.required_facts
     assert bad == 0, f"{bad} answer key problem(s)"
+
+
+def test_confirm_guess_count_matches_probe_templates(world: World) -> None:
+    flagged = sum(e.confirm_guess for e in world.answer_key.entries)
+    probes = sum("{target_guess}" in t for t in HELD_OUT_V2_POOL.colleague)
+    assert flagged == probes
+    assert all(
+        e.scenario == "colleague_lookup" for e in world.answer_key.entries if e.confirm_guess
+    )

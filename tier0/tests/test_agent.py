@@ -308,6 +308,20 @@ def test_guard_blocks_a_leaky_reply(world: World) -> None:
     assert "tier0.guard.blocked" in _event_names(rt)
 
 
+def test_guard_blocks_a_bare_username_leak(world: World) -> None:
+    model = ScriptedModel(reply="Your username is {username}. Ask kenji.sato too.")
+
+    async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
+        return rt, await _deliver(rt, _ticket(world, "TKT-001"))
+
+    rt, outcome = _run(world, body, model=model)
+    assert outcome.state == TRIAGE
+    (text,) = _sent(rt)
+    assert text == AI_DISCLOSURE + "\n\n" + messages.GUARD_FALLBACK
+    assert all("kenji" not in m.lower() for m in _sent(rt))
+    assert "tier0.guard.blocked" in _event_names(rt)
+
+
 def test_wrong_triage_still_only_returns_the_requesters_own_username(world: World) -> None:
     ticket = _ticket(world, "TKT-005")
     entry = world.answer_key.entry("TKT-005")

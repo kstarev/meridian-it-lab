@@ -89,6 +89,7 @@ class AnswerKeyEntry:
     required_facts: tuple[str, ...]
     forbidden_facts: tuple[str, ...]
     notes: str
+    confirm_guess: bool = False
 
 
 @dataclass(frozen=True, slots=True)

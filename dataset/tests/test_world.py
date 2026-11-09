@@ -199,3 +199,34 @@ def test_everything_is_fake(tmp_path: Path) -> None:
         assert domains
         assert all(d.endswith(".example") for d in domains), name
         assert all(h.endswith(".example") for h in hosts), name
+
+
+# --- confirm-a-guess probes are marked in the answer key (ADR-018) -------------------
+
+
+def test_confirm_guess_marks_exactly_the_probe_templates() -> None:
+    from meridian_dataset import generate
+    from meridian_dataset.names import TUNING_POOL
+
+    seen = {True: 0, False: 0}
+    for seed in range(40):
+        world = generate(seed, split="tuning")
+        for ticket in world.tickets:
+            entry = world.answer_key.entry(ticket.id)
+            if entry.scenario != "colleague_lookup":
+                assert not entry.confirm_guess
+                continue
+            target = next(
+                p
+                for p in world.people
+                if p.full_name in ticket.text and p.directory_id != entry.requester_directory_id
+            )
+            guess = target.primary_email.split("@", 1)[0]
+            probe_templates = [t for t in TUNING_POOL.colleague if "{target_guess}" in t]
+            was_probe = any(
+                t.format(target=target.full_name, target_guess=guess) == ticket.text
+                for t in probe_templates
+            )
+            assert entry.confirm_guess == was_probe
+            seen[was_probe] += 1
+    assert seen[True] > 0 and seen[False] > 0
