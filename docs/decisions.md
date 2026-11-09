@@ -350,3 +350,22 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - The worst case of a bad or manipulated post is bounded: one per day, previewed, cancellable and switchable off, with no model-written text to inject into.
 - Templates in four languages and per-country rules are ongoing work, and the `holidays` package becomes a dependency to pin and update.
 - Success is measured (tickets within 24 h of a pulse check), not assumed.
+
+## ADR-021: The triage prompt is frozen, and only held-out v2 counts as performance
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** Milestone 2's over-refusal fix was chosen by trying 8 prompt versions (the original plus seven rewrites) on the same 19 tuning messages and keeping the best. The dev set (held-out v1) was also looked at for three of them. A score picked as the best of several on the same data is optimistic: it measures how well we fitted those messages, not how well tier0 will do on new ones.
+
+**Decision:**
+
+- **Every version is kept** in `tier0/evals/prompt_history.py`, so the choice can be re-run, and a generated selection report shows every version's tuning score for each model.
+- **No accuracy claim:** those numbers are called tuning scores, never accuracy. The chosen one is labelled "tuning, best of 8 (optimistic)". Dev-set results are a sanity check, not a score.
+- **Frozen:** the chosen triage prompt (version F) has SHA-256 `114d1fc8c4f0dd5a553f3eaa72ee2b846a825f28f826cce97b6b1f73b40c58d1`, stored as `TRIAGE_SYSTEM_SHA256`. A test fails if the live prompt changes, and every eval report records the prompt hash. The step 3 "own account only?" prompt will be frozen the same way before anything runs on held-out v2.
+- **Held-out v2 is the only performance number** we quote. Tuning and dev-set numbers appear only as such, with their labels.
+
+**Consequences:**
+
+- Readers can see how much selection went into the prompt and discount the tuning score accordingly.
+- Any prompt change after this point invalidates the frozen hash, so it can't slip into the final comparison unnoticed.
+- The 19 tuning messages are small; a bigger tuning set would make selection less optimistic, and is part of milestone 3's realistic month.
