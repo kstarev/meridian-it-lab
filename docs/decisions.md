@@ -288,7 +288,7 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 
 **Decision:**
 
-- **Independent model check:** before any token, a separate question, "is this request only about the sender's own account?". It sees only the raw message and the requester's identity, never triage's category or reasoning. Its prompt was the best of 3 versions on tuning data (an optimistic tuning score) and is frozen: SHA-256 `706676fffee8a40f2a4d5db18ca7f13ccb0adfb69c9bbe04d26a7cd838013239`.
+- **Independent model check:** before any token, a separate question, "is this request only about the sender's own account?". It sees only the raw message and the requester's identity, never triage's category or reasoning. Its prompt (version K) was the best of 7 versions on tuning data (an optimistic tuning score) and is frozen: SHA-256 `eb1037ddaed10c7bdfe7d7ce9405e2e4a4af05d7d4b20c71682ca890bca3f0d2`. Version G (`706676ff…`) was frozen first; it was replaced, before anything ran on held-out v2, when unnamed colleague requests (ADR-023) showed llama3.2's check catching only 7 of 12 of them on tuning. All 7 versions and their tuning scores are in `tier0/evals/prompt_history.py`.
 - **Code-only mention check:** does the message mention another directory user by email, bare username or full name?
   - It uses a deliberately narrow `users.list`: exact `email:` or `name:` queries, user IDs only, at most 2 results, at most 6 lookups per message, and every call is logged. This reverses milestone 1's "no list method" choice in the smallest form we could find.
   - It is never offered to the model as a tool; a test proves the model can't reach it.

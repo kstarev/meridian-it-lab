@@ -27,7 +27,7 @@ def test_check_prompt_matches_its_frozen_hash() -> None:
 
 def test_the_chosen_check_version_is_the_live_check_prompt() -> None:
     assert CHECK_VERSIONS[CHECK_CHOSEN] == messages.OWN_ACCOUNT_CHECK_SYSTEM
-    assert list(CHECK_VERSIONS) == ["first", "G", "H"]
+    assert list(CHECK_VERSIONS) == ["first", "G", "H", "I", "J", "K", "M"]
 
 
 def test_reports_record_the_frozen_check_prompt() -> None:
