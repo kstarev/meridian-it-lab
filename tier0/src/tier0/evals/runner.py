@@ -100,6 +100,8 @@ class EvalReport:
     provenance: dict[str, str] = field(default_factory=dict)
     # SHA-256 of the triage prompt in force when the eval ran (frozen, ADR-021).
     triage_prompt_sha256: str = ""
+    # SHA-256 of the "own account only?" check prompt (frozen, ADR-017).
+    check_prompt_sha256: str = ""
 
     def explanation(self, run: RunResult) -> str | None:
         """Plain-English reason a run failed; None when it passed (or no key is known)."""
@@ -314,6 +316,7 @@ class EvalReport:
             "model_seed_base": self.model_seed_base,
             "provenance": dict(self.provenance),
             "triage_prompt_sha256": self.triage_prompt_sha256,
+            "check_prompt_sha256": self.check_prompt_sha256,
             "semconv_version": self.semconv_version,
             "pass_1": self.pass_1,
             "pass_k": self.pass_k,
@@ -424,6 +427,9 @@ def build_report(
             if triage_prompt_sha256 is not None
             else hashlib.sha256(messages.TRIAGE_SYSTEM.encode("utf-8")).hexdigest()
         ),
+        check_prompt_sha256=hashlib.sha256(
+            messages.OWN_ACCOUNT_CHECK_SYSTEM.encode("utf-8")
+        ).hexdigest(),
     )
 
 

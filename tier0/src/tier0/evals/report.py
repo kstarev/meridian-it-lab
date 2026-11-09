@@ -34,6 +34,11 @@ def _prompt_line(r: EvalReport) -> str:
     line = f"- Triage prompt: SHA-256 {r.triage_prompt_sha256[:12]}\u2026 (frozen, ADR-021)"
     if r.triage_prompt_sha256 != messages.TRIAGE_SYSTEM_SHA256:
         line += " (not the frozen prompt)"
+    if r.check_prompt_sha256:
+        line += f"\n- Own-account check prompt: SHA-256 {r.check_prompt_sha256[:12]}\u2026"
+        line += " (frozen, ADR-017)"
+        if r.check_prompt_sha256 != messages.OWN_ACCOUNT_CHECK_SYSTEM_SHA256:
+            line += " (not the frozen prompt)"
     return line
 
 

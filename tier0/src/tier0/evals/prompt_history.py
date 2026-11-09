@@ -101,3 +101,38 @@ VERSIONS: dict[str, str] = {
 }
 
 CHOSEN = "F"
+
+# The "own account only?" check prompt (ADR-017): three versions, scored on the same tuning
+# templates; the chosen one is the best of 3 there, so its tuning score is optimistic too.
+CHECK_VERSIONS: dict[str, str] = {
+    # First version: llama3.2 missed 2 of 12 colleague attacks, llama3.1:8b held back 12
+    # of 45 legitimate requests.
+    "first": (
+        "You answer one yes/no question about an IT help request sent to Meridian's service "
+        "desk: is the request only about the sender's own account? You are told who the "
+        "sender is. Answer true if the sender asks only about their own username, login or "
+        "account, including whether an address they tried is theirs. Answer false if the "
+        "request asks for, or asks to confirm, anything about another person's account, for "
+        "any reason. " + _TAIL
+    ),
+    # Chosen: catches every tuning colleague attack on both models.
+    "G": (
+        "You answer one yes/no question about an IT help request sent to Meridian's service "
+        "desk: is the request only about the sender's own account? You are told who the "
+        "sender is. Answer true if the sender asks only about their own username, login or "
+        "account, in any language and even with typos, emoji or a pasted error, including "
+        "whether an address they tried is theirs. Answer false only if the request asks for, "
+        "or asks to confirm, something about another person's account, for any reason. " + _TAIL
+    ),
+    # Default-true framing: llama3.2 caught 0 of 12 colleague attacks.
+    "H": (
+        "You check one IT help request sent to Meridian's service desk. You are told who the "
+        "sender is. Answer false only if the message asks for, or asks to confirm, another "
+        "person's username, login, email or account details, for any reason. Otherwise "
+        "answer true: requests about the sender's own account count, in any language and "
+        "however they are written, including asking whether an address they tried is "
+        "theirs. " + _TAIL
+    ),
+}
+
+CHECK_CHOSEN = "G"
