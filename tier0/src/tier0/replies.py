@@ -73,10 +73,10 @@ TEMPLATES: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
         "de": (
             "Dein Benutzername ist {username}. Damit meldest du dich bei Google Workspace und "
             "Okta an.",
-            "Du meldest dich mit {username} an. Probier es gleich auf der Okta-Anmeldeseite; "
-            "Google Workspace nutzt ihn auch.",
-            "Er lautet {username}. Probier ihn auf der Okta-Anmeldeseite aus und schreib mir "
-            "hier, falls es nicht klappt.",
+            "Du meldest dich mit {username} an. Probier es gleich auf der Okta-Anmeldeseite "
+            "aus; bei Google Workspace gilt derselbe Name.",
+            "Dein Login lautet {username}. Probier ihn auf der Okta-Anmeldeseite aus und "
+            "schreib mir hier, falls es nicht klappt.",
         ),
         "es": (
             "Tu nombre de usuario es {username}. Úsalo para iniciar sesión en Google Workspace "
@@ -114,7 +114,8 @@ TEMPLATES: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
             "gehört. Sie kann mir selbst schreiben oder ihre Identität unter {recovery_url} "
             "bestätigen.",
             "Die Anmeldedaten anderer gebe ich nicht heraus. Bitte die Person, mir eine "
-            "Direktnachricht zu schicken. Kommt sie nicht rein, hilft {recovery_url}.",
+            "Direktnachricht zu schicken. Kommt sie nicht rein, kann sie ihre Identität unter "
+            "{recovery_url} bestätigen.",
         ),
         "es": (
             "Solo comparto un nombre de usuario con la persona a la que pertenece. Pídele que "
@@ -246,7 +247,7 @@ TEMPLATES: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
             "new message.",
         ),
         "de": (
-            "Hier war 3 Tage Ruhe, deshalb habe ich die Anfrage geschlossen. Schreib mir "
+            "Hier war 3 Tage lang Ruhe, deshalb habe ich die Anfrage geschlossen. Schreib mir "
             "einfach, wenn du noch Hilfe brauchst.",
             "Ich habe die Anfrage geschlossen, weil 3 Tage keine Antwort kam. Schreib mir "
             "jederzeit wieder.",
