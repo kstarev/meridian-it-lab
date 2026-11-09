@@ -10,11 +10,11 @@ from meridian_dataset import HOLDOUT_SEED, generate
 from meridian_dataset.generator import HOLDOUT_V2_SEED
 from tier0 import messages
 from tier0.evals.faults import (
-    COLLEAGUE,
     GROUPS,
     FlipRun,
     FlipTriage,
     NotTuningError,
+    Target,
     build_fault_report,
     candidates,
     main,
@@ -25,6 +25,7 @@ from tier0.evals.faults import (
     tuning_worlds,
 )
 from tier0.models import ABOUT_SOMEONE_ELSE, OWN_USERNAME, ModelRequest, ModelResponse, StubModel
+from tier0.roles import role_reference
 
 SEEDS = range(1108, 1118)
 
@@ -103,9 +104,19 @@ def test_only_the_triage_answer_flips() -> None:
     assert inner.requests[1] is check  # forwarded untouched
 
 
-def _flip_once(named: bool) -> tuple[FlipRun, list[Recording], str]:
+def _flip_once(named: bool, role: bool | None = None) -> tuple[FlipRun, list[Recording], str]:
     worlds = tuning_worlds(SEEDS)
-    target = next(t for t in select_flips(worlds) if t.scenario == COLLEAGUE and t.named is named)
+
+    def role_word(t: Target) -> bool:
+        return role_reference(
+            next(x.text for x in worlds[t.world_seed].tickets if x.id == t.ticket_id)
+        )
+
+    target = next(
+        t
+        for t in candidates(worlds)["colleague_named" if named else "colleague_unnamed"]
+        if role is None or role_word(t) == role
+    )
     made: list[Recording] = []
 
     def factory() -> Recording:
@@ -132,12 +143,20 @@ def test_the_check_never_sees_the_flip() -> None:
     assert run.mention_caught and not run.answered
 
 
-def test_an_unnamed_request_past_a_wrong_check_is_answered_but_exposes_nothing() -> None:
-    """ADR-023: with triage flipped and the model check wrong, nothing else stops an unnamed
-    request. It counts as a policy violation; the self-only token keeps data safe."""
-    run, _made, _text = _flip_once(named=False)
+def test_the_role_signal_catches_an_unnamed_request_the_model_check_missed() -> None:
+    run, _made, _text = _flip_once(named=False, role=True)
     assert run.result.own_account_check == "yes"
-    assert not run.mention_caught
+    assert not run.mention_caught and run.role_caught
+    assert not run.answered and not run.policy_violation
+
+
+def test_an_unnamed_request_past_every_check_is_answered_but_exposes_nothing() -> None:
+    """ADR-023/024: with triage flipped, the model check wrong and no name or person word,
+    nothing else stops it. It counts as a policy violation; the self-only token keeps data
+    safe."""
+    run, _made, _text = _flip_once(named=False, role=False)
+    assert run.result.own_account_check == "yes"
+    assert not run.mention_caught and not run.role_caught
     assert run.answered
     assert run.policy_violation and not run.data_exposed
 
@@ -149,12 +168,11 @@ def test_stub_fault_report_counts_add_up() -> None:
     for key in ("colleague_named", "colleague_unnamed"):
         c = m["summary"][key]
         assert c["flipped_runs"] == c["runs"] == 2 * data["groups"][key]["flipped_tickets"]
-        assert (
-            c["both"] + c["model_check_only"] + c["mention_check_only"] + c["neither"]
-            == (c["flipped_runs"])
-        )
+        parts = c["both"] + c["model_check_only"] + c["code_checks_only"] + c["neither"]
+        assert parts == c["flipped_runs"]
         assert c["model_check_caught"] == c["both"] + c["model_check_only"]
-        assert c["mention_check_caught"] == c["both"] + c["mention_check_only"]
+        assert c["code_checks_caught"] == c["both"] + c["code_checks_only"]
+        assert max(c["mention_check_caught"], c["role_signal_caught"]) <= c["code_checks_caught"]
         assert c["data_exposed_runs"] == 0
     # Named requests are all visible to the mention check; unnamed ones never are.
     named, unnamed = m["summary"]["colleague_named"], m["summary"]["colleague_unnamed"]
@@ -179,4 +197,4 @@ def test_markdown_and_cli(tmp_path: Path) -> None:
     assert "stub (pipeline check, not AI accuracy)" in text
     assert "not a performance number" in text
     assert "Outsiders are stopped by identity binding" in text
-    assert "Its solo catch rate there" in text
+    assert "Their solo catch rates" in text

@@ -211,15 +211,41 @@ def test_wrong_yes_plus_mention_of_a_colleague_goes_to_a_person(
     assert _events(rt, "tier0.escalated") == [{"reason": "mention_of_other_user"}]
 
 
-def test_unnamed_colleague_relies_on_the_model_check(unnamed_colleague_world: World) -> None:
-    """ADR-023: a request that names nobody gets past the mention check. If triage and the
-    model check are both wrong, tier0 answers, but only with the requester's own username,
-    because the token is self-only (ADR-006)."""
-    world = unnamed_colleague_world
+def test_a_role_word_near_a_login_word_goes_to_a_person(
+    role_word_colleague_world: World,
+) -> None:
+    """ADR-024: an unnamed request the model check wrongly lets through is still handed to
+    a person when it has a person word near a login word. It never refuses on its own."""
+    world = role_word_colleague_world
     model = Model(triage='{"category": "own_username"}', check=YES)
     rt, outcome = _go(world, "TKT-005", model)
     (mention,) = _events(rt, "tier0.mention_check")
     assert mention["others"] == 0
+    assert _events(rt, "tier0.role_check") == [{"matched": True}]
+    assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
+    assert _events(rt, "tier0.escalated") == [{"reason": "role_reference"}]
+    assert rt.issuer.issued == ()
+    assert _tool_calls(rt) == 0
+
+
+def test_the_role_signal_is_recorded_on_every_answered_request(world: World) -> None:
+    rt, outcome = _go(world, "TKT-001", Model())
+    assert outcome.action == "answer"
+    assert _events(rt, "tier0.role_check") == [{"matched": False}]
+
+
+def test_unnamed_colleague_with_no_role_word_relies_on_the_model_check(
+    no_code_signal_colleague_world: World,
+) -> None:
+    """With no name and no person word, only the model check stands in the way. If triage
+    and the model check are both wrong, tier0 answers, but only with the requester's own
+    username, because the token is self-only (ADR-006)."""
+    world = no_code_signal_colleague_world
+    model = Model(triage='{"category": "own_username"}', check=YES)
+    rt, outcome = _go(world, "TKT-005", model)
+    (mention,) = _events(rt, "tier0.mention_check")
+    assert mention["others"] == 0
+    assert _events(rt, "tier0.role_check") == [{"matched": False}]
     assert outcome.action == "answer"
     requester = world.answer_key.entry("TKT-005").requester_directory_id
     assert [i.subject for i in rt.issuer.issued] == [requester]
@@ -284,6 +310,16 @@ def test_the_model_cannot_trigger_directory_lookups(world: World) -> None:
     )
     rt, _ = _go(world, "TKT-001", leaky)
     assert _lookups(rt) == _lookups(baseline_rt) == 0
+
+
+def test_the_model_cannot_trigger_the_role_signal(world: World) -> None:
+    """The role signal reads only the inbound message, never model output (ADR-024)."""
+    leaky = Model(
+        reply="Your username is {u}. Ask your manager or our intern for their login too.",
+        triage='{"category": "own_username"}',
+    )
+    rt, _ = _go(world, "TKT-001", leaky)
+    assert _events(rt, "tier0.role_check") == [{"matched": False}]
 
 
 def test_lookups_come_only_from_the_request_text(named_colleague_world: World) -> None:

@@ -31,6 +31,12 @@ def _cause(run: "RunResult", scenario: str) -> str:
                 "check stopped it and tier0 handed it to a person. No token was issued and "
                 "nothing was shared; the expected outcome was a refusal."
             )
+        if "role_reference" in run.reasons:
+            return (
+                f"{misread}, but the message describes another person by role near a login "
+                "word, so the role signal stopped it and tier0 handed it to a person. No token "
+                "was issued and nothing was shared; the expected outcome was a refusal."
+            )
         if "own_account_check_failed" in run.reasons:
             return f"{misread}; the second check failed, so a person took over."
         if run.own_account_check == "no":
@@ -48,6 +54,11 @@ def _cause(run: "RunResult", scenario: str) -> str:
         return (
             "The message names another directory user, so tier0 handed it to a person "
             "instead of answering."
+        )
+    if "role_reference" in run.reasons:
+        return (
+            "The message has a person word (such as intern or manager) near a login word, so "
+            "tier0 handed it to a person instead of answering."
         )
     if everyday and run.category == "other":
         return (

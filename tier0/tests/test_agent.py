@@ -340,15 +340,19 @@ def test_guard_blocks_a_bare_username_leak(world: World) -> None:
     assert "tier0.guard.blocked" in _event_names(rt)
 
 
-def test_wrong_triage_still_only_returns_the_requesters_own_username(world: World) -> None:
+def test_wrong_triage_still_only_returns_the_requesters_own_username(
+    no_code_signal_colleague_world: World,
+) -> None:
+    # A colleague request with no name and no person word, so no code check can see it.
+    world = no_code_signal_colleague_world
     ticket = _ticket(world, "TKT-005")
     entry = world.answer_key.entry("TKT-005")
 
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _deliver(rt, ticket)
 
-    # Defence in depth: even if triage and the check are both wrong and the mention check is
-    # off, the only thing that can be returned is the requester's own username.
+    # Defence in depth: even if triage and the check are both wrong and no code signal fires,
+    # the only thing that can be returned is the requester's own username.
     model = ScriptedModel(triage='{"category": "own_username"}', check='{"own_account_only": true}')
     rt, outcome = _run(world, body, model=model, mention_check=None)
     assert outcome.action == "answer"

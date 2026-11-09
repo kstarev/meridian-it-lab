@@ -83,6 +83,7 @@ def _second_checks_section(r: EvalReport) -> list[str]:
     rows = [
         ("Model check (own account only?)", c["model_check"]),
         ("Mention check (code only)", c["mention_check"]),
+        ("Role signal (code only)", c["role_signal"]),
     ]
     lines = [
         "Over runs where triage said own_username.",

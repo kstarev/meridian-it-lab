@@ -57,6 +57,7 @@ class RunResult:
     mention_others: int | None = None
     mention_namesakes: int | None = None
     mention_lookups: int = 0
+    role_signal: bool | None = None  # the code-only role signal (ADR-024)
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,6 +229,10 @@ class EvalReport:
             lambda r: r.mention_others is not None,
             lambda r: (r.mention_others or 0) > 0,
         )
+        role = self._second_check_row(
+            lambda r: r.role_signal is not None,
+            lambda r: bool(r.role_signal),
+        )
         namesake_only = sum(
             1
             for r in self._own_username_runs
@@ -236,6 +241,7 @@ class EvalReport:
         return {
             "model_check": model,
             "mention_check": mention,
+            "role_signal": role,
             "namesake_only_mentions": namesake_only,
         }
 
@@ -369,6 +375,7 @@ class EvalReport:
                     "mention_others": r.mention_others,
                     "mention_namesakes": r.mention_namesakes,
                     "mention_lookups": r.mention_lookups,
+                    "role_signal": r.role_signal,
                     "explanation": self.explanation(r),
                 }
                 for r in self.results
@@ -517,10 +524,13 @@ async def run_ticket(
         mention_others=checks[1],
         mention_namesakes=checks[2],
         mention_lookups=checks[3],
+        role_signal=checks[4],
     )
 
 
-def _second_check_events(spans: Any) -> tuple[str | None, int | None, int | None, int]:
+def _second_check_events(
+    spans: Any,
+) -> tuple[str | None, int | None, int | None, int, bool | None]:
     """The second checks' codes from the intake session's events."""
     intake = {
         s.context.trace_id
@@ -531,6 +541,7 @@ def _second_check_events(spans: Any) -> tuple[str | None, int | None, int | None
     others: int | None = None
     namesakes: int | None = None
     lookups = 0
+    role: bool | None = None
     for s in spans:
         if s.context.trace_id not in intake:
             continue
@@ -542,7 +553,9 @@ def _second_check_events(spans: Any) -> tuple[str | None, int | None, int | None
                 others = int(ea.get("others", 0))  # type: ignore[call-overload]
                 namesakes = int(ea.get("namesakes", 0))  # type: ignore[call-overload]
                 lookups += int(ea.get("lookups", 0))  # type: ignore[call-overload]
-    return result, others, namesakes, lookups
+            elif ev.name == "tier0.role_check":
+                role = bool(ea.get("matched"))
+    return result, others, namesakes, lookups, role
 
 
 def _diagnostics(spans: Any) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:

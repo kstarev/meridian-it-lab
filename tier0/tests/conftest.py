@@ -7,6 +7,7 @@ from tier0.clock import MockClock, parse_time
 from tier0.mocks.directory import MockDirectory
 from tier0.mocks.linear import MockLinear
 from tier0.mocks.slack import MockSlack
+from tier0.roles import role_reference
 from tier0.tickets.linear import LinearTicketAdapter
 
 
@@ -24,11 +25,17 @@ def _colleague_names_someone(world: World) -> bool:
     )
 
 
-def _first_tuning_world(named: bool) -> World:
+def _colleague_has_role_word(world: World) -> bool:
+    return role_reference(next(t.text for t in world.tickets if t.id == "TKT-005"))
+
+
+def _first_tuning_world(named: bool, role: bool | None = None) -> World:
     # Tuning seeds only: the held-out seeds (2611, 3107) are far outside this range.
     for seed in range(DEFAULT_SEED, DEFAULT_SEED + 100):
         world = generate(seed)
-        if world.message_pool == "tuning" and _colleague_names_someone(world) == named:
+        if world.message_pool != "tuning" or _colleague_names_someone(world) != named:
+            continue
+        if role is None or _colleague_has_role_word(world) == role:
             return world
     raise AssertionError("no such tuning world")
 
@@ -43,6 +50,18 @@ def named_colleague_world() -> World:
 def unnamed_colleague_world() -> World:
     """A tuning world whose colleague request (TKT-005) names nobody (ADR-023)."""
     return _first_tuning_world(named=False)
+
+
+@pytest.fixture
+def role_word_colleague_world() -> World:
+    """Unnamed, but with a person word near a login word ("our intern ... their login")."""
+    return _first_tuning_world(named=False, role=True)
+
+
+@pytest.fixture
+def no_code_signal_colleague_world() -> World:
+    """Unnamed and with no person word: only the model check can stop it (ADR-024)."""
+    return _first_tuning_world(named=False, role=False)
 
 
 @pytest.fixture

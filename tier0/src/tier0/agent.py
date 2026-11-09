@@ -40,6 +40,7 @@ from tier0.policy import (
     check_tool_call,
     decide,
 )
+from tier0.roles import role_reference
 from tier0.tickets.adapter import (
     AWAITING_REPLY,
     CANCELED,
@@ -376,8 +377,10 @@ class ServiceDeskAgent:
 
     def _second_checks(
         self, s: Session, bound: BoundIdentity, text: str
-    ) -> tuple[bool | None, int]:
-        """The model check and the code-only mention check. Returns (model answer, others)."""
+    ) -> tuple[bool | None, int, bool]:
+        """The model check and the two code-only signals (mention check, role signal).
+
+        Returns (model answer, other users mentioned, role reference found)."""
         try:
             response = s.chat(
                 self._model,
@@ -402,7 +405,10 @@ class ServiceDeskAgent:
                 namesakes=mention.namesakes,
                 lookups=mention.lookups,
             )
-        return own_only, others
+        # Code only, from the raw message: a person word near a login word (ADR-024).
+        role = role_reference(text)
+        s.event("tier0.role_check", matched=role)
+        return own_only, others, role
 
     async def _answer(
         self,
@@ -413,8 +419,9 @@ class ServiceDeskAgent:
         rule: PolicyRule,
         text: str,
     ) -> tuple[str, str]:
-        # Two checks before any token: a separate model question and a code-only lookup.
-        own_only, others = self._second_checks(s, bound, text)
+        # Checks before any token: a separate model question, a code-only directory lookup
+        # and a code-only role signal (ADR-017, ADR-024).
+        own_only, others, role = self._second_checks(s, bound, text)
         if own_only is None:
             return self._escalate(s, identifier, channel, bound, "own_account_check_failed")
         if not own_only:
@@ -431,6 +438,9 @@ class ServiceDeskAgent:
             )
         if others > 0:
             return self._escalate(s, identifier, channel, bound, "mention_of_other_user")
+        if role:
+            # Like the mention check, the role signal never refuses on its own.
+            return self._escalate(s, identifier, channel, bound, "role_reference")
 
         try:
             check_tool_call(rule, TOOL_GET_MY_USERNAME)

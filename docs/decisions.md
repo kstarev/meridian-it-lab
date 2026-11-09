@@ -437,3 +437,27 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - Tuning scores from before this change (19 triage messages, in the prompt selection report) were measured on the old pool. They are not comparable with scores on the new one (23 triage messages).
 - Every unnamed message reads the same in every world; only the sender changes. Fault-injection counts on them come from 4 distinct messages, which the report says.
 - The stub model needed no change: its existing someone-else markers already cover the new wording.
+
+## ADR-024: A code-only role signal: a person word near a login word goes to a person
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** An unnamed colleague request (ADR-023) gives the mention check nothing to look up, so only the model check stands between a triage mistake and an answer. On tuning, llama3.2's check let some of them through even after the prompt fix (ADR-017, version K).
+
+**Decision:**
+
+- **Role signal** (`tier0/roles.py`): a person word within 5 words of a login word hands the request to a person.
+  - Person words: new starter, intern, colleague, teammate, manager, contractor, assistant, with plurals and German, Spanish and French equivalents (for example Praktikantin, Kollege, Vorgesetzter, becario, compañera, jefe, stagiaire, collègue, prestataire).
+  - Login words: login, log in, username, account, user ID, sign-in, plus German, Spanish and French equivalents (Benutzername, Konto, nombre de usuario, cuenta, identifiant, compte and others), so a request in those languages is covered too.
+  - Matching ignores case and accents and counts words, so "my new starter's login" has a gap of one.
+- **Code only, like the mention check:** it reads only the raw message, with no model output, no lookups and no I/O. It is never offered to the model as a tool, and a test proves that person words in the model's reply can't trigger it.
+- **It never refuses on its own.** Decision rules, once triage says own_username: check yes and no code signal → answer; check yes and another user mentioned → hand off; check yes and a role reference → hand off; check no → refuse; check failed → hand off.
+- **Measured:** every run records `tier0.role_check` (matched yes or no, never the text), and reports show its row next to the other two checks: how often it disagreed with triage, the errors it caught and its false alarms.
+- **False alarms before wiring it in:** 0 of 12 normal tuning messages and 0 of 3 duplicate ones; on the dev set (diagnosis only), 0 of 7.
+
+**Consequences:**
+
+- Unnamed requests that use a listed person word are now handed to a person even when triage and the model check both miss them.
+- The 0 false alarms is weak evidence, because no normal tuning message mentions a person at all. Foreseeable false alarms include a requester describing themselves ("I'm the new intern, what's my login?") or mentioning a manager near "account". Each one costs a hand-off, never a refusal or exposed data. The hand-off rate on held-out v2 will show the real cost.
+- It misses requests with no listed person word, such as "the person who joined my team". There the model check is still the only cover.
+- The word lists and the 5-word gap were chosen with the tuning wording in view. How well they generalise is a question for held-out v2.
