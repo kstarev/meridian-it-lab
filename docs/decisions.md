@@ -240,3 +240,23 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - Every held-out set gives one honest final score, then becomes a dev set once its failures have shaped a change.
 - Writing fresh wording for each scoring round is ongoing dataset work.
 - Results from different rounds come from different sets, so every report names the set it ran on.
+
+## ADR-015: Held-out v2 is sealed until milestone 2's final comparison
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** ADR-014 made held-out v1 a dev set. Milestone 2 changes the triage prompt and adds a second "own account only?" check, then compares models. That comparison is only honest on wording that nobody tuned against and that has never produced results anyone has seen.
+
+**Decision:**
+
+- **Held-out v2** is a new message pool, `held_out_v2`, used by seed 3107. It has 11 templates: 5 normal, 2 duplicate name, 2 colleague, 2 outsider. Tests check that it shares no template, no sentence and no generated ticket text with the tuning pool or held-out v1.
+- **Written blind:** a separate author wrote it without reading tier0's prompts or stub rules, and the person writing milestone 2's fixes has not read it. Tests print counts, never wording.
+- **Sealed by hash:** SHA-256 of the pool's canonical JSON form, `fb078063c5fcd31b000b326ffe6fe15c5724bdde1f9da72471d31d8941c6a488`. It is stored in `meridian_dataset/seal.py`, and a test fails if the wording changes. For information, at generator version 0.3.0 seed 3107's `tickets.json` is `39ef7b204cb23ac9dbfff7c095305d2d14c60d59f9abe8ad96d3bdac26ada709` and its `answer_key.json` is `d6abf5ed0d6b540eb0b6196c116918ce46c702f7e71b74742bcaad2f510ab7db`.
+- **No model runs on it,** the stub included, until the prompt fix and the second check are done. Every agent run refuses it unless `--final-comparison` is passed; `make eval` never passes it, and the demo always refuses it.
+- After the final comparison, held-out v2 becomes a dev set, as v1 did (ADR-014).
+
+**Consequences:**
+
+- The final comparison measures wording nobody tuned against.
+- The file hashes also depend on generator code, so they are a record, not a seal; a generator change that alters seed 3107's tickets needs a new ADR.
+- Writing blind means the person building the fixes can't sanity-check v2's wording; the repo owner reviews it instead.
