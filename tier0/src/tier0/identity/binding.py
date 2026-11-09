@@ -14,7 +14,7 @@ DIRECTORY_FIELDS = ("id", "primaryEmail", "suspended", "archived", "name")
 class SlackUsersApi(Protocol):
     """The one Slack call the binder needs."""
 
-    def users_info(self, user: str) -> dict[str, Any]: ...
+    def users_info(self, user: str, *, include_locale: bool = False) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +26,12 @@ class BoundIdentity:
     slack_user_id: str
     slack_team_id: str
     full_name: str | None = None
+    # From the directory (authoritative), for greetings only (ADR-028).
+    first_name: str | None = None
+    # Slack's locale from users.info with include_locale, for the reply language only.
+    locale: str | None = None
+    # Slack's IANA time zone (users.info "tz"), for the Friday closer only.
+    tz: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +41,9 @@ class Unbound:
     reason: str
     slack_user_id: str | None
     slack_team_id: str | None
+    # Slack's locale, when users.info answered: an outsider is still replied to in their
+    # language (ADR-028). It never affects any check.
+    locale: str | None = None
 
 
 class IdentityBinder:
@@ -67,8 +76,10 @@ class IdentityBinder:
         raw_user = event.get("user") if isinstance(event, dict) else None
         user_id = raw_user if isinstance(raw_user, str) and raw_user else None
 
+        locale: str | None = None
+
         def refuse(reason: str, team: str | None = envelope_team) -> Unbound:
-            return Unbound(reason=reason, slack_user_id=user_id, slack_team_id=team)
+            return Unbound(reason=reason, slack_user_id=user_id, slack_team_id=team, locale=locale)
 
         if (
             payload.get("type") != "event_callback"
@@ -86,12 +97,16 @@ class IdentityBinder:
         ):
             return refuse("not_a_user_message")
 
-        info = self._slack.users_info(user_id)
+        info = self._slack.users_info(user_id, include_locale=True)
         if not info.get("ok"):
             return refuse("unknown_slack_user")
         user = info.get("user")
         if not isinstance(user, dict):
             return refuse("unknown_slack_user")
+        raw_locale = user.get("locale")
+        locale = raw_locale if isinstance(raw_locale, str) and raw_locale else None
+        raw_tz = user.get("tz")
+        tz = raw_tz if isinstance(raw_tz, str) and raw_tz else None
 
         # users.info is authoritative; event["user_team"] and friends are ignored.
         info_team = user.get("team_id")
@@ -130,10 +145,14 @@ class IdentityBinder:
 
         name = resource.get("name")
         full_name = name.get("fullName") if isinstance(name, dict) else None
+        given_name = name.get("givenName") if isinstance(name, dict) else None
         return BoundIdentity(
             directory_id=directory_id,
             email=primary,
             slack_user_id=user_id,
             slack_team_id=known_team,
             full_name=full_name if isinstance(full_name, str) and full_name else None,
+            first_name=given_name if isinstance(given_name, str) and given_name else None,
+            locale=locale,
+            tz=tz,
         )

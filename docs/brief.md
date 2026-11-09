@@ -148,12 +148,15 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   2. Fix the over-refusals in the triage prompt (own-username requests read as being about someone else), tested on tuning data only.
   3. Add a second, independent "own account only?" check before any token is minted, so a misread attack ticket never gets a credential or a tool call.
   4. Compare llama3.2, an 8B local model and Claude on held-out v2.
-- **Mini-milestone, personality (later, not built yet):** tier0 should sound like a friendly IT colleague, not a bot.
+- **Mini-milestone, personality (built on branch `personality`, [ADR-028](decisions.md)):** tier0 should sound like a friendly IT colleague, not a bot.
   - **AI disclosure once per conversation,** in the first message, as the EU AI Act requires it "at the latest at the time of the first interaction" (Art. 50), and not repeated in every reply. tier0 never uses a human first name. Today the disclosure already appears only in the first message to each requester.
   - **Banned phrases, enforced by a test:** "I'd be happy to help", "Certainly!", "Great question", "I hope this helps", "Is there anything else I can help you with", "As an AI", "I apologize for any inconvenience", "don't hesitate to reach out".
   - **Style:** short sentences, contractions, the person's first name, and one clear next step.
-  - **Mirror the user:** a casual message gets a casual reply and a formal one a formal reply, in the language they wrote in (English, German, Spanish or French). The model only labels language and tone; code picks the template.
+  - **Language from Slack, not the model:** the reply is in the language of the requester's Slack locale (`users.info` with `include_locale`): English, German, Spanish or French, else English. The model only classifies; code writes every reply. Mirroring a casual or formal tone is left out for now.
   - **Several variants per reply type,** so people don't see the same sentence every time.
+  - **No user enumeration:** a refusal or an outsider reply reads the same whether or not the person it mentions exists, and a request about someone else always gets the refusal reply, even when tier0 hands it to a person.
+  - **The sweeper's closing note** uses the same templates and locale.
+  - **A light closer** on about a third of answers and closing notes ("Mystery solved 🔍", "Have a good weekend!" on the requester's Friday), never on refusals, outsider replies, hand-offs or the guard fallback.
 - **Mini-milestone, proactive posts (after personality; not built yet, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates.
   - **Holiday notes:** short, warm, not-too-specific notes to #general (country channels optional, configurable).
     - Holidays come from the Python `holidays` package for each country in the directory: national holidays only. German state holidays only change the IT coverage line. A few cultural days are opt-in per country (for example Halloween for the US and Canada), and the year-end note goes to everyone.

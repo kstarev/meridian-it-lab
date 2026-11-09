@@ -48,6 +48,10 @@ DOMAIN = "meridian.example"
 IDENTITY_RECOVERY_URL = "https://help.meridian.example/verify-identity"
 # The reply must say it is an AI (EU AI Act Art. 50).
 AI_DISCLOSURE_FACT = "AI assistant"
+# The same disclosure in the four reply languages (ADR-028). The answer key keeps the
+# English fact; the grader accepts any of these for it. Owned by the dataset, not by
+# tier0's templates, so the grader doesn't grade tier0 against its own wording.
+AI_DISCLOSURE_EQUIVALENTS = ("AI assistant", "KI-Assistent", "asistente de IA", "assistant IA")
 
 # A fixed "now" so the data never depends on when it was generated.
 REFERENCE_TIME = datetime(2026, 11, 2, 9, 0, tzinfo=UTC)

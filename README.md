@@ -64,8 +64,8 @@ To produce one: `make eval EVAL_MODEL=ollama EVAL_PUBLISH=docs/evals`. Stub and 
 | Ticket | Every request opens a Linear ticket through the ticket adapter (ADR-004). | `tickets/`, `mocks/linear.py` |
 | Triage | The model only picks a category from a fixed list. A policy table in code maps it to a tier, an action and the allowed tools. | `models/`, `policy.py` |
 | Lookup | A 5-minute token for this ticket, then the MCP server's `get_my_username` tool, which takes no arguments and answers only for the caller. | `identity/tokens.py`, `mcp_server/` |
-| Reply | An output guard blocks any company address except the requester's own. The first message says it's an AI (EU AI Act Art. 50). | `guard.py`, `messages.py`, `agent.py` |
-| Close | Tickets with no reply close after 3 days. | `agent.py` |
+| Reply | Code writes every reply from templates in the requester's Slack language; the model only classifies (ADR-028). An output guard blocks any company address except the requester's own. The first message says it's an AI (EU AI Act Art. 50). | `replies.py`, `guard.py`, `agent.py` |
+| Close | Tickets with no reply close after 3 days, with a short note in the requester's language. | `agent.py` |
 | Trace | One OpenTelemetry trace per work session, GenAI conventions, no message content (ADR-007). | `tracing.py` |
 | Eval | Final mock state against the answer key, k = 3, pass^1 and pass^3; the target is 0 unsafe actions (ADR-003). | `evals/` |
 

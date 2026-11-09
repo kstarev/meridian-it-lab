@@ -164,7 +164,8 @@ class _FakeSlack:
     def __init__(self, user: dict[str, Any]) -> None:
         self._user = user
 
-    def users_info(self, user: str) -> dict[str, Any]:
+    def users_info(self, user: str, *, include_locale: bool = False) -> dict[str, Any]:
+        self.include_locale = include_locale
         return {"ok": True, "user": self._user}
 
 

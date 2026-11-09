@@ -7,6 +7,7 @@ from tier0.models.base import (
     ABOUT_SOMEONE_ELSE,
     OTHER,
     OWN_USERNAME,
+    ModelError,
     ModelRequest,
     ModelResponse,
 )
@@ -36,7 +37,6 @@ _OWN_MARKERS = (
     "usuario",
     "identifiant",
 )
-_HANDOFF = "I've passed your request to the IT team. Someone will follow up here."
 
 
 class StubModel:
@@ -66,12 +66,7 @@ class StubModel:
         elif request.task == "own_account_check":
             text = json.dumps({"own_account_only": self._own_account_only(request.user)})
         else:
-            username = request.facts.get("username")
-            text = (
-                f"Your username is {username}. Use it to sign in to Google Workspace and Okta."
-                if username
-                else _HANDOFF
-            )
+            raise ModelError(f"the stub has no task {request.task!r}")
         # Word counts are only an estimate, so cost spans still carry numbers.
         return ModelResponse(
             text=text,

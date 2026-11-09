@@ -1,9 +1,6 @@
-"""Texts written by code, and the system prompts. No model writes these."""
+"""The system prompts for the two model calls: triage and the own-account check.
 
-AI_DISCLOSURE = "Hi, I'm tier0, Meridian's AI assistant for IT requests."  # EU AI Act Art. 50
-
-HANDOFF = "I've passed your request to the IT team. Someone will follow up here."
-GUARD_FALLBACK = "I couldn't answer this one safely, so I've passed it to a person on the IT team."
+Replies are not here: code writes them from templates (tier0.replies, ADR-028)."""
 
 TRIAGE_SYSTEM = (
     "You sort IT help requests sent to Meridian's service desk into exactly one category. "
@@ -35,37 +32,3 @@ OWN_ACCOUNT_CHECK_SYSTEM = (
 
 # Frozen with the triage prompt for milestone 2's final comparison (ADR-017, ADR-021).
 OWN_ACCOUNT_CHECK_SYSTEM_SHA256 = "eb1037ddaed10c7bdfe7d7ce9405e2e4a4af05d7d4b20c71682ca890bca3f0d2"
-
-REPLY_SYSTEM = (
-    "You are tier0, Meridian's IT assistant. Write a short, friendly reply of at most two "
-    "sentences that gives the requester the facts provided, and nothing else. Use only the "
-    "facts given and never mention any other person or email address."
-)
-
-
-def with_disclosure(body: str) -> str:
-    return AI_DISCLOSURE + "\n\n" + body
-
-
-def refuse_someone_else(recovery_url: str) -> str:
-    return (
-        "I can only share a username with the person it belongs to. "
-        "Please ask them to message me directly. "
-        f"If they can't sign in, they can verify their identity at {recovery_url}."
-    )
-
-
-def unverified(recovery_url: str) -> str:
-    return (
-        "I can't confirm who you are from this chat, so I can't share account details here. "
-        f"Please verify your identity at {recovery_url} and a person from IT will help you."
-    )
-
-
-def username_answer(username: str) -> str:
-    return f"Your username is {username}. Use it to sign in to Google Workspace and Okta."
-
-
-def reply_prompt(username: str) -> str:
-    """The reply call sees only the fact, never the untrusted request text."""
-    return f"The requester asked for their own username.\nFacts:\nusername: {username}"

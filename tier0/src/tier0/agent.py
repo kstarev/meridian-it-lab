@@ -12,8 +12,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Literal, Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from tier0 import messages
+from tier0 import messages, replies
 from tier0.clock import Clock, parse_time
 from tier0.guard import check_reply
 from tier0.identity.binding import BoundIdentity, IdentityBinder, Unbound
@@ -76,6 +77,31 @@ class SlackApi(Protocol):
     def chat_post_message(
         self, *, channel: str, text: str, thread_ts: str | None = None
     ) -> dict[str, Any]: ...
+
+    def users_info(self, user: str, *, include_locale: bool = False) -> dict[str, Any]: ...
+
+    def conversations_open(self, *, users: str) -> dict[str, Any]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class _Audience:
+    """Who a message goes to: the address the guard allows, and how to greet them."""
+
+    user_id: str
+    email: str | None  # the one company address the guard lets through
+    language: replies.Language
+    first_name: str | None
+    tz: str | None = None  # IANA time zone, for the Friday closer only
+
+
+def _audience(bound: BoundIdentity) -> _Audience:
+    return _Audience(
+        user_id=bound.slack_user_id,
+        email=bound.email,
+        language=replies.language_for(bound.locale),
+        first_name=bound.first_name,
+        tz=bound.tz,
+    )
 
 
 class _SendBlocked(Exception):
@@ -238,12 +264,21 @@ class ServiceDeskAgent:
         try:
             with self._tracer.session(ticket_id=identifier, kind="intake") as s:
                 s.event("tier0.identity.unbound", reason=unbound.reason)
+                # No name and no account data: an unverified sender is not greeted by name,
+                # and the reply never depends on whom the message mentions.
+                outsider = _Audience(
+                    user_id=sender.user_id,
+                    email=None,
+                    language=replies.language_for(unbound.locale),
+                    first_name=None,
+                )
                 try:
                     self._send(
                         channel,
-                        sender.user_id,
-                        messages.unverified(self._recovery_url),
-                        None,
+                        outsider,
+                        "unverified",
+                        identifier,
+                        recovery_url=self._recovery_url,
                     )
                 except (_SendBlocked, _SendFailed):
                     s.event("tier0.reply.not_sent", reason="send_failed")
@@ -326,9 +361,10 @@ class ServiceDeskAgent:
         try:
             self._send(
                 channel,
-                bound.slack_user_id,
-                messages.refuse_someone_else(self._recovery_url),
-                bound.email,
+                _audience(bound),
+                "refuse_colleague",
+                identifier,
+                recovery_url=self._recovery_url,
             )
         except (_SendBlocked, _SendFailed) as error:
             return self._send_problem(s, identifier, channel, bound, error)
@@ -338,14 +374,35 @@ class ServiceDeskAgent:
         return "refuse", CANCELED
 
     def _escalate(
-        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, code: str
+        self,
+        s: Session,
+        identifier: str,
+        channel: str,
+        bound: BoundIdentity,
+        code: str,
+        *,
+        about_someone_else: bool = False,
     ) -> tuple[str, str]:
+        """Hand the ticket to a person. When the request is about someone else, the
+        requester sees the same reply as a refusal, so whether a name they mentioned
+        exists in the directory doesn't show in what they read (ADR-028). IT still sees
+        the hand-off."""
         s.event("tier0.escalated", reason=code)
         try:
-            self._send(channel, bound.slack_user_id, messages.HANDOFF, bound.email)
+            if about_someone_else:
+                self._send(
+                    channel,
+                    _audience(bound),
+                    "refuse_colleague",
+                    identifier,
+                    recovery_url=self._recovery_url,
+                )
+            else:
+                self._send(channel, _audience(bound), "handoff", identifier)
         except (_SendBlocked, _SendFailed):
             s.event("tier0.reply.not_sent", reason="send_failed")
-        self._tickets.add_comment(identifier, f"tier0: handed to a person ({code}).")
+        note = "; the requester saw the standard refusal" if about_someone_else else ""
+        self._tickets.add_comment(identifier, f"tier0: handed to a person ({code}){note}.")
         self._tickets.set_state(identifier, TRIAGE)
         return "escalate", TRIAGE
 
@@ -366,7 +423,7 @@ class ServiceDeskAgent:
     ) -> tuple[str, str]:
         s.event("tier0.guard.blocked", count=count)
         try:
-            self._send(channel, bound.slack_user_id, messages.GUARD_FALLBACK, bound.email)
+            self._send(channel, _audience(bound), "guard_fallback", identifier)
         except (_SendBlocked, _SendFailed):
             s.event("tier0.reply.not_sent", reason="send_failed")
         self._tickets.add_comment(
@@ -437,10 +494,14 @@ class ServiceDeskAgent:
                 ),
             )
         if others > 0:
-            return self._escalate(s, identifier, channel, bound, "mention_of_other_user")
+            return self._escalate(
+                s, identifier, channel, bound, "mention_of_other_user", about_someone_else=True
+            )
         if role:
             # Like the mention check, the role signal never refuses on its own.
-            return self._escalate(s, identifier, channel, bound, "role_reference")
+            return self._escalate(
+                s, identifier, channel, bound, "role_reference", about_someone_else=True
+            )
 
         try:
             check_tool_call(rule, TOOL_GET_MY_USERNAME)
@@ -466,9 +527,9 @@ class ServiceDeskAgent:
         if not isinstance(username, str) or not username:
             return self._escalate(s, identifier, channel, bound, "tool_failed")
 
-        body = self._compose_reply(s, username)
+        # The model classifies; code speaks (ADR-028): the answer comes from a template.
         try:
-            self._send(channel, bound.slack_user_id, body, bound.email)
+            self._send(channel, _audience(bound), "answer", identifier, username=username)
         except _SendBlocked as error:
             return self._guard_blocked(s, identifier, channel, bound, error.count)
         except _SendFailed:
@@ -481,38 +542,41 @@ class ServiceDeskAgent:
         self._tickets.set_state(identifier, AWAITING_REPLY)
         return "answer", AWAITING_REPLY
 
-    def _compose_reply(self, s: Session, username: str) -> str:
-        """Ask the model for friendly wording; fall back to the fixed template."""
-        try:
-            response = s.chat(
-                self._model,
-                ModelRequest(
-                    task="reply",
-                    system=messages.REPLY_SYSTEM,
-                    user=messages.reply_prompt(username),
-                    facts={"username": username},
-                ),
-            )
-        except ModelError:
-            return messages.username_answer(username)
-        text = response.text
-        if response.finish_reason == "refusal" or not text.strip() or username not in text:
-            return messages.username_answer(username)
-        return text
-
     # --- sending --------------------------------------------------------------
 
-    def _send(self, channel: str, user_id: str, body: str, requester_email: str | None) -> None:
-        """Post one message, guarded. The guard runs on every message, ours included."""
-        first = user_id not in self._disclosed
-        full_text = messages.with_disclosure(body) if first else body
-        verdict = check_reply(full_text, requester_email=requester_email, domain=self._domain)
+    def _send(
+        self,
+        channel: str,
+        to: _Audience,
+        reply_type: replies.ReplyType,
+        key: str,
+        **fields: str,
+    ) -> None:
+        """Post one templated message, guarded. The guard runs on every message, ours
+        included. The first message to a requester carries the AI disclosure."""
+        first = to.user_id not in self._disclosed
+        text = replies.compose(
+            replies.body(reply_type, to.language, key, weekday=self._weekday(to.tz), **fields),
+            to.language,
+            first_name=to.first_name,
+            first=first,
+        )
+        verdict = check_reply(text, requester_email=to.email, domain=self._domain)
         if not verdict.allowed:
             raise _SendBlocked(len(verdict.blocked))
-        response = self._slack.chat_post_message(channel=channel, text=full_text)
+        response = self._slack.chat_post_message(channel=channel, text=text)
         if not response.get("ok"):
             raise _SendFailed
-        self._disclosed.add(user_id)
+        self._disclosed.add(to.user_id)
+
+    def _weekday(self, tz: str | None) -> int | None:
+        """The requester's local weekday, or None if their time zone is unknown."""
+        if not tz:
+            return None
+        try:
+            return self._clock.now().astimezone(ZoneInfo(tz)).weekday()
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
 
     def _best_effort_triage(self, identifier: str) -> None:
         # The caller re-raises the original error, so a failure here is not reported.
@@ -532,6 +596,8 @@ class ServiceDeskAgent:
                     )
                     self._tickets.set_state(ticket.identifier, DONE)
                     s.event("tier0.ticket.closed", reason="no_reply_3_days")
+                    if not self._tell_closed(ticket):
+                        s.event("tier0.reply.not_sent", reason="close_notice_failed")
                     outcomes.append(
                         Outcome(
                             "handled",
@@ -542,6 +608,41 @@ class ServiceDeskAgent:
                         )
                     )
         return tuple(outcomes)
+
+    def _tell_closed(self, ticket: TicketRecord) -> bool:
+        """Tell the requester the ticket closed, in their language. The ticket closes
+        whether or not this works."""
+        if ticket.requester is None:
+            return False
+        user_id = ticket.requester.user_id
+        info = self._slack.users_info(user_id, include_locale=True)
+        user = info.get("user") if info.get("ok") else None
+        if not isinstance(user, dict) or user.get("deleted"):
+            return False
+        profile = user.get("profile")
+        email = profile.get("email") if isinstance(profile, dict) else None
+        first_name = profile.get("first_name") if isinstance(profile, dict) else None
+        locale = user.get("locale")
+        tz = user.get("tz")
+        opened = self._slack.conversations_open(users=user_id)
+        channel = opened.get("channel") if opened.get("ok") else None
+        channel_id = channel.get("id") if isinstance(channel, dict) else None
+        if not isinstance(channel_id, str):
+            return False
+        to = _Audience(
+            user_id=user_id,
+            email=email if isinstance(email, str) else None,
+            language=replies.language_for(locale if isinstance(locale, str) else None),
+            # Slack's profile name goes only to this same person, and compose() drops
+            # anything that isn't a plain first name.
+            first_name=first_name if isinstance(first_name, str) else None,
+            tz=tz if isinstance(tz, str) else None,
+        )
+        try:
+            self._send(channel_id, to, "auto_close", ticket.identifier)
+        except (_SendBlocked, _SendFailed):
+            return False
+        return True
 
     def _should_close(self, ticket: TicketRecord) -> bool:
         changed = parse_time(ticket.state_changed_at)

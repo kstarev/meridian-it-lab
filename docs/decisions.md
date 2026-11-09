@@ -521,3 +521,50 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 - With 42 tickets, only a large gap can produce a winner. "No clear difference" is an expected, honest outcome, not a failure.
 - After this comparison, held-out v2's results are seen, so v2 becomes a dev set for any later work, as v1 did (ADR-014).
+
+## ADR-028: The model classifies, code speaks: replies come from templates in the requester's Slack language
+
+**Date:** 2026-11-09 · **Status:** Accepted
+
+**Context:** The personality mini-milestone asks tier0 to sound like a friendly IT colleague: the AI disclosure once, no stock phrases, short sentences, the person's first name, one clear next step, and some variety. Until now the model worded the username answer, which the output guard had to police, and which no test could hold to a style. The brief also suggested the model label language and tone. Instead, the language comes from Slack, and tone mirroring is left out for now.
+
+**Decision:**
+
+- **Templates in code** (`tier0/replies.py`) for every message tier0 sends: the username answer, the colleague refusal, the outsider reply, the hand-off, the guard fallback and the sweeper's closing note. Each has 3 variants in English, German, Spanish and French. The variant is picked from a SHA-256 hash of the reply type and the ticket, never at random, so runs repeat exactly. German, Spanish and French use the informal form (du, tú, tu).
+- **The model never writes a reply.** The reply model call, its prompt and the `reply` task type are gone. The model only labels triage and the own-account check, whose prompts and frozen hashes are unchanged (ADR-017, ADR-021).
+- **Language from Slack:** the binder calls `users.info` with `include_locale`, as Slack's API does, and the reply uses that locale's language. Locales without templates (for example pt-BR or ja-JP) get English. The Slack mock derives the locale from the person's country, the same way it already derives the time zone, so the dataset and every eval world are unchanged.
+- **Style rules, enforced by tests:**
+  - none of the brief's banned phrases appears in any language;
+  - tier0 only ever introduces itself as tier0;
+  - sentences are short, and the English templates use contractions;
+  - every variant carries its facts (the username, or the recovery link).
+- **Names:**
+  - A verified requester is greeted by their directory first name, which is authoritative.
+  - The sweeper greets with Slack's profile first name, which reaches only that same person.
+  - Anything that isn't a plain first name is dropped.
+  - An unverified sender is never greeted by name.
+- **AI disclosure once,** in the first message to a requester and in their language. Later messages greet by name only.
+- **A light closer, on two reply types only.** About a third of username answers and closing notes get one short line from a fixed list, with at most one emoji from 🔍 🙂 👋 ("Mystery solved 🔍", "Rätsel gelöst 🔍"). On a Friday in the requester's own time zone (Slack's `tz` from `users.info`), that line is "Have a good weekend!" or its translation. The same ticket hash picks it, so runs repeat exactly. Refusals, the outsider reply, hand-offs and the guard fallback never get one; tests check that, the one-emoji limit and the banned phrases.
+- **No user enumeration:** what a reply says depends only on the reply type, the requester's language and name, and the ticket, never on anyone the message mentions.
+  - **One reply for every request about someone else.** The requester gets the colleague refusal whether tier0 refused the request or handed it to a person because another directory user or a role word was mentioned. The hand-off still happens, so IT sees it; only what the requester reads is the same. This is fixed in the reply, not the routing.
+  - **Worded for both readers.** That reply says tier0 can only help with the requester's own account, tells them what the other person can do (message tier0 themselves, or use the identity-recovery link), and ends with one way out: if they meant their own account, ask again in one short line, like "what's my username?". The way out needs no new code, and a test sends each language's example line and checks it is answered.
+  - **Tests:** the colleague refusal and the outsider reply read the same whether or not the named person exists. A real name and a made-up one get the same text on every route where the request is recognised as about someone else. The same request, refused or handed off, reads byte for byte the same.
+- **Accepted residual risk:** one case still depends on a name existing.
+  - If triage and the check both misread a request that names a made-up person, and no code check fires, tier0 answers with the requester's own username. A real name in the same request goes to a person, with the refusal reply. A test pins this case.
+  - Outsiders never reach the lookup, because identity binding stops them first. Verified employees can already see the company directory.
+  - So the risk is low, and it is accepted.
+- **The sweeper's closing note:**
+  - It looks the requester up with `users.info` (`include_locale`), opens the DM with `conversations.open`, and posts a templated note.
+  - The note goes through the same output guard.
+  - The ticket closes even if the note can't be sent.
+- **Grading:** the answer key keeps the English disclosure fact ("AI assistant"). The grader accepts the same disclosure in any of the four languages, from a list owned by the dataset package rather than by tier0's templates.
+
+**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (864). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
+
+**Consequences:**
+
+- **Pass/fail stays comparable with milestone 2,** because triage and the check are unchanged and replies only got safer.
+- **Latency and model-call counts are not comparable with milestone 2's published numbers.** An answered ticket now makes 2 model calls instead of 3; the stub's mean on seed 1108 fell from 2.17 to 1.50 calls per run. Milestone 2's published reports are left as they are, unedited.
+- **The output guard still runs on every message,** and tests prove it by planting a leaky template.
+- **A false alarm gets the same reply, with a way out.** When the role signal or the mention check fires on a legitimate own-account request, the requester sees the colleague reply instead of a hand-off note. Its last line tells them to ask again in one short line, which is answered. A person still picks the first ticket up, and the hand-off rate in reports shows how often this happens.
+- **German and French aren't exercised by the eval worlds,** because no eval requester is in Germany or France. Tests cover them, and seed 1108's Mexican requester exercises Spanish.

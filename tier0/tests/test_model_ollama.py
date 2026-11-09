@@ -65,13 +65,13 @@ def test_request_shape_with_schema() -> None:
 
 def test_no_format_without_schema() -> None:
     model, seen = capture(REPLY)
-    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert "format" not in json.loads(seen[0].content)
 
 
 def test_response_mapping() -> None:
     model, _ = capture(REPLY)
-    response = model.complete(ModelRequest(task="reply", system="s", user="u"))
+    response = model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert response.text == "hi"
     assert response.model == "llama3.2"
     assert (response.input_tokens, response.output_tokens) == (11, 3)
@@ -81,7 +81,7 @@ def test_response_mapping() -> None:
 
 def test_length_and_missing_counts() -> None:
     model, _ = capture({"message": {"content": "x"}, "done_reason": "length"})
-    response = model.complete(ModelRequest(task="reply", system="s", user="u"))
+    response = model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert response.finish_reason == "length"
     assert (response.input_tokens, response.output_tokens) == (0, 0)
 
@@ -89,7 +89,7 @@ def test_length_and_missing_counts() -> None:
 def test_http_500_becomes_model_error() -> None:
     model = make_model(lambda _request: httpx2.Response(500, text="boom"))
     with pytest.raises(ModelError):
-        model.complete(ModelRequest(task="reply", system="s", user="u"))
+        model.complete(ModelRequest(task="triage", system="s", user="u"))
 
 
 def test_connection_error_becomes_model_error() -> None:
@@ -97,18 +97,18 @@ def test_connection_error_becomes_model_error() -> None:
         raise httpx2.ConnectError("refused", request=request)
 
     with pytest.raises(ModelError):
-        make_model(handler).complete(ModelRequest(task="reply", system="s", user="u"))
+        make_model(handler).complete(ModelRequest(task="triage", system="s", user="u"))
 
 
 def test_non_json_body_becomes_model_error() -> None:
     model = make_model(lambda _request: httpx2.Response(200, text="not json"))
     with pytest.raises(ModelError):
-        model.complete(ModelRequest(task="reply", system="s", user="u"))
+        model.complete(ModelRequest(task="triage", system="s", user="u"))
 
 
 def test_temperature_default_and_override() -> None:
     model, seen = capture(REPLY)
-    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert json.loads(seen[0].content)["options"]["temperature"] == 0.5
     assert model.temperature == 0.5
     client = httpx2.Client(
@@ -123,10 +123,10 @@ def test_temperature_default_and_override() -> None:
 
 def test_seed_sent_only_when_set() -> None:
     model, seen = capture(REPLY)
-    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert "seed" not in json.loads(seen[0].content)["options"]
     model.seed = 1001
-    model.complete(ModelRequest(task="reply", system="s", user="u"))
+    model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert json.loads(seen[1].content)["options"]["seed"] == 1001
     assert model.supports_seed is True
 
