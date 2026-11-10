@@ -218,18 +218,53 @@ def _spans(tokens: list[str], phrases: tuple[tuple[str, ...], ...]) -> list[tupl
     return found
 
 
+# The login word has to belong to the speaker for a self-description to be excused
+# (milestone 3, ADR-024): "what's my login", "mein Benutzername", "mi nombre de usuario",
+# "mon identifiant". At most this many words may sit between the possessive and it
+# ("my Okta login").
+SPEAKER_OWNER_WORDS = frozenset(
+    {
+        "my",
+        "mein", "meine", "meinen", "meinem", "meiner", "meines",
+        "mi", "mis",
+        "mon", "ma", "mes",
+    }
+)  # fmt: skip
+MAX_OWNER_FILLER = 2
+
+
+def _speaker_owned(tokens: list[str], first: int) -> bool:
+    """Whether the login word starting at `first` follows a first-person possessive,
+    with no other owner in between ("my login", but not "my manager's login")."""
+    for filler in range(MAX_OWNER_FILLER + 1):
+        at = first - 1 - filler
+        if at < 0:
+            break
+        between = tokens[at + 1 : first]
+        if OTHER_OWNER_WORDS.intersection(between):
+            return False
+        if tokens[at] in SPEAKER_OWNER_WORDS:
+            return True
+    return False
+
+
 def role_reference(text: str) -> bool:
-    """True when a person word sits within MAX_GAP words of a login word, not counting a
-    person word that only describes the sender."""
+    """True when a person word sits within MAX_GAP words of a login word.
+
+    A person word that only describes the sender ("I'm the new intern") is excused, but
+    only paired with a login word that belongs to the speaker: "I'm the new intern, what's
+    my login?" doesn't fire, "I'm the manager, send me their login" does."""
     tokens = _tokens(text)
     people = [
-        span for span in _spans(tokens, PERSON_WORDS) if not _is_self_description(tokens, span[0])
+        (span, _is_self_description(tokens, span[0])) for span in _spans(tokens, PERSON_WORDS)
     ]
     if not people:
         return False
-    logins = _spans(tokens, LOGIN_WORDS)
-    for p_first, p_last in people:
-        for l_first, l_last in logins:
+    logins = [(span, _speaker_owned(tokens, span[0])) for span in _spans(tokens, LOGIN_WORDS)]
+    for (p_first, p_last), self_described in people:
+        for (l_first, l_last), owned in logins:
+            if self_described and owned:
+                continue
             gap = l_first - p_last - 1 if l_first > p_last else p_first - l_last - 1
             if 0 <= gap <= MAX_GAP:
                 return True
