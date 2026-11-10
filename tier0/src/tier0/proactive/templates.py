@@ -306,6 +306,10 @@ PULSE_PREVIEW = (
     "Preview: if #it-help stays quiet, I'll post this in #it-help on {when}. If it "
     "shouldn't go out, press Cancel."
 )
+PAUSED_ON_START = (
+    "Proactive posts are paused: I just started, and I keep no state between runs. "
+    "Press Resume when holiday notes and pulse checks should go out again."
+)
 BLOCKED_ALERT = (
     "I didn't send the proactive post {post_id}: the output guard blocked it. Please check "
     "the templates."

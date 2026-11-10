@@ -171,7 +171,8 @@ def _local(moment: datetime, country: str) -> datetime:
     return moment.astimezone(tz(country))
 
 
-def _is_night(hour: int, night: tuple[int, int]) -> bool:
+def is_night(hour: int, night: tuple[int, int]) -> bool:
+    """Whether a local hour is night (the window wraps past midnight)."""
     start, end = night
     return hour >= start or hour < end
 
@@ -194,7 +195,7 @@ def pick_send_time(
         if moment >= deadline:
             break
         hours = [_local(moment, c).hour for c in codes]
-        night = sum(_is_night(h, config.night) for h in hours)
+        night = sum(is_night(h, config.night) for h in hours)
         daytime = sum(config.daytime[0] <= h < config.daytime[1] for h in hours)
         score = (-night, daytime, -abs((moment - default).total_seconds()))
         if best is None or score > best[0]:
@@ -268,6 +269,19 @@ def _render(post_id: str, group: list[_Item], everyone: tuple[str, ...], config:
 MAX_SHIFT_DAYS = 2
 
 
+def choose_day(default_day: date, deadline_day: date, taken: set[date]) -> date | None:
+    """The Berlin day for a note: its own default day if free, else a free Berlin working
+    day up to MAX_SHIFT_DAYS earlier (never a weekend or holiday), else None (merge into
+    the default day's note)."""
+    if default_day not in taken and default_day <= deadline_day:
+        return default_day
+    for back in range(1, MAX_SHIFT_DAYS + 1):
+        day = default_day - timedelta(days=back)
+        if day not in taken and day <= deadline_day and berlin_working_day(day):
+            return day
+    return None
+
+
 @lru_cache(maxsize=32)
 def holiday_schedule(year: int, countries: tuple[str, ...], config: Config) -> tuple[Post, ...]:
     """Every holiday post whose Berlin send day falls in `year`, in send order.
@@ -300,16 +314,11 @@ def holiday_schedule(year: int, countries: tuple[str, ...], config: Config) -> t
     for group in sorted(groups.values(), key=lambda g: min(i.deadline for i in g)):
         default_day = min(i.default for i in group).astimezone(BERLIN).date()
         deadline_day = min(i.deadline for i in group).astimezone(BERLIN).date()
-        free = [
-            default_day - timedelta(days=n)
-            for n in range(MAX_SHIFT_DAYS + 1)
-            if default_day - timedelta(days=n) not in taken
-            and default_day - timedelta(days=n) <= deadline_day
-        ]
-        if free:
-            taken[free[0]] = list(group)
-        else:
+        day = choose_day(default_day, deadline_day, set(taken))
+        if day is None:
             taken[default_day].extend(group)
+        else:
+            taken[day] = list(group)
 
     posts = []
     for day, group in sorted(taken.items()):
@@ -460,14 +469,26 @@ def plan(
     posts = [p for p in holiday if post_due(p)]
     skipped = [(p, r) for p in holiday if (r := skip_reason(p)) is not None]
     # A pulse preview can come days early (a Tuesday pulse after a holiday Monday is
-    # previewed the Friday before), so look a week ahead.
+    # previewed the Friday before), so look a week ahead. Only one pulse per streak can
+    # post, so while an earlier pulse is previewed and still pending, no later one is
+    # previewed: IT never reviews a check-in that can't go out.
+    pending_pulse = any(
+        pid.startswith("pulse-")
+        and pid not in state.sent
+        and pid not in state.cancelled
+        and now
+        < pulse_post(date.fromisoformat(pid.removeprefix("pulse-")), config).send_at
+        + config.post_grace
+        for pid in state.previewed
+    )
     for ahead in range(8):
         day = today + timedelta(days=ahead)
         pulse = pulse_post(day, config)
         if pulse_blocker(day, last_human_at, state, config, holiday_days) is not None:
             continue
-        if preview_due(pulse):
+        if preview_due(pulse) and not pending_pulse:
             previews.append(pulse)
+            pending_pulse = True
         if post_due(pulse):
             posts.append(pulse)
     # One post per Berlin day: the earliest wins, the rest wait (they'll be blocked).

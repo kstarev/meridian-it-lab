@@ -17,7 +17,7 @@ from tier0.mocks.directory import MockDirectory
 from tier0.mocks.slack import BOT_USER_ID, CHANNELS, MockSlack
 from tier0.proactive import calendar, preview, schedule, templates
 from tier0.proactive.calendar import BERLIN, COUNTRY_TZ, HolidayBlock, tz
-from tier0.proactive.runner import CANCEL_ACTION, ProactiveRunner
+from tier0.proactive.runner import CANCEL_ACTION, RESUME_ACTION, ProactiveRunner
 from tier0.proactive.schedule import (
     Config,
     State,
@@ -301,7 +301,16 @@ def _runner(
         domain="meridian.example",
         dry_run=dry_run,
     )
+    _resume(runner, slack)
     return runner, slack, clock
+
+
+def _resume(runner: ProactiveRunner, slack: MockSlack) -> None:
+    """Every runner starts paused; IT resumes it with the button in #it-team."""
+    press = slack.button_click(
+        channel=CHANNELS["it-team"], user="U0ITLEAD", action_id=RESUME_ACTION, value="resume"
+    )
+    assert runner.handle_interaction(press) == "resumed"
 
 
 def _run(runner: ProactiveRunner, clock: MockClock, until: datetime) -> None:
@@ -326,6 +335,7 @@ def test_dry_run_is_the_default_and_sends_nothing() -> None:
         domain="meridian.example",
     )
     assert runner.dry_run
+    _resume(runner, slack)
     _run(runner, clock, _berlin(date(2027, 5, 1), 0))
     assert slack.sent_messages == ()
     actions = [e.action for e in runner.log]
@@ -346,7 +356,7 @@ def test_preview_24h_before_with_a_cancel_button_then_the_post() -> None:
     _run(runner, clock, _berlin(date(2027, 5, 1), 0))
     preview_msg, post_msg = slack.sent_messages
     assert preview_msg.channel == CHANNELS["it-team"]
-    button = preview_msg.blocks[1]["elements"][0]
+    button = preview_msg.blocks[-1]["elements"][0]
     assert button["action_id"] == CANCEL_ACTION and button["value"] == "holiday-2027-04-30"
     assert post_msg.channel == CHANNELS["general"]
     assert float(post_msg.ts) - float(preview_msg.ts) >= 23 * 3600
@@ -394,8 +404,11 @@ def test_kill_switch_stops_previews_and_posts_and_is_logged() -> None:
     runner, slack, clock = _runner(_berlin(date(2027, 4, 29), 0))
     runner.set_kill_switch(True, by="U0ITLEAD")
     _run(runner, clock, _berlin(date(2027, 5, 1), 0))
-    assert slack.sent_messages == ()
-    assert runner.log[0].action == "kill_switch_on" and runner.log[0].detail == "U0ITLEAD"
+    # Only the one "paused" notice to #it-team: no previews, no posts.
+    (notice,) = slack.sent_messages
+    assert notice.channel == CHANNELS["it-team"] and "paused" in notice.text
+    switch = [e for e in runner.log if e.action == "kill_switch_on"]
+    assert [e.detail for e in switch] == ["U0ITLEAD"]
 
 
 def test_a_second_post_on_the_same_day_is_refused() -> None:
@@ -563,8 +576,141 @@ def test_no_preview_slot_means_no_post_and_a_log_entry() -> None:
         config=config,
         dry_run=False,
     )
+    _resume(runner, slack)
     _human(slack)
     _run(runner, clock, _berlin(date(2027, 1, 5), 18))
     assert slack.sent_messages == ()
     skipped = [e for e in runner.log if e.action == "skipped"]
     assert [(e.post_id, e.detail) for e in skipped] == [("holiday-2027-01-05", "no_preview_slot")]
+
+
+# --- ultrareview fixes -----------------------------------------------------------------
+
+
+def test_what_it_previewed_is_exactly_what_gets_posted_or_nothing_is() -> None:
+    """#2: an office opens between the preview and the send. The recomputed note would
+    list it, which IT never saw, so nothing goes to #general."""
+    runner, slack, clock = _runner(_berlin(date(2027, 4, 29), 0))
+    _human(slack)
+    _run(runner, clock, _berlin(date(2027, 4, 29), 16))  # previewed Thu 15:00 Berlin
+    (preview_msg,) = slack.sent_messages
+    assert "Germany" not in preview_msg.text  # seed 1108 has no German office
+
+    real = runner._directory.resources_buildings_list
+
+    def with_germany(*, principal: str) -> dict[str, object]:
+        found = real(principal=principal)
+        return {"buildings": [*found["buildings"], {"address": {"regionCode": "DE"}}]}
+
+    runner._directory.resources_buildings_list = with_germany  # type: ignore[method-assign]
+    _run(runner, clock, _berlin(date(2027, 5, 1), 0))
+    assert [m.channel for m in slack.sent_messages] == [CHANNELS["it-team"]]
+    changed = [e for e in runner.log if e.action == "changed_since_preview"]
+    assert [e.post_id for e in changed] == ["holiday-2027-04-30"]
+
+
+def test_an_unchanged_post_is_byte_for_byte_the_preview() -> None:
+    runner, slack, clock = _runner(_berlin(date(2027, 4, 29), 0))
+    _human(slack)
+    _run(runner, clock, _berlin(date(2027, 5, 1), 0))
+    preview_msg, post_msg = slack.sent_messages
+    shown = "\n".join(b["text"]["text"] for b in preview_msg.blocks if b.get("type") == "section")
+    assert post_msg.text in shown  # #7: the blocks IT sees hold the full post text
+
+
+def test_only_one_pulse_preview_per_streak() -> None:
+    """#1: Tue and Wed both qualify, but only the first can post, so only it is
+    previewed."""
+    runner, slack, clock = _runner(_berlin(date(2027, 6, 2), 15))
+    _human(slack)
+    _run(runner, clock, _berlin(date(2027, 6, 10), 12))
+    previews = [m for m in slack.sent_messages if "stays quiet" in m.text]
+    assert len(previews) == 1
+
+
+def test_a_shifted_note_never_lands_on_a_weekend() -> None:
+    """#3: Monday is taken, and the two days before are a weekend: merge instead."""
+    monday = date(2027, 2, 22)
+    assert schedule.choose_day(monday, monday, {monday}) is None
+    assert schedule.choose_day(monday, monday, set()) == monday
+    tuesday = date(2027, 2, 23)
+    assert schedule.choose_day(tuesday, tuesday, {tuesday}) == monday
+    # Never onto a Berlin holiday either: 8 March 2027 is one.
+    assert schedule.choose_day(date(2027, 3, 9), date(2027, 3, 9), {date(2027, 3, 9)}) is None
+
+
+def test_an_unknown_office_country_is_dropped_and_logged_once() -> None:
+    """#4: a building in a country tier0 has no time zone for doesn't stop the others."""
+    runner, slack, clock = _runner(_berlin(date(2027, 1, 4), 0))
+    runner._directory.resources_buildings_list = lambda *, principal: {  # type: ignore[method-assign]
+        "buildings": [{"address": {"regionCode": "ES"}}, {"address": {"regionCode": "FR"}}]
+    }
+    _human(slack)
+    _run(runner, clock, _berlin(date(2027, 1, 5), 18))
+    assert [m.channel for m in slack.sent_messages] == [CHANNELS["it-team"], CHANNELS["general"]]
+    assert [e.detail for e in runner.log if e.action == "unknown_country"] == ["FR"]
+
+
+def test_every_refused_press_is_logged() -> None:
+    """#5: forged and malformed presses are refused and leave a trace."""
+    runner, slack, _clock = _runner(_berlin(date(2027, 4, 29), 16))
+    press = slack.button_click(
+        channel=CHANNELS["it-team"], user="U0X", action_id=CANCEL_ACTION, value="holiday-2027-04-30"
+    )
+    forged = type(press)(headers=press.headers, body=press.body + b"x")
+    assert runner.handle_interaction(forged).startswith("rejected")
+    signed_junk = slack.signed_request({"not": "a form"})
+    assert runner.handle_interaction(signed_junk) == "rejected: malformed"
+    rejected = [e.detail for e in runner.log if e.action == "press_rejected"]
+    assert rejected[0].startswith("signature") and rejected[1] == "malformed"
+    assert runner.state.cancelled == frozenset()
+
+
+def test_human_subtypes_count_as_activity_system_ones_dont() -> None:
+    """#6: a shared file is a person talking; a channel join isn't."""
+    runner, slack, _clock = _runner(_berlin(date(2027, 6, 2), 15))
+    slack._human.append(
+        type(slack.post_as_person(CHANNELS["general"], "U0X", "x"))(
+            channel=CHANNELS["it-help"], user="U0Y", text="screenshot", ts="1812345678.000001"
+        )
+    )
+    history = [
+        {"type": "message", "user": "U0Z", "subtype": "channel_join", "ts": "1812345679.0"},
+        {"type": "message", "user": "U0Y", "subtype": "file_share", "ts": "1812345678.5"},
+    ]
+    runner._slack.conversations_history = lambda *, channel, oldest=None: {"messages": history}  # type: ignore[method-assign]
+    assert runner.last_human_message() == datetime.fromtimestamp(1812345678.5, tz=UTC)
+
+
+def test_a_restart_starts_paused_and_remembers_the_last_pulse() -> None:
+    """#8: a new runner is paused until #it-team resumes it, and it reads its own last
+    pulse check back from #it-help, so the streak's limit survives the restart."""
+    first, slack, clock = _runner(_berlin(date(2027, 6, 2), 15))
+    _human(slack)
+    _run(first, clock, _berlin(date(2027, 6, 8), 12))  # the Tue 8 June pulse went out
+    (pulse,) = [m for m in slack.sent_messages if m.channel == CHANNELS["it-help"]]
+
+    world = generate(DEFAULT_SEED)
+    second = ProactiveRunner(
+        slack=slack,
+        directory=MockDirectory(world, clock),
+        clock=clock,
+        signing_secret=slack.signing_secret,
+        domain="meridian.example",
+        dry_run=False,
+    )
+    assert second.kill_switch and second.log[0].action == "paused_on_start"
+    assert second.state.last_pulse_at == datetime.fromtimestamp(float(pulse.ts), tz=UTC)
+    before = len(slack.sent_messages)
+    second.tick()
+    (notice,) = slack.sent_messages[before:]
+    assert notice.channel == CHANNELS["it-team"]
+    assert notice.blocks[1]["elements"][0]["action_id"] == RESUME_ACTION
+    # Resume from anywhere but #it-team is refused.
+    elsewhere = slack.button_click(
+        channel=CHANNELS["general"], user="U0X", action_id=RESUME_ACTION, value="resume"
+    )
+    assert second.handle_interaction(elsewhere).startswith("refused") and second.kill_switch
+    _resume(second, slack)
+    _run(second, clock, _berlin(date(2027, 6, 11), 12))
+    assert len([m for m in slack.sent_messages if m.channel == CHANNELS["it-help"]]) == 1

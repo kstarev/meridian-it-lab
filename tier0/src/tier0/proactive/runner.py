@@ -2,12 +2,17 @@
 
 - Text only from code templates; this module has no model at all.
 - Dry-run by default: it records what it would send and posts nothing, previews included.
-- A preview goes to #it-team 24 h before each post, with a Cancel button. A signed button
-  press from #it-team cancels the post; a press from anywhere else is refused.
+- A preview goes to #it-team in IT's working hours before each post, with the full post
+  text and a Cancel button. What IT previewed is exactly what gets posted, or nothing is:
+  if the post changed since (different text, hour or offices), it isn't sent.
 - At most one post per Berlin day, checked here again after the scheduler.
-- A kill switch stops previews and posts. Every toggle is logged with who did it.
-- Every preview and post goes through the output guard; a blocked post isn't sent, and
-  #it-team is told.
+- Paused on every start: nothing is kept between runs, so the runner comes up with the
+  kill switch on until someone in #it-team presses Resume. It reads its own last pulse
+  check back from #it-help, so a restart can't repeat one.
+- The kill switch stops previews and posts. Every toggle and every refused button press
+  is logged with who did it.
+- Every message goes through the output guard; a blocked post isn't sent, and #it-team is
+  told.
 """
 
 import json
@@ -21,10 +26,30 @@ from tier0.guard import check_reply
 from tier0.identity.slack_signature import SignatureError, verify_slack_request
 from tier0.mocks.slack import CHANNELS, SlackHttpRequest
 from tier0.proactive import templates
+from tier0.proactive.calendar import COUNTRY_TZ
 from tier0.proactive.schedule import CHANNEL_IT_HELP, CHANNEL_IT_TEAM, Config, Post, State, plan
 
 PROACTIVE_PRINCIPAL = "tier0-proactive"
 CANCEL_ACTION = "cancel_post"
+RESUME_ACTION = "resume_posts"
+# Slack message subtypes that aren't a person saying something. Human subtypes such as
+# file_share, thread_broadcast or me_message do count as activity.
+SYSTEM_SUBTYPES = frozenset(
+    {
+        "bot_message",
+        "channel_join",
+        "channel_leave",
+        "channel_topic",
+        "channel_purpose",
+        "channel_name",
+        "channel_archive",
+        "channel_unarchive",
+        "pinned_item",
+        "unpinned_item",
+    }
+)
+# Slack's limit for one section block's text.
+_SECTION_LIMIT = 3000
 
 
 class SlackChannelsApi(Protocol):
@@ -55,6 +80,14 @@ class LogEntry:
     detail: str | None = None
 
 
+def _is_pulse_text(text: str) -> bool:
+    return any(text.startswith(v) for options in templates.PULSE.values() for v in options)
+
+
+def _ts_time(ts: str) -> datetime:
+    return datetime.fromtimestamp(float(ts), tz=UTC)
+
+
 class ProactiveRunner:
     def __init__(
         self,
@@ -74,11 +107,16 @@ class ProactiveRunner:
         self._domain = domain
         self.config = config if config is not None else Config()
         self.dry_run = dry_run
-        self.kill_switch = False
-        self.state = State()
         self.log: list[LogEntry] = []
         self._previews: dict[str, Post] = {}
         self._skips_logged: set[str] = set()
+        self._unknown_logged: set[str] = set()
+        self._pause_announced = False
+        # Nothing survives a restart, so start paused and remember the last pulse from
+        # #it-help itself.
+        self.kill_switch = True
+        self.state = State(last_pulse_at=self._last_own_pulse())
+        self._note("paused_on_start", detail="kill switch on until #it-team resumes")
 
     # --- controls ------------------------------------------------------------------
 
@@ -93,21 +131,43 @@ class ProactiveRunner:
     # --- inputs --------------------------------------------------------------------
 
     def countries(self) -> tuple[str, ...]:
+        """Office countries from the Directory. A code tier0 has no time zone for is
+        dropped and logged once, so it can't stop the posts for everyone else."""
         found = self._directory.resources_buildings_list(principal=PROACTIVE_PRINCIPAL)
         codes = {
             b.get("address", {}).get("regionCode")
             for b in found.get("buildings", [])
             if isinstance(b, dict)
         }
-        return tuple(sorted(c for c in codes if isinstance(c, str)))
+        known: set[str] = set()
+        for code in codes:
+            if not isinstance(code, str):
+                continue
+            if code in COUNTRY_TZ:
+                known.add(code)
+            elif code not in self._unknown_logged:
+                self._unknown_logged.add(code)
+                self._note("unknown_country", detail=code)
+        return tuple(sorted(known))
+
+    def _history(self) -> list[dict[str, Any]]:
+        found = self._slack.conversations_history(channel=CHANNELS[CHANNEL_IT_HELP])
+        return [m for m in found.get("messages", []) if isinstance(m, dict) and "ts" in m]
 
     def last_human_message(self) -> datetime | None:
-        """The newest #it-help message from a person. tier0's own never count."""
-        history = self._slack.conversations_history(channel=CHANNELS[CHANNEL_IT_HELP])
-        for message in history.get("messages", []):
-            if message.get("bot_id") or message.get("subtype"):
+        """The newest #it-help message from a person. tier0's own messages and system
+        messages (joins, topic changes) never count; a shared file or a thread reply sent
+        to the channel does."""
+        for message in self._history():
+            if message.get("bot_id") or message.get("subtype") in SYSTEM_SUBTYPES:
                 continue
-            return datetime.fromtimestamp(float(message["ts"]), tz=UTC)
+            return _ts_time(message["ts"])
+        return None
+
+    def _last_own_pulse(self) -> datetime | None:
+        for message in self._history():
+            if message.get("bot_id") and _is_pulse_text(str(message.get("text", ""))):
+                return _ts_time(message["ts"])
         return None
 
     # --- the tick ------------------------------------------------------------------
@@ -116,7 +176,8 @@ class ProactiveRunner:
         """Send whatever is due now. Returns the log entries this tick added."""
         start = len(self.log)
         if self.kill_switch:
-            return []
+            self._announce_pause()
+            return self.log[start:]
         due = plan(
             self._clock.now(),
             self.countries(),
@@ -133,6 +194,37 @@ class ProactiveRunner:
                 self._skips_logged.add(post.post_id)
                 self._note("skipped", post, post.channel, detail=reason)
         return self.log[start:]
+
+    def _announce_pause(self) -> None:
+        if self._pause_announced:
+            return
+        self._pause_announced = True
+        text = templates.PAUSED_ON_START
+        if self.dry_run or not self._guard_ok(text):
+            self._note(
+                "would_announce_pause" if self.dry_run else "blocked", channel=CHANNEL_IT_TEAM
+            )
+            return
+        self._slack.chat_post_message(
+            channel=CHANNELS[CHANNEL_IT_TEAM],
+            text=text,
+            blocks=[
+                {"type": "section", "text": {"type": "mrkdwn", "text": text}},
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "action_id": RESUME_ACTION,
+                            "value": "resume",
+                            "style": "primary",
+                            "text": {"type": "plain_text", "text": "Resume"},
+                        }
+                    ],
+                },
+            ],
+        )
+        self._note("announced_pause", channel=CHANNEL_IT_TEAM)
 
     def _preview(self, post: Post) -> None:
         if not self._guard_ok(post.text) or not self._guard_ok(self._preview_text(post)):
@@ -159,13 +251,24 @@ class ProactiveRunner:
         if post.berlin_day in self.state.broadcast_days:
             self._note("refused_second_post_today", post, post.channel)
             return
+        # What IT previewed is exactly what gets posted, or nothing is.
+        seen = self._previews.get(post.post_id)
+        if seen != post:
+            self._note(
+                "changed_since_preview" if seen is not None else "not_previewed",
+                post,
+                post.channel,
+                detail="not sent: it differs from what #it-team saw" if seen else None,
+            )
+            self.state = replace(self.state, cancelled=self.state.cancelled | {post.post_id})
+            return
         if not self._guard_ok(post.text):
             self._blocked(post)
             return
         if self.dry_run:
             self._note("would_post", post, post.channel)
         else:
-            response = self._slack.chat_post_message(channel=CHANNELS[post.channel], text=post.text)
+            response = self._slack.chat_post_message(channel=CHANNELS[post.channel], text=seen.text)
             if not response.get("ok"):
                 self._note("post_failed", post, post.channel)
                 return
@@ -177,29 +280,37 @@ class ProactiveRunner:
             last_pulse_at=self._clock.now() if post.kind == "pulse" else self.state.last_pulse_at,
         )
 
-    # --- the Cancel button ---------------------------------------------------------
+    # --- buttons: Cancel and Resume --------------------------------------------------
 
     def handle_interaction(self, request: SlackHttpRequest) -> str:
-        """A button press from Slack. Only a signed Cancel from #it-team counts."""
+        """A button press from Slack. Only signed presses from #it-team count; every
+        refused one is logged."""
         try:
             verify_slack_request(
                 request.headers, request.body, signing_secret=self._secret, now=self._clock.now()
             )
         except SignatureError as error:
+            self._note("press_rejected", detail=f"signature: {error.reason}")
             return f"rejected: {error.reason}"
         try:
             payload = json.loads(parse_qs(request.body.decode())["payload"][0])
-        except (KeyError, IndexError, ValueError):
+            channel = (payload.get("channel") or {}).get("id")
+            user = (payload.get("user") or {}).get("id")
+            actions = payload.get("actions") or []
+            action = actions[0] if actions and isinstance(actions[0], dict) else {}
+        except (KeyError, IndexError, ValueError, AttributeError):
+            self._note("press_rejected", detail="malformed")
             return "rejected: malformed"
-        channel = (payload.get("channel") or {}).get("id")
-        user = (payload.get("user") or {}).get("id")
-        actions = payload.get("actions") or []
-        action = actions[0] if actions and isinstance(actions[0], dict) else {}
-        if action.get("action_id") != CANCEL_ACTION:
+        action_id = action.get("action_id")
+        if action_id not in (CANCEL_ACTION, RESUME_ACTION):
+            self._note("press_rejected", detail=f"unknown action from {user}")
             return "ignored"
         if channel != CHANNELS[CHANNEL_IT_TEAM]:
-            self._note("cancel_refused", detail=f"from {channel} by {user}")
-            return "refused: cancel only works from #it-team"
+            self._note("press_refused", detail=f"{action_id} from {channel} by {user}")
+            return "refused: only works from #it-team"
+        if action_id == RESUME_ACTION:
+            self.set_kill_switch(False, by=str(user))
+            return "resumed"
         post_id = str(action.get("value"))
         if post_id in self.state.sent:
             return "too late: already posted"
@@ -226,8 +337,12 @@ class ProactiveRunner:
         return templates.PREVIEW.format(when=when, channel=f"#{post.channel}")
 
     def _preview_blocks(self, post: Post) -> list[dict[str, Any]]:
+        """The header, the full post text (Slack shows blocks, not `text`, when both are
+        sent), then the Cancel button."""
+        body = [post.text[i : i + _SECTION_LIMIT] for i in range(0, len(post.text), _SECTION_LIMIT)]
         return [
             {"type": "section", "text": {"type": "mrkdwn", "text": self._preview_text(post)}},
+            *({"type": "section", "text": {"type": "plain_text", "text": part}} for part in body),
             {
                 "type": "actions",
                 "elements": [

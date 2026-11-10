@@ -384,7 +384,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **Holidays:** national holidays from `holidays==0.108`, pinned in `pyproject.toml` and `uv.lock`, for 14 office countries, each with one representative time zone. IT coverage follows Berlin (German national plus Berlin state holidays). A holiday that falls on a weekend and gives nobody a weekday off gets no note of its own (German Unity Day 2027 is a Sunday). It still appears in a note that has a real day off, with the weekend-cover line: 1 May 2027 is a Saturday for Germany, but Poland is off on Monday 3 May too.
 - **Merging, with at most one post per Berlin day:**
   - The same holiday start in several countries is one note, like 1 May 2027 across six countries.
-  - A different holiday that would land on a taken day moves to a free day up to 2 days earlier, still before it starts; it merges only if none is free.
+  - A different holiday that would land on a taken day moves to a free Berlin working day up to 2 days earlier, still before it starts, never onto a weekend or holiday; it merges only if none is free.
   - The hour is picked within that Berlin day, before anyone listed is off: nobody at night (22:00–07:00 local) if any hour allows it, then as many offices as possible in 08:00–18:00, then the hour closest to the earliest office's 09:00.
 - **The year-end note** goes to everyone and absorbs every block that touches 24 December to 1 January, including substitute days after it (the UK's Monday 3 January 2028).
 - **Languages:** English plus German, Spanish or French where an office uses them. Portuguese, Polish, Dutch and Japanese offices get English only. Turning on a local language that has no reviewed templates is refused, so no unreviewed text can reach a company-wide post.
@@ -394,10 +394,16 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - IT's days off for this are weekends, German and Berlin holidays, the year-end break and any extra days IT marks (for example an offsite).
   - If the latest such slot would be more than 7 days before the post, there is no slot: the post isn't sent, and the log records `no_preview_slot`.
   - A post needs a preview at least 23 h old; the hour of slack covers the runner's tick. A late preview is skipped rather than sent for a post that can no longer go out.
-  - Cancel is a signed Slack interaction, accepted only from #it-team; a forged press, or one from elsewhere, is refused and logged.
+  - The preview shows the full post text in its blocks, which is what Slack displays, above the Cancel button.
+  - **What IT previewed is exactly what gets posted, or nothing is.** At send time, the runner compares the post with the one it previewed (text, hour, offices). If anything changed, for example an office opened in the Directory in between, nothing is posted and the log records `changed_since_preview`.
+  - A pulse check is previewed only while no earlier one in the same quiet streak is pending, so IT never reviews a check-in that can't go out.
+  - Cancel and Resume are signed Slack interactions, accepted only from #it-team. A forged or malformed press, or one from elsewhere, is refused, and every refusal is logged with its reason.
 - **Defaults and limits:**
   - Dry-run is on by default: nothing reaches Slack, previews included, and the log says what would have been sent.
   - The kill switch and the incident flag are logged with who set them.
+  - **Paused on every start.** Nothing is kept between runs, so the runner starts with the kill switch on, tells #it-team, and waits for a Resume press there. It reads its own last pulse check back from #it-help history, so a restart can't repeat one within a streak or within 14 days.
+  - A Directory country tier0 has no time zone for is dropped and logged once, rather than stopping the posts for every other office.
+  - Activity in #it-help counts people's messages, including shared files and thread replies sent to the channel. tier0's own posts and system messages (joins, topic changes) don't count.
   - The runner refuses a second post on the same Berlin day even if the scheduler slipped.
   - Every preview and post goes through the output guard. A blocked one isn't sent, and #it-team is told.
 - **Preview command:** `make holidays-preview YEAR=2027` prints the year (`SEED=` for a dataset's offices, `COUNTRIES=all` for all 14).
@@ -408,7 +414,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 - **Some posts can't avoid the night for everyone.** With all 14 offices, two 2027 posts have no hour that keeps every listed office out of the night: Good Friday (Australia gets 23:00) and the year-end note (Australia 23:00, Mexico 06:00). The preview flags each such post.
 - **Long breaks can cancel a post.** If IT has no working slot in the 7 days before a post, the post is skipped and logged; a post on Monday 3 January 2028, right after the break, would be. None of the 2027 posts is affected.
-- **State is kept in memory only.** A restart forgets what was previewed, so previews and posts in flight are skipped rather than repeated. Persisting it is future work.
+- **State is kept in memory only.** A restart forgets what was previewed, so previews and posts in flight are skipped rather than repeated. The safety controls don't depend on that memory: the runner starts paused until #it-team resumes it, and the last pulse time comes back from #it-help. But a kill switch IT turned on is not remembered as such, only replaced by the start-up pause, and an incident flag has to be set again. Persisting state is future work.
 
 ## ADR-021: The triage prompt is frozen, and only held-out v2 counts as performance
 

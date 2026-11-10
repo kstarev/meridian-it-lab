@@ -14,7 +14,7 @@ from tier0.clock import MockClock
 from tier0.mocks.directory import MockDirectory
 from tier0.proactive.calendar import BERLIN, COUNTRY_TZ, tz
 from tier0.proactive.runner import PROACTIVE_PRINCIPAL
-from tier0.proactive.schedule import Config, Post, holiday_schedule, preview_slot
+from tier0.proactive.schedule import Config, Post, holiday_schedule, is_night, preview_slot
 
 
 def _countries(seed: int, which: str | None) -> tuple[str, ...]:
@@ -39,7 +39,7 @@ def _night(post: Post, config: Config) -> list[str]:
     out = []
     for c in post.countries:
         local = post.send_at.astimezone(tz(c))
-        if local.hour >= config.night[0] or local.hour < config.night[1]:
+        if is_night(local.hour, config.night):
             out.append(f"{c} {local:%H:%M}")
     return out
 
@@ -91,11 +91,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--countries", default=None, help="'all' or a comma list, e.g. DE,ES")
     parser.add_argument("--text", action="store_true", help="also print each post's text")
     args = parser.parse_args(argv)
-    unknown = [c for c in _countries(args.seed, args.countries) if c not in COUNTRY_TZ]
+    countries = _countries(args.seed, args.countries)
+    unknown = [c for c in countries if c not in COUNTRY_TZ]
     if unknown:
         print(f"unknown countries: {', '.join(unknown)}", file=sys.stderr)
         return 2
-    print(render(args.year, _countries(args.seed, args.countries), full_text=args.text))
+    print(render(args.year, countries, full_text=args.text))
     return 0
 
 
