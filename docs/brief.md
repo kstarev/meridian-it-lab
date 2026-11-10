@@ -157,7 +157,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **No user enumeration:** a refusal or an outsider reply reads the same whether or not the person it mentions exists, and a request about someone else always gets the refusal reply, even when tier0 hands it to a person.
   - **The sweeper's closing note** uses the same templates and locale.
   - **A light closer** on about a third of answers and closing notes ("Mystery solved 🔍", "Have a good weekend!" on the requester's Friday), never on refusals, outsider replies, hand-offs or the guard fallback.
-- **Mini-milestone, proactive posts (after personality; not built yet, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates.
+- **Mini-milestone, proactive posts (built on branch `proactive-posts`, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates. Dry-run is the default.
   - **Holiday notes:** short, warm, not-too-specific notes to #general (country channels optional, configurable).
     - Holidays come from the Python `holidays` package for each country in the directory: national holidays only. German state holidays only change the IT coverage line. A few cultural days are opt-in per country (for example Halloween for the US and Canada), and the year-end note goes to everyone.
     - Timing: the working day before, at 09:00 in that country's time zone, so people see it before they're off.

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "tier0: an AI service desk agent for Meridian (fictional). Runs offline on mocks and fake data."
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "holidays==0.108",
     "mcp==2.3.0",
     "meridian-dataset",
     "opentelemetry-api==1.45.2",

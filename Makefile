@@ -6,9 +6,11 @@ SEED ?= 1108
 EVAL_SEED ?=
 EVAL_MODEL ?= stub
 EVAL_PUBLISH ?=
+YEAR ?= 2027
+COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data lint format test eval demo
+.PHONY: help setup data lint format test eval demo holidays-preview
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -35,3 +37,6 @@ eval: ## Run the tier0 eval (k=3): stub on the tuning seed, EVAL_MODEL=ollama on
 
 demo: ## Run the offline demo: six tickets through tier0, then the 3-day close
 	$(UV_RUN) python -m tier0.demo --out out/demo
+
+holidays-preview: ## Print a year's proactive-post schedule, nothing sent (YEAR=2027, SEED=1108 or COUNTRIES=all)
+	$(UV_RUN) python -m tier0.proactive.preview --year $(YEAR) --seed $(SEED) $(if $(COUNTRIES),--countries $(COUNTRIES))
