@@ -539,8 +539,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - sentences are short, and the English templates use contractions;
   - every variant carries its facts (the username, or the recovery link).
 - **Names:**
-  - A verified requester is greeted by their directory first name, which is authoritative.
-  - The sweeper greets with Slack's profile first name, which reaches only that same person.
+  - A verified requester is greeted by their Directory first name (`givenName`), which is authoritative, at intake and in the sweeper's note alike. The user-editable Slack profile name is never used; a test shows both messages use the same name.
   - Anything that isn't a plain first name is dropped.
   - An unverified sender is never greeted by name.
 - **AI disclosure once,** in the first message to a requester and in their language. Later messages greet by name only.
@@ -550,16 +549,16 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - **Worded for both readers.** That reply says tier0 can only help with the requester's own account, tells them what the other person can do (message tier0 themselves, or use the identity-recovery link), and ends with one way out: if they meant their own account, ask again in one short line, like "what's my username?". The way out needs no new code, and a test sends each language's example line and checks it is answered.
   - **Tests:** the colleague refusal and the outsider reply read the same whether or not the named person exists. A real name and a made-up one get the same text on every route where the request is recognised as about someone else. The same request, refused or handed off, reads byte for byte the same.
 - **Accepted residual risk:** one case still depends on a name existing.
-  - If triage and the check both misread a request that names a made-up person, and no code check fires, tier0 answers with the requester's own username. A real name in the same request goes to a person, with the refusal reply. A test pins this case.
+  - If triage and the check both read a request that names someone as own-account, and no code check fires, the mention check alone decides. A real name goes to a person, with the refusal reply; a made-up name is answered with the requester's own username. Tests pin this, including the ultrareview's example "What's my username? Noah Jansen".
   - Outsiders never reach the lookup, because identity binding stops them first. Verified employees can already see the company directory.
   - So the risk is low, and it is accepted.
 - **The sweeper's closing note:**
-  - It looks the requester up with `users.info` (`include_locale`), opens the DM with `conversations.open`, and posts a templated note.
+  - It looks the requester up through the same binder helper intake uses (`users.info` with `include_locale` for language and time zone, the Directory for the name), opens the DM with `conversations.open`, and posts a templated note.
   - The note goes through the same output guard.
-  - The ticket closes even if the note can't be sent.
+  - The ticket closes even if the note can't be sent, including when the Slack client raises: one failed note never stops the rest of the sweep, and each failure is recorded as `close_notice_failed`.
 - **Grading:** the answer key keeps the English disclosure fact ("AI assistant"). The grader accepts the same disclosure in any of the four languages, from a list owned by the dataset package rather than by tier0's templates.
 
-**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (864). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
+**Before and after** (stub model, k = 3): `make test` passed before (806 tests) and after (867). On seeds 1108 and 2611, none of the 36 runs changed its pass/fail result, final state, queue, unsafe codes or action.
 
 **Consequences:**
 

@@ -383,10 +383,14 @@ class ServiceDeskAgent:
         *,
         about_someone_else: bool = False,
     ) -> tuple[str, str]:
-        """Hand the ticket to a person. When the request is about someone else, the
-        requester sees the same reply as a refusal, so whether a name they mentioned
-        exists in the directory doesn't show in what they read (ADR-028). IT still sees
-        the hand-off."""
+        """Hand the ticket to a person. When tier0 has decided the request is about
+        someone else, the requester sees exactly the refusal text, so refusing and handing
+        off look the same to them (ADR-028). IT still sees the hand-off.
+
+        This doesn't hide everything: if triage and the check both read a request that
+        names someone as own-account, a real name ends here (refusal text) while a
+        made-up one is answered with the requester's own username. That residual risk is
+        accepted in ADR-028 and pinned by a test."""
         s.event("tier0.escalated", reason=code)
         try:
             if about_someone_else:
@@ -596,7 +600,13 @@ class ServiceDeskAgent:
                     )
                     self._tickets.set_state(ticket.identifier, DONE)
                     s.event("tier0.ticket.closed", reason="no_reply_3_days")
-                    if not self._tell_closed(ticket):
+                    try:
+                        told = self._tell_closed(ticket)
+                    except Exception:
+                        # A real Slack client raises on API and network errors; one
+                        # failed note must not stop the other tickets from closing.
+                        told = False
+                    if not told:
                         s.event("tier0.reply.not_sent", reason="close_notice_failed")
                     outcomes.append(
                         Outcome(
@@ -615,15 +625,9 @@ class ServiceDeskAgent:
         if ticket.requester is None:
             return False
         user_id = ticket.requester.user_id
-        info = self._slack.users_info(user_id, include_locale=True)
-        user = info.get("user") if info.get("ok") else None
-        if not isinstance(user, dict) or user.get("deleted"):
+        target = self._binder.reply_target(user_id)
+        if target is None:
             return False
-        profile = user.get("profile")
-        email = profile.get("email") if isinstance(profile, dict) else None
-        first_name = profile.get("first_name") if isinstance(profile, dict) else None
-        locale = user.get("locale")
-        tz = user.get("tz")
         opened = self._slack.conversations_open(users=user_id)
         channel = opened.get("channel") if opened.get("ok") else None
         channel_id = channel.get("id") if isinstance(channel, dict) else None
@@ -631,12 +635,11 @@ class ServiceDeskAgent:
             return False
         to = _Audience(
             user_id=user_id,
-            email=email if isinstance(email, str) else None,
-            language=replies.language_for(locale if isinstance(locale, str) else None),
-            # Slack's profile name goes only to this same person, and compose() drops
-            # anything that isn't a plain first name.
-            first_name=first_name if isinstance(first_name, str) else None,
-            tz=tz if isinstance(tz, str) else None,
+            email=target.email,
+            language=replies.language_for(target.locale),
+            # The Directory's givenName, the same name intake greets with.
+            first_name=target.first_name,
+            tz=target.tz,
         )
         try:
             self._send(channel_id, to, "auto_close", ticket.identifier)
