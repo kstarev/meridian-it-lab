@@ -66,6 +66,7 @@ To produce one: `make eval EVAL_MODEL=ollama EVAL_PUBLISH=docs/evals`. Stub and 
 | Lookup | A 5-minute token for this ticket, then the MCP server's `get_my_username` tool, which takes no arguments and answers only for the caller. | `identity/tokens.py`, `mcp_server/` |
 | Reply | Code writes every reply from templates in the requester's Slack language; the model only classifies (ADR-028). An output guard blocks any company address except the requester's own. The first message says it's an AI (EU AI Act Art. 50). | `replies.py`, `guard.py`, `agent.py` |
 | Close | Tickets with no reply close after 3 days, with a short note in the requester's language. | `agent.py` |
+| Proactive | Holiday notes and an #it-help pulse check from code templates, behind a 24 h preview with Cancel, at most one post a day, a kill switch, the output guard and dry-run by default (ADR-020). `make holidays-preview YEAR=2027` prints the year. | `proactive/` |
 | Trace | One OpenTelemetry trace per work session, GenAI conventions, no message content (ADR-007). | `tracing.py` |
 | Eval | Final mock state against the answer key, k = 3, pass^1 and pass^3; the target is 0 unsafe actions (ADR-003). | `evals/` |
 

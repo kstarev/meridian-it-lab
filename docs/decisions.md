@@ -359,7 +359,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-020: Proactive posts come only from templates, with a preview and strict limits
 
-**Date:** 2026-11-09 · **Status:** Accepted, not built yet (a mini-milestone after "personality" in the brief)
+**Date:** 2026-11-09 · **Status:** Accepted; built 2026-11-10 on branch `proactive-posts` (see "As built" below)
 
 **Context:** tier0 only answers people today. Two proactive posts would help: holiday notes that say what IT coverage looks like before people are off, and a pulse check when #it-help has been quiet, which may surface problems nobody reported. But a bot that can message the whole company is a high-impact channel: a wrong, repeated or manipulated broadcast reaches everyone at once, and company-wide messages from IT are what phishing imitates.
 
@@ -376,6 +376,37 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - The worst case of a bad or manipulated post is bounded: one per day, previewed, cancellable and switchable off, with no model-written text to inject into.
 - Templates in four languages and per-country rules are ongoing work, and the `holidays` package becomes a dependency to pin and update.
 - Success is measured (tickets within 24 h of a pulse check), not assumed.
+
+**As built (2026-11-10):**
+
+- **A pure scheduler** (`tier0/proactive/schedule.py`): given the time, the office countries, the last human message in #it-help and what has been sent, it returns the previews and posts due. It has no I/O, no clock of its own and no model; tests drive it with the mock clock. A runner (`runner.py`) does the sending.
+- **Offices from the Directory without user data:** a `resources.buildings.list`-style call returns one building per country, under its own logged principal.
+- **Holidays:** national holidays from `holidays==0.108`, pinned in `pyproject.toml` and `uv.lock`, for 14 office countries, each with one representative time zone. IT coverage follows Berlin (German national plus Berlin state holidays). A holiday that falls on a weekend still gets a note on the working day before, with the weekend-cover line.
+- **Merging, with at most one post per Berlin day:**
+  - The same holiday start in several countries is one note, like 1 May 2027 across six countries.
+  - A different holiday that would land on a taken day moves to a free day up to 2 days earlier, still before it starts; it merges only if none is free.
+  - The hour is picked within that Berlin day, before anyone listed is off: nobody at night (22:00–07:00 local) if any hour allows it, then as many offices as possible in 08:00–18:00, then the hour closest to the earliest office's 09:00.
+- **The year-end note** goes to everyone and absorbs every block that touches 24 December to 1 January, including substitute days after it (the UK's Monday 3 January 2028).
+- **Languages:** English plus German, Spanish or French where an office uses them. Portuguese, Polish, Dutch and Japanese offices get English only. Turning on a local language that has no reviewed templates is refused, so no unreviewed text can reach a company-wide post.
+- **Pulse check:** as decided above. "Working days" means Berlin working days, and a reduced-coverage day is a Berlin holiday, the year-end break, or a date IT marks.
+- **Previews:**
+  - A preview goes out 24 h before each post, with a Cancel button.
+  - A post needs a preview at least 23 h old; the hour of slack covers the runner's tick. A late preview is skipped rather than sent for a post that can no longer go out.
+  - Cancel is a signed Slack interaction, accepted only from #it-team; a forged press, or one from elsewhere, is refused and logged.
+- **Defaults and limits:**
+  - Dry-run is on by default: nothing reaches Slack, previews included, and the log says what would have been sent.
+  - The kill switch and the incident flag are logged with who set them.
+  - The runner refuses a second post on the same Berlin day even if the scheduler slipped.
+  - Every preview and post goes through the output guard. A blocked one isn't sent, and #it-team is told.
+- **Preview command:** `make holidays-preview YEAR=2027` prints the year (`SEED=` for a dataset's offices, `COUNTRIES=all` for all 14).
+- **Not built yet:** opt-in cultural days (no country has any configured).
+- **Measured:** pass/fail on seeds 1108 and 2611 didn't move (0 of 36 stub runs changed); triage, the checks and the eval code are untouched.
+
+**Consequences, as built:**
+
+- **Some posts can't avoid the night for everyone.** With all 14 offices, two 2027 posts have no hour that keeps every listed office out of the night: Good Friday (Australia gets 23:00) and the year-end note (Australia 23:00, Mexico 06:00). The preview flags each such post.
+- **Previews can land on a weekend.** They follow the post 24 h earlier, so a Monday post's preview arrives on a Sunday.
+- **State is kept in memory only.** A restart forgets what was previewed, so previews and posts in flight are skipped rather than repeated. Persisting it is future work.
 
 ## ADR-021: The triage prompt is frozen, and only held-out v2 counts as performance
 

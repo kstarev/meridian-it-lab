@@ -8,6 +8,7 @@ import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode
 
 from meridian_dataset import World
 from meridian_dataset.model import ExternalSlackUser, Person, Ticket
@@ -57,6 +58,21 @@ class SlackRead:
     include_locale: bool = False
 
 
+# Public channels tier0 knows by name (ADR-020): #general for holiday notes, #it-help for
+# the pulse check, #it-team for previews.
+CHANNELS = {"general": "C0GENERAL1", "it-help": "C0ITHELP01", "it-team": "C0ITTEAM01"}
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelMessage:
+    """A message a person posted in a channel (tests put these in)."""
+
+    channel: str
+    user: str
+    text: str
+    ts: str
+
+
 @dataclass(frozen=True, slots=True)
 class SentMessage:
     """One message the bot posted."""
@@ -65,6 +81,7 @@ class SentMessage:
     text: str
     ts: str
     thread_ts: str | None
+    blocks: tuple[dict[str, Any], ...] = ()
 
 
 class MockSlack:
@@ -76,6 +93,7 @@ class MockSlack:
         self._secret = signing_secret if signing_secret is not None else secrets.token_bytes(32)
         self._reads: list[SlackRead] = []
         self._sent: list[SentMessage] = []
+        self._human: list[ChannelMessage] = []
         self._counter = 0
 
     @property
@@ -97,6 +115,7 @@ class MockSlack:
     def reset(self) -> None:
         self._reads.clear()
         self._sent.clear()
+        self._human.clear()
         self._counter = 0
 
     def _epoch(self) -> int:
@@ -212,13 +231,26 @@ class MockSlack:
         }
 
     def chat_post_message(
-        self, *, channel: str, text: str, thread_ts: str | None = None
+        self,
+        *,
+        channel: str,
+        text: str,
+        thread_ts: str | None = None,
+        blocks: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Like chat.postMessage. Records the message for grading."""
         if not text.strip():
             return {"ok": False, "error": "no_text"}
         ts = self._next_ts()
-        self._sent.append(SentMessage(channel=channel, text=text, ts=ts, thread_ts=thread_ts))
+        self._sent.append(
+            SentMessage(
+                channel=channel,
+                text=text,
+                ts=ts,
+                thread_ts=thread_ts,
+                blocks=tuple(copy.deepcopy(blocks or [])),
+            )
+        )
         message: dict[str, Any] = {
             "type": "message",
             "user": BOT_USER_ID,
@@ -230,6 +262,57 @@ class MockSlack:
         if thread_ts is not None:
             message["thread_ts"] = thread_ts
         return copy.deepcopy({"ok": True, "channel": channel, "ts": ts, "message": message})
+
+    def post_as_person(self, channel: str, user: str, text: str) -> ChannelMessage:
+        """A person posts in a channel, now (tests use this for #it-help activity)."""
+        message = ChannelMessage(channel=channel, user=user, text=text, ts=self._next_ts())
+        self._human.append(message)
+        return message
+
+    def conversations_history(self, *, channel: str, oldest: str | None = None) -> dict[str, Any]:
+        """Like conversations.history: newest first, people's and the bot's messages alike,
+        so callers have to tell them apart (the bot's carry bot_id)."""
+        self._reads.append(
+            SlackRead(
+                method="conversations.history", user=channel, at=format_time(self._clock.now())
+            )
+        )
+        floor = float(oldest) if oldest else float("-inf")
+        people = [
+            {"type": "message", "user": m.user, "text": m.text, "ts": m.ts}
+            for m in self._human
+            if m.channel == channel and float(m.ts) >= floor
+        ]
+        bot = [
+            {"type": "message", "user": BOT_USER_ID, "bot_id": BOT_ID, "text": m.text, "ts": m.ts}
+            for m in self._sent
+            if m.channel == channel and float(m.ts) >= floor
+        ]
+        messages = sorted(people + bot, key=lambda m: float(m["ts"]), reverse=True)
+        return {"ok": True, "messages": messages}
+
+    def button_click(
+        self, *, channel: str, user: str, action_id: str, value: str
+    ) -> SlackHttpRequest:
+        """The signed request Slack would POST when someone presses a button: a form
+        body with one `payload` field holding the interaction JSON."""
+        payload = {
+            "type": "block_actions",
+            "team": {"id": self.team_id},
+            "user": {"id": user},
+            "channel": {"id": channel},
+            "actions": [{"type": "button", "action_id": action_id, "value": value}],
+        }
+        body = urlencode({"payload": json.dumps(payload, separators=(",", ":"))}).encode()
+        ts = self._epoch()
+        return SlackHttpRequest(
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-Slack-Request-Timestamp": str(ts),
+                "X-Slack-Signature": self.sign(body, ts),
+            },
+            body=body,
+        )
 
     @staticmethod
     def dm_channel_for(slack_user_id: str) -> str:

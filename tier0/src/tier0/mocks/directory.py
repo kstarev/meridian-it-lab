@@ -48,6 +48,7 @@ class MockDirectory:
         self._by_id: dict[str, dict[str, Any]] = {}
         self._by_email: dict[str, str] = {}
         self._by_name: dict[str, list[str]] = {}
+        self._people = tuple(world.people)
         for person in world.people:
             self._by_id[person.directory_id] = self._build(world, person)
             self._by_email[person.primary_email.lower()] = person.directory_id
@@ -143,6 +144,28 @@ class MockDirectory:
         if wanted is not None:
             resource = {key: resource[key] for key in wanted if key in resource}
         return resource
+
+    def resources_buildings_list(self, *, principal: str) -> dict[str, Any]:
+        """Like Google's resources.buildings.list: one building per office country, with
+        no user data. The proactive scheduler only needs which countries exist (ADR-020).
+        The mock derives the buildings from where active employees work."""
+        countries = sorted({p.country for p in self._people if p.status == "active"})
+        self._reads.append(
+            DirectoryRead(
+                principal=principal,
+                method="resources.buildings.list",
+                user_key="",
+                resolved_id=None,
+                fields=("buildingId", "address.regionCode"),
+                at=format_time(self._clock.now()),
+            )
+        )
+        return {
+            "buildings": [
+                {"buildingId": f"office-{c.lower()}", "address": {"regionCode": c}}
+                for c in countries
+            ]
+        }
 
     def users_list(
         self,
