@@ -581,3 +581,101 @@ def test_closers_never_reach_refusals_or_outsiders_end_to_end() -> None:
                 assert not any(c in msg.text for c in closers), msg.text
         for msg in rt.slack.sent_messages:
             assert len(_EMOJI.findall(msg.text)) <= 1
+
+
+# --- ultrareview fixes ------------------------------------------------------------------
+
+
+def test_one_slack_error_doesnt_stop_the_sweep() -> None:
+    """A real Slack client raises on API and network errors. The sweeper closes every
+    ticket due anyway and records close_notice_failed for each note it couldn't send."""
+    world = generate(DEFAULT_SEED)
+    normal = [t for t in world.tickets if world.answer_key.entry(t.id).scenario == "normal"]
+    assert len(normal) >= 2
+
+    async def main() -> tuple[Runtime, tuple[Outcome, ...]]:
+        async with offline_runtime(world, model=StubModel()) as rt:
+            for ticket in normal[:2]:
+                rt.clock.advance_to(parse_time(ticket.received_at))
+                await rt.agent.handle(rt.slack.message_event(ticket))
+
+            def broken(*args: object, **kwargs: object) -> dict[str, Any]:
+                raise RuntimeError("slack is down")
+
+            rt.slack.users_info = broken  # type: ignore[method-assign]
+            rt.clock.advance(timedelta(days=3, minutes=1))
+            return rt, rt.agent.sweep()
+
+    rt, swept = anyio.run(main)
+    assert [o.action for o in swept] == ["close", "close"]
+    assert all(t.state == "Done" for t in rt.tickets.find_tickets())
+    reasons = [
+        (ev.attributes or {}).get("reason")
+        for sp in rt.tracer.finished_spans()
+        for ev in sp.events
+        if ev.name == "tier0.reply.not_sent"
+    ]
+    assert reasons == ["close_notice_failed", "close_notice_failed"]
+
+
+def test_intake_and_the_closing_note_use_the_same_directory_name() -> None:
+    """The first name always comes from the Directory's givenName, even when the
+    user-editable Slack profile says something else."""
+    world = generate(DEFAULT_SEED)
+    ticket = next(t for t in world.tickets if world.answer_key.entry(t.id).scenario == "normal")
+    person = world.person_by_slack_id(ticket.sender_slack_user_id)
+    assert person is not None
+
+    async def main() -> Runtime:
+        async with offline_runtime(world, model=StubModel()) as rt:
+            real_info = rt.slack.users_info
+
+            def renamed(user: str, *, include_locale: bool = False) -> dict[str, Any]:
+                info = real_info(user, include_locale=include_locale)
+                info["user"]["profile"]["first_name"] = "Nickname"
+                return info
+
+            rt.slack.users_info = renamed  # type: ignore[method-assign]
+            rt.clock.advance_to(parse_time(ticket.received_at))
+            await rt.agent.handle(rt.slack.message_event(ticket))
+            rt.clock.advance(timedelta(days=3, minutes=1))
+            rt.agent.sweep()
+            return rt
+
+    rt = anyio.run(main)
+    answer, closing = (m.text for m in rt.slack.sent_messages)
+    assert "Nickname" not in answer and "Nickname" not in closing
+    assert person.given_name in answer.splitlines()[0]
+    assert person.given_name in closing.splitlines()[0]
+
+
+def test_accepted_residual_the_reviewers_noah_jansen_example() -> None:
+    """Accepted residual risk (ADR-028), the ultrareview's exact example: an own-username
+    request that also names someone. Triage and the check read it as own-account, so
+    the mention check alone decides: a real name (Noah Jansen, in this world's directory)
+    gets the refusal text, a made-up name gets the requester's own username. Only
+    verified employees get this far, and they can already see the directory."""
+    world = next(
+        w
+        for w in map(generate, range(DEFAULT_SEED, DEFAULT_SEED + 100))
+        if w.message_pool == "tuning" and any(p.full_name == "Noah Jansen" for p in w.people)
+    )
+    base = next(
+        t
+        for t in world.tickets
+        if world.answer_key.entry(t.id).scenario == "normal"
+        and world.person_by_slack_id(t.sender_slack_user_id).full_name != "Noah Jansen"  # type: ignore[union-attr]
+    )
+    requester = world.person_by_slack_id(base.sender_slack_user_id)
+    assert requester is not None
+
+    def reply(text: str) -> str:
+        rt, _ = _deliver(world, [dataclasses.replace(base, text=text)])
+        (sent,) = (m.text for m in rt.slack.sent_messages)
+        return sent
+
+    real = reply("What's my username? Noah Jansen")
+    fake = reply("What's my username? Quentin Zabriskie")
+    assert _is_refusal(real, world) and requester.primary_email not in real
+    assert not _is_refusal(fake, world) and requester.primary_email in fake
+    assert "noah.jansen" not in real.lower() and "Noah" not in real

@@ -11,6 +11,41 @@ GATEWAY_PRINCIPAL = "tier0-gateway"
 DIRECTORY_FIELDS = ("id", "primaryEmail", "suspended", "archived", "name")
 
 
+@dataclass(frozen=True, slots=True)
+class SlackProfile:
+    """What a reply needs from Slack's users.info (with include_locale)."""
+
+    email: str | None
+    locale: str | None
+    tz: str | None
+
+
+def slack_profile(user: Mapping[str, Any]) -> SlackProfile:
+    """Read email, locale and time zone from a users.info `user` object. The one place
+    this is parsed, for intake and the sweeper alike (ADR-028)."""
+
+    def text(value: object) -> str | None:
+        return value if isinstance(value, str) and value else None
+
+    profile = user.get("profile")
+    return SlackProfile(
+        email=text(profile.get("email")) if isinstance(profile, Mapping) else None,
+        locale=text(user.get("locale")),
+        tz=text(user.get("tz")),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ReplyTarget:
+    """Who a later message (the sweeper's note) goes to, read fresh from Slack and the
+    Directory. The first name is always the Directory's givenName, as at intake."""
+
+    email: str | None
+    locale: str | None
+    tz: str | None
+    first_name: str | None
+
+
 class SlackUsersApi(Protocol):
     """The one Slack call the binder needs."""
 
@@ -103,10 +138,8 @@ class IdentityBinder:
         user = info.get("user")
         if not isinstance(user, dict):
             return refuse("unknown_slack_user")
-        raw_locale = user.get("locale")
-        locale = raw_locale if isinstance(raw_locale, str) and raw_locale else None
-        raw_tz = user.get("tz")
-        tz = raw_tz if isinstance(raw_tz, str) and raw_tz else None
+        slack = slack_profile(user)
+        locale, tz = slack.locale, slack.tz
 
         # users.info is authoritative; event["user_team"] and friends are ignored.
         info_team = user.get("team_id")
@@ -120,9 +153,8 @@ class IdentityBinder:
         if user.get("is_restricted") or user.get("is_ultra_restricted"):
             return refuse("guest_user", known_team)
 
-        profile = user.get("profile")
-        email = profile.get("email") if isinstance(profile, dict) else None
-        if not isinstance(email, str) or not email.lower().endswith(self._suffix):
+        email = slack.email
+        if email is None or not email.lower().endswith(self._suffix):
             return refuse("no_company_email", known_team)
 
         try:
@@ -145,14 +177,42 @@ class IdentityBinder:
 
         name = resource.get("name")
         full_name = name.get("fullName") if isinstance(name, dict) else None
-        given_name = name.get("givenName") if isinstance(name, dict) else None
+        given_name = _given_name(resource)
         return BoundIdentity(
             directory_id=directory_id,
             email=primary,
             slack_user_id=user_id,
             slack_team_id=known_team,
             full_name=full_name if isinstance(full_name, str) and full_name else None,
-            first_name=given_name if isinstance(given_name, str) and given_name else None,
+            first_name=given_name,
             locale=locale,
             tz=tz,
         )
+
+    def reply_target(self, slack_user_id: str) -> ReplyTarget | None:
+        """Fresh details for a later message to an already-served requester, or None if
+        Slack no longer knows them. Reads users.info once and, for the first name, the
+        requester's own Directory record."""
+        info = self._slack.users_info(slack_user_id, include_locale=True)
+        user = info.get("user") if info.get("ok") else None
+        if not isinstance(user, dict) or user.get("deleted"):
+            return None
+        slack = slack_profile(user)
+        first_name = None
+        if slack.email is not None and slack.email.lower().endswith(self._suffix):
+            try:
+                resource = self._directory.users_get(
+                    slack.email, principal=GATEWAY_PRINCIPAL, fields=DIRECTORY_FIELDS
+                )
+            except DirectoryError:
+                resource = {}
+            first_name = _given_name(resource)
+        return ReplyTarget(
+            email=slack.email, locale=slack.locale, tz=slack.tz, first_name=first_name
+        )
+
+
+def _given_name(resource: Mapping[str, Any]) -> str | None:
+    name = resource.get("name")
+    given = name.get("givenName") if isinstance(name, Mapping) else None
+    return given if isinstance(given, str) and given else None
