@@ -78,6 +78,7 @@ class ProactiveRunner:
         self.state = State()
         self.log: list[LogEntry] = []
         self._previews: dict[str, Post] = {}
+        self._skips_logged: set[str] = set()
 
     # --- controls ------------------------------------------------------------------
 
@@ -127,6 +128,10 @@ class ProactiveRunner:
             self._preview(post)
         for post in due.posts:
             self._post(post)
+        for post, reason in due.skipped:
+            if post.post_id not in self._skips_logged:
+                self._skips_logged.add(post.post_id)
+                self._note("skipped", post, post.channel, detail=reason)
         return self.log[start:]
 
     def _preview(self, post: Post) -> None:

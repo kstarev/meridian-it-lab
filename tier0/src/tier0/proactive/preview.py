@@ -14,7 +14,7 @@ from tier0.clock import MockClock
 from tier0.mocks.directory import MockDirectory
 from tier0.proactive.calendar import BERLIN, COUNTRY_TZ, tz
 from tier0.proactive.runner import PROACTIVE_PRINCIPAL
-from tier0.proactive.schedule import Config, Post, holiday_schedule
+from tier0.proactive.schedule import Config, Post, holiday_schedule, preview_slot
 
 
 def _countries(seed: int, which: str | None) -> tuple[str, ...]:
@@ -26,6 +26,13 @@ def _countries(seed: int, which: str | None) -> tuple[str, ...]:
     directory = MockDirectory(world, MockClock(datetime(2026, 11, 10, tzinfo=UTC)))
     found = directory.resources_buildings_list(principal=PROACTIVE_PRINCIPAL)
     return tuple(sorted(b["address"]["regionCode"] for b in found["buildings"]))
+
+
+def _preview_line(post: Post, config: Config) -> str:
+    slot = preview_slot(post.send_at, config)
+    if slot is None:
+        return "NO PREVIEW SLOT: won't be sent"
+    return f"preview to #it-team {slot.astimezone(BERLIN):%a %d %b %H:%M} Berlin"
 
 
 def _night(post: Post, config: Config) -> list[str]:
@@ -50,7 +57,7 @@ def render(year: int, countries: tuple[str, ...], *, full_text: bool = False) ->
         kind = "year-end note to everyone" if p.year_end else "holiday note"
         lines.append(
             f"{berlin:%a %Y-%m-%d} {p.send_at:%H:%M} UTC ({berlin:%H:%M} Berlin)  #{p.channel}  "
-            f"{kind}  preview to #it-team {p.preview_at:%a %H:%M} UTC"
+            f"{kind}  {_preview_line(p, config)}"
         )
         local = ", ".join(f"{c} {p.send_at.astimezone(tz(c)):%a %H:%M}" for c in p.countries)
         lines.append(f"    local: {local}")

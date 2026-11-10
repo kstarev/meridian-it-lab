@@ -381,7 +381,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 - **A pure scheduler** (`tier0/proactive/schedule.py`): given the time, the office countries, the last human message in #it-help and what has been sent, it returns the previews and posts due. It has no I/O, no clock of its own and no model; tests drive it with the mock clock. A runner (`runner.py`) does the sending.
 - **Offices from the Directory without user data:** a `resources.buildings.list`-style call returns one building per country, under its own logged principal.
-- **Holidays:** national holidays from `holidays==0.108`, pinned in `pyproject.toml` and `uv.lock`, for 14 office countries, each with one representative time zone. IT coverage follows Berlin (German national plus Berlin state holidays). A holiday that falls on a weekend still gets a note on the working day before, with the weekend-cover line.
+- **Holidays:** national holidays from `holidays==0.108`, pinned in `pyproject.toml` and `uv.lock`, for 14 office countries, each with one representative time zone. IT coverage follows Berlin (German national plus Berlin state holidays). A holiday that falls on a weekend and gives nobody a weekday off gets no note of its own (German Unity Day 2027 is a Sunday). It still appears in a note that has a real day off, with the weekend-cover line: 1 May 2027 is a Saturday for Germany, but Poland is off on Monday 3 May too.
 - **Merging, with at most one post per Berlin day:**
   - The same holiday start in several countries is one note, like 1 May 2027 across six countries.
   - A different holiday that would land on a taken day moves to a free day up to 2 days earlier, still before it starts; it merges only if none is free.
@@ -390,7 +390,9 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **Languages:** English plus German, Spanish or French where an office uses them. Portuguese, Polish, Dutch and Japanese offices get English only. Turning on a local language that has no reviewed templates is refused, so no unreviewed text can reach a company-wide post.
 - **Pulse check:** as decided above. "Working days" means Berlin working days, and a reduced-coverage day is a Berlin holiday, the year-end break, or a date IT marks.
 - **Previews:**
-  - A preview goes out 24 h before each post, with a Cancel button.
+  - Each preview goes to #it-team during IT's working hours (Mon–Fri 09:00–17:00 Berlin), at the latest such slot that is still at least 24 h before the post, with a Cancel button. So a Monday post is previewed on Friday, and a post right after a long break is previewed when IT is back.
+  - IT's days off for this are weekends, German and Berlin holidays, the year-end break and any extra days IT marks (for example an offsite).
+  - If the latest such slot would be more than 7 days before the post, there is no slot: the post isn't sent, and the log records `no_preview_slot`.
   - A post needs a preview at least 23 h old; the hour of slack covers the runner's tick. A late preview is skipped rather than sent for a post that can no longer go out.
   - Cancel is a signed Slack interaction, accepted only from #it-team; a forged press, or one from elsewhere, is refused and logged.
 - **Defaults and limits:**
@@ -405,7 +407,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 **Consequences, as built:**
 
 - **Some posts can't avoid the night for everyone.** With all 14 offices, two 2027 posts have no hour that keeps every listed office out of the night: Good Friday (Australia gets 23:00) and the year-end note (Australia 23:00, Mexico 06:00). The preview flags each such post.
-- **Previews can land on a weekend.** They follow the post 24 h earlier, so a Monday post's preview arrives on a Sunday.
+- **Long breaks can cancel a post.** If IT has no working slot in the 7 days before a post, the post is skipped and logged; a post on Monday 3 January 2028, right after the break, would be. None of the 2027 posts is affected.
 - **State is kept in memory only.** A restart forgets what was previewed, so previews and posts in flight are skipped rather than repeated. Persisting it is future work.
 
 ## ADR-021: The triage prompt is frozen, and only held-out v2 counts as performance

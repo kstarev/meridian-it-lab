@@ -52,7 +52,12 @@ class Config:
     daytime: tuple[int, int] = (8, 18)  # 08:00 <= local hour < 18:00
     night: tuple[int, int] = (22, 7)  # local hour >= 22 or < 7
     preview_lead: timedelta = timedelta(hours=24)
-    min_preview_lead: timedelta = timedelta(hours=23)
+    min_preview_lead: timedelta = timedelta(hours=23)  # the hour covers the runner's tick
+    # Previews go out in IT's working hours (Berlin), at the latest such slot at least
+    # preview_lead before the post, and never more than max_preview_lead before it.
+    it_hours: tuple[int, int] = (9, 17)  # 09:00 to 17:00
+    max_preview_lead: timedelta = timedelta(days=7)
+    it_days_off: frozenset[date] = frozenset()  # extra days IT is off (e.g. an offsite)
     post_grace: timedelta = timedelta(hours=6)
 
     def __post_init__(self) -> None:
@@ -81,10 +86,6 @@ class Post:
     def berlin_day(self) -> date:
         return self.send_at.astimezone(BERLIN).date()
 
-    @property
-    def preview_at(self) -> datetime:
-        return self.send_at - timedelta(hours=24)
-
 
 @dataclass(frozen=True, slots=True)
 class State:
@@ -102,6 +103,42 @@ class State:
 class Due:
     previews: tuple[Post, ...] = ()
     posts: tuple[Post, ...] = ()
+    # Posts whose time has come but that won't go out, with why (no_preview_slot,
+    # not_previewed). The runner logs each once.
+    skipped: tuple[tuple[Post, str], ...] = ()
+
+
+# --- when IT can see a preview ----------------------------------------------------------
+
+
+def it_working_day(day: date, config: Config) -> bool:
+    """A day IT is at work: Mon-Fri, not a German or Berlin holiday, not the year-end
+    break, not a day IT marked off."""
+    start, end = _year_end_window(day.year if day.month == 12 else day.year - 1)
+    return not it_off(day) and not (start <= day <= end) and day not in config.it_days_off
+
+
+def preview_slot(send_at: datetime, config: Config) -> datetime | None:
+    """When the preview goes to #it-team: the latest moment in IT's working hours
+    (Mon-Fri 09:00-17:00 Berlin, not IT's days off) that is at least preview_lead before
+    the post. None if there is no such moment within max_preview_lead: then the post
+    isn't sent."""
+    latest = (send_at - config.preview_lead).astimezone(BERLIN)
+    open_h, close_h = config.it_hours
+    for back in range(config.max_preview_lead.days + 1):
+        day = latest.date() - timedelta(days=back)
+        if not it_working_day(day, config):
+            continue
+        opens = datetime.combine(day, time(open_h), tzinfo=BERLIN)
+        closes = datetime.combine(day, time(close_h), tzinfo=BERLIN)
+        slot = min(latest, closes) if back == 0 else closes
+        if slot < opens:
+            continue
+        slot_utc = slot.astimezone(UTC)
+        if send_at - slot_utc > config.max_preview_lead:
+            return None
+        return slot_utc
+    return None
 
 
 # --- holiday notes ---------------------------------------------------------------------
@@ -245,6 +282,15 @@ def holiday_schedule(year: int, countries: tuple[str, ...], config: Config) -> t
         key = ("year_end", item.season) if item.season is not None else item.block.first  # type: ignore[union-attr]
         groups.setdefault(key, []).append(item)
 
+    # A holiday on a weekend that gives nobody a weekday off gets no note of its own; it
+    # still appears in a note that has a real day off (1 May 2027: Poland's Monday).
+    groups = {
+        key: group
+        for key, group in groups.items()
+        if any(i.season is not None for i in group)
+        or any(i.block is not None and i.block.coverage() != "weekend" for i in group)
+    }
+
     def listed(group: list[_Item]) -> set[str]:
         if any(i.season is not None for i in group):
             return set(countries)
@@ -381,12 +427,16 @@ def plan(
         return post.post_id not in state.sent and post.post_id not in state.cancelled
 
     def preview_due(post: Post) -> bool:
-        # Only while the post can still go out: a late preview would show IT a post that
-        # will never be sent.
+        # At its slot (a tick late is fine), and only while the post can still go out: a
+        # late preview would show IT a post that will never be sent.
+        slot = preview_slot(post.send_at, config)
         return (
             open_(post)
+            and slot is not None
             and post.post_id not in state.previewed
-            and post.preview_at <= now <= post.send_at - config.min_preview_lead
+            and slot
+            <= now
+            <= min(slot + timedelta(hours=1), post.send_at - config.min_preview_lead)
         )
 
     def post_due(post: Post) -> bool:
@@ -399,9 +449,20 @@ def plan(
             and post.berlin_day not in state.broadcast_days
         )
 
+    def skip_reason(post: Post) -> str | None:
+        if not open_(post) or post.post_id in state.previewed:
+            return None
+        if not post.send_at <= now < post.send_at + config.post_grace:
+            return None
+        return "no_preview_slot" if preview_slot(post.send_at, config) is None else "not_previewed"
+
     previews = [p for p in holiday if preview_due(p)]
     posts = [p for p in holiday if post_due(p)]
-    for day in (today, today + timedelta(days=1)):
+    skipped = [(p, r) for p in holiday if (r := skip_reason(p)) is not None]
+    # A pulse preview can come days early (a Tuesday pulse after a holiday Monday is
+    # previewed the Friday before), so look a week ahead.
+    for ahead in range(8):
+        day = today + timedelta(days=ahead)
         pulse = pulse_post(day, config)
         if pulse_blocker(day, last_human_at, state, config, holiday_days) is not None:
             continue
@@ -413,7 +474,11 @@ def plan(
     chosen: dict[date, Post] = {}
     for p in sorted(posts, key=lambda p: p.send_at):
         chosen.setdefault(p.berlin_day, p)
-    return Due(tuple(sorted(previews, key=lambda p: p.send_at)), tuple(chosen.values()))
+    return Due(
+        tuple(sorted(previews, key=lambda p: p.send_at)),
+        tuple(chosen.values()),
+        tuple(skipped),
+    )
 
 
 def tickets_within_24h(pulse_times: Iterable[datetime], ticket_times: Iterable[datetime]) -> int:

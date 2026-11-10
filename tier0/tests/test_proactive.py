@@ -18,7 +18,14 @@ from tier0.mocks.slack import BOT_USER_ID, CHANNELS, MockSlack
 from tier0.proactive import calendar, preview, schedule, templates
 from tier0.proactive.calendar import BERLIN, COUNTRY_TZ, HolidayBlock, tz
 from tier0.proactive.runner import CANCEL_ACTION, ProactiveRunner
-from tier0.proactive.schedule import Config, State, holiday_schedule, plan, pulse_blocker
+from tier0.proactive.schedule import (
+    Config,
+    State,
+    holiday_schedule,
+    plan,
+    preview_slot,
+    pulse_blocker,
+)
 
 ALL = tuple(sorted(COUNTRY_TZ))
 CONFIG = Config()
@@ -171,7 +178,7 @@ def test_every_headline_says_happy_holidays_in_its_language() -> None:
 
 def test_english_plus_the_reviewed_local_language_only() -> None:
     posts = _posts(2027)
-    de = _with(posts, "DE", date(2027, 10, 3))
+    de = _with(posts, "DE", date(2027, 5, 6))  # Ascension Day, a Thursday
     english, german = de.text.split("\n\n---\n\n")
     assert "Happy holidays" in english and "Frohe Feiertage" in german
     assert "Germany" in english and "Deutschland" in german
@@ -474,3 +481,90 @@ def test_holidays_preview_prints_the_year(capsys: pytest.CaptureFixture[str]) ->
     assert "dry run, nothing is sent" in out
     assert "at most 1 per day" in out
     assert preview.main(["--year", "2027", "--countries", "XX"]) == 2
+
+
+# --- weekend-only holidays --------------------------------------------------------------
+
+
+def test_a_weekend_only_holiday_gets_no_note_of_its_own() -> None:
+    # German Unity Day 2027 is a Sunday, and Germany doesn't move it to a weekday.
+    posts = _posts(2027)
+    assert not any(("DE", date(2027, 10, 3)) in {(c, d) for c, d, _ in p.holidays} for p in posts)
+
+
+def test_a_weekend_only_holiday_stays_in_a_note_with_a_real_day_off() -> None:
+    # 1 May 2027 is a Saturday for Germany, but Poland is off on Monday 3 May too.
+    note = _with(_posts(2027), "PL", date(2027, 5, 3))
+    assert "DE" in note.countries and "Germany" in note.text
+
+
+# --- previews in IT's working hours ---------------------------------------------------
+
+
+def _it_hours(moment: datetime) -> bool:
+    local = moment.astimezone(BERLIN)
+    return (
+        schedule.it_working_day(local.date(), CONFIG) and 9 <= local.hour + local.minute / 60 <= 17
+    )
+
+
+def test_every_preview_is_in_it_hours_at_the_latest_slot() -> None:
+    for post in _posts(2027):
+        slot = preview_slot(post.send_at, CONFIG)
+        assert slot is not None, post.post_id
+        assert _it_hours(slot) and slot <= post.send_at - timedelta(hours=24), post.post_id
+        # No later IT-hours moment is still 24 h before the post.
+        later = slot + timedelta(minutes=15)
+        while later <= post.send_at - timedelta(hours=24):
+            assert not _it_hours(later), (post.post_id, later)
+            later += timedelta(minutes=15)
+
+
+def test_a_monday_post_is_previewed_on_friday() -> None:
+    post = _with(_posts(2027, ("BR",)), "BR", date(2027, 9, 7))  # Tuesday, note on Monday
+    assert post.send_at.astimezone(BERLIN).weekday() == 0
+    slot = preview_slot(post.send_at, CONFIG)
+    assert slot == datetime(2027, 9, 3, 17, tzinfo=BERLIN).astimezone(UTC)  # Friday 17:00
+
+    runner, slack, clock = _runner(_berlin(date(2027, 9, 3), 0))
+    _human(slack)
+    _run(runner, clock, _berlin(date(2027, 9, 6), 18))
+    preview_msg, post_msg = slack.sent_messages
+    shown = datetime.fromtimestamp(float(preview_msg.ts), tz=UTC).astimezone(BERLIN)
+    assert (shown.weekday(), shown.hour) == (4, 17) and preview_msg.channel == CHANNELS["it-team"]
+    assert post_msg.channel == CHANNELS["general"]
+
+
+def test_right_after_the_year_end_break() -> None:
+    # Tue 5 Jan 2027, Epiphany note for Spain and Poland: previewed Monday 09:00, when IT
+    # is back.
+    post = _with(_posts(2027, ("ES", "PL")), "ES", date(2027, 1, 6))
+    assert preview_slot(post.send_at, CONFIG) == datetime(2027, 1, 4, 9, tzinfo=BERLIN).astimezone(
+        UTC
+    )
+    # A post on Monday 3 Jan 2028: the weekend and the break leave no IT slot in the week
+    # before, so it isn't sent.
+    monday = datetime(2028, 1, 3, 10, tzinfo=BERLIN).astimezone(UTC)
+    assert preview_slot(monday, CONFIG) is None
+
+
+def test_no_preview_slot_means_no_post_and_a_log_entry() -> None:
+    # IT also takes Monday 4 Jan 2027 off: the Epiphany note has no slot within 7 days.
+    world = generate(DEFAULT_SEED)
+    clock = MockClock(_berlin(date(2027, 1, 4), 0))
+    slack = MockSlack(world, clock)
+    config = Config(it_days_off=frozenset({date(2027, 1, 4)}))
+    runner = ProactiveRunner(
+        slack=slack,
+        directory=MockDirectory(world, clock),
+        clock=clock,
+        signing_secret=slack.signing_secret,
+        domain="meridian.example",
+        config=config,
+        dry_run=False,
+    )
+    _human(slack)
+    _run(runner, clock, _berlin(date(2027, 1, 5), 18))
+    assert slack.sent_messages == ()
+    skipped = [e for e in runner.log if e.action == "skipped"]
+    assert [(e.post_id, e.detail) for e in skipped] == [("holiday-2027-01-05", "no_preview_slot")]
