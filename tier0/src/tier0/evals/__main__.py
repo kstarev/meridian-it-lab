@@ -19,7 +19,7 @@ from tier0.models import build_model
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.netguard import is_loopback_url, loopback_only
-from tier0.sealed import SealedSetError, require_unsealed
+from tier0.sealed import SEALED_POOLS, SealedSetError, require_unsealed
 
 
 def today() -> date:
@@ -71,8 +71,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--publish", type=Path, default=None, metavar="DIR")
     parser.add_argument(
         "--final-comparison",
-        action="store_true",
-        help="unseal held-out v2 for milestone 2's final comparison (ADR-015)",
+        choices=sorted(SEALED_POOLS),
+        default=None,
+        metavar="SET",
+        help="unseal exactly this held-out set for its final comparison, e.g. "
+        "--final-comparison=held_out_v3 (ADR-015, ADR-029)",
     )
     args = parser.parse_args(argv)
     if args.seed is None:

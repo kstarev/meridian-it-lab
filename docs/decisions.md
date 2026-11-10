@@ -607,3 +607,39 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **The output guard still runs on every message,** and tests prove it by planting a leaky template.
 - **A false alarm gets the same reply, with a way out.** When the role signal or the mention check fires on a legitimate own-account request, the requester sees the colleague reply instead of a hand-off note. Its last line tells them to ask again in one short line, which is answered. A person still picks the first ticket up, and the hand-off rate in reports shows how often this happens.
 - **German and French aren't exercised by the eval worlds,** because no eval requester is in Germany or France. Tests cover them, and seed 1108's Mexican requester exercises Spanish.
+
+## ADR-029: Held-out v3 is written blind, sealed, and unsealed only by its own name
+
+**Date:** 2026-11-10 · **Status:** Accepted. ADR-015's rules apply to v3 as they did to v2.
+
+**Context:** Held-out v2 was spent in milestone 2's final comparison (ADR-027), so milestone 3's over-refusal fix needs a new set it was never shaped by. v3 must also measure what v2 couldn't: self-descriptions by new starters and interns (ADR-024's exception, now narrowed), unnamed colleague requests whose person words may not be on the role list, and everyday requests in four languages with real Slack noise. Until now `--final-comparison` was a yes/no switch, so with two sealed sets, re-running v2 would have unsealed v3 too.
+
+**Decision:**
+
+- **Written fully blind:** a helper agent wrote the v3 wording without opening any `tier0/` file, so it never saw the role-word list, the prompts or the reply templates. It didn't see the other pools' wording either. For the unnamed colleague requests it was given only example person words ("teammate, the new hire, my report, our designer, the contractor, the temp"), not the list. The agent that tunes tier0 has not read v3 and won't.
+- **The mix, 54 tickets:**
+
+  | Group | Tickets |
+  | --- | --- |
+  | Everyday requests (6 each in English, German, Spanish and French, with Slack noise: emoji, mentions, links, code blocks, typos, several lines) | 24 |
+  | Self-descriptions by new starters and interns asking for their own login, in their own `self_described` field and graded as normal requests | 6 |
+  | Duplicate-name | 6 |
+  | Named colleague requests (2 confirm-a-guess probes) | 6 |
+  | Unnamed colleague requests | 6 |
+  | Outsiders | 6 |
+
+- **Sealed:**
+  - seed 4417, with every template used once;
+  - SHA-256 of the pool `8ef602f41c696607887e3fad46e55a7b21810620bab45c578bb786fcae89b17a`, generator 0.11.0;
+  - count-only tests, and pairwise overlap tests against tuning, v1 and v2, which also cover the new field;
+  - the seal digest leaves out an empty `self_described` field, so every earlier pool keeps its seal;
+  - by hash, the tuning, v1 and v2 worlds are unchanged apart from the version string.
+- **Unsealed by name:** `--final-comparison=held_out_v3` unseals v3 and nothing else. `--final-comparison=held_out_v2` doesn't unseal v3, and the bare flag is a usage error. Reports print the flag with the set's name; milestone 2's published reports are left as they are.
+- **A count-only check after sealing:** of the 6 unnamed colleague requests, 3 fire the role signal (a listed person word near a login word) and 3 don't. The bar was at least 3 off the list, so no reseal was needed.
+- **Review:** `make review-pool POOL=held_out_v3` prints the wording for a person to review. The tuning agent never runs it on a held-out pool.
+
+**Consequences:**
+
+- The over-refusal fix is judged on wording it wasn't shaped by, and the unnamed requests test the model check alone on half of them.
+- Once v3 has run its final comparison, it is spent and becomes a dev set, as v1 and v2 did.
+- If the user's review changes any wording, v3 is resealed under a new hash before anything runs on it.

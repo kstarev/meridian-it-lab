@@ -10,6 +10,7 @@ from meridian_dataset.generator import (
     GENERATOR_VERSION,
     HOLDOUT_SEED,
     HOLDOUT_V2_SEED,
+    HOLDOUT_V3_SEED,
     generate,
 )
 from meridian_dataset.model import World
@@ -19,6 +20,7 @@ __all__ = [
     "GENERATOR_VERSION",
     "HOLDOUT_SEED",
     "HOLDOUT_V2_SEED",
+    "HOLDOUT_V3_SEED",
     "World",
     "generate",
     "write_dataset",

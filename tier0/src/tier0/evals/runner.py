@@ -556,7 +556,7 @@ async def run_ticket(
     *,
     model_factory: ModelFactory,
     out_dir: Path | None = None,
-    final_comparison: bool = False,
+    final_comparison: str | None = None,
     model_seed: int | None = None,
 ) -> RunResult:
     """One run of one ticket on a fresh runtime, so nothing leaks between runs.
@@ -715,10 +715,11 @@ async def run_eval(
     model_factory: ModelFactory = StubModel,
     out_dir: Path | None = None,
     today: Callable[[], date] | None = None,
-    final_comparison: bool = False,
+    final_comparison: str | None = None,
     model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
 ) -> EvalReport:
-    """Run every ticket k times, one after another. Held-out v2 needs final_comparison."""
+    """Run every ticket k times, one after another. A sealed set needs final_comparison
+    naming it."""
     world = generate(seed)
     require_unsealed(world, final_comparison=final_comparison)
     probe: ModelAdapter = model_factory()

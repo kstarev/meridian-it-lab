@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED
+from meridian_dataset.generator import split_for_seed
 from tier0 import messages
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, EvalReport
 from tier0.models import StubModel
+from tier0.sealed import SEALED_POOLS
 
 
 def _seed_label(seed: int) -> str:
@@ -139,6 +141,12 @@ def _second_checks_section(r: EvalReport) -> list[str]:
     return lines
 
 
+def _final_flag(seed: int) -> str:
+    """The flag that unsealed this run, if its seed is a sealed set's (ADR-029)."""
+    pool = split_for_seed(seed)
+    return f" --final-comparison={pool}" if pool in SEALED_POOLS else ""
+
+
 def render_markdown(r: EvalReport) -> str:
     k = r.k
     esc = (
@@ -178,7 +186,7 @@ def render_markdown(r: EvalReport) -> str:
         f"--model {model_option(r.provider)}"
         f"{'' if r.temperature is None else f' --temperature {r.temperature:g}'}"
         f"{'' if not r.model_seeds else f' --model-seed {r.model_seed_base}'}"
-        f"{' --final-comparison' if r.seed == HOLDOUT_V2_SEED else ''}` "
+        f"{_final_flag(r.seed)}` "
         "\u2014 do not edit by hand.",
         "",
         f"{_seed_label(r.seed)}, k = {k}, model {r.provider} / {r.model}"

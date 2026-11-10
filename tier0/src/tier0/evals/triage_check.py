@@ -200,7 +200,7 @@ def render_markdown(result: dict[str, Any]) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tier0.evals.triage_check", description=__doc__)
     parser.add_argument("--model", choices=("stub", "claude", "ollama"), default="stub")
-    parser.add_argument("--pool", required=True, choices=sorted([*MESSAGE_POOLS, "held_out_v2"]))
+    parser.add_argument("--pool", required=True, choices=sorted(MESSAGE_POOLS))
     parser.add_argument(
         "--prompt",
         choices=sorted(VERSIONS),
