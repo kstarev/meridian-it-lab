@@ -232,3 +232,11 @@ def test_timing_estimates_tuning_dev_and_v3_from_tuning_calls_only() -> None:
 def test_sonnet_gets_its_own_versions_too() -> None:
     assert sel.candidates("claude-sonnet-5-5", "triage") == ("T1", "ST2", "ST3", "ST4", "ST5")
     assert sel.provider_of("claude-sonnet-5-5") == "claude"
+
+
+def test_gpt_oss_check_versions_exist_and_name_the_exact_reply() -> None:
+    for v in sel.candidates("gpt-oss:20b", "check"):
+        text = M3_CHECK_VERSIONS[v]
+        if v != "C1":
+            assert '{"own_account_only": true}' in text and '{"own_account_only": false}' in text
+    assert sel.task_of("GC3") == "check"
