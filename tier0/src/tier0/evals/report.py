@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED
+from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from meridian_dataset.generator import split_for_seed
 from tier0 import messages
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, EvalReport
@@ -15,7 +15,9 @@ def _seed_label(seed: int) -> str:
     if seed == HOLDOUT_SEED:
         return f"seed {seed} (held-out v1, now a dev set: ADR-014)"
     if seed == HOLDOUT_V2_SEED:
-        return f"seed {seed} (held-out v2, sealed until the final comparison: ADR-015)"
+        return f"seed {seed} (held-out v2, spent in milestone 2, now a dev set: ADR-029)"
+    if seed == HOLDOUT_V3_SEED:
+        return f"seed {seed} (held-out v3, sealed until its final comparison: ADR-029)"
     if seed == DEFAULT_SEED:
         return f"seed {seed} (tuning)"
     return f"seed {seed}"
@@ -166,11 +168,17 @@ def render_markdown(r: EvalReport) -> str:
             "",
         ]
     else:
-        if r.seed == HOLDOUT_V2_SEED:
+        if r.seed == HOLDOUT_V3_SEED:
             which = (
-                "These results come from a real model on held-out v2 (seed 3107), which was "
-                "sealed before milestone 2's fixes and never run until this final comparison "
-                "(ADR-015)."
+                "These results come from a real model on held-out v3 (seed 4417), written "
+                "blind and sealed before milestone 3's fixes, and never run until this final "
+                "comparison (ADR-029)."
+            )
+        elif r.seed == HOLDOUT_V2_SEED:
+            which = (
+                "These results come from a real model on held-out v2 (seed 3107). It was "
+                "spent in milestone 2's final comparison, so it now counts as a dev set, not "
+                "a held-out score (ADR-027, ADR-029)."
             )
         elif r.seed == HOLDOUT_SEED:
             which = (

@@ -637,6 +637,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **Unsealed by name:** `--final-comparison=held_out_v3` unseals v3 and nothing else. `--final-comparison=held_out_v2` doesn't unseal v3, and the bare flag is a usage error. Reports print the flag with the set's name; milestone 2's published reports are left as they are.
 - **A count-only check after sealing:** of the 6 unnamed colleague requests, 3 fire the role signal (a listed person word near a login word) and 3 don't. The bar was at least 3 off the list, so no reseal was needed.
 - **Review:** `make review-pool POOL=held_out_v3` prints the wording for a person to review. The tuning agent never runs it on a held-out pool.
+- **v2 becomes a plain dev set** (2026-11-11): it was spent in milestone 2's final comparison, so it is removed from the sealed sets and runs like v1, for milestone 3's dev-set sanity checks. Its reports now say "dev set". Only v3 is sealed.
 
 **Consequences:**
 

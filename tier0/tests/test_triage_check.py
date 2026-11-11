@@ -55,9 +55,9 @@ def test_held_out_v1_is_labelled_dev_set(tmp_path: Path) -> None:
     )
 
 
-def test_held_out_v2_refused(tmp_path: Path) -> None:
+def test_held_out_v3_refused(tmp_path: Path) -> None:
     out = tmp_path / "o"
-    assert main(["--model", "stub", "--pool", "held_out_v2", "--out", str(out)]) == 2
+    assert main(["--model", "stub", "--pool", "held_out_v3", "--out", str(out)]) == 2
     assert not out.exists()
 
 
