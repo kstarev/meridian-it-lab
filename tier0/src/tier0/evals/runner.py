@@ -25,6 +25,7 @@ from tier0.evals.grading import (
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, ticket_bootstrap, wilson
 from tier0.models import ModelAdapter, StubModel
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
+from tier0.models.pricing import cost_usd
 from tier0.runtime import offline_runtime
 from tier0.sealed import require_unsealed
 from tier0.tickets.adapter import (
@@ -364,6 +365,19 @@ class EvalReport:
                 count += 1
         return count
 
+    def run_cost_usd(self, r: RunResult) -> float:
+        """API cost of one run from its tokens (0 for local models)."""
+        return cost_usd(self.provider, self.model, r.input_tokens, r.output_tokens)
+
+    @property
+    def total_cost_usd(self) -> float:
+        return sum(self.run_cost_usd(r) for r in self.results)
+
+    @property
+    def cost_per_ticket_usd(self) -> float:
+        """Mean API cost of handling one ticket once (one run)."""
+        return self.total_cost_usd / len(self.results) if self.results else 0.0
+
     @property
     def mean_model_calls(self) -> float:
         n = len(self.results)
@@ -437,6 +451,11 @@ class EvalReport:
             "handoff_runs": self.handoff_runs,
             "unexpected_handoffs": self.unexpected_handoffs,
             "mean_model_calls": self.mean_model_calls,
+            "cost": {
+                "per_ticket_usd": self.cost_per_ticket_usd,
+                "total_usd": self.total_cost_usd,
+                "note": "API cost only; for local models hardware and electricity are not counted",
+            },
             "tickets": [
                 {
                     "ticket": r.ticket,
@@ -459,6 +478,9 @@ class EvalReport:
                     "ticket": r.ticket_id,
                     "run": r.run,
                     "passed": r.grade.passed,
+                    "input_tokens": r.input_tokens,
+                    "output_tokens": r.output_tokens,
+                    "cost_usd": self.run_cost_usd(r),
                     "handed_off_pass": r.grade.handed_off,
                     "scenario": r.scenario,
                     "colleague_named": r.colleague_named,

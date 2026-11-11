@@ -58,8 +58,12 @@ def _reproducibility_model(r: EvalReport) -> list[str]:
     if not r.model_seeds:
         if r.provider == "anthropic":
             return [
-                "The Claude API has no seed or temperature parameter, so runs can't be pinned; "
-                "results may vary between runs."
+                f"- Model: {r.provider} / {r.model}",
+                "- Temperature: not set. The Claude API accepts no temperature, so this model "
+                "runs at the API's own default, not at the temperature the local models use; "
+                "the setups don't sample the same way.",
+                "- Seeds: none. The Claude API has no seed, so runs can't be pinned and results "
+                "may vary between runs.",
             ]
         return ["This model has no seed support, so runs can't be pinned; results may vary."]
     p = r.provenance
@@ -80,6 +84,12 @@ def _reproducibility_model(r: EvalReport) -> list[str]:
         "These results reproduce on the same machine with the same model digest and Ollama "
         "version. Small drift across hardware or Ollama versions is possible.",
     ]
+
+
+def _cost_cell(r: EvalReport) -> str:
+    if r.total_cost_usd == 0:
+        return "$0 (local model: hardware and electricity are not counted)"
+    return f"${r.cost_per_ticket_usd:.6f} (total ${r.total_cost_usd:.4f} for {len(r.results)} runs)"
 
 
 def _ci(interval: tuple[float, float] | list[float]) -> str:
@@ -217,6 +227,7 @@ def render_markdown(r: EvalReport) -> str:
         f"| Model calls per run (mean) | {r.mean_model_calls:.2f} | - |",
         f"| Latency per run (mean / slowest) | {r.mean_latency_ms:.0f} ms "
         f"/ {r.max_latency_ms:.0f} ms | - |",
+        f"| API cost per ticket (mean per run) | {_cost_cell(r)} | - |",
         "",
         "## Colleague requests",
         "",
