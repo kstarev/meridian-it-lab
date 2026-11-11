@@ -1,7 +1,6 @@
 """Command line: python -m tier0.evals [--seed N] [--k 3] [--model stub] [--out out/eval]."""
 
 import argparse
-import contextlib
 import os
 import re
 import sys
@@ -18,7 +17,7 @@ from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.models import build_model
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
-from tier0.netguard import is_loopback_url, loopback_only
+from tier0.netguard import guard_for_model, is_loopback_url
 from tier0.sealed import SEALED_POOLS, SealedSetError, require_unsealed
 
 
@@ -116,8 +115,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             model_seed_base=args.model_seed,
         )
 
-    # Stub and Ollama runs must never leave this machine; only a Claude run needs the internet.
-    guard = loopback_only() if args.model in ("stub", "ollama") else contextlib.nullcontext()
+    # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
+    guard = guard_for_model(args.model)
     with guard:
         report = anyio.run(go)
     json_path, md_path = write_report(report, args.out)

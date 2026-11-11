@@ -6,7 +6,6 @@ Wording is printed only for pools that are not secret.
 """
 
 import argparse
-import contextlib
 import hashlib
 import json
 import os
@@ -28,7 +27,7 @@ from tier0.evals.runner import describe_model
 from tier0.models import ABOUT_SOMEONE_ELSE, OWN_USERNAME, ModelError
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
-from tier0.netguard import is_loopback_url, loopback_only
+from tier0.netguard import guard_for_model, is_loopback_url
 from tier0.sealed import SealedSetError, require_unsealed
 
 OTHER_EMAIL = "alex.kim@meridian.example"
@@ -236,7 +235,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     model = _model_factory(args.model, args.temperature)()
-    guard = loopback_only() if args.model in ("stub", "ollama") else contextlib.nullcontext()
+    # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
+    guard = guard_for_model(args.model)
     with guard:
         result = run_check(
             model, args.pool, args.k, model_seed_base=args.model_seed, prompt=args.prompt
