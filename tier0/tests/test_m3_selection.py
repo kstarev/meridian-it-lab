@@ -240,3 +240,8 @@ def test_gpt_oss_check_versions_exist_and_name_the_exact_reply() -> None:
         if v != "C1":
             assert '{"own_account_only": true}' in text and '{"own_account_only": false}' in text
     assert sel.task_of("GC3") == "check"
+
+
+def test_qwen_check_versions_exist_and_name_the_exact_reply() -> None:
+    for v in sel.candidates("qwen3.6:27b", "check")[1:]:
+        assert '{"own_account_only": true}' in M3_CHECK_VERSIONS[v]
