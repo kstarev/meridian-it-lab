@@ -143,3 +143,37 @@ def test_real_models_get_one_untimed_warm_up_call_per_task(
     made.clear()
     assert cli.main([*args, "--no-warm-up"]) == 0
     assert not any(cli.WARM_UP_TEXT in t for m in made for t in m.texts)
+
+
+# The frozen prompts, by hash (ADR-030). Changing a prompt or a pick breaks this test on
+# purpose: a frozen setup can't change after the dev-set check or v3.
+FROZEN_HASHES = {
+    "llama3.2": ("T1", "C1", "114d1fc8c4f0dd5a", "eb1037ddaed10c7b"),
+    "llama3.1:8b": ("T2", "C2", "472db65fe39577d9", "99302488ff68a5e8"),
+    "mixed": ("T1", "C2", "114d1fc8c4f0dd5a", "99302488ff68a5e8"),
+    "haiku": ("T1", "C1", "114d1fc8c4f0dd5a", "eb1037ddaed10c7b"),
+}
+
+
+def test_the_frozen_setups_keep_their_prompts() -> None:
+    import hashlib
+
+    from tier0.evals.setups import FROZEN
+
+    assert set(FROZEN) == set(FROZEN_HASHES)
+    for name, (triage, check, t_hash, c_hash) in FROZEN_HASHES.items():
+        setup = SETUPS[name]
+        assert (setup.triage_prompt, setup.check_prompt) == (triage, check)
+        prompts = setup.prompts()
+        assert hashlib.sha256(prompts.triage.encode()).hexdigest().startswith(t_hash)
+        assert hashlib.sha256(prompts.check.encode()).hexdigest().startswith(c_hash)
+
+
+@pytest.mark.parametrize("seed", ["2611", "3107", "4417"])
+def test_an_unfrozen_setup_never_runs_on_a_held_out_set(seed: str, capsys, tmp_path) -> None:
+    args = ["--setup", "gpt-oss:20b", "--seed", seed, "--k", "1", "--out", str(tmp_path)]
+    if seed == "4417":
+        args.append("--final-comparison=held_out_v3")
+    assert cli.main(args) == 2
+    assert "aren't frozen yet" in capsys.readouterr().err
+    assert not (tmp_path / "report.json").exists()

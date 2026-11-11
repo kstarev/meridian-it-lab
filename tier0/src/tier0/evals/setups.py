@@ -83,13 +83,15 @@ class Setup:
         return make
 
 
-# Chosen prompt versions are filled in when the selection report freezes them (ADR-030).
+# Frozen 2026-11-11 from the tuning scores by the selection rule (ADR-030, ADR-031);
+# tests pin each prompt's hash. The two big models are placeholders on version 1 until
+# they're tuned: FROZEN says which setups may run on a held-out set.
 SETUPS: dict[str, Setup] = {
     s.name: s
     for s in (
         Setup("llama3.2", "ollama", "llama3.2", "llama3.2", "T1", "C1"),
-        Setup("llama3.1:8b", "ollama", "llama3.1:8b", "llama3.1:8b", "T1", "C1"),
-        Setup("mixed", "ollama", "llama3.2", "llama3.1:8b", "T1", "C1"),
+        Setup("llama3.1:8b", "ollama", "llama3.1:8b", "llama3.1:8b", "T2", "C2"),
+        Setup("mixed", "ollama", "llama3.2", "llama3.1:8b", "T1", "C2"),
         Setup("haiku", "claude", HAIKU, HAIKU, "T1", "C1"),
         # Added before anything ran on v3 (ADR-031); not run until the user says the
         # downloads are done.
@@ -97,3 +99,4 @@ SETUPS: dict[str, Setup] = {
         Setup("qwen3.6:27b", "ollama", QWEN, QWEN, "T1", "C1"),
     )
 }
+FROZEN = frozenset({"llama3.2", "llama3.1:8b", "mixed", "haiku"})

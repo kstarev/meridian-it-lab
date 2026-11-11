@@ -49,6 +49,7 @@ def test_a_perfect_model_scores_full_marks(version: str) -> None:
     assert result["total"]["everyday"] == 2 * 46 and result["total"]["colleague_unnamed"] == 14
     assert set(model.seeds) == {1001, 1002}
     assert result["cost_usd"] == 0 and result["wrong"] == {}
+    assert result["mean_call_ms"] >= 0
     prompts = M3_TRIAGE_VERSIONS if version == "T1" else M3_CHECK_VERSIONS
     assert result["prompt_chars"] == len(prompts[version])
 

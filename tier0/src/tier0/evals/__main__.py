@@ -15,7 +15,7 @@ from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.evals.setups import BIG_MODELS, SETUPS
+from tier0.evals.setups import BIG_MODELS, FROZEN, SETUPS
 from tier0.models import ModelAdapter, ModelError, build_model
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
@@ -123,6 +123,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.model = setup.provider
     if args.seed is None:
         args.seed = default_seed(args.model)
+    if setup is not None and setup.name not in FROZEN and args.seed != DEFAULT_SEED:
+        print(
+            f"refused: {setup.name}'s prompts aren't frozen yet, so it runs on tuning data "
+            "only (ADR-030, ADR-031)",
+            file=sys.stderr,
+        )
+        return 2
 
     try:
         require_unsealed(generate(args.seed), final_comparison=args.final_comparison)

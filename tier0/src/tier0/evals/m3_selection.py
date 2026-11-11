@@ -18,6 +18,7 @@ import argparse
 import hashlib
 import json
 import sys
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,10 +156,13 @@ def score(
     total = dict.fromkeys(GROUPS, 0)
     tokens_in = tokens_out = 0
     wrong: dict[str, int] = {}
+    elapsed = 0.0
+    calls = 0
     for run in range(1, k + 1):
         if getattr(model, "supports_seed", False):
             model.seed = DEFAULT_MODEL_SEED_BASE + run
         for case in cases:
+            started = time.perf_counter()
             try:
                 if task == "triage":
                     response = model.complete(triage_request(case.text, text))
@@ -177,6 +181,8 @@ def score(
                 tokens_out += response.output_tokens
             except ModelError:
                 ok = False
+            elapsed += time.perf_counter() - started
+            calls += 1
             groups = [case.group] + (["colleague_unnamed"] if case.unnamed else [])
             for g in groups:
                 total[g] += 1
@@ -197,6 +203,8 @@ def score(
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
         "cost_usd": cost_usd(provider, model_name, tokens_in, tokens_out),
+        # Wall-clock per call, for estimating how long a held-out run will take.
+        "mean_call_ms": round(1000 * elapsed / calls, 1) if calls else 0.0,
         "wrong": dict(sorted(wrong.items(), key=lambda kv: -kv[1])),
     }
 
