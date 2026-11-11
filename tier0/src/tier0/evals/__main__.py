@@ -14,6 +14,7 @@ from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
 from meridian_dataset.generator import HOLDOUT_V2_SEED
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
+from tier0.evals.setups import SETUPS
 from tier0.models import build_model
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
@@ -76,7 +77,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="unseal exactly this held-out set for its final comparison, e.g. "
         "--final-comparison=held_out_v3 (ADR-015, ADR-029)",
     )
+    parser.add_argument(
+        "--setup",
+        choices=sorted(SETUPS),
+        default=None,
+        help="milestone 3: a named setup (models per task and its frozen prompts); "
+        "overrides --model (ADR-030)",
+    )
     args = parser.parse_args(argv)
+    setup = SETUPS[args.setup] if args.setup else None
+    if setup is not None:
+        args.model = setup.provider
     if args.seed is None:
         args.seed = default_seed(args.model)
 
@@ -104,15 +115,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.model != "stub":
         print(f"WARNING: --model {args.model} may call a paid or local model.", file=sys.stderr)
 
+    if setup is not None:
+        factory = setup.factory(args.temperature if args.temperature is not None else 0.5)
+        prompts = setup.prompts()
+    else:
+        factory, prompts = _model_factory(args.model, args.temperature), None
+
     async def go():  # type: ignore[no-untyped-def]
         return await run_eval(
             args.seed,
             k=args.k,
-            model_factory=_model_factory(args.model, args.temperature),
+            model_factory=factory,
             out_dir=args.out,
             today=today,
             final_comparison=args.final_comparison,
             model_seed_base=args.model_seed,
+            prompts=prompts,
         )
 
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.

@@ -182,3 +182,14 @@ CHECK_VERSIONS: dict[str, str] = {
 }
 
 CHECK_CHOSEN = "K"
+
+# --- milestone 3 (ADR-030) ------------------------------------------------------------
+# Five candidates per prompt, scored on the bigger tuning set (generator 0.12.0) for every
+# setup; each setup takes the version its own tuning scores pick. Version 1 is the prompt
+# frozen in milestone 2, so the starting point is measured too.
+M3_TRIAGE_VERSIONS: dict[str, str] = {
+    "T1": VERSIONS["F"],
+}
+M3_CHECK_VERSIONS: dict[str, str] = {
+    "C1": CHECK_VERSIONS["K"],
+}

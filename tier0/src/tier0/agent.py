@@ -116,10 +116,22 @@ class _SendFailed(Exception):
     """Slack did not accept the message."""
 
 
-def triage_request(text: str) -> ModelRequest:
+@dataclass(frozen=True, slots=True)
+class Prompts:
+    """The two system prompts a setup uses (milestone 3: each setup has its own frozen
+    pair). None means the frozen default in tier0.messages."""
+
+    triage: str | None = None
+    check: str | None = None
+
+
+def triage_request(text: str, system: str | None = None) -> ModelRequest:
     """The one triage call, shared with the triage check tool."""
     return ModelRequest(
-        task="triage", system=messages.TRIAGE_SYSTEM, user=text, json_schema=TRIAGE_SCHEMA
+        task="triage",
+        system=system if system is not None else messages.TRIAGE_SYSTEM,
+        user=text,
+        json_schema=TRIAGE_SCHEMA,
     )
 
 
@@ -140,12 +152,12 @@ def parse_triage(response: ModelResponse | None) -> str:
 
 
 def own_account_check_request(
-    text: str, *, sender_name: str | None, sender_email: str
+    text: str, *, sender_name: str | None, sender_email: str, system: str | None = None
 ) -> ModelRequest:
     """The second check. It sees only the sender and the raw message, never triage's output."""
     return ModelRequest(
         task="own_account_check",
-        system=messages.OWN_ACCOUNT_CHECK_SYSTEM,
+        system=system if system is not None else messages.OWN_ACCOUNT_CHECK_SYSTEM,
         user=f"Sender: {sender_name or 'unknown'} <{sender_email}>\nMessage:\n{text}",
         json_schema=OWN_ACCOUNT_CHECK_SCHEMA,
     )
@@ -183,6 +195,7 @@ class ServiceDeskAgent:
         policy: Mapping[str, PolicyRule] = POLICY,
         close_after: timedelta = timedelta(days=3),
         mention_check: MentionCheck | None = None,
+        prompts: Prompts | None = None,
     ) -> None:
         self._slack = slack
         self._secret = signing_secret
@@ -198,6 +211,7 @@ class ServiceDeskAgent:
         self._policy = policy
         self._close_after = close_after
         self._mention_check = mention_check
+        self._prompts = prompts if prompts is not None else Prompts()
         self._seen_event_ids: set[str] = set()
         self._disclosed: set[str] = set()
 
@@ -343,7 +357,7 @@ class ServiceDeskAgent:
 
     def _triage(self, s: Session, text: str) -> str:
         try:
-            response = s.chat(self._model, triage_request(text))
+            response = s.chat(self._model, triage_request(text, self._prompts.triage))
         except ModelError:
             return OTHER
         return parse_triage(response)
@@ -446,7 +460,10 @@ class ServiceDeskAgent:
             response = s.chat(
                 self._model,
                 own_account_check_request(
-                    text, sender_name=bound.full_name, sender_email=bound.email
+                    text,
+                    sender_name=bound.full_name,
+                    sender_email=bound.email,
+                    system=self._prompts.check,
                 ),
             )
         except ModelError:

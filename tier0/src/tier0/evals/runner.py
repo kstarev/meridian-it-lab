@@ -12,6 +12,7 @@ from meridian_dataset import GENERATOR_VERSION, World, generate
 from meridian_dataset.generator import HOLDOUT_V2_SEED
 from meridian_dataset.model import AnswerKeyEntry
 from tier0 import messages
+from tier0.agent import Prompts
 from tier0.clock import parse_time
 from tier0.evals.explain import explain
 from tier0.evals.grading import (
@@ -532,6 +533,7 @@ def build_report(
     model_seed_base: int | None = None,
     provenance: dict[str, str] | None = None,
     triage_prompt_sha256: str | None = None,
+    check_prompt_sha256: str | None = None,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -557,10 +559,16 @@ def build_report(
             if triage_prompt_sha256 is not None
             else hashlib.sha256(messages.TRIAGE_SYSTEM.encode("utf-8")).hexdigest()
         ),
-        check_prompt_sha256=hashlib.sha256(
-            messages.OWN_ACCOUNT_CHECK_SYSTEM.encode("utf-8")
-        ).hexdigest(),
+        check_prompt_sha256=(
+            check_prompt_sha256
+            if check_prompt_sha256 is not None
+            else _sha(messages.OWN_ACCOUNT_CHECK_SYSTEM)
+        ),
     )
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def seeded_model(model_factory: ModelFactory, model_seed: int | None) -> ModelAdapter:
@@ -580,6 +588,7 @@ async def run_ticket(
     out_dir: Path | None = None,
     final_comparison: str | None = None,
     model_seed: int | None = None,
+    prompts: Prompts | None = None,
 ) -> RunResult:
     """One run of one ticket on a fresh runtime, so nothing leaks between runs.
 
@@ -597,6 +606,7 @@ async def run_ticket(
         model=seeded_model(model_factory, model_seed),
         tracer=tracer,
         final_comparison=final_comparison,
+        **({"prompts": prompts} if prompts is not None else {}),
     ) as rt:
         rt.clock.advance_to(parse_time(ticket.received_at))
         outcome = await rt.agent.handle(rt.slack.message_event(ticket))
@@ -739,6 +749,7 @@ async def run_eval(
     today: Callable[[], date] | None = None,
     final_comparison: str | None = None,
     model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
+    prompts: Prompts | None = None,
 ) -> EvalReport:
     """Run every ticket k times, one after another. A sealed set needs final_comparison
     naming it."""
@@ -759,6 +770,7 @@ async def run_eval(
                     out_dir=out_dir,
                     final_comparison=final_comparison,
                     model_seed=model_seed_base + run if seeded else None,
+                    prompts=prompts,
                 )
             )
     run_date = (today() if today is not None else datetime.now(UTC).date()).isoformat()
@@ -774,4 +786,6 @@ async def run_eval(
         model_seeds=tuple(model_seed_base + r for r in range(1, k + 1)) if seeded else (),
         model_seed_base=model_seed_base if seeded else None,
         provenance=provenance,
+        triage_prompt_sha256=_sha(prompts.triage) if prompts and prompts.triage else None,
+        check_prompt_sha256=_sha(prompts.check) if prompts and prompts.check else None,
     )
