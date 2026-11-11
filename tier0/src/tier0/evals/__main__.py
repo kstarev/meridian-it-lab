@@ -11,7 +11,7 @@ from pathlib import Path
 import anyio
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
-from meridian_dataset.generator import HOLDOUT_V2_SEED
+from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.evals.setups import SETUPS
@@ -34,7 +34,11 @@ def default_seed(model: str) -> int:
 
 def split_label(seed: int) -> str:
     """Which message set a seed uses, for published file names."""
-    return {HOLDOUT_SEED: "held-out-v1", HOLDOUT_V2_SEED: "held-out-v2"}.get(seed, "tuning")
+    return {
+        HOLDOUT_SEED: "held-out-v1",
+        HOLDOUT_V2_SEED: "held-out-v2",
+        HOLDOUT_V3_SEED: "held-out-v3",
+    }.get(seed, "tuning")
 
 
 def _model_factory(name: str, temperature: float | None = None):  # type: ignore[no-untyped-def]
@@ -152,7 +156,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         name = re.sub(
             r"[^A-Za-z0-9._-]",
             "-",
-            f"{report.run_date}-{split_label(report.seed)}-{report.provider}-{report.model}",
+            f"{report.run_date}-{split_label(report.seed)}-{report.provider}-"
+            f"{setup.name if setup is not None else report.model}",
         )
         args.publish.mkdir(parents=True, exist_ok=True)
         published = args.publish / f"{name}.md"
