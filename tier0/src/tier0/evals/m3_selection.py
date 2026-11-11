@@ -4,7 +4,8 @@
     python -m tier0.evals.m3_selection estimate --model claude-haiku-5-5
     python -m tier0.evals.m3_selection render --out docs/evals/<date>-m3-prompt-selection.md
 
-Every triage version (T1-T5) and check version (C1-C5) is scored on the same tuning
+Each model tries 5 versions per prompt (see `candidates`): the local models T1-T5 and
+C1-C5, Claude T1, HT2-HT5 and C1, HC2-HC5. All are scored on the same tuning
 messages, k = 3, seeds 1001-1003 where the model has seeds. Each (model, version) score
 is saved on its own, so models can be scored at different times. The selection rule:
 a version may not catch fewer colleague requests than version 1 for that model; among
@@ -46,6 +47,23 @@ RESULTS = Path("out/m3-selection")
 CLAUDE_MODELS = frozenset(PRICES_PER_MTOK)
 # Groups the scores are reported by.
 GROUPS = ("everyday", "self_described", "colleague", "colleague_unnamed")
+
+
+def candidates(model: str, task: str) -> tuple[str, ...]:
+    """The 5 versions a model may try for one task, version 1 first. The local models
+    share T2-T5 and C2-C5; Claude gets its own HT2-HT5 and HC2-HC5, written from its own
+    version-1 tuning misses (ADR-030). Same budget either way."""
+    first = "T1" if task == "triage" else "C1"
+    prefix = f"H{first[0]}" if model in CLAUDE_MODELS else first[0]
+    return (first, *(f"{prefix}{i}" for i in range(2, MAX_VERSIONS + 1)))
+
+
+def task_of(version: str) -> str:
+    if version in M3_TRIAGE_VERSIONS:
+        return "triage"
+    if version in M3_CHECK_VERSIONS:
+        return "check"
+    raise KeyError(f"unknown prompt version {version!r}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,7 +140,7 @@ def score(
     model_name: str, version: str, *, k: int = K, model: ModelAdapter | None = None
 ) -> dict[str, Any]:
     """Score one prompt version (T* for triage, C* for the check) on one model."""
-    task = "triage" if version.startswith("T") else "check"
+    task = task_of(version)
     text = (M3_TRIAGE_VERSIONS if task == "triage" else M3_CHECK_VERSIONS)[version]
     model = model if model is not None else make_model(model_name)
     cases = instances()
@@ -213,12 +231,10 @@ def choose_setups(results: Sequence[dict[str, Any]]) -> dict[str, dict[str, str 
     out: dict[str, dict[str, str | None]] = {}
     for setup in SETUPS.values():
         picks: dict[str, str | None] = {}
-        for task, model, pool in (
-            ("triage", setup.triage_model, M3_TRIAGE_VERSIONS),
-            ("check", setup.check_model, M3_CHECK_VERSIONS),
-        ):
-            scored = _for(results, model, task)
-            complete = {r["version"] for r in scored} == set(pool)
+        for task, model in (("triage", setup.triage_model), ("check", setup.check_model)):
+            wanted = candidates(model, task)
+            scored = [r for r in _for(results, model, task) if r["version"] in wanted]
+            complete = set(wanted) <= {r["version"] for r in scored}
             picks[task] = choose(scored) if complete else None
         out[setup.name] = picks
     return out
@@ -251,11 +267,15 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
     ]
     models = sorted({r["model"] for r in results}, key=lambda m: (m in CLAUDE_MODELS, m))
     for model in models:
-        for task, pool in (("triage", M3_TRIAGE_VERSIONS), ("check", M3_CHECK_VERSIONS)):
-            scored = sorted(_for(results, model, task), key=lambda r: r["version"])
+        for task in ("triage", "check"):
+            wanted = candidates(model, task)
+            scored = sorted(
+                (r for r in _for(results, model, task) if r["version"] in wanted),
+                key=lambda r: wanted.index(r["version"]),
+            )
             if not scored:
                 continue
-            complete = {r["version"] for r in scored} == set(pool)
+            complete = set(wanted) <= {r["version"] for r in scored}
             chosen = choose(scored) if complete else None
             lines += [
                 f"## {model}: {task}",
@@ -273,7 +293,7 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
                     f"| `{r['prompt_sha256'][:12]}` | ${r['cost_usd']:.4f} |"
                 )
             if not complete:
-                missing = sorted(set(pool) - {r["version"] for r in scored})
+                missing = [v for v in wanted if v not in {r["version"] for r in scored}]
                 lines.append("")
                 lines.append(f"Not chosen yet: {', '.join(missing)} not scored.")
             lines.append("")
@@ -372,6 +392,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     unknown = [v for v in args.versions if v not in {**M3_TRIAGE_VERSIONS, **M3_CHECK_VERSIONS}]
     if unknown:
         print(f"unknown versions: {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    # Each model tries only its own 5 versions per prompt: the budget.
+    other = [v for v in args.versions if v not in candidates(args.model, task_of(v))]
+    if other:
+        print(
+            f"not candidates for {args.model}: {', '.join(other)} (ADR-030 budget)",
+            file=sys.stderr,
+        )
         return 2
     RESULTS.mkdir(parents=True, exist_ok=True)
     with guard_for_model(provider_of(args.model)):

@@ -132,3 +132,34 @@ def test_each_setup_picks_from_its_own_models_and_waits_for_missing_scores() -> 
     assert "tuning score, and optimistic" in md
     assert "| T3 **(chosen)** | 130/138 |" in md
     assert "| haiku | claude-haiku-5-5 | pending |" in md
+
+
+def test_claude_gets_its_own_versions_within_the_same_budget() -> None:
+    assert sel.candidates("llama3.2", "triage") == ("T1", "T2", "T3", "T4", "T5")
+    assert sel.candidates("llama3.1:8b", "check") == ("C1", "C2", "C3", "C4", "C5")
+    assert sel.candidates("claude-haiku-5-5", "triage") == ("T1", "HT2", "HT3", "HT4", "HT5")
+    assert sel.candidates("claude-haiku-5-5", "check") == ("C1", "HC2", "HC3", "HC4", "HC5")
+
+
+def test_the_cli_refuses_a_version_outside_the_models_budget(capsys) -> None:
+    assert sel.main(["score", "--model", "claude-haiku-5-5", "--versions", "T2"]) == 2
+    assert "not candidates for claude-haiku-5-5: T2" in capsys.readouterr().err
+    assert sel.main(["score", "--model", "llama3.2", "--versions", "nope"]) == 2
+
+
+def test_haiku_is_chosen_from_its_own_versions() -> None:
+    def rename(rows: list[dict], prefix: str) -> list[dict]:
+        for r in rows:
+            if r["version"][1] != "1":
+                r["version"] = prefix + r["version"][1:]
+        return rows
+
+    haiku = "claude-haiku-5-5"
+    results = rename(_scores(haiku, "triage", {}, {"T4": 137}), "HT") + rename(
+        _scores(haiku, "check", {"C3": 41}, {"C3": 120}), "HC"
+    )
+    # A llama-only version scored on Haiku by hand isn't a candidate and is ignored.
+    results += _scores(haiku, "triage", {}, {"T2": 138})[1:2]
+    picks = sel.choose_setups(results)
+    assert picks["haiku"] == {"triage": "HT4", "check": "HC3"}
+    assert picks["llama3.2"] == {"triage": None, "check": None}
