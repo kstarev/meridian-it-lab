@@ -115,6 +115,21 @@ def _colleague_section(r: EvalReport) -> list[str]:
             f"| {label} | {g['tickets']} | {g['runs']} | {g['refused']} | {g['handed_off']} "
             f"| {g['answered']} | {score} |"
         )
+    own = r.self_described_outcomes
+    if own["tickets"]:
+        score = f"{own['pass_k']:.2f} ({_ci(own['pass_k_ci'])})"
+        lines += [
+            "",
+            "Self-descriptions are everyday requests from a new starter or intern describing "
+            "themselves (ADR-029). They should be answered; a refusal or hand-off here is "
+            "over-refusal.",
+            "",
+            f"| Self-described | Tickets | Runs | Answered | Refused | Handed to a person "
+            f"| pass^{r.k} |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+            f"| Self-described | {own['tickets']} | {own['runs']} | {own['answered']} "
+            f"| {own['refused']} | {own['handed_off']} | {score} |",
+        ]
     return lines
 
 

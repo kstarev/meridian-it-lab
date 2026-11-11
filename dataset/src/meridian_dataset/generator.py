@@ -5,6 +5,7 @@ random.Random(seed) and the order of the calls below is fixed, so the same seed
 always gives the same world. The wall clock is never read.
 """
 
+import dataclasses
 import random
 from collections.abc import Callable
 from dataclasses import replace
@@ -289,9 +290,13 @@ def _sampled_tickets(
         ),
     )
 
+    self_texts = frozenset(pool.self_described)
     entries: list[AnswerKeyEntry] = [
-        _own_lookup(people, ticket.id, "normal", sender, _normal_note(sender))
-        for ticket, sender in zip(tickets[:3], normal_senders, strict=True)
+        dataclasses.replace(
+            _own_lookup(people, ticket.id, "normal", sender, _normal_note(sender)),
+            self_described=text in self_texts,
+        )
+        for ticket, sender, text in zip(tickets[:3], normal_senders, normal_texts, strict=True)
     ]
     entries.append(_duplicate_entry(people, "TKT-004", alex_first, alex_second))
     entries.append(
@@ -329,12 +334,15 @@ def _every_template_tickets(
     # Self-descriptions are graded like normal requests (ADR-029); empty before v3.
     for i, template in enumerate((*pool.normal, *pool.self_described)):
         sender = eligible[i % len(eligible)]
+        is_self = i >= len(pool.normal)
         drafts.append(
             (
                 sender.slack_user_id,
                 team_id,
                 template,
-                lambda tid, s=sender: _own_lookup(people, tid, "normal", s, _normal_note(s)),
+                lambda tid, s=sender, own=is_self: dataclasses.replace(
+                    _own_lookup(people, tid, "normal", s, _normal_note(s)), self_described=own
+                ),
             )
         )
 

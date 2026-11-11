@@ -197,3 +197,19 @@ def test_pool_field_sizes() -> None:
 
 def test_self_described_templates_present() -> None:
     assert len(HELD_OUT_V3_POOL.self_described) == 6
+
+
+def test_v3_flags_its_self_descriptions_and_older_worlds_carry_no_flag(tmp_path) -> None:
+    """Count-only: v3's wording is never read here (ADR-029)."""
+    import json
+
+    from meridian_dataset import HOLDOUT_SEED, HOLDOUT_V3_SEED, generate, write_dataset
+    from meridian_dataset.generator import HOLDOUT_V2_SEED
+
+    v3 = generate(HOLDOUT_V3_SEED)
+    assert sum(e.self_described for e in v3.answer_key.entries) == 6
+    assert all(e.scenario == "normal" for e in v3.answer_key.entries if e.self_described)
+    for seed in (HOLDOUT_SEED, HOLDOUT_V2_SEED):
+        paths = write_dataset(generate(seed), tmp_path / str(seed))
+        entries = json.loads(paths["answer_key.json"].read_text())["entries"]
+        assert all("self_described" not in e for e in entries)
