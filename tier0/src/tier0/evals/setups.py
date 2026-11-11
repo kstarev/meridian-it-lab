@@ -16,6 +16,18 @@ from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.models.routed import RoutedModel
 
 HAIKU = "claude-haiku-5-5"
+GPT_OSS = "gpt-oss:20b"
+QWEN = "qwen3.6:27b"
+# Too big to share a 32 GB Mac with each other: one at a time, never paired (ADR-031).
+BIG_MODELS = frozenset({GPT_OSS, QWEN})
+# Reasoning settings, recorded in every report's provenance: gpt-oss at its lowest
+# level; Qwen with thinking off, like Haiku.
+THINK: dict[str, bool | str] = {GPT_OSS: "low", QWEN: False}
+
+
+def timeout_for(model: str) -> float:
+    """Big models get longer: loading 15-20 GB and reasoning both take time."""
+    return 180.0 if model in BIG_MODELS else 60.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +38,16 @@ class Setup:
     check_model: str
     triage_prompt: str  # a key of M3_TRIAGE_VERSIONS
     check_prompt: str  # a key of M3_CHECK_VERSIONS
+
+    def __post_init__(self) -> None:
+        if self.triage_model != self.check_model and {self.triage_model, self.check_model} <= (
+            BIG_MODELS
+        ):
+            raise ValueError(f"{self.name}: two big models can't share a 32 GB Mac (ADR-031)")
+
+    @property
+    def models(self) -> frozenset[str]:
+        return frozenset({self.triage_model, self.check_model})
 
     @property
     def label(self) -> str:
@@ -45,7 +67,13 @@ class Setup:
         def one(model: str) -> ModelAdapter:
             if self.provider == "claude":
                 return ClaudeModel(model=model)
-            return OllamaModel(model=model, base_url=url, temperature=temperature)
+            return OllamaModel(
+                model=model,
+                base_url=url,
+                temperature=temperature,
+                think=THINK.get(model),
+                timeout=timeout_for(model),
+            )
 
         def make() -> ModelAdapter:
             if self.triage_model == self.check_model:
@@ -63,5 +91,9 @@ SETUPS: dict[str, Setup] = {
         Setup("llama3.1:8b", "ollama", "llama3.1:8b", "llama3.1:8b", "T1", "C1"),
         Setup("mixed", "ollama", "llama3.2", "llama3.1:8b", "T1", "C1"),
         Setup("haiku", "claude", HAIKU, HAIKU, "T1", "C1"),
+        # Added before anything ran on v3 (ADR-031); not run until the user says the
+        # downloads are done.
+        Setup("gpt-oss:20b", "ollama", GPT_OSS, GPT_OSS, "T1", "C1"),
+        Setup("qwen3.6:27b", "ollama", QWEN, QWEN, "T1", "C1"),
     )
 }

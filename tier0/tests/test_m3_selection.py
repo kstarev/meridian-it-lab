@@ -163,3 +163,16 @@ def test_haiku_is_chosen_from_its_own_versions() -> None:
     picks = sel.choose_setups(results)
     assert picks["haiku"] == {"triage": "HT4", "check": "HC3"}
     assert picks["llama3.2"] == {"triage": None, "check": None}
+
+
+def test_a_flawless_version_1_is_kept_without_writing_more() -> None:
+    perfect = _scores("claude-haiku-5-5", "check", {"C1": 42}, {"C1": 138})[:1]
+    perfect[0]["correct"]["colleague_unnamed"] = 21
+    assert sel.flawless(perfect[0])
+    picks = sel.choose_setups(perfect)
+    assert picks["haiku"]["check"] == "C1" and picks["haiku"]["triage"] is None
+    md = sel.render(perfect, "cmd")
+    assert "made no mistake on any tuning message" in md
+    # One miss anywhere and the remaining versions are still owed.
+    perfect[0]["correct"]["self_described"] = 17
+    assert sel.choose_setups(perfect)["haiku"]["check"] is None

@@ -6,7 +6,7 @@ import pytest
 
 from tier0 import messages
 from tier0.evals import __main__ as cli
-from tier0.evals.setups import SETUPS
+from tier0.evals.setups import BIG_MODELS, SETUPS, THINK, Setup
 from tier0.models import ModelRequest, ModelResponse
 from tier0.models.routed import RoutedModel
 
@@ -36,12 +36,48 @@ class Fake:
         return ModelResponse(text, self.model, 1, 1, "stop", None)
 
 
-def test_the_four_setups() -> None:
-    assert set(SETUPS) == {"llama3.2", "llama3.1:8b", "mixed", "haiku"}
+@pytest.fixture(autouse=True)
+def no_real_ollama(monkeypatch: pytest.MonkeyPatch) -> list[set[str]]:
+    """The CLI frees memory on the real Ollama before a local setup runs; not in tests."""
+    rooms: list[set[str]] = []
+    monkeypatch.setattr(cli, "make_room", lambda wanted, **_: rooms.append(set(wanted)) or [])
+    return rooms
+
+
+def test_the_six_setups() -> None:
+    assert set(SETUPS) == {
+        "llama3.2",
+        "llama3.1:8b",
+        "mixed",
+        "haiku",
+        "gpt-oss:20b",
+        "qwen3.6:27b",
+    }
     assert SETUPS["mixed"].label == "llama3.2+llama3.1:8b"
     assert (
         SETUPS["haiku"].provider == "claude" and SETUPS["haiku"].triage_model == "claude-haiku-5-5"
     )
+
+
+def test_no_setup_pairs_two_big_models_and_gpt_oss_reasons_at_its_lowest() -> None:
+    assert {"gpt-oss:20b", "qwen3.6:27b"} == BIG_MODELS
+    for setup in SETUPS.values():
+        assert len(setup.models & BIG_MODELS) <= 1
+    with pytest.raises(ValueError, match="two big models"):
+        Setup("both", "ollama", "gpt-oss:20b", "qwen3.6:27b", "T1", "C1")
+    assert THINK["gpt-oss:20b"] == "low"
+    model = SETUPS["gpt-oss:20b"].factory()()
+    assert model.think == "low"  # type: ignore[attr-defined]
+    assert SETUPS["llama3.2"].factory()().think is None  # type: ignore[attr-defined]
+
+
+def test_a_local_setup_frees_memory_first(no_real_ollama: list[set[str]], tmp_path) -> None:
+    setup = SETUPS["mixed"]
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(type(setup), "factory", lambda self, temperature=0.5: lambda: Fake("m"))
+        args = ["--setup", "mixed", "--seed", "1108", "--k", "1", "--out", str(tmp_path)]
+        assert cli.main(args) == 0
+    assert no_real_ollama == [{"llama3.2", "llama3.1:8b"}]
 
 
 def test_the_routed_model_sends_each_task_to_its_own_model() -> None:

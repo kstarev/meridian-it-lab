@@ -15,10 +15,10 @@ from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.evals.setups import SETUPS
+from tier0.evals.setups import BIG_MODELS, SETUPS
 from tier0.models import ModelAdapter, ModelError, build_model
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
-from tier0.models.ollama import DEFAULT_OLLAMA_URL
+from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
 from tier0.netguard import guard_for_model, is_loopback_url
 from tier0.sealed import SEALED_POOLS, SealedSetError, require_unsealed
 
@@ -169,6 +169,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
     guard = guard_for_model(args.model)
     with guard:
+        if setup is not None and setup.provider == "ollama":
+            # Never two big models in memory together (ADR-031).
+            url = os.environ.get("TIER0_OLLAMA_URL", DEFAULT_OLLAMA_URL)
+            unloaded = make_room(setup.models, big=BIG_MODELS, base_url=url)
+            if unloaded:
+                print(f"unloaded first: {', '.join(unloaded)}", file=sys.stderr)
         if args.model != "stub" and not args.no_warm_up:
             failed = warm_up(factory(), prompts)
             if failed:

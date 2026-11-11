@@ -33,9 +33,10 @@ from tier0.agent import (
     triage_request,
 )
 from tier0.evals.prompt_history import M3_CHECK_VERSIONS, M3_TRIAGE_VERSIONS
-from tier0.evals.setups import SETUPS
+from tier0.evals.setups import BIG_MODELS, GPT_OSS, HAIKU, QWEN, SETUPS, THINK, timeout_for
 from tier0.models import ClaudeModel, ModelAdapter, ModelError, OllamaModel
 from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_USERNAME
+from tier0.models.ollama import make_room
 from tier0.models.pricing import PRICES_PER_MTOK, cost_usd
 from tier0.netguard import guard_for_model
 
@@ -47,14 +48,18 @@ RESULTS = Path("out/m3-selection")
 CLAUDE_MODELS = frozenset(PRICES_PER_MTOK)
 # Groups the scores are reported by.
 GROUPS = ("everyday", "self_described", "colleague", "colleague_unnamed")
+# Models that get their own versions 2-5, written from their own version-1 tuning misses
+# (ADR-030, ADR-031). llama3.2 and llama3.1:8b share T2-T5 and C2-C5, which were written
+# from both of their misses.
+OWN_VERSIONS = {HAIKU: "H", GPT_OSS: "G", QWEN: "Q"}
 
 
 def candidates(model: str, task: str) -> tuple[str, ...]:
-    """The 5 versions a model may try for one task, version 1 first. The local models
-    share T2-T5 and C2-C5; Claude gets its own HT2-HT5 and HC2-HC5, written from its own
-    version-1 tuning misses (ADR-030). Same budget either way."""
+    """The 5 versions a model may try for one task, version 1 first. The two llamas
+    share T2-T5 and C2-C5; each model in OWN_VERSIONS gets its own (HT2-HT5 for Haiku,
+    GT2-GT5 for gpt-oss, QT2-QT5 for Qwen, and the same for C). Same budget for all."""
     first = "T1" if task == "triage" else "C1"
-    prefix = f"H{first[0]}" if model in CLAUDE_MODELS else first[0]
+    prefix = OWN_VERSIONS.get(model, "") + first[0]
     return (first, *(f"{prefix}{i}" for i in range(2, MAX_VERSIONS + 1)))
 
 
@@ -129,7 +134,9 @@ def instances() -> list[Instance]:
 def make_model(name: str) -> ModelAdapter:
     if name in CLAUDE_MODELS:
         return ClaudeModel(model=name)
-    return OllamaModel(model=name, temperature=TEMPERATURE)
+    return OllamaModel(
+        model=name, temperature=TEMPERATURE, think=THINK.get(name), timeout=timeout_for(name)
+    )
 
 
 def provider_of(name: str) -> str:
@@ -215,6 +222,18 @@ def choose(results: Sequence[dict[str, Any]]) -> str:
     return str(best["version"])
 
 
+def flawless(r: dict[str, Any]) -> bool:
+    return all(r["correct"][g] == r["total"][g] for g in GROUPS)
+
+
+def settled(scored: Sequence[dict[str, Any]], wanted: Sequence[str]) -> bool:
+    """Every candidate is scored, or version 1 made no tuning mistake at all. Versions
+    2-5 are written from version 1's own misses, so with none there is nothing to write
+    from, and the unused budget stays unspent (ADR-031)."""
+    have = {r["version"]: r for r in scored}
+    return set(wanted) <= set(have) or (wanted[0] in have and flawless(have[wanted[0]]))
+
+
 def load_results(directory: Path = RESULTS) -> list[dict[str, Any]]:
     if not directory.exists():
         return []
@@ -234,7 +253,7 @@ def choose_setups(results: Sequence[dict[str, Any]]) -> dict[str, dict[str, str 
         for task, model in (("triage", setup.triage_model), ("check", setup.check_model)):
             wanted = candidates(model, task)
             scored = [r for r in _for(results, model, task) if r["version"] in wanted]
-            complete = set(wanted) <= {r["version"] for r in scored}
+            complete = settled(scored, wanted)
             picks[task] = choose(scored) if complete else None
         out[setup.name] = picks
     return out
@@ -275,7 +294,7 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
             )
             if not scored:
                 continue
-            complete = set(wanted) <= {r["version"] for r in scored}
+            complete = settled(scored, wanted)
             chosen = choose(scored) if complete else None
             lines += [
                 f"## {model}: {task}",
@@ -291,6 +310,12 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
                     f"| {_cell(r, 'self_described')} | {_cell(r, 'colleague')} "
                     f"| {_cell(r, 'colleague_unnamed')} | {r['prompt_chars']} "
                     f"| `{r['prompt_sha256'][:12]}` | ${r['cost_usd']:.4f} |"
+                )
+            if complete and len(scored) == 1:
+                lines.append("")
+                lines.append(
+                    f"Version 1 made no mistake on any tuning message, so versions 2-"
+                    f"{MAX_VERSIONS} were not written: there was nothing to fix (ADR-031)."
                 )
             if not complete:
                 missing = [v for v in wanted if v not in {r["version"] for r in scored}]
@@ -403,6 +428,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     RESULTS.mkdir(parents=True, exist_ok=True)
     with guard_for_model(provider_of(args.model)):
+        if provider_of(args.model) == "ollama":
+            unloaded = make_room([args.model], big=BIG_MODELS)
+            if unloaded:
+                print(f"unloaded first: {', '.join(unloaded)}")
         for version in args.versions:
             path = _path(args.model, version)
             if path.exists() and not args.rescore:

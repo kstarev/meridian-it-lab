@@ -647,7 +647,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-030: Milestone 3 compares four setups, each tuned the same way on tuning data only
 
-**Date:** 2026-11-11 · **Status:** Accepted; the runs haven't happened yet. ADR-013, ADR-021 and ADR-027 still apply.
+**Date:** 2026-11-11 · **Status:** Accepted, and amended by ADR-031 (six setups, 15 pairs) before anything ran on v3. ADR-013, ADR-021 and ADR-027 still apply.
 
 **Context:** Milestone 2 froze one triage and one check prompt and compared two local models with them (ADR-027). Milestone 3 fixes over-refusal on a bigger, noisier tuning set, and adds two candidates: a mixed setup (the small model for triage, the larger one for the check) and Claude Haiku 5.5. A prompt tuned for one model isn't fair to another, so each setup gets its own prompts, picked by the same rule from the same candidates within the same budget.
 
@@ -691,7 +691,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
   - a self-described row;
   - API cost per ticket.
 - **The winner rule:**
-  - Every pair of setups gets a paired bootstrap of the pass^k difference. Four setups make 6 pairs, so each interval is 99.2% (Bonferroni, 1 − 0.05 / 6) and the family-wise error stays at 5%.
+  - Every pair of setups gets a paired bootstrap of the pass^k difference, Bonferroni-corrected so the family-wise error stays at 5%. Four setups made 6 pairs at 99.2% (1 − 0.05 / 6); ADR-031's six make 15 pairs at 99.67%.
   - A setup wins only with 0 unsafe runs and an interval above 0 against every other setup. Otherwise there is no winner.
 - **Claude:**
   - The key comes from `.env` only. It is never logged, printed or committed, and the SDK's own key and base-URL variables are hidden.
@@ -707,3 +707,23 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - Picking the best of 5 per setup flatters every tuning score. Only v3 counts.
 - After the final comparison v3 is spent, and becomes a dev set like v1 and v2.
 
+## ADR-031: Two more local candidates, gpt-oss:20b and qwen3.6:27b, added before v3
+
+**Date:** 2026-11-11 · **Status:** Accepted; neither model has run yet (both still downloading). Amends ADR-030.
+
+**Context:** Nothing has run on held-out v3. The user asked for two larger local models as candidates, on the same 32 GB Mac. Either one takes most of that memory, so two can't be loaded together.
+
+**Decision:**
+
+- **Two more setups**, each one model for both tasks: `gpt-oss:20b` and `qwen3.6:27b`. Six setups in all. No setup pairs two big models; `Setup` refuses one.
+- **One big model in memory at a time.** Before a local setup runs (an eval or a tuning score), tier0 asks Ollama what is loaded and unloads what would share memory: everything else when a big model is wanted, any big model otherwise. Big models get a 180 s request timeout for loading.
+- **Reasoning:** gpt-oss runs at its lowest reasoning level (`think: "low"`). Qwen runs with thinking off, like Haiku. Each report records the setting in its provenance.
+- **Same tuning as the others:** the same 66 tuning messages, k = 3, seeds 1001–1003; version 1 is milestone 2's frozen pair; versions 2–5 are written from that model's own version-1 tuning misses (GT2–GT5 and GC2–GC5 for gpt-oss, QT2–QT5 and QC2–QC5 for Qwen) and committed before they are scored. The same selection rule with ADR-030's safety tie-break, frozen by hash, and the same dev-set check on v1 and v2.
+- **Haiku got its own versions too**, by the same rule (HT2–HT5, HC2–HC5), instead of the llamas'. Its version 1 made no mistake on any tuning message, for both prompts (138/138 everyday, 18/18 self-described, 42/42 colleague). With no misses there is nothing to write versions 2–5 from, so they weren't written, and Haiku keeps T1 and C1. The same applies to any model whose version 1 is flawless.
+- **The comparison:** six setups make 15 pairs, so each paired-bootstrap interval is 99.67% (1 − 0.05 / 15). `compare_many` refuses to run without one report per registered setup, so leaving one out can't shrink the correction.
+- **Latency per ticket** (mean and slowest, after the warm-up) is a column in the comparison. Before any setup runs on v3, its expected time is estimated from its tuning and dev-set runs, and a setup expected to take more than about an hour is raised with the user first.
+
+**Consequences:**
+
+- 15 pairs at 99.67% need bigger gaps to call a winner than 6 pairs at 99.2% did; with 54 tickets, "no clear winner" is more likely.
+- The big models' latency reflects one Mac, unloading and reloading between setups, not a server.
