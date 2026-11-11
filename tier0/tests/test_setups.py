@@ -44,15 +44,22 @@ def no_real_ollama(monkeypatch: pytest.MonkeyPatch) -> list[set[str]]:
     return rooms
 
 
-def test_the_six_setups() -> None:
+def test_the_seven_setups() -> None:
     assert set(SETUPS) == {
         "llama3.2",
         "llama3.1:8b",
         "mixed",
         "haiku",
+        "sonnet",
         "gpt-oss:20b",
         "qwen3.6:27b",
     }
+    assert SETUPS["sonnet"].triage_model == "claude-sonnet-5-5"
+    assert {s.name: s.v3_k for s in SETUPS.values() if s.provider == "claude"} == {
+        "haiku": 5,
+        "sonnet": 5,
+    }
+    assert all(s.v3_k == 3 for s in SETUPS.values() if s.provider == "ollama")
     assert SETUPS["mixed"].label == "llama3.2+llama3.1:8b"
     assert (
         SETUPS["haiku"].provider == "claude" and SETUPS["haiku"].triage_model == "claude-haiku-5-5"
@@ -224,3 +231,32 @@ def test_nothing_runs_on_v3_until_every_setup_is_frozen(capsys, tmp_path) -> Non
     err = capsys.readouterr().err
     assert "until every setup is frozen" in err and "gpt-oss:20b" in err
     assert not (tmp_path / "report.json").exists()
+
+
+def test_v3_refuses_the_wrong_k_for_a_setup(
+    monkeypatch: pytest.MonkeyPatch, capsys, tmp_path
+) -> None:
+    monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS))  # pretend all are frozen
+    base = ["--final-comparison=held_out_v3", "--seed", "4417", "--out", str(tmp_path)]
+    assert cli.main(["--setup", "haiku", "--k", "3", *base]) == 2
+    assert "haiku runs at k = 5" in capsys.readouterr().err
+    assert cli.main(["--setup", "llama3.2", "--k", "5", *base]) == 2
+    assert "llama3.2 runs at k = 3" in capsys.readouterr().err
+    assert not (tmp_path / "report.json").exists()
+
+
+def test_a_k5_run_carries_its_first_3_runs_and_cost_per_1000(tmp_path) -> None:
+    setup = SETUPS["llama3.2"]
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(type(setup), "factory", lambda self, temperature=0.5: lambda: Fake("m"))
+        args = ["--setup", "llama3.2", "--seed", "1108", "--k", "5", "--out", str(tmp_path)]
+        cli.main([*args, "--no-warm-up"])
+    report = json.loads((tmp_path / "report.json").read_text())
+    view = report["at_k3"]
+    assert report["k"] == 5 and view["k"] == 3 and "runs_detail" not in view
+    assert {t["runs"] for t in view["tickets"]} == {3}
+    assert {t["runs"] for t in report["tickets"]} == {5}
+    assert report["cost"]["per_1000_tickets_usd"] == 1000 * report["cost"]["per_ticket_usd"]
+    md = (tmp_path / "report.md").read_text()
+    assert "| pass^3 on runs 1-3 (to compare with k = 3 setups) |" in md
+    assert "| API cost per 1,000 tickets |" in md

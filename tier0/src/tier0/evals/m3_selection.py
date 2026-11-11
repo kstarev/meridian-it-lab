@@ -44,6 +44,7 @@ from tier0.evals.setups import (
     NO_STRUCTURED_OUTPUT,
     QWEN,
     SETUPS,
+    SONNET,
     THINK,
     timeout_for,
 )
@@ -64,7 +65,7 @@ GROUPS = ("everyday", "self_described", "colleague", "colleague_unnamed")
 # Models that get their own versions 2-5, written from their own version-1 tuning misses
 # (ADR-030, ADR-031). llama3.2 and llama3.1:8b share T2-T5 and C2-C5, which were written
 # from both of their misses.
-OWN_VERSIONS = {HAIKU: "H", GPT_OSS: "G", QWEN: "Q"}
+OWN_VERSIONS = {HAIKU: "H", SONNET: "S", GPT_OSS: "G", QWEN: "Q"}
 
 
 def candidates(model: str, task: str) -> tuple[str, ...]:

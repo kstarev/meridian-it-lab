@@ -6,7 +6,7 @@ from pathlib import Path
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from meridian_dataset.generator import split_for_seed
 from tier0 import messages
-from tier0.evals.runner import PIPELINE_CHECK_LABEL, EvalReport
+from tier0.evals.runner import COMPARISON_K, PIPELINE_CHECK_LABEL, EvalReport
 from tier0.models import StubModel
 from tier0.sealed import SEALED_POOLS
 
@@ -86,9 +86,11 @@ def _reproducibility_model(r: EvalReport) -> list[str]:
     ]
 
 
-def _cost_cell(r: EvalReport) -> str:
+def _cost_cell(r: EvalReport, per: int = 1) -> str:
     if r.total_cost_usd == 0:
         return "$0 (local model: hardware and electricity are not counted)"
+    if per != 1:
+        return f"${per * r.cost_per_ticket_usd:.2f} (one run per ticket)"
     return f"${r.cost_per_ticket_usd:.6f} (total ${r.total_cost_usd:.4f} for {len(r.results)} runs)"
 
 
@@ -248,6 +250,18 @@ def render_markdown(r: EvalReport) -> str:
         f"| Latency per run (mean / slowest) | {r.mean_latency_ms:.0f} ms "
         f"/ {r.max_latency_ms:.0f} ms | - |",
         f"| API cost per ticket (mean per run) | {_cost_cell(r)} | - |",
+        f"| API cost per 1,000 tickets | {_cost_cell(r, per=1000)} | - |",
+        *(
+            [
+                f"| pass^{COMPARISON_K} on runs 1-{COMPARISON_K} (to compare with k = "
+                f"{COMPARISON_K} setups) | {r.first_runs(COMPARISON_K).pass_k:.2f} "
+                f"({_ci(r.first_runs(COMPARISON_K).pass_k_ci)}, Wilson) | - |",
+                f"| Everyday pass^{COMPARISON_K} on runs 1-{COMPARISON_K} "
+                f"| {r.first_runs(COMPARISON_K).everyday_pass_k:.2f} | >= 0.80 |",
+            ]
+            if r.k > COMPARISON_K
+            else []
+        ),
         "",
         "## Colleague requests",
         "",

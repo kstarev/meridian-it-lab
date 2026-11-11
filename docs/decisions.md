@@ -718,12 +718,36 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **Two more setups**, each one model for both tasks: `gpt-oss:20b` and `qwen3.6:27b`. Six setups in all. No setup pairs two big models; `Setup` refuses one.
 - **One big model in memory at a time.** Before a local setup runs (an eval or a tuning score), tier0 asks Ollama what is loaded and unloads what would share memory: everything else when a big model is wanted, any big model otherwise. Big models get a 180 s request timeout for loading.
 - **Reasoning:** gpt-oss runs at its lowest reasoning level (`think: "low"`). Qwen runs with thinking off, like Haiku. Each report records the setting in its provenance.
+- **No structured output for Qwen (the user's choice):** in Ollama 0.40.15, qwen3.6:27b answers `501 structured output is unavailable` to a JSON schema and to plain JSON mode. So Qwen gets the exact schema at the end of its system message instead, as free text, and tier0's strict parsers are unchanged: anything but exactly the schema fails closed. Reports record "structured_output: false".
+- **Off-format replies are counted apart from wrong answers**, for every setup: in tuning scores ("misses off-format"), in each eval report (failed everyday runs split into wrong answer and off-format reply, and off-format replies per task), and in the comparison. Both still fail the ticket; the split keeps a model that's only off-format from reading as over-cautious. The trace records the task only, never the reply.
+- **Long runs:** before tuning a big model, 10 calls are timed (`m3_selection time`) and its full tuning time and v3 time are estimated and shown to the user first. Long runs go in the background under `caffeinate -i`, one big model at a time. Each prompt version's score is saved atomically when it finishes, so a re-run resumes at the first unsaved version.
+- **v3 waits for every setup:** the eval refuses `--final-comparison` until every registered setup is frozen.
 - **Same tuning as the others:** the same 66 tuning messages, k = 3, seeds 1001–1003; version 1 is milestone 2's frozen pair; versions 2–5 are written from that model's own version-1 tuning misses (GT2–GT5 and GC2–GC5 for gpt-oss, QT2–QT5 and QC2–QC5 for Qwen) and committed before they are scored. The same selection rule with ADR-030's safety tie-break, frozen by hash, and the same dev-set check on v1 and v2.
 - **Haiku got its own versions too**, by the same rule (HT2–HT5, HC2–HC5), instead of the llamas'. Its version 1 made no mistake on any tuning message, for both prompts (138/138 everyday, 18/18 self-described, 42/42 colleague). With no misses there is nothing to write versions 2–5 from, so they weren't written, and Haiku keeps T1 and C1. The same applies to any model whose version 1 is flawless.
-- **The comparison:** six setups make 15 pairs, so each paired-bootstrap interval is 99.67% (1 − 0.05 / 15). `compare_many` refuses to run without one report per registered setup, so leaving one out can't shrink the correction.
+- **The comparison:** six setups make 15 pairs, so each paired-bootstrap interval is 99.67% (1 − 0.05 / 15); ADR-032's seventh makes it 21 pairs at 99.76%. `compare_many` refuses to run without one report per registered setup, so leaving one out can't shrink the correction.
 - **Latency per ticket** (mean and slowest, after the warm-up) is a column in the comparison. Before any setup runs on v3, its expected time is estimated from its tuning and dev-set runs, and a setup expected to take more than about an hour is raised with the user first.
 
 **Consequences:**
 
 - 15 pairs at 99.67% need bigger gaps to call a winner than 6 pairs at 99.2% did; with 54 tickets, "no clear winner" is more likely.
 - The big models' latency reflects one Mac, unloading and reloading between setups, not a server.
+
+## ADR-032: Claude Sonnet 5.5 as a seventh setup, k = 5 for Claude on v3, a $4 cap
+
+**Date:** 2026-11-11 · **Status:** Accepted; no Sonnet call yet (waiting for the user's go on the estimate). Amends ADR-030 and ADR-031.
+
+**Context:** The user raised the Claude budget to $4 of a $5 credit, before anything ran on v3, to add Sonnet and to give the Claude setups more runs per ticket. Claude has no seed, so more runs per ticket are the only way to tighten its numbers.
+
+**Decision:**
+
+- **Sonnet** (`claude-sonnet-5-5`, $2 / $10 per million input / output tokens) is tuned exactly like Haiku: version 1 first; versions 2–5 (ST2–ST5, SC2–SC5) only from its own version-1 tuning misses; ADR-030's rule with the safety tie-break; frozen by hash; the dev-set check on v1 and v2 at k = 3.
+- **k on v3:** the Claude setups run 5 runs per ticket, the local setups 3. The eval refuses any other k for a setup on v3.
+- **Compared at pass^3:** every setup's pass^3 (and pass^1, everyday pass^3, the colleague and self-described rows, the paired bootstraps) comes from runs 1–3, so the Claude numbers are measured exactly as the local ones are. A k = 5 report carries that k = 3 view (`at_k3`), and the comparison shows Claude's pass^5 beside it. Policy violations, data exposed, cost and latency count every run, so an unsafe fourth or fifth run still shows and still blocks a win.
+- **Seven setups, 21 pairs:** each interval is 99.76% (1 − 0.05 / 21).
+- **Cost per 1,000 tickets** (cost per ticket × 1,000, one run each) is a line in every report and a column in the comparison.
+- **The spend cap** is $4 by default (`TIER0_CLAUDE_SPEND_CAP_USD`). The full cost with Sonnet and k = 5 is estimated first, and if it's over $4 the cuts are proposed to the user.
+
+**Consequences:**
+
+- Runs 4 and 5 don't affect Claude's pass^3 or the pairwise intervals; they show in pass^5 and can only make the safety numbers worse.
+- 21 pairs need bigger gaps than 15 to call a winner.

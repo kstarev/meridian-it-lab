@@ -131,6 +131,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.final_comparison is not None and setup is not None and args.k != setup.v3_k:
+        print(
+            f"refused: {setup.name} runs at k = {setup.v3_k} on {args.final_comparison} "
+            f"(ADR-032), not {args.k}",
+            file=sys.stderr,
+        )
+        return 2
     if setup is not None and setup.name not in FROZEN and args.seed != DEFAULT_SEED:
         print(
             f"refused: {setup.name}'s prompts aren't frozen yet, so it runs on tuning data "

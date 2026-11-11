@@ -227,3 +227,8 @@ def test_timing_estimates_tuning_dev_and_v3_from_tuning_calls_only() -> None:
     assert est["tuning_full_budget"]["calls"] == 66 * 3 * 2 * 5
     assert est["v3"]["calls"] == 54 * 3 * 2 + 2
     assert est["seconds_per_call"]["mean"] >= 0
+
+
+def test_sonnet_gets_its_own_versions_too() -> None:
+    assert sel.candidates("claude-sonnet-5-5", "triage") == ("T1", "ST2", "ST3", "ST4", "ST5")
+    assert sel.provider_of("claude-sonnet-5-5") == "claude"

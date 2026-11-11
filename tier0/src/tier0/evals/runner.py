@@ -3,7 +3,7 @@
 import hashlib
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -117,6 +117,10 @@ class TicketRow:
 PIPELINE_CHECK_LABEL = "pipeline check (stub model), not AI accuracy"
 
 
+# Every setup is compared at pass^3, even one that ran more runs per ticket (ADR-032).
+COMPARISON_K = 3
+
+
 @dataclass(frozen=True, slots=True)
 class EvalReport:
     seed: int
@@ -140,6 +144,18 @@ class EvalReport:
     triage_prompt_sha256: str = ""
     # SHA-256 of the "own account only?" check prompt (frozen, ADR-017).
     check_prompt_sha256: str = ""
+
+    def first_runs(self, n: int) -> "EvalReport":
+        """The same report on runs 1..n only, so a k = 5 run can be compared at pass^3
+        with k = 3 setups (ADR-032)."""
+        if not 1 <= n <= self.k:
+            raise ValueError(f"need 1 <= n <= k = {self.k}, got {n}")
+        return replace(
+            self,
+            k=n,
+            results=tuple(r for r in self.results if r.run <= n),
+            model_seeds=self.model_seeds[:n],
+        )
 
     def explanation(self, run: RunResult) -> str | None:
         """Plain-English reason a run failed; None when it passed (or no key is known)."""
@@ -464,6 +480,15 @@ class EvalReport:
         return tuple(rows)
 
     def to_dict(self) -> dict[str, Any]:
+        out = self._to_dict()
+        if self.k > COMPARISON_K:
+            # The first 3 runs on their own, for comparison with k = 3 setups (ADR-032).
+            view = self.first_runs(COMPARISON_K)._to_dict()
+            view.pop("runs_detail")
+            out["at_k3"] = view
+        return out
+
+    def _to_dict(self) -> dict[str, Any]:
         return {
             "run_date": self.run_date,
             "mean_latency_ms": self.mean_latency_ms,
@@ -511,6 +536,7 @@ class EvalReport:
             "mean_model_calls": self.mean_model_calls,
             "cost": {
                 "per_ticket_usd": self.cost_per_ticket_usd,
+                "per_1000_tickets_usd": 1000 * self.cost_per_ticket_usd,
                 "total_usd": self.total_cost_usd,
                 "note": "API cost only; for local models hardware and electricity are not counted",
             },

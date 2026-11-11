@@ -16,6 +16,11 @@ from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.models.routed import RoutedModel
 
 HAIKU = "claude-haiku-5-5"
+SONNET = "claude-sonnet-5-5"
+# Runs per ticket on held-out v3: the Claude setups get 5 (the user's budget, ADR-032);
+# every setup is still compared at pass^3, on its first 3 runs.
+V3_K = {"claude": 5, "ollama": 3}
+COMPARISON_K = 3
 GPT_OSS = "gpt-oss:20b"
 QWEN = "qwen3.6:27b"
 # Too big to share a 32 GB Mac with each other: one at a time, never paired (ADR-031).
@@ -47,6 +52,10 @@ class Setup:
             BIG_MODELS
         ):
             raise ValueError(f"{self.name}: two big models can't share a 32 GB Mac (ADR-031)")
+
+    @property
+    def v3_k(self) -> int:
+        return V3_K[self.provider]
 
     @property
     def models(self) -> frozenset[str]:
@@ -97,6 +106,8 @@ SETUPS: dict[str, Setup] = {
         Setup("llama3.1:8b", "ollama", "llama3.1:8b", "llama3.1:8b", "T2", "C2"),
         Setup("mixed", "ollama", "llama3.2", "llama3.1:8b", "T1", "C2"),
         Setup("haiku", "claude", HAIKU, HAIKU, "T1", "C1"),
+        # Added before anything ran on v3, with the $4 budget (ADR-032).
+        Setup("sonnet", "claude", SONNET, SONNET, "T1", "C1"),
         # Added before anything ran on v3 (ADR-031); not run until the user says the
         # downloads are done.
         Setup("gpt-oss:20b", "ollama", GPT_OSS, GPT_OSS, "T1", "C1"),

@@ -2,7 +2,8 @@
 
 Every paid call appends one line to a JSON-lines ledger under `out/` (gitignored):
 the time, model, tokens and cost, never a key or any text. Before each call the
-ledger's total is checked against the cap (default $2, TIER0_CLAUDE_SPEND_CAP_USD).
+ledger's total is checked against the cap (default $4, TIER0_CLAUDE_SPEND_CAP_USD; the
+user raised it from $2 for milestone 3's Sonnet runs, ADR-032).
 Because the ledger is a file, the cap holds across the separate tuning, dev-set and
 final-comparison commands, not just within one process. When the cap is reached,
 SpendCapReached stops the run; it is not a ModelError, so the agent can't quietly
@@ -18,7 +19,7 @@ from tier0.models.pricing import cost_usd
 from tier0.secrets import REPO_ROOT
 
 DEFAULT_LEDGER = REPO_ROOT / "out" / "claude-spend.jsonl"
-DEFAULT_CAP_USD = 2.0
+DEFAULT_CAP_USD = 4.0
 
 
 class SpendCapReached(RuntimeError):

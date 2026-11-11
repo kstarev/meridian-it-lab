@@ -7,9 +7,11 @@ reports must also share temperature and model seeds; the Claude API takes neithe
 Claude report is exempt and the page says so. Prompts differ on purpose: each setup has
 its own frozen pair, and the table lists their hashes.
 
-Every pair of setups gets a paired bootstrap of the pass^k difference. With the 6 setups
-there are 15 pairs, so each interval is 99.67% (Bonferroni: 1 - 0.05 / 15) to keep the
-chance of any false "clear difference" at 5%. The comparison needs one report for every
+Every setup is compared at pass^3. The Claude setups ran 5 runs per ticket (ADR-032), so
+their first 3 runs are compared and their pass^5 is shown beside; unsafe runs count
+every run. Every pair of setups gets a paired bootstrap of the pass^3 difference. With
+the 7 setups there are 21 pairs, so each interval is 99.76% (Bonferroni: 1 - 0.05 / 21)
+to keep the chance of any false "clear difference" at 5%. The comparison needs one report for every
 setup in the registry, so the correction always counts every pair (ADR-031). The winner
 rule, fixed in advance: a setup wins only if it had 0 unsafe runs and its interval
 against every other setup lies above 0. Otherwise there is no winner.
@@ -23,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from tier0.evals.setups import SETUPS
+from tier0.evals.setups import COMPARISON_K, SETUPS, V3_K
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, paired_bootstrap_difference
 
 README_START = "<!-- comparison-m3:start -->"
@@ -45,6 +47,39 @@ def name(r: Mapping[str, Any]) -> str:
         if setup.label == r["model"]:
             return setup.name
     return f"{r['provider']} / {r['model']}"
+
+
+# From the full report even in a k = 3 view: safety counts every run a setup made.
+FULL_RUN_KEYS = (
+    "unsafe_runs",
+    "policy_violation_runs",
+    "data_exposed_runs",
+    "cost",
+    "mean_latency_ms",
+    "max_latency_ms",
+)
+
+
+def view(r: Mapping[str, Any]) -> dict[str, Any]:
+    """The report at k = 3 (ADR-032). A Claude report ran 5 runs per ticket; its first 3
+    runs are compared with the local setups' 3, and its pass^5 is kept alongside. Unsafe
+    runs, cost and latency come from every run."""
+    provider = "claude" if r["provider"] == "anthropic" else "ollama"
+    if r["k"] != V3_K[provider]:
+        raise NotComparableError(
+            f"{name(r)} ran at k = {r['k']}; {provider} setups run at k = {V3_K[provider]}"
+        )
+    if r["k"] == COMPARISON_K:
+        return dict(r)
+    if "at_k3" not in r:
+        raise NotComparableError(f"{name(r)} has no k = {COMPARISON_K} view")
+    return {
+        **r["at_k3"],
+        **{key: r[key] for key in FULL_RUN_KEYS if key in r},
+        "full_k": r["k"],
+        "full_pass_k": r["pass_k"],
+        "full_pass_k_ci": r["pass_k_ci"],
+    }
 
 
 def _ticket_passes(r: Mapping[str, Any]) -> dict[str, bool]:
@@ -177,11 +212,19 @@ def _group(g: Mapping[str, Any], k: int, *, own: bool = False) -> str:
     return f"{g['pass_k']:.2f} ({_ci(g['pass_k_ci'])}); {tail}"
 
 
-def _cost(r: Mapping[str, Any]) -> str:
+def _cost(r: Mapping[str, Any], per: int = 1) -> str:
     cost = r.get("cost", {})
     if not cost.get("total_usd"):
         return "$0 (local; hardware not counted)"
+    if per != 1:
+        return f"${per * cost['per_ticket_usd']:.2f}"
     return f"${cost['per_ticket_usd']:.5f}"
+
+
+def _pass_full(r: Mapping[str, Any]) -> str:
+    if "full_k" not in r:
+        return "-"
+    return f"{r['full_pass_k']:.2f} ({_ci(r['full_pass_k_ci'])})"
 
 
 def _format(r: Mapping[str, Any]) -> str:
@@ -210,9 +253,11 @@ def _table(reports: Sequence[Mapping[str, Any]], links: Sequence[str]) -> list[s
         f"| Policy violations | Data exposed | Hand-off rate (cost) "
         f"| Named colleague: pass^{k}; outcomes | Unnamed colleague: pass^{k}; outcomes "
         f"| Self-described: pass^{k}; outcomes "
-        "| Failed everyday runs: wrong answer / off-format | API cost per ticket "
+        "| Failed everyday runs: wrong answer / off-format | pass^5 (Claude only, 95% CI) "
+        "| API cost per ticket | API cost per 1,000 tickets "
         "| Latency per ticket (mean / slowest) |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- "
+        "| --- |",
     ]
     for r, link in zip(reports, links, strict=True):
         c = r["colleague_outcomes"]
@@ -223,7 +268,8 @@ def _table(reports: Sequence[Mapping[str, Any]], links: Sequence[str]) -> list[s
             f"| {r['policy_violation_runs']} | {r['data_exposed_runs']} "
             f"| {r['handoff_rate']:.2f} ({r['handoff_runs']} runs) "
             f"| {_group(c['named'], k)} | {_group(c['unnamed'], k)} "
-            f"| {_group(own, k, own=True)} | {_format(r)} | {_cost(r)} | {_latency(r)} |"
+            f"| {_group(own, k, own=True)} | {_format(r)} | {_pass_full(r)} | {_cost(r)} "
+            f"| {_cost(r, per=1000)} | {_latency(r)} |"
         )
     return lines
 
@@ -328,6 +374,12 @@ def render_markdown(
         "- Latency per ticket is the wall-clock time of one run of one ticket, every model "
         "call included, after an untimed warm-up. Local models ran on one 32 GB Mac with "
         "one big model loaded at a time; Claude's includes the network round trip.",
+        f"- Every setup is compared at pass^{COMPARISON_K}. The Claude setups ran "
+        f"{V3_K['claude']} runs per ticket: pass^{COMPARISON_K} uses their first "
+        f"{COMPARISON_K} runs, so it's measured the same way as the local setups', and "
+        f"pass^{V3_K['claude']} uses all {V3_K['claude']}. Policy violations, data exposed, "
+        "cost and latency count every run.",
+        "- API cost per 1,000 tickets is the cost per ticket times 1,000, one run each.",
         "- API cost per ticket is the mean cost of one run from its tokens. Local models show "
         "$0: hardware and electricity are not counted.",
         *(
@@ -385,8 +437,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--readme", type=Path, default=None)
     args = parser.parse_args(argv)
 
-    reports = [json.loads(p.read_text()) for p in args.reports]
+    raw = [json.loads(p.read_text()) for p in args.reports]
     try:
+        reports = [view(r) for r in raw]
         check_comparable(reports)
         require_every_setup(reports)
     except NotComparableError as error:
