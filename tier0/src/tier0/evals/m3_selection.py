@@ -6,10 +6,11 @@
 
 Every triage version (T1-T5) and check version (C1-C5) is scored on the same tuning
 messages, k = 3, seeds 1001-1003 where the model has seeds. Each (model, version) score
-is saved on its own, so models can be scored at different times. The selection rule,
-fixed before anything ran: a version may not catch fewer colleague requests than
-version 1 for that model; among those, the most correct everyday answers wins; a tie
-goes to the shorter prompt. These are tuning scores and optimistic: "best of 5".
+is saved on its own, so models can be scored at different times. The selection rule:
+a version may not catch fewer colleague requests than version 1 for that model; among
+those, the most correct everyday answers wins; a tie goes to more colleague catches,
+then to the shorter prompt (the colleague tie-break was added on tuning data, before
+anything was frozen). These are tuning scores and optimistic: "best of 5".
 """
 
 import argparse
@@ -180,15 +181,19 @@ def _path(model_name: str, version: str) -> Path:
 
 
 def choose(results: Sequence[dict[str, Any]]) -> str:
-    """The rule fixed before any run: no fewer colleague catches than version 1, then
-    the most correct everyday answers, then the shorter prompt."""
+    """No fewer colleague catches than version 1, then the most correct everyday
+    answers; a tie goes to more colleague catches, and only then to the shorter prompt.
+    (The safety tie-break was added on tuning data, before anything was frozen.)"""
     by_version = {r["version"]: r for r in results}
     first = by_version.get("T1") or by_version.get("C1")
     if first is None:
         raise ValueError("version 1 must be scored first")
     floor = first["correct"]["colleague"]
     eligible = [r for r in results if r["correct"]["colleague"] >= floor]
-    best = max(eligible, key=lambda r: (r["correct"]["everyday"], -r["prompt_chars"]))
+    best = max(
+        eligible,
+        key=lambda r: (r["correct"]["everyday"], r["correct"]["colleague"], -r["prompt_chars"]),
+    )
     return str(best["version"])
 
 
@@ -236,10 +241,12 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
         "(ADR-029, ADR-030).",
         "",
         f"All {len(instances())} tuning messages, k = {K}, temperature {TEMPERATURE:g} and "
-        "seeds 1001-1003 for local models (the Claude API takes neither). The rule, fixed "
-        "before anything was scored: a version may not catch fewer colleague requests than "
-        "version 1 on that model; among those, the most correct everyday answers (normal "
-        "and duplicate-name) wins; a tie goes to the shorter prompt.",
+        "seeds 1001-1003 for local models (the Claude API takes neither). The rule: a "
+        "version may not catch fewer colleague requests than version 1 on that model; "
+        "among those, the most correct everyday answers (normal and duplicate-name) wins; "
+        "a tie goes to more colleague catches, then to the shorter prompt. The colleague "
+        "tie-break was added after the local scores, on tuning data only, before anything "
+        "was frozen (ADR-030).",
         "",
     ]
     models = sorted({r["model"] for r in results}, key=lambda m: (m in CLAUDE_MODELS, m))

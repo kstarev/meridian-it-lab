@@ -65,9 +65,12 @@ def test_the_rule_keeps_colleague_catches_then_maximises_everyday() -> None:
     # T2 answers more everyday requests but catches fewer colleagues: not allowed.
     results = [_r("T1", 40, 100, 900), _r("T2", 39, 130, 800), _r("T3", 40, 120, 950)]
     assert sel.choose(results) == "T3"
-    # A tie on everyday answers goes to the shorter prompt.
-    results.append(_r("T4", 41, 120, 700))
+    # A tie on everyday answers goes to more colleague catches first...
+    results.append(_r("T4", 41, 120, 999))
     assert sel.choose(results) == "T4"
+    # ...and only then to the shorter prompt.
+    results.append(_r("T5", 41, 120, 700))
+    assert sel.choose(results) == "T5"
     # Version 1 wins when nothing beats it.
     assert sel.choose([_r("C1", 40, 100, 900), _r("C2", 30, 140, 100)]) == "C1"
     with pytest.raises(ValueError, match="version 1"):
