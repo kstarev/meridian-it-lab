@@ -115,4 +115,4 @@ def test_no_sentence_repeats_within_a_pool(name: str) -> None:
 def test_tuning_has_unnamed_colleague_requests() -> None:
     """Requests that name nobody the mention check could look up (ADR-023)."""
     unnamed = [t for t in MESSAGE_POOLS["tuning"].colleague if "{" not in t]
-    assert len(unnamed) == 4
+    assert len(unnamed) == 7  # 4 from milestone 2, 3 more in milestone 3 (ADR-030)

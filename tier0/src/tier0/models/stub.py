@@ -23,6 +23,12 @@ _ELSE_MARKERS = (
     "colleague",
     "coworker",
     "on behalf of",
+    # Milestone 3 tuning wording (German and Spanish colleague requests).
+    "benutzernamen von",
+    "benutzername von",
+    "kollegin",
+    "compañera",
+    "compañero",
 )
 # Tuning wording only (ADR-013): typos and German, Spanish and French terms seen in the
 # tuning pool. Never extend these from held-out results.

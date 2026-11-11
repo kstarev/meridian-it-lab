@@ -34,7 +34,7 @@ from meridian_dataset.names import (
     MessagePool,
 )
 
-GENERATOR_VERSION = "0.11.0"
+GENERATOR_VERSION = "0.12.0"
 DEFAULT_SEED = 1108
 # Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001). The held-out seed also
 # gets its own message wording, never shared with the tuning seeds (ADR-013).
@@ -244,7 +244,8 @@ def _sampled_tickets(
 
     eligible = [p for p in built if p.status == "active" and p != alex_second]
     normal_senders = rng.sample(eligible, 3)
-    normal_texts = rng.sample(pool.normal, 3)
+    # Self-descriptions are normal requests too (ADR-029); empty in v1, so v1 is unchanged.
+    normal_texts = rng.sample((*pool.normal, *pool.self_described), 3)
 
     duplicate_text = rng.choice(pool.duplicate).format(other_email=alex_first.primary_email)
 

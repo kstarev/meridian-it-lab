@@ -21,8 +21,9 @@ def test_no_false_alarm_on_normal_or_duplicate_tuning_messages() -> None:
 
 
 def test_unnamed_tuning_requests_with_a_person_word_fire() -> None:
-    # new starter, intern and manager; "the person who joined my team" has no person word.
-    assert len(UNNAMED_WITH_ROLE_WORD) == 3
+    # new starter, intern, manager, Teamkollegin and compañera; "the person who joined my
+    # team" and "our new hire" have no listed person word.
+    assert len(UNNAMED_WITH_ROLE_WORD) == 5
     joined = [t for t in TUNING_POOL.colleague if "joined my team" in t]
     assert len(joined) == 1 and not role_reference(joined[0])
 
