@@ -84,3 +84,48 @@ def test_the_estimate_uses_the_full_budget_and_makes_no_call() -> None:
 def test_claude_scoring_gets_the_api_only_guard_and_ollama_stays_local() -> None:
     assert sel.provider_of("claude-haiku-5-5") == "claude"
     assert sel.provider_of("llama3.2") == sel.provider_of("llama3.1:8b") == "ollama"
+
+
+def _scores(model: str, task: str, colleague: dict[str, int], everyday: dict[str, int]):
+    prefix = "T" if task == "triage" else "C"
+    return [
+        {
+            "model": model,
+            "task": task,
+            "version": f"{prefix}{i}",
+            "correct": {
+                "everyday": everyday.get(f"{prefix}{i}", 100),
+                "self_described": 18,
+                "colleague": colleague.get(f"{prefix}{i}", 40),
+                "colleague_unnamed": 20,
+            },
+            "total": {
+                "everyday": 138,
+                "self_described": 18,
+                "colleague": 42,
+                "colleague_unnamed": 21,
+            },
+            "prompt_chars": 600 + i,
+            "prompt_sha256": "f" * 64,
+            "cost_usd": 0.0,
+        }
+        for i in range(1, sel.MAX_VERSIONS + 1)
+    ]
+
+
+def test_each_setup_picks_from_its_own_models_and_waits_for_missing_scores() -> None:
+    results = (
+        _scores("llama3.2", "triage", {}, {"T3": 130})
+        + _scores("llama3.2", "check", {"C2": 39}, {"C2": 138, "C4": 120})
+        + _scores("llama3.1:8b", "triage", {}, {"T5": 131})
+        + _scores("llama3.1:8b", "check", {}, {"C5": 135})
+    )
+    picks = sel.choose_setups(results)
+    assert picks["llama3.2"] == {"triage": "T3", "check": "C4"}  # C2 dropped a catch
+    assert picks["llama3.1:8b"] == {"triage": "T5", "check": "C5"}
+    assert picks["mixed"] == {"triage": "T3", "check": "C5"}
+    assert picks["haiku"] == {"triage": None, "check": None}
+    md = sel.render(results, "cmd")
+    assert "tuning score, and optimistic" in md
+    assert "| T3 **(chosen)** | 130/138 |" in md
+    assert "| haiku | claude-haiku-5-5 | pending |" in md
