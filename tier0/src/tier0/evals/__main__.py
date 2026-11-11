@@ -12,10 +12,11 @@ import anyio
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
 from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
+from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.evals.setups import SETUPS
-from tier0.models import build_model
+from tier0.models import ModelAdapter, ModelError, build_model
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
 from tier0.netguard import guard_for_model, is_loopback_url
@@ -46,6 +47,29 @@ def _model_factory(name: str, temperature: float | None = None):  # type: ignore
         return lambda: build_model(name)
     env = {**os.environ, "TIER0_OLLAMA_TEMPERATURE": str(temperature)}
     return lambda: build_model(name, env=env)
+
+
+WARM_UP_TEXT = "Warm-up call before the eval; not a ticket."
+
+
+def warm_up(model: ModelAdapter, prompts: Prompts | None) -> int:
+    """One untimed call per task, so loading the model doesn't land in the first run's
+    latency. Not part of the report; a Claude call still goes through the spend ledger.
+    Returns the number of calls that failed."""
+    prompts = prompts or Prompts()
+    requests = (
+        triage_request(WARM_UP_TEXT, prompts.triage),
+        own_account_check_request(
+            WARM_UP_TEXT, sender_name=None, sender_email="warm-up@invalid", system=prompts.check
+        ),
+    )
+    failed = 0
+    for request in requests:
+        try:
+            model.complete(request)
+        except ModelError:
+            failed += 1
+    return failed
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -87,6 +111,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="milestone 3: a named setup (models per task and its frozen prompts); "
         "overrides --model (ADR-030)",
+    )
+    parser.add_argument(
+        "--no-warm-up",
+        action="store_true",
+        help="skip the untimed warm-up calls real models get before the runs",
     )
     args = parser.parse_args(argv)
     setup = SETUPS[args.setup] if args.setup else None
@@ -140,6 +169,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
     guard = guard_for_model(args.model)
     with guard:
+        if args.model != "stub" and not args.no_warm_up:
+            failed = warm_up(factory(), prompts)
+            if failed:
+                print(f"WARNING: {failed} warm-up call(s) failed", file=sys.stderr)
         report = anyio.run(go)
     json_path, md_path = write_report(report, args.out)
     if args.publish is not None:

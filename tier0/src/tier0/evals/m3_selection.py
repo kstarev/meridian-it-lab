@@ -293,10 +293,13 @@ def estimate_calls(k: int = K) -> dict[str, int]:
     # Agent runs: at most 2 model calls each (triage + check). Tuning eval seed 1108 has
     # 6 tickets, v1 6, v2 42, v3 54, all k = 3.
     agent = (6 + 6 + 42 + 54) * k * 2
+    # One warm-up per task before each of those 4 eval runs.
+    warm_up = 4 * 2
     return {
         "tuning_selection_calls": tuning,
         "agent_calls_max": agent,
-        "total_calls_max": tuning + agent,
+        "warm_up_calls": warm_up,
+        "total_calls_max": tuning + agent + warm_up,
     }
 
 

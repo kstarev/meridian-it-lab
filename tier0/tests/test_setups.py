@@ -20,12 +20,14 @@ class Fake:
         self.model = model
         self.seed: int | None = None
         self.tasks: list[str] = []
+        self.texts: list[str] = []
 
     def describe(self) -> dict[str, str]:
         return {"model_id": self.model[:4], "model_digest": self.model, "ollama_version": "1"}
 
     def complete(self, request: ModelRequest) -> ModelResponse:
         self.tasks.append(request.task)
+        self.texts.append(request.user)
         text = (
             '{"category": "own_username"}'
             if request.task == "triage"
@@ -83,3 +85,25 @@ def test_a_setups_prompts_reach_the_model(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert report["triage_prompt_sha256"] == hashlib.sha256(b"TRIAGE PROMPT UNDER TEST").hexdigest()
     assert report["check_prompt_sha256"] == hashlib.sha256(b"CHECK PROMPT UNDER TEST").hexdigest()
     assert messages.TRIAGE_SYSTEM != "TRIAGE PROMPT UNDER TEST"  # nothing global changed
+
+
+def test_real_models_get_one_untimed_warm_up_call_per_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    made: list[Fake] = []
+
+    def make() -> Fake:
+        made.append(Fake("llama3.2"))
+        return made[-1]
+
+    setup = SETUPS["llama3.2"]
+    monkeypatch.setattr(type(setup), "factory", lambda self, temperature=0.5: make)
+    args = ["--setup", "llama3.2", "--seed", "1108", "--k", "1", "--out", str(tmp_path)]
+    assert cli.main(args) == 0
+    assert made[0].tasks == ["triage", "own_account_check"]  # the warm-up model
+    assert all(cli.WARM_UP_TEXT in t for t in made[0].texts)
+    report = json.loads((tmp_path / "report.json").read_text())
+    assert len(report["runs_detail"]) == 6  # the warm-up isn't a run
+    made.clear()
+    assert cli.main([*args, "--no-warm-up"]) == 0
+    assert not any(cli.WARM_UP_TEXT in t for m in made for t in m.texts)
