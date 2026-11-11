@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -119,3 +120,114 @@ def test_building_without_client_needs_no_key_or_network() -> None:
     model = ClaudeModel()
     assert model.provider == "anthropic"
     assert model.model == "claude-opus-5-5"
+
+
+# --- milestone 3: Haiku, the key from .env only, the spend cap ----------------------
+
+
+def test_haiku_sends_no_fallback_no_temperature_and_no_thinking() -> None:
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, json=message() | {"model": "claude-haiku-5-5"})
+
+    model = make_model(handler)
+    model.model = "claude-haiku-5-5"
+    model.complete(ModelRequest(task="triage", system="s", user="u", json_schema=TRIAGE_SCHEMA))
+    body = json.loads(seen[0].content)
+    assert body["model"] == "claude-haiku-5-5"
+    assert "fallbacks" not in body and "anthropic-beta" not in seen[0].headers
+    assert body["thinking"] == {"type": "disabled"}
+    assert body["output_config"]["effort"] == "low"
+    assert "temperature" not in body and "top_p" not in body
+    assert model.describe()["sampling"].startswith("API default")
+
+
+def test_the_key_comes_from_dotenv_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tier0 import secrets
+
+    dotenv = tmp_path / ".env"
+    dotenv.write_text('# a comment\nexport ANTHROPIC_API_KEY="sk-from-dotenv"\n')
+    assert secrets.read_api_key(dotenv) == "sk-from-dotenv"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-from-the-shell")
+    assert secrets.read_api_key(dotenv) == "sk-from-dotenv"  # the shell is ignored
+    with pytest.raises(secrets.MissingKeyError) as missing:
+        secrets.read_api_key(tmp_path / "nope.env")
+    assert "sk-" not in str(missing.value)
+
+
+def test_the_client_is_built_with_the_dotenv_key_and_the_real_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import tier0.models.claude as claude
+
+    built: dict[str, Any] = {}
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs: Any) -> None:
+            import os
+
+            built.update(kwargs, env_key=os.environ.get("ANTHROPIC_API_KEY"))
+            self.messages = self
+
+        def create(self, **kwargs: Any) -> Any:
+            raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x"))
+
+    fake_module = type("M", (), {"Anthropic": FakeAnthropic, "APIError": anthropic.APIError})
+    monkeypatch.setattr(claude, "_import_anthropic", lambda: fake_module)
+    monkeypatch.setattr(claude, "read_api_key", lambda: "sk-secret-from-dotenv")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-from-the-shell")
+    model = ClaudeModel(model="claude-haiku-5-5")
+    with pytest.raises(ModelError) as failed:
+        model.complete(ModelRequest(task="triage", system="s", user="u"))
+    assert built["api_key"] == "sk-secret-from-dotenv"
+    assert built["base_url"] == "https://api.anthropic.com"
+    assert built["env_key"] is None  # the shell's key was hidden while building
+    # The key never shows up in an error, a repr or the provenance.
+    for text in (str(failed.value), repr(model), json.dumps(model.describe())):
+        assert "sk-secret" not in text
+
+
+def test_dotenv_is_gitignored() -> None:
+    import shutil
+    import subprocess
+
+    from tier0.secrets import REPO_ROOT
+
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not installed")
+    result = subprocess.run(  # noqa: S603 - a fixed git command, no outside input
+        [git, "check-ignore", "-q", ".env"], cwd=REPO_ROOT, check=False
+    )
+    assert result.returncode == 0
+
+
+def test_every_call_is_ledgered_and_the_cap_stops_the_next(tmp_path: Path) -> None:
+    from tier0.models.spend import SpendCapReached, SpendLedger
+
+    ledger = SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=0.0001)
+    model, seen = capture(message() | {"model": "claude-haiku-5-5"})
+    model.model = "claude-haiku-5-5"
+    model._ledger = ledger
+    model.complete(ModelRequest(task="triage", system="s", user="u"))  # under the cap
+    line = json.loads((tmp_path / "spend.jsonl").read_text().splitlines()[0])
+    assert line["input_tokens"] == 42 and line["output_tokens"] == 7
+    assert line["cost_usd"] == pytest.approx(42 * 0.10e-6 + 7 * 0.50e-6)
+    assert set(line) == {"at", "model", "input_tokens", "output_tokens", "cost_usd"}
+    # Push the total over the cap: the next call is refused before anything is sent.
+    ledger.record("claude-haiku-5-5", 1_000, 1_000)
+    with pytest.raises(SpendCapReached):
+        model.complete(ModelRequest(task="triage", system="s", user="u"))
+    assert len(seen) == 1
+    assert not issubclass(SpendCapReached, ModelError)  # the agent can't swallow it
+
+
+def test_local_models_cost_nothing_and_unknown_claude_models_have_no_silent_price() -> None:
+    from tier0.models.pricing import cost_usd
+
+    assert cost_usd("ollama", "llama3.2", 10_000, 10_000) == 0.0
+    assert cost_usd("anthropic", "claude-haiku-5-5", 1_000_000, 1_000_000) == pytest.approx(0.60)
+    with pytest.raises(KeyError):
+        cost_usd("anthropic", "claude-unknown", 1, 1)

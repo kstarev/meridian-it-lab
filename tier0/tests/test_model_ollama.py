@@ -175,4 +175,6 @@ def test_describe_errors_become_model_error() -> None:
     )
     with pytest.raises(ModelError):
         OllamaModel(client=bad).describe()
-    assert StubModel().describe() == {} and ClaudeModel().describe() == {}
+    assert StubModel().describe() == {}
+    claude = ClaudeModel().describe()
+    assert claude["model_id"] == "claude-opus-5-5" and "no temperature" in claude["sampling"]
