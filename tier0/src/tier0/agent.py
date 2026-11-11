@@ -140,15 +140,40 @@ def parse_triage(response: ModelResponse | None) -> str:
     None means the model call failed."""
     if response is None or response.finish_reason == "refusal":
         return OTHER
+    value = _triage_value(response)
+    return OTHER if value is None else value
+
+
+def _triage_value(response: ModelResponse) -> str | None:
+    """The category, or None when the reply isn't exactly the schema."""
     try:
         parsed = json.loads(response.text)
     except ValueError:
-        return OTHER
+        return None
     # Exactly the schema: one key. Extra keys such as "tier" mean the model is off-script.
     if not isinstance(parsed, dict) or set(parsed) != {"category"}:
-        return OTHER
+        return None
     value = parsed["category"]
-    return value if isinstance(value, str) and value in CATEGORIES else OTHER
+    return value if isinstance(value, str) and value in CATEGORIES else None
+
+
+def triage_off_format(response: ModelResponse | None) -> bool:
+    """A reply came back but isn't exactly the triage schema: a format failure, counted
+    apart from a wrong answer (ADR-031). A failed call or a refusal isn't one."""
+    return (
+        response is not None
+        and response.finish_reason != "refusal"
+        and _triage_value(response) is None
+    )
+
+
+def check_off_format(response: ModelResponse | None) -> bool:
+    """The same for the own-account check."""
+    return (
+        response is not None
+        and response.finish_reason != "refusal"
+        and parse_own_account_check(response) is None
+    )
 
 
 def own_account_check_request(
@@ -360,6 +385,8 @@ class ServiceDeskAgent:
             response = s.chat(self._model, triage_request(text, self._prompts.triage))
         except ModelError:
             return OTHER
+        if triage_off_format(response):
+            s.event("tier0.format_failure", task="triage")
         return parse_triage(response)
 
     def _refuse(
@@ -469,6 +496,8 @@ class ServiceDeskAgent:
         except ModelError:
             response = None
         own_only = parse_own_account_check(response)
+        if check_off_format(response):
+            s.event("tier0.format_failure", task="own_account_check")
         s.event(
             "tier0.own_account_check",
             result="failed" if own_only is None else ("yes" if own_only else "no"),

@@ -15,6 +15,7 @@ anything was frozen). These are tuning scores and optimistic: "best of 5".
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import sys
@@ -28,13 +29,24 @@ from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.generator import _fill_colleague
 from meridian_dataset.names import TUNING_POOL
 from tier0.agent import (
+    check_off_format,
     own_account_check_request,
     parse_own_account_check,
     parse_triage,
+    triage_off_format,
     triage_request,
 )
 from tier0.evals.prompt_history import M3_CHECK_VERSIONS, M3_TRIAGE_VERSIONS
-from tier0.evals.setups import BIG_MODELS, GPT_OSS, HAIKU, QWEN, SETUPS, THINK, timeout_for
+from tier0.evals.setups import (
+    BIG_MODELS,
+    GPT_OSS,
+    HAIKU,
+    NO_STRUCTURED_OUTPUT,
+    QWEN,
+    SETUPS,
+    THINK,
+    timeout_for,
+)
 from tier0.models import ClaudeModel, ModelAdapter, ModelError, OllamaModel
 from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_USERNAME
 from tier0.models.ollama import make_room
@@ -136,7 +148,11 @@ def make_model(name: str) -> ModelAdapter:
     if name in CLAUDE_MODELS:
         return ClaudeModel(model=name)
     return OllamaModel(
-        model=name, temperature=TEMPERATURE, think=THINK.get(name), timeout=timeout_for(name)
+        model=name,
+        temperature=TEMPERATURE,
+        think=THINK.get(name),
+        timeout=timeout_for(name),
+        structured_output=name not in NO_STRUCTURED_OUTPUT,
     )
 
 
@@ -154,6 +170,8 @@ def score(
     cases = instances()
     correct = dict.fromkeys(GROUPS, 0)
     total = dict.fromkeys(GROUPS, 0)
+    # Misses that were off-format replies rather than wrong answers (ADR-031).
+    off_format = dict.fromkeys(GROUPS, 0)
     tokens_in = tokens_out = 0
     wrong: dict[str, int] = {}
     elapsed = 0.0
@@ -163,10 +181,12 @@ def score(
             model.seed = DEFAULT_MODEL_SEED_BASE + run
         for case in cases:
             started = time.perf_counter()
+            bad_format = False
             try:
                 if task == "triage":
                     response = model.complete(triage_request(case.text, text))
                     ok = parse_triage(response) == case.triage_expected
+                    bad_format = triage_off_format(response)
                 else:
                     response = model.complete(
                         own_account_check_request(
@@ -177,6 +197,7 @@ def score(
                         )
                     )
                     ok = parse_own_account_check(response) is case.check_expected
+                    bad_format = check_off_format(response)
                 tokens_in += response.input_tokens
                 tokens_out += response.output_tokens
             except ModelError:
@@ -187,6 +208,7 @@ def score(
             for g in groups:
                 total[g] += 1
                 correct[g] += ok
+                off_format[g] += bad_format and not ok
             if not ok:
                 key = f"{case.group}: {case.text[:70]}"
                 wrong[key] = wrong.get(key, 0) + 1
@@ -200,6 +222,7 @@ def score(
         "prompt_chars": len(text),
         "correct": correct,
         "total": total,
+        "off_format": off_format,
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
         "cost_usd": cost_usd(provider, model_name, tokens_in, tokens_out),
@@ -271,6 +294,15 @@ def _cell(r: dict[str, Any], group: str) -> str:
     return f"{r['correct'][group]}/{r['total'][group]}"
 
 
+def _off(r: dict[str, Any]) -> str:
+    """Misses that were off-format replies, of all misses (older scores didn't record it)."""
+    if "off_format" not in r:
+        return "not recorded"
+    misses = sum(r["total"][g] - r["correct"][g] for g in GROUPS if g != "colleague_unnamed")
+    off = sum(r["off_format"][g] for g in GROUPS if g != "colleague_unnamed")
+    return f"{off} of {misses}"
+
+
 def render(results: Sequence[dict[str, Any]], command: str) -> str:
     """The selection report: every version's tuning score, labelled optimistic."""
     lines = [
@@ -308,15 +340,15 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
                 f"## {model}: {task}",
                 "",
                 "| Version | Everyday | Self-described | Colleague caught | Unnamed caught "
-                "| Prompt (chars) | sha256 | API cost |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Misses off-format | Prompt (chars) | sha256 | API cost |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
             for r in scored:
                 mark = " **(chosen)**" if r["version"] == chosen else ""
                 lines.append(
                     f"| {r['version']}{mark} | {_cell(r, 'everyday')} "
                     f"| {_cell(r, 'self_described')} | {_cell(r, 'colleague')} "
-                    f"| {_cell(r, 'colleague_unnamed')} | {r['prompt_chars']} "
+                    f"| {_cell(r, 'colleague_unnamed')} | {_off(r)} | {r['prompt_chars']} "
                     f"| `{r['prompt_sha256'][:12]}` | ${r['cost_usd']:.4f} |"
                 )
             if complete and len(scored) == 1:
@@ -363,6 +395,58 @@ def estimate_calls(k: int = K) -> dict[str, int]:
     }
 
 
+# Tickets per held-out set, for time estimates (counts only; nothing on v3 is read).
+DEV_TICKETS = 6 + 42
+V3_TICKETS = 54
+
+
+def time_calls(model_name: str, model: ModelAdapter, n: int = 10) -> dict[str, Any]:
+    """Time n tuning calls, alternating triage and check, after one untimed loading call.
+    Tuning data only. Returns the times the remaining tuning, the dev sets and v3 would
+    take at that pace: an estimate, since big models slow down as replies get longer."""
+    cases = instances()
+    model.complete(triage_request(cases[0].text, None))  # load the model; not timed
+    seconds: list[float] = []
+    for i in range(n):
+        case = cases[(i * 7) % len(cases)]
+        request = (
+            triage_request(case.text, None)
+            if i % 2 == 0
+            else own_account_check_request(
+                case.text, sender_name=case.sender_name, sender_email=case.sender_email
+            )
+        )
+        started = time.perf_counter()
+        with contextlib.suppress(ModelError):
+            model.complete(request)
+        seconds.append(time.perf_counter() - started)
+    per_call = sum(seconds) / len(seconds)
+    tuning_calls = len(cases) * K * 2 * MAX_VERSIONS
+    # At most 2 model calls per ticket run, plus one warm-up per task.
+    dev_calls = DEV_TICKETS * K * 2 + 2 * 2
+    v3_calls = V3_TICKETS * K * 2 + 2
+
+    def hours(calls: int) -> float:
+        return round(calls * per_call / 3600, 2)
+
+    return {
+        "model": model_name,
+        "timed_calls": n,
+        "seconds_per_call": {
+            "mean": round(per_call, 2),
+            "slowest": round(max(seconds), 2),
+            "fastest": round(min(seconds), 2),
+        },
+        "tuning_full_budget": {"calls": tuning_calls, "hours": hours(tuning_calls)},
+        "tuning_version_1_only": {
+            "calls": tuning_calls // MAX_VERSIONS,
+            "hours": hours(tuning_calls // MAX_VERSIONS),
+        },
+        "dev_sets_v1_v2": {"calls": dev_calls, "hours": hours(dev_calls)},
+        "v3": {"calls": v3_calls, "hours": hours(v3_calls)},
+    }
+
+
 def estimate_cost(model_name: str, k: int = K) -> dict[str, Any]:
     """An upper estimate from the real prompt and message sizes: ~3 characters per token
     (conservative), plus 150 tokens for the JSON-format instructions, and 30 output
@@ -400,12 +484,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     s.add_argument("--rescore", action="store_true", help="score again even if saved")
     e = sub.add_parser("estimate")
     e.add_argument("--model", required=True)
+    t = sub.add_parser("time", help="time a few calls on a local model and estimate run times")
+    t.add_argument("--model", required=True)
+    t.add_argument("--calls", type=int, default=10)
     r = sub.add_parser("render")
     r.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
 
     if args.command == "estimate":
         print(json.dumps(estimate_cost(args.model), indent=2))
+        return 0
+    if args.command == "time":
+        with guard_for_model(provider_of(args.model)):
+            if provider_of(args.model) == "ollama":
+                make_room([args.model], big=BIG_MODELS)
+            print(json.dumps(time_calls(args.model, make_model(args.model), args.calls), indent=2))
         return 0
     if args.command == "render":
         results = load_results()
@@ -446,7 +539,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"{args.model} {version}: already scored ({path})")
                 continue
             result = score(args.model, version, k=args.k)
-            path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+            # Saved per version, atomically: a crash or restart loses at most the version
+            # in progress, and a re-run picks up at the first unsaved one.
+            partial = path.with_suffix(".json.partial")
+            partial.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+            partial.replace(path)
             c, t = result["correct"], result["total"]
             print(
                 f"{args.model} {version}: everyday {c['everyday']}/{t['everyday']}, self "

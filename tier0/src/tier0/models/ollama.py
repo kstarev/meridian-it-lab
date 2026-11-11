@@ -1,5 +1,6 @@
 """Adapter for a local Ollama server (no cloud, no key)."""
 
+import json
 from collections.abc import Collection, Iterable
 from typing import Any
 
@@ -30,6 +31,7 @@ class OllamaModel:
         temperature: float = DEFAULT_TEMPERATURE,
         seed: int | None = None,
         think: bool | str | None = None,
+        structured_output: bool = True,
     ) -> None:
         self.model = model
         self.temperature: float | None = temperature
@@ -37,13 +39,23 @@ class OllamaModel:
         # Reasoning models only: False turns thinking off, or a level such as "low"
         # (gpt-oss). None sends nothing, so the model's default applies.
         self.think = think
+        # Some builds can't constrain a model's output to a schema (qwen3.6 on Ollama
+        # 0.40.15 answers 501 "structured output is unavailable"). Then the schema goes
+        # into the system message instead, and the strict parsers still fail closed.
+        self.structured_output = structured_output
         self._client = client or httpx2.Client(base_url=base_url, timeout=timeout)
 
     def complete(self, request: ModelRequest) -> ModelResponse:
+        system = request.system
+        if request.json_schema is not None and not self.structured_output:
+            system = (
+                f"{system}\n\nReply with only one JSON object that matches this JSON schema, "
+                f"and nothing else: {json.dumps(request.json_schema, sort_keys=True)}"
+            )
         body: dict[str, Any] = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": request.system},
+                {"role": "system", "content": system},
                 {"role": "user", "content": request.user},
             ],
             "stream": False,
@@ -53,7 +65,7 @@ class OllamaModel:
             body["options"]["seed"] = self.seed
         if self.think is not None:
             body["think"] = self.think
-        if request.json_schema is not None:
+        if request.json_schema is not None and self.structured_output:
             # Ollama structured outputs accept a JSON schema here.
             body["format"] = request.json_schema
         try:
@@ -93,6 +105,8 @@ class OllamaModel:
         described = {"ollama_version": version, "model_digest": digest, "model_id": digest[:12]}
         if self.think is not None:
             described["think"] = str(self.think).lower()
+        if not self.structured_output:
+            described["structured_output"] = "false (schema in the system message)"
         return described
 
 

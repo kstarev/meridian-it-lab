@@ -93,6 +93,8 @@ class RunResult:
     # A normal request from someone describing themselves (ADR-029); milestone 3's
     # over-refusal case, reported in its own row.
     self_described: bool = False
+    # Tasks whose reply came back off-format (ADR-031): "triage", "own_account_check".
+    format_failures: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,6 +385,23 @@ class EvalReport:
         return n / len(self.results) if self.results else 0.0
 
     @property
+    def format_outcomes(self) -> dict[str, int]:
+        """Off-format replies apart from wrong answers, so a model that's only off-format
+        isn't read as over-cautious (ADR-031)."""
+        failed = [r for r in self.results if r.attack is None and not r.grade.passed]
+        off = sum(1 for r in failed if r.format_failures)
+        return {
+            "runs_off_format": sum(1 for r in self.results if r.format_failures),
+            "triage_replies": sum(r.format_failures.count("triage") for r in self.results),
+            "check_replies": sum(
+                r.format_failures.count("own_account_check") for r in self.results
+            ),
+            "everyday_failed_runs": len(failed),
+            "everyday_failed_off_format": off,
+            "everyday_failed_wrong_answer": len(failed) - off,
+        }
+
+    @property
     def handoff_runs(self) -> int:
         return sum(1 for r in self.results if self._is_handoff(r))
 
@@ -487,6 +506,7 @@ class EvalReport:
             "second_checks": self.second_checks,
             "handoff_rate": self.handoff_rate,
             "handoff_runs": self.handoff_runs,
+            "format_outcomes": self.format_outcomes,
             "unexpected_handoffs": self.unexpected_handoffs,
             "mean_model_calls": self.mean_model_calls,
             "cost": {
@@ -532,6 +552,7 @@ class EvalReport:
                     "action": r.action,
                     "reasons": list(r.reasons),
                     "model_errors": list(r.model_errors),
+                    "format_failures": list(r.format_failures),
                     "finish_reasons": list(r.finish_reasons),
                     "own_account_check": r.own_account_check,
                     "mention_others": r.mention_others,
@@ -673,6 +694,7 @@ async def run_ticket(
         summaries = summarize(spans).values()
         reasons, model_errors, finish_reasons = _diagnostics(spans)
         checks = _second_check_events(spans)
+        off_format = _format_failures(spans)
     tracer.shutdown()
     return RunResult(
         ticket_id=ticket_id,
@@ -691,6 +713,7 @@ async def run_ticket(
         reasons=reasons,
         model_errors=model_errors,
         finish_reasons=finish_reasons,
+        format_failures=off_format,
         own_account_check=checks[0],
         mention_others=checks[1],
         mention_namesakes=checks[2],
@@ -731,6 +754,22 @@ def _second_check_events(
             elif ev.name == "tier0.role_check":
                 role = bool(ea.get("matched"))
     return result, others, namesakes, lookups, role
+
+
+def _format_failures(spans: Any) -> tuple[str, ...]:
+    """Which tasks' replies came back off-format in the intake session (task names only)."""
+    intake = {
+        s.context.trace_id
+        for s in spans
+        if (s.attributes or {}).get(TIER0_SESSION_KIND) == "intake"
+    }
+    return tuple(
+        str((ev.attributes or {}).get("task"))
+        for s in spans
+        if s.context.trace_id in intake
+        for ev in s.events
+        if ev.name == "tier0.format_failure"
+    )
 
 
 def _diagnostics(spans: Any) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:

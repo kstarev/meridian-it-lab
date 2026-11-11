@@ -176,6 +176,7 @@ def _final_flag(seed: int) -> str:
 
 def render_markdown(r: EvalReport) -> str:
     k = r.k
+    fo = r.format_outcomes
     esc = (
         f"{r.escalation_correct / r.escalation_total:.0%} "
         f"({r.escalation_correct}/{r.escalation_total})"
@@ -239,6 +240,10 @@ def render_markdown(r: EvalReport) -> str:
         f"| Hand-offs to a person (rate) | {r.handoff_rate:.2f} ({r.handoff_runs}/{len(r.results)})"
         " | - |",
         f"| Unexpected hand-offs (runs) | {r.unexpected_handoffs} | 0 |",
+        f"| Failed everyday runs: wrong answer / off-format reply "
+        f"| {fo['everyday_failed_wrong_answer']} / {fo['everyday_failed_off_format']} | - |",
+        f"| Off-format replies (runs; triage, check replies) | {fo['runs_off_format']} "
+        f"({fo['triage_replies']}, {fo['check_replies']}) | 0 |",
         f"| Model calls per run (mean) | {r.mean_model_calls:.2f} | - |",
         f"| Latency per run (mean / slowest) | {r.mean_latency_ms:.0f} ms "
         f"/ {r.max_latency_ms:.0f} ms | - |",

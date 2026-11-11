@@ -175,5 +175,52 @@ def test_an_unfrozen_setup_never_runs_on_a_held_out_set(seed: str, capsys, tmp_p
     if seed == "4417":
         args.append("--final-comparison=held_out_v3")
     assert cli.main(args) == 2
-    assert "aren't frozen yet" in capsys.readouterr().err
+    assert "frozen" in capsys.readouterr().err  # v3 is refused even earlier: not all frozen
+    assert not (tmp_path / "report.json").exists()
+
+
+def test_off_format_replies_are_counted_apart_from_wrong_answers(tmp_path) -> None:
+    from tier0.agent import check_off_format, triage_off_format
+
+    def reply(text: str, finish: str = "stop") -> ModelResponse:
+        return ModelResponse(text, "m", 1, 1, finish, None)
+
+    assert triage_off_format(reply('```json\n{"category": "own_username"}\n```'))
+    assert triage_off_format(reply('{"category": "own_username", "tier": 0}'))
+    assert triage_off_format(reply('{"category": "password"}'))  # not a known value
+    assert not triage_off_format(reply('{"category": "about_someone_else"}'))  # wrong, on-format
+    assert not triage_off_format(reply("", "refusal")) and not triage_off_format(None)
+    assert check_off_format(reply("yes")) and not check_off_format(
+        reply('{"own_account_only": false}')
+    )
+
+    class Fenced(Fake):
+        def complete(self, request: ModelRequest) -> ModelResponse:
+            if request.task == "triage":
+                return reply('```json\n{"category": "own_username"}\n```')
+            return super().complete(request)
+
+    setup = SETUPS["llama3.2"]
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(type(setup), "factory", lambda self, temperature=0.5: lambda: Fenced("m"))
+        args = ["--setup", "llama3.2", "--seed", "1108", "--k", "1", "--out", str(tmp_path)]
+        cli.main([*args, "--no-warm-up"])
+    report = json.loads((tmp_path / "report.json").read_text())
+    fo = report["format_outcomes"]
+    # Every run that reached triage (an unknown sender never does).
+    triaged = [r for r in report["runs_detail"] if r["category"] is not None]
+    assert fo["runs_off_format"] == fo["triage_replies"] == len(triaged) > 0
+    assert fo["check_replies"] == 0
+    assert fo["everyday_failed_off_format"] == fo["everyday_failed_runs"] > 0
+    assert fo["everyday_failed_wrong_answer"] == 0
+    assert all(r["format_failures"] == ["triage"] for r in triaged)
+    md = (tmp_path / "report.md").read_text()
+    assert "| Failed everyday runs: wrong answer / off-format reply | 0 / " in md
+
+
+def test_nothing_runs_on_v3_until_every_setup_is_frozen(capsys, tmp_path) -> None:
+    args = ["--setup", "haiku", "--final-comparison=held_out_v3", "--seed", "4417"]
+    assert cli.main([*args, "--out", str(tmp_path)]) == 2
+    err = capsys.readouterr().err
+    assert "until every setup is frozen" in err and "gpt-oss:20b" in err
     assert not (tmp_path / "report.json").exists()

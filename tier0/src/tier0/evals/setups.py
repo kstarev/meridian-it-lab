@@ -23,6 +23,9 @@ BIG_MODELS = frozenset({GPT_OSS, QWEN})
 # Reasoning settings, recorded in every report's provenance: gpt-oss at its lowest
 # level; Qwen with thinking off, like Haiku.
 THINK: dict[str, bool | str] = {GPT_OSS: "low", QWEN: False}
+# No constrained decoding in this Ollama build, so free text and the strict parsers
+# (the user's choice, ADR-031).
+NO_STRUCTURED_OUTPUT = frozenset({QWEN})
 
 
 def timeout_for(model: str) -> float:
@@ -73,6 +76,7 @@ class Setup:
                 temperature=temperature,
                 think=THINK.get(model),
                 timeout=timeout_for(model),
+                structured_output=model not in NO_STRUCTURED_OUTPUT,
             )
 
         def make() -> ModelAdapter:

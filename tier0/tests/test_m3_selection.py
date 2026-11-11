@@ -177,3 +177,53 @@ def test_a_flawless_version_1_is_kept_without_writing_more() -> None:
     # One miss anywhere and the remaining versions are still owed.
     perfect[0]["correct"]["self_described"] = 17
     assert sel.choose_setups(perfect)["haiku"]["check"] is None
+
+
+def test_tuning_scores_split_off_format_misses_from_wrong_answers() -> None:
+    class HalfFenced(Perfect):
+        def complete(self, request: ModelRequest) -> ModelResponse:
+            right = super().complete(request)
+            if "colleague" in self.answers[request.user.split("Message:\n", 1)[-1]].group:
+                return ModelResponse(f"```{right.text}```", "m", 100, 5, "stop", None)
+            return right
+
+    result = sel.score("llama3.2", "T1", k=1, model=HalfFenced())
+    assert result["correct"]["colleague"] == 0 and result["off_format"]["colleague"] == 14
+    assert result["off_format"]["everyday"] == 0
+    assert "| 14 of 14 |" in sel.render([result], "cmd")
+
+
+def test_scoring_resumes_at_the_first_unsaved_version(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr(sel, "RESULTS", tmp_path)
+    monkeypatch.setattr(sel, "make_model", lambda name: Perfect())
+    monkeypatch.setattr(sel, "make_room", lambda *a, **k: [])
+    scored: list[str] = []
+    real = sel.score
+
+    def counting(name, version, **kw):  # type: ignore[no-untyped-def]
+        scored.append(version)
+        if version == "T3":
+            raise RuntimeError("crash mid-version")
+        return real(name, version, **kw)
+
+    monkeypatch.setattr(sel, "score", counting)
+    with pytest.raises(RuntimeError):
+        sel.main(["score", "--model", "llama3.2", "--versions", "T1", "T2", "T3", "--k", "1"])
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["llama3.2__T1.json", "llama3.2__T2.json"]
+    scored.clear()
+    monkeypatch.setattr(sel, "score", real)
+    assert (
+        sel.main(["score", "--model", "llama3.2", "--versions", "T1", "T2", "T3", "--k", "1"]) == 0
+    )
+    out = capsys.readouterr().out
+    assert "T1: already scored" in out and "T2: already scored" in out and "llama3.2 T3:" in out
+    assert not list(tmp_path.glob("*.partial"))
+
+
+def test_timing_estimates_tuning_dev_and_v3_from_tuning_calls_only() -> None:
+    model = Perfect()
+    est = sel.time_calls("llama3.2", model, n=4)
+    assert len(model.seeds) == 5  # one untimed load call, then 4 timed
+    assert est["tuning_full_budget"]["calls"] == 66 * 3 * 2 * 5
+    assert est["v3"]["calls"] == 54 * 3 * 2 + 2
+    assert est["seconds_per_call"]["mean"] >= 0

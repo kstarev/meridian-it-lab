@@ -123,6 +123,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.model = setup.provider
     if args.seed is None:
         args.seed = default_seed(args.model)
+    if args.final_comparison is not None and set(SETUPS) != FROZEN:
+        waiting = ", ".join(sorted(set(SETUPS) - FROZEN))
+        print(
+            f"refused: nothing runs on {args.final_comparison} until every setup is frozen; "
+            f"not yet: {waiting} (ADR-031)",
+            file=sys.stderr,
+        )
+        return 2
     if setup is not None and setup.name not in FROZEN and args.seed != DEFAULT_SEED:
         print(
             f"refused: {setup.name}'s prompts aren't frozen yet, so it runs on tuning data "

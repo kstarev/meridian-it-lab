@@ -231,3 +231,26 @@ def test_a_big_model_never_shares_memory_with_another_model() -> None:
     assert make_room(["llama3.2", "llama3.1:8b"], big=big, client=client) == ["qwen3.6:27b"]
     client, unloaded = _ollama_with_loaded(["llama3.1:8b"])
     assert make_room(["llama3.2"], big=big, client=client) == [] and unloaded == []
+
+
+def test_without_structured_output_the_schema_goes_into_the_system_message() -> None:
+    model, seen = capture(REPLY)
+    model.structured_output = False
+    model.complete(ModelRequest(task="triage", system="SYS", user="u", json_schema=TRIAGE_SCHEMA))
+    body = json.loads(seen[0].content)
+    assert "format" not in body
+    system = body["messages"][0]["content"]
+    assert system.startswith("SYS\n\n") and json.dumps(TRIAGE_SCHEMA, sort_keys=True) in system
+    # Constrained decoding stays the default, with the system message untouched.
+    model, seen = capture(REPLY)
+    model.complete(ModelRequest(task="triage", system="SYS", user="u", json_schema=TRIAGE_SCHEMA))
+    body = json.loads(seen[0].content)
+    assert body["format"] == TRIAGE_SCHEMA and body["messages"][0]["content"] == "SYS"
+
+
+def test_qwen_runs_without_structured_output_and_says_so() -> None:
+    from tier0.evals.setups import SETUPS
+
+    qwen = SETUPS["qwen3.6:27b"].factory()()
+    assert qwen.structured_output is False and qwen.think is False  # type: ignore[attr-defined]
+    assert SETUPS["gpt-oss:20b"].factory()().structured_output is True  # type: ignore[attr-defined]
