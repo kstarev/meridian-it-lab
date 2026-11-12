@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from tier0.evals.setups import COMPARISON_K, SETUPS, V3_K
+from tier0.evals.setups import COMPARISON_K, NO_SCHEMA_ENFORCEMENT, SETUPS, V3_K
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, paired_bootstrap_difference
 
 README_START = "<!-- comparison-m3:start -->"
@@ -291,8 +291,9 @@ def _pairs_table(pairs: Sequence[Mapping[str, Any]], conf: float, k: int) -> lis
 
 def _setups_table(reports: Sequence[Mapping[str, Any]]) -> list[str]:
     lines = [
-        "| Setup | Models | Triage prompt | Check prompt | Temperature | Model seeds |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Setup | Models | Triage prompt | Check prompt | Temperature | Model seeds "
+        "| Schema enforcement |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for r in reports:
         claude = r["provider"] == "anthropic"
@@ -300,9 +301,33 @@ def _setups_table(reports: Sequence[Mapping[str, Any]]) -> list[str]:
         seeds = "none (the API has no seed)" if claude else ", ".join(map(str, r["model_seeds"]))
         lines.append(
             f"| {name(r)} | {r['provider']} / {r['model']} | `{r['triage_prompt_sha256'][:12]}` "
-            f"| `{r['check_prompt_sha256'][:12]}` | {temp} | {seeds} |"
+            f"| `{r['check_prompt_sha256'][:12]}` | {temp} | {seeds} "
+            f"| {'**none**' if _unenforced(r) else 'enforced'} |"
         )
     return lines
+
+
+def _unenforced(r: Mapping[str, Any]) -> bool:
+    return r.get("provenance", {}).get("schema_enforcement") == "none"
+
+
+def schema_lines(reports: Sequence[Mapping[str, Any]]) -> list[str]:
+    """One line per setup with no schema enforcement, with its off-format counts."""
+    out = []
+    for r in reports:
+        if not _unenforced(r):
+            continue
+        fo = r.get("format_outcomes", {})
+        why = NO_SCHEMA_ENFORCEMENT.get(r["model"], "Ollama doesn't hold it to the schema")
+        out.append(
+            f"- **{name(r)}: no schema enforcement** ({why}). Off-format replies: "
+            f"{fo.get('runs_off_format', '?')} runs ({fo.get('triage_replies', '?')} triage, "
+            f"{fo.get('check_replies', '?')} check replies); of "
+            f"{fo.get('everyday_failed_runs', '?')} failed everyday runs, "
+            f"{fo.get('everyday_failed_off_format', '?')} off-format and "
+            f"{fo.get('everyday_failed_wrong_answer', '?')} wrong answers."
+        )
+    return out
 
 
 def _limits(reports: Sequence[Mapping[str, Any]]) -> list[str]:
@@ -352,6 +377,17 @@ def render_markdown(
         "",
         *_setups_table(reports),
         "",
+        *(
+            [
+                "Two setups ran with no schema enforcement; their off-format replies fail "
+                "closed and are counted apart from wrong answers (ADR-031):",
+                "",
+                *schema_lines(reports),
+                "",
+            ]
+            if schema_lines(reports)
+            else []
+        ),
         "Each setup's prompts were chosen on tuning data only, from at most 5 versions per "
         "prompt, by a rule fixed in advance, and frozen by hash before v3 ran (ADR-030).",
         "",
@@ -414,6 +450,8 @@ def readme_block(
         "",
         *_table(reports, links),
         "",
+        *schema_lines(reports),
+        *([""] if schema_lines(reports) else []),
         v["text"],
         f"Details, pairwise intervals, method and known limits: "
         f"[{Path(report_link).name}]({report_link}).",

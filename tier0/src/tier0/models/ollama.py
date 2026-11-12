@@ -32,6 +32,7 @@ class OllamaModel:
         seed: int | None = None,
         think: bool | str | None = None,
         structured_output: bool = True,
+        schema_enforced: bool = True,
     ) -> None:
         self.model = model
         self.temperature: float | None = temperature
@@ -43,6 +44,9 @@ class OllamaModel:
         # 0.40.15 answers 501 "structured output is unavailable"). Then the schema goes
         # into the system message instead, and the strict parsers still fail closed.
         self.structured_output = structured_output
+        # Whether Ollama actually holds this model to the schema it's sent. gpt-oss takes
+        # the schema but isn't held to it (other keys, strings), so reports must say so.
+        self.schema_enforced = schema_enforced and structured_output
         self._client = client or httpx2.Client(base_url=base_url, timeout=timeout)
 
     def complete(self, request: ModelRequest) -> ModelResponse:
@@ -107,6 +111,8 @@ class OllamaModel:
             described["think"] = str(self.think).lower()
         if not self.structured_output:
             described["structured_output"] = "false (schema in the system message)"
+        if not self.schema_enforced:
+            described["schema_enforcement"] = "none"
         return described
 
 

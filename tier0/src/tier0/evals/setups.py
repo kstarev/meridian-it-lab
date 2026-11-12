@@ -31,6 +31,13 @@ THINK: dict[str, bool | str] = {GPT_OSS: "low", QWEN: False}
 # No constrained decoding in this Ollama build, so free text and the strict parsers
 # (the user's choice, ADR-031).
 NO_STRUCTURED_OUTPUT = frozenset({QWEN})
+# No schema enforcement at all: Qwen gets no structured output, and gpt-oss is sent the
+# schema but Ollama doesn't hold it to it (tuning: other keys, and "true" as a string).
+# Every report and the comparison say so, with off-format counts (ADR-031).
+NO_SCHEMA_ENFORCEMENT: dict[str, str] = {
+    GPT_OSS: "the schema is sent as Ollama's format, but gpt-oss isn't held to it",
+    QWEN: "no structured output in this Ollama build; the schema is in the system message",
+}
 
 
 def timeout_for(model: str) -> float:
@@ -86,6 +93,7 @@ class Setup:
                 think=THINK.get(model),
                 timeout=timeout_for(model),
                 structured_output=model not in NO_STRUCTURED_OUTPUT,
+                schema_enforced=model not in NO_SCHEMA_ENFORCEMENT,
             )
 
         def make() -> ModelAdapter:

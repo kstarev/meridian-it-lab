@@ -6,7 +6,7 @@ import pytest
 from tier0.evals import __main__ as cli
 from tier0.evals import m3_selection as sel
 from tier0.evals.setups import SETUPS
-from tier0.models import memory
+from tier0.models import ModelRequest, ModelResponse, memory
 
 VM_STAT = """Mach Virtual Memory Statistics: (page size of 16384 bytes)
 Pages free:                                    100000.
@@ -44,29 +44,72 @@ def test_headroom_counts_what_loading_the_model_still_takes() -> None:
     assert not ok
 
 
-def test_tuning_pauses_before_a_version_instead_of_being_killed(
+def test_low_memory_warns_and_logs_but_tuning_still_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path, capsys
 ) -> None:
-    monkeypatch.setattr(sel, "RESULTS", tmp_path)
+    monkeypatch.setattr(sel, "RESULTS", tmp_path / "scores")
+    monkeypatch.setattr(sel.watch, "LOG", tmp_path / "watch.jsonl")
+    monkeypatch.setattr(sel.watch, "TIMINGS", tmp_path / "timing")
     monkeypatch.setattr(sel, "make_room", lambda *a, **k: [])
     monkeypatch.setattr(sel.memory, "headroom", lambda model, **k: (False, "1.0 GB free"))
     called: list[str] = []
-    monkeypatch.setattr(sel, "score", lambda *a, **k: called.append(a[1]) or {})
-    assert sel.main(["score", "--model", "qwen3.6:27b", "--versions", "QC4"]) == 3
-    assert "paused before QC4: 1.0 GB free" in capsys.readouterr().out
-    assert called == [] and not list(tmp_path.iterdir())
+
+    def fake_score(name, version, **kw):  # type: ignore[no-untyped-def]
+        called.append(version)
+        return {
+            "correct": dict.fromkeys(sel.GROUPS, 0),
+            "total": dict.fromkeys(sel.GROUPS, 0),
+            "cost_usd": 0.0,
+        }
+
+    monkeypatch.setattr(sel, "score", fake_score)
+    assert sel.main(["score", "--model", "qwen3.6:27b", "--versions", "QC4"]) == 0
+    assert "WARNING: low memory before QC4: 1.0 GB free" in capsys.readouterr().out
+    assert called == ["QC4"]  # it ran anyway
+    logged = (tmp_path / "watch.jsonl").read_text()
+    assert '"event": "memory"' in logged and '"ok": false' in logged
 
 
-def test_an_eval_pauses_before_a_big_model_loads(
+class _Fake:
+    provider = "ollama"
+    temperature = 0.5
+    supports_seed = True
+    model = "qwen3.6:27b"
+
+    def __init__(self) -> None:
+        self.seed: int | None = None
+
+    def describe(self) -> dict[str, str]:
+        return {
+            "model_id": "q",
+            "model_digest": "q" * 64,
+            "ollama_version": "1",
+            "schema_enforcement": "none",
+        }
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        text = (
+            '{"category": "own_username"}'
+            if request.task == "triage"
+            else '{"own_account_only": true}'
+        )
+        return ModelResponse(text, "qwen3.6:27b", 1, 1, "stop", None)
+
+
+def test_low_memory_warns_but_an_eval_still_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path, capsys
 ) -> None:
     monkeypatch.setattr(cli, "make_room", lambda *a, **k: [])
     monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS))
     monkeypatch.setattr(cli.memory, "headroom", lambda model, **k: (False, "2.0 GB free"))
-    made: list[str] = []
+    monkeypatch.setattr(cli.watch, "LOG", tmp_path / "watch.jsonl")
+    monkeypatch.setattr(cli.watch, "TIMINGS", tmp_path / "timing")
     setup = SETUPS["qwen3.6:27b"]
-    monkeypatch.setattr(type(setup), "factory", lambda self, t=0.5: lambda: made.append("x"))
-    args = ["--setup", "qwen3.6:27b", "--seed", "2611", "--k", "3", "--out", str(tmp_path)]
-    assert cli.main(args) == 3
-    assert "paused: 2.0 GB free" in capsys.readouterr().err
-    assert made == [] and not (tmp_path / "report.json").exists()
+    monkeypatch.setattr(type(setup), "factory", lambda self, t=0.5: _Fake)
+    args = ["--setup", "qwen3.6:27b", "--seed", "1108", "--k", "1", "--out", str(tmp_path)]
+    assert cli.main(args) == 0
+    assert "WARNING: low memory: 2.0 GB free" in capsys.readouterr().err
+    assert (tmp_path / "report.json").exists()
+    md = (tmp_path / "report.md").read_text()
+    assert "> **No schema enforcement:** no structured output in this Ollama build" in md
+    assert "Off-format replies: 0 of" in md

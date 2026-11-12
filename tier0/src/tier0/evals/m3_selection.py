@@ -36,11 +36,13 @@ from tier0.agent import (
     triage_off_format,
     triage_request,
 )
+from tier0.evals import watch
 from tier0.evals.prompt_history import M3_CHECK_VERSIONS, M3_TRIAGE_VERSIONS
 from tier0.evals.setups import (
     BIG_MODELS,
     GPT_OSS,
     HAIKU,
+    NO_SCHEMA_ENFORCEMENT,
     NO_STRUCTURED_OUTPUT,
     QWEN,
     SETUPS,
@@ -154,6 +156,7 @@ def make_model(name: str) -> ModelAdapter:
         think=THINK.get(name),
         timeout=timeout_for(name),
         structured_output=name not in NO_STRUCTURED_OUTPUT,
+        schema_enforced=name not in NO_SCHEMA_ENFORCEMENT,
     )
 
 
@@ -340,6 +343,15 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
             lines += [
                 f"## {model}: {task}",
                 "",
+                *(
+                    [
+                        f"**No schema enforcement:** {NO_SCHEMA_ENFORCEMENT[model]}. Misses "
+                        "that were off-format replies are counted apart below.",
+                        "",
+                    ]
+                    if model in NO_SCHEMA_ENFORCEMENT
+                    else []
+                ),
                 "| Version | Everyday | Self-described | Colleague caught | Unnamed caught "
                 "| Misses off-format | Prompt (chars) | sha256 | API cost |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -499,7 +511,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         with guard_for_model(provider_of(args.model)):
             if provider_of(args.model) == "ollama":
                 make_room([args.model], big=BIG_MODELS)
-            print(json.dumps(time_calls(args.model, make_model(args.model), args.calls), indent=2))
+            timing = time_calls(args.model, make_model(args.model), args.calls)
+            print(json.dumps(timing, indent=2))
+            print(f"saved: {watch.save_timing(args.model, timing)}")
         return 0
     if args.command == "render":
         results = load_results()
@@ -539,14 +553,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             if path.exists() and not args.rescore:
                 print(f"{args.model} {version}: already scored ({path})")
                 continue
+            model: ModelAdapter | None = None
             if args.model in BIG_MODELS:
-                # Pause rather than be killed part-way (ADR-031); a re-run resumes here.
+                # Warn and log, never pause: the run goes on even if it swaps (ADR-031).
                 ok, message = memory.headroom(args.model)
-                print(f"memory before {version}: {message}")
-                if not ok:
-                    print(f"paused before {version}: {message}. Free memory and re-run.")
-                    return 3
-            result = score(args.model, version, k=args.k)
+                watch.log({"event": "memory", "model": args.model, "ok": ok, "message": message})
+                print(f"{'memory' if ok else 'WARNING: low memory'} before {version}: {message}")
+                expected = watch.expected_seconds(args.model)
+                if expected is not None:
+                    slow = watch.SlowWatch(f"{args.model} {version}", expected, say=print)
+                    model = watch.WatchedModel(make_model(args.model), slow)  # type: ignore[assignment]
+            result = score(args.model, version, k=args.k, model=model)
             # Saved per version, atomically: a crash or restart loses at most the version
             # in progress, and a re-run picks up at the first unsaved one.
             partial = path.with_suffix(".json.partial")

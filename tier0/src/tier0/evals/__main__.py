@@ -13,6 +13,7 @@ import anyio
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
 from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from tier0.agent import Prompts, own_account_check_request, triage_request
+from tier0.evals import watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.evals.setups import BIG_MODELS, FROZEN, SETUPS
@@ -176,11 +177,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         factory, prompts = _model_factory(args.model, args.temperature), None
 
+    # The runs' factory; for a big model it times every call against its estimate.
+    run_factory = factory
+
     async def go():  # type: ignore[no-untyped-def]
         return await run_eval(
             args.seed,
             k=args.k,
-            model_factory=factory,
+            model_factory=run_factory,
             out_dir=args.out,
             today=today,
             final_comparison=args.final_comparison,
@@ -198,11 +202,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             if unloaded:
                 print(f"unloaded first: {', '.join(unloaded)}", file=sys.stderr)
             for big in sorted(setup.models & BIG_MODELS):
+                # Warn and log, never pause: the run goes on even if it swaps (ADR-031).
                 ok, message = memory.headroom(big, base_url=url)
-                print(f"memory: {message}", file=sys.stderr)
-                if not ok:
-                    print(f"paused: {message}. Free memory and re-run.", file=sys.stderr)
-                    return 3
+                watch.log({"event": "memory", "model": big, "ok": ok, "message": message})
+                print(f"{'memory' if ok else 'WARNING: low memory'}: {message}", file=sys.stderr)
+            expected = [watch.expected_seconds(m) for m in sorted(setup.models & BIG_MODELS)]
+            if expected and all(e is not None for e in expected):
+                slow = watch.SlowWatch(
+                    f"{setup.name} on seed {args.seed}", max(e for e in expected if e)
+                )
+
+                def run_factory() -> ModelAdapter:
+                    return watch.WatchedModel(factory(), slow)  # type: ignore[return-value]
+
         if args.model != "stub" and not args.no_warm_up:
             failed = warm_up(factory(), prompts)
             if failed:

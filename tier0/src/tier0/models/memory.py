@@ -2,8 +2,9 @@
 
 On a 32 GB Mac a 15-20 GB model leaves little room, and a run that runs the machine out
 of memory gets killed part-way. So before each big-model run tier0 checks what macOS can
-hand out (free, inactive and speculative pages, from `vm_stat`) and pauses with a message
-when less than about 4 GB would be left once the model is loaded.
+hand out (free, inactive and speculative pages, from `vm_stat`) and warns, and logs,
+when less than about 4 GB would be left once the model is loaded. The run goes on even
+if macOS has to swap (the user's call, 2026-11-12); it is never paused.
 """
 
 import re

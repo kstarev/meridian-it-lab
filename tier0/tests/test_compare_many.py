@@ -261,3 +261,37 @@ def test_claude_is_compared_on_its_first_3_runs_and_must_run_5() -> None:
         cm.view({**local, "k": 5})
     with pytest.raises(cm.NotComparableError, match="no k = 3 view"):
         cm.view({k: v for k, v in _raw(haiku).items() if k != "at_k3"})
+
+
+def test_the_comparison_says_no_schema_enforcement_with_off_format_counts(tmp_path: Path) -> None:
+    reports = _all([True] * N)
+    fo = {
+        "runs_off_format": 4,
+        "triage_replies": 1,
+        "check_replies": 3,
+        "everyday_failed_runs": 6,
+        "everyday_failed_off_format": 2,
+        "everyday_failed_wrong_answer": 4,
+    }
+    for r in reports:
+        if r["model"] in ("gpt-oss:20b", "qwen3.6:27b"):
+            r["provenance"] = {"schema_enforcement": "none"}
+            r["format_outcomes"] = fo
+    lines = cm.schema_lines(reports)
+    assert [line.split(":")[0] for line in lines] == ["- **gpt-oss", "- **qwen3.6"]
+    assert all(
+        "no schema enforcement" in line and "4 runs (1 triage, 3 check" in line for line in lines
+    )
+    md = cm.render_markdown(
+        reports,
+        cm.pairwise(reports),
+        cm.verdict(reports, cm.pairwise(reports)),
+        ["x.md"] * len(reports),
+        "cmd",
+    )
+    assert "| **none** |" in md and md.count("| enforced |") == 5
+    assert "2 off-format and 4 wrong answers" in md
+    block = cm.readme_block(
+        reports, cm.verdict(reports, cm.pairwise(reports)), ["x.md"] * len(reports), "m3.md"
+    )
+    assert "qwen3.6:27b: no schema enforcement" in block

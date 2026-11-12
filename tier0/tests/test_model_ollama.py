@@ -254,3 +254,23 @@ def test_qwen_runs_without_structured_output_and_says_so() -> None:
     qwen = SETUPS["qwen3.6:27b"].factory()()
     assert qwen.structured_output is False and qwen.think is False  # type: ignore[attr-defined]
     assert SETUPS["gpt-oss:20b"].factory()().structured_output is True  # type: ignore[attr-defined]
+
+
+def test_gpt_oss_and_qwen_are_described_as_having_no_schema_enforcement() -> None:
+    from tier0.evals.setups import SETUPS
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/api/version":
+            return httpx2.Response(200, json={"version": "0.40.15"})
+        names = ["gpt-oss:20b", "qwen3.6:27b", "llama3.1:8b"]
+        return httpx2.Response(
+            200, json={"models": [{"name": n, "digest": "d" * 64} for n in names]}
+        )
+
+    client = httpx2.Client(
+        base_url="http://ollama.example", transport=httpx2.MockTransport(handler)
+    )
+    for name, expected in (("gpt-oss:20b", "none"), ("qwen3.6:27b", "none"), ("llama3.1:8b", None)):
+        model = SETUPS[name].factory()()
+        model._client = client  # type: ignore[attr-defined]
+        assert model.describe().get("schema_enforcement") == expected, name  # type: ignore[attr-defined]
