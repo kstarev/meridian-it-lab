@@ -18,7 +18,7 @@ def _seed_label(seed: int) -> str:
     if seed == HOLDOUT_V2_SEED:
         return f"seed {seed} (held-out v2, spent in milestone 2, now a dev set: ADR-029)"
     if seed == HOLDOUT_V3_SEED:
-        return f"seed {seed} (held-out v3, sealed until its final comparison: ADR-029)"
+        return f"seed {seed} (held-out v3, spent in milestone 3, now a dev set: ADR-030)"
     if seed == DEFAULT_SEED:
         return f"seed {seed} (tuning)"
     return f"seed {seed}"
@@ -227,9 +227,9 @@ def render_markdown(r: EvalReport) -> str:
     else:
         if r.seed == HOLDOUT_V3_SEED:
             which = (
-                "These results come from a real model on held-out v3 (seed 4417), written "
-                "blind and sealed before milestone 3's fixes, and never run until this final "
-                "comparison (ADR-029)."
+                "These results come from a real model on held-out v3 (seed 4417). It was "
+                "spent in milestone 3's final comparison, so it now counts as a dev set, not "
+                "a held-out score (ADR-030)."
             )
         elif r.seed == HOLDOUT_V2_SEED:
             which = (

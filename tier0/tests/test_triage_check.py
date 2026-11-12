@@ -55,7 +55,10 @@ def test_held_out_v1_is_labelled_dev_set(tmp_path: Path) -> None:
     )
 
 
-def test_held_out_v3_refused(tmp_path: Path) -> None:
+def test_a_sealed_set_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tier0 import sealed
+
+    monkeypatch.setattr(sealed, "SEALED_POOLS", frozenset({"held_out_v3"}))  # a stand-in
     out = tmp_path / "o"
     assert main(["--model", "stub", "--pool", "held_out_v3", "--out", str(out)]) == 2
     assert not out.exists()

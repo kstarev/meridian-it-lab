@@ -295,3 +295,12 @@ def test_the_comparison_says_no_schema_enforcement_with_off_format_counts(tmp_pa
         reports, cm.verdict(reports, cm.pairwise(reports)), ["x.md"] * len(reports), "m3.md"
     )
     assert "qwen3.6:27b: no schema enforcement" in block
+
+
+def test_the_comparison_lists_the_tuning_ceiling_as_a_known_limit() -> None:
+    reports = _all([True] * N)
+    pairs = cm.pairwise(reports)
+    md = cm.render_markdown(reports, pairs, cm.verdict(reports, pairs), ["x.md"] * 7, "cmd")
+    limits = md.split("## Known limits", 1)[1]
+    assert "their prompts were chosen by length, not quality" in limits
+    assert "the tuning set needs harder cases for strong models" in limits

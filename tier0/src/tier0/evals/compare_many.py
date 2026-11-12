@@ -345,8 +345,15 @@ def schema_lines(reports: Sequence[Mapping[str, Any]]) -> list[str]:
     return out
 
 
+# Limits of milestone 3's method itself, not of any one report (ADR-030; the user's wording).
+METHOD_LIMITS = (
+    "The big models scored perfectly on almost every tuning version, so their prompts were "
+    "chosen by length, not quality; the tuning set needs harder cases for strong models.",
+)
+
+
 def _limits(reports: Sequence[Mapping[str, Any]]) -> list[str]:
-    seen: list[str] = []
+    seen: list[str] = list(METHOD_LIMITS)
     for r in reports:
         for limit in r.get("known_limits", []):
             if limit not in seen:

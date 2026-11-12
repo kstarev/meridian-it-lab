@@ -79,6 +79,7 @@ Each setup's prompts were chosen on tuning data only, from at most 5 versions pe
 
 ## Known limits
 
+- The big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality; the tuning set needs harder cases for strong models.
 - Only 6 colleague tickets name nobody and 6 tickets are self-descriptions, each run 3 times, so those rows have wide intervals.
 - Ollama results reproduce on the same machine with the same model digest and Ollama version; the Claude API has no seed, so its runs can't be pinned.
 - Cost per ticket is API cost only; local models' hardware and electricity are not counted.

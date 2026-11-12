@@ -185,8 +185,6 @@ def test_an_unfrozen_setup_never_runs_on_a_held_out_set(
 ) -> None:
     monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS) - {"gpt-oss:20b"})
     args = ["--setup", "gpt-oss:20b", "--seed", seed, "--k", "1", "--out", str(tmp_path)]
-    if seed == "4417":
-        args.append("--final-comparison=held_out_v3")
     assert cli.main(args) == 2
     assert "frozen" in capsys.readouterr().err  # v3 is refused even earlier: not all frozen
     assert not (tmp_path / "report.json").exists()
@@ -235,6 +233,7 @@ def test_nothing_runs_on_v3_until_every_setup_is_frozen(
     capsys, tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS) - {"gpt-oss:20b", "qwen3.6:27b"})
+    _seal_v3_again(monkeypatch)
     args = ["--setup", "haiku", "--final-comparison=held_out_v3", "--seed", "4417"]
     assert cli.main([*args, "--out", str(tmp_path)]) == 2
     err = capsys.readouterr().err
@@ -246,6 +245,7 @@ def test_v3_refuses_the_wrong_k_for_a_setup(
     monkeypatch: pytest.MonkeyPatch, capsys, tmp_path
 ) -> None:
     monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS))  # pretend all are frozen
+    _seal_v3_again(monkeypatch)
     base = ["--final-comparison=held_out_v3", "--seed", "4417", "--out", str(tmp_path)]
     assert cli.main(["--setup", "haiku", "--k", "3", *base]) == 2
     assert "haiku runs at k = 5" in capsys.readouterr().err
@@ -269,3 +269,11 @@ def test_a_k5_run_carries_its_first_3_runs_and_cost_per_1000(tmp_path) -> None:
     md = (tmp_path / "report.md").read_text()
     assert "| pass^3 on runs 1-3 (to compare with k = 3 setups) |" in md
     assert "| API cost per 1,000 tickets |" in md
+
+
+def _seal_v3_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    """v3 is a dev set now; seal it again as a stand-in for the next sealed set (v4)."""
+    from tier0 import sealed
+
+    for module in (sealed, cli):
+        monkeypatch.setattr(module, "SEALED_POOLS", frozenset({"held_out_v3"}))

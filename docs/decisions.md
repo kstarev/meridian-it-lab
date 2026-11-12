@@ -647,7 +647,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-030: Milestone 3 compares four setups, each tuned the same way on tuning data only
 
-**Date:** 2026-11-11 · **Status:** Accepted, and amended by ADR-031 (six setups, 15 pairs) before anything ran on v3. ADR-013, ADR-021 and ADR-027 still apply.
+**Date:** 2026-11-11 · **Status:** Accepted, and amended by ADR-031 and ADR-032 before anything ran on v3. Done: the final comparison ran on 2026-11-12, with no clear winner ([report](evals/2026-11-12-held-out-v3-comparison.md)). ADR-013, ADR-021 and ADR-027 still apply.
 
 **Context:** Milestone 2 froze one triage and one check prompt and compared two local models with them (ADR-027). Milestone 3 fixes over-refusal on a bigger, noisier tuning set, and adds two candidates: a mixed setup (the small model for triage, the larger one for the check) and Claude Haiku 5.5. A prompt tuned for one model isn't fair to another, so each setup gets its own prompts, picked by the same rule from the same candidates within the same budget.
 
@@ -705,7 +705,8 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 - Haiku has no seed, so its numbers carry sampling noise that the local models' don't. Its temperature also differs from theirs, and the comparison says so rather than hiding it.
 - Picking the best of 5 per setup flatters every tuning score. Only v3 counts.
-- After the final comparison v3 is spent, and becomes a dev set like v1 and v2.
+- After the final comparison v3 is spent, and becomes a dev set like v1 and v2. **Done 2026-11-12:** v3 is unsealed in code (`SEALED_POOLS` is empty) and its new reports say "dev set". The seal mechanism stays tested on a stand-in, for v4.
+- **Known limit (2026-11-12, after v3):** the big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality; the tuning set needs harder cases for strong models. Haiku and Sonnet were flawless on version 1, and gpt-oss and Qwen on every check version that spelled out the reply format, so the tie-break picked the shortest prompt. A harder tuning set is part of milestone 3b (ADR-033). The v3 comparison lists this limit.
 
 ## ADR-031: Two more local candidates, gpt-oss:20b and qwen3.6:27b, added before v3
 
@@ -756,3 +757,18 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 - Runs 4 and 5 don't affect Claude's pass^3 or the pairwise intervals; they show in pass^5 and can only make the safety numbers worse.
 - 21 pairs need bigger gaps than 15 to call a winner.
+
+## ADR-033: Milestone 3b adds the TKT-004 fix (on a new sealed v4) and a harder tuning set
+
+**Date:** 2026-11-12 · **Status:** Accepted; not built yet. Changes the frozen scope (2026-11-08), so it needs this ADR.
+
+**Context:** Milestone 3's v3 comparison found one ticket that fails in every setup: TKT-004, a self-described own-username request. Every model got it right (triage said own username and the own-account check said yes), but the code-only role signal (ADR-024) fired and handed it to a person in every run. A prompt can't fix that, and fixing it after seeing v3 can't be measured on v3, which is spent. The comparison also showed that the tuning set was too easy for the strong models (ADR-030's known limit).
+
+**Decision:** both go into milestone 3b, next to the verification ladder:
+
+- **TKT-004:** widen the role signal's self-description exception for the phrasing that failed, on tuning data only, and measure it on a **new held-out v4**, written blind and sealed before the fix, like v3 (ADR-029).
+- **A harder tuning set:** add cases that strong models get wrong, so prompt selection compares quality, not length.
+- The sub-milestone order stays 3a (done), 3b, 3d, 3c.
+
+**Consequences:** v4 needs a new blind helper run and a new seal; nothing runs on it until 3b's final comparison.
+

@@ -10,9 +10,10 @@ set can never unseal another by accident.
 
 from meridian_dataset import World
 
-# Held-out v2 was spent in milestone 2's final comparison (ADR-027) and is now a plain dev
-# set like v1 (ADR-029), so only v3 is sealed.
-SEALED_POOLS = frozenset({"held_out_v3"})
+# Held-out v2 was spent in milestone 2's final comparison (ADR-027) and v3 in milestone 3's
+# (2026-11-12, ADR-030); both are plain dev sets like v1, so nothing is sealed until a new
+# held-out set (v4, milestone 3b) is written and sealed here.
+SEALED_POOLS: frozenset[str] = frozenset()
 
 
 class SealedSetError(RuntimeError):
