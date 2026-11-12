@@ -95,6 +95,29 @@ def _cost_cell(r: EvalReport, per: int = 1) -> str:
     return f"${r.cost_per_ticket_usd:.6f} (total ${r.total_cost_usd:.4f} for {len(r.results)} runs)"
 
 
+NOT_COMPARABLE = "not comparable (memory pressure on a 32 GB Mac)"
+
+
+def _latency_cell(r: EvalReport) -> str:
+    """Latency over the runs that didn't swap; a swapped run measured the Mac."""
+    kept = r.latency_comparable
+    if kept["mean_ms"] is None:
+        return NOT_COMPARABLE
+    cell = f"{kept['mean_ms']:.0f} ms / {kept['max_ms']:.0f} ms"
+    if r.swapped_runs:
+        cell += (
+            f" over the {kept['runs']} runs without swapping; the other {r.swapped_runs}: "
+            f"{NOT_COMPARABLE}"
+        )
+    return cell
+
+
+def _swap_cell(r: EvalReport) -> str:
+    if all(x.swapouts is None for x in r.results):
+        return "not recorded"
+    return f"{r.swapped_runs} of {len(r.results)}"
+
+
 def _ci(interval: tuple[float, float] | list[float]) -> str:
     return f"95% CI {interval[0]:.2f}-{interval[1]:.2f}"
 
@@ -259,8 +282,8 @@ def render_markdown(r: EvalReport) -> str:
         f"| Off-format replies (runs; triage, check replies) | {fo['runs_off_format']} "
         f"({fo['triage_replies']}, {fo['check_replies']}) | 0 |",
         f"| Model calls per run (mean) | {r.mean_model_calls:.2f} | - |",
-        f"| Latency per run (mean / slowest) | {r.mean_latency_ms:.0f} ms "
-        f"/ {r.max_latency_ms:.0f} ms | - |",
+        f"| Latency per run (mean / slowest) | {_latency_cell(r)} | - |",
+        f"| Runs where the Mac swapped | {_swap_cell(r)} | 0 |",
         f"| API cost per ticket (mean per run) | {_cost_cell(r)} | - |",
         f"| API cost per 1,000 tickets | {_cost_cell(r, per=1000)} | - |",
         *(

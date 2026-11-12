@@ -34,6 +34,13 @@ NO_STRUCTURED_OUTPUT = frozenset({QWEN})
 # No schema enforcement at all: Qwen gets no structured output, and gpt-oss is sent the
 # schema but Ollama doesn't hold it to it (tuning: other keys, and "true" as a string).
 # Every report and the comparison say so, with off-format counts (ADR-031).
+# Model-specific known limits, added to every report for that model (the user's wording).
+MODEL_LIMITS: dict[str, tuple[str, ...]] = {
+    QWEN: (
+        "qwen3.6:27b needs more than 32 GB to run without swapping; its speed here doesn't "
+        "reflect its speed on suitable hardware.",
+    ),
+}
 NO_SCHEMA_ENFORCEMENT: dict[str, str] = {
     GPT_OSS: "the schema is sent as Ollama's format, but gpt-oss isn't held to it",
     QWEN: "no structured output in this Ollama build; the schema is in the system message",

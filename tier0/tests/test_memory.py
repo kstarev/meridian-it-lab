@@ -113,3 +113,67 @@ def test_low_memory_warns_but_an_eval_still_runs(
     md = (tmp_path / "report.md").read_text()
     assert "> **No schema enforcement:** no structured output in this Ollama build" in md
     assert "Off-format replies: 0 of" in md
+
+
+def test_swapouts_are_read_from_vm_stat() -> None:
+    assert (
+        memory.swapouts(VM_STAT + "Swapouts:                               33015719.\n") == 33015719
+    )
+    assert memory.swapouts(VM_STAT) is None
+
+
+def test_a_run_that_swapped_is_marked_and_its_latency_is_not_comparable(tmp_path) -> None:
+    import anyio
+
+    from tier0.evals import compare_many as cm
+    from tier0.evals.report import render_markdown
+    from tier0.evals.runner import run_eval
+
+    # Each run reads the counter twice; make every third run swap 5 pages.
+    state = {"n": 0, "total": 0}
+
+    def probe() -> int:
+        state["n"] += 1
+        if state["n"] % 6 == 0:
+            state["total"] += 5
+        return state["total"]
+
+    report = anyio.run(
+        lambda: run_eval(1108, k=3, model_factory=_Fake, out_dir=tmp_path, swap_probe=probe)
+    )
+    swapped = [r for r in report.results if r.swapped]
+    assert swapped and len(swapped) < len(report.results)
+    assert all(r.swapouts == 5 for r in swapped)
+    d = report.to_dict()
+    assert d["swap"] == {
+        "recorded": True,
+        "swapped_runs": len(swapped),
+        "runs": len(report.results),
+    }
+    kept = [r.duration_ms for r in report.results if not r.swapped]
+    assert d["latency_comparable"]["mean_ms"] == pytest.approx(sum(kept) / len(kept))
+    md = render_markdown(report)
+    assert "not comparable (memory pressure on a 32 GB Mac)" in md
+    assert f"| Runs where the Mac swapped | {len(swapped)} of {len(report.results)} | 0 |" in md
+    # Correctness and safety are as measured, swapped or not.
+    assert d["pass_k"] == report.pass_k and d["unsafe_runs"] == report.unsafe_runs
+    # The qwen known limit, in every report for that model.
+    assert any("needs more than 32 GB to run without swapping" in x for x in report.known_limits)
+    assert "needs more than 32 GB" in md
+    # Every run swapped: no latency at all in the comparison.
+    every = {**d, "latency_comparable": {"runs": 0, "mean_ms": None, "max_ms": None}}
+    assert cm._latency(every) == "not comparable (memory pressure on a 32 GB Mac)"
+    assert "swapped runs: not comparable" in cm._latency(d)
+
+
+def test_other_models_get_no_qwen_limit(tmp_path) -> None:
+    import anyio
+
+    from tier0.evals.runner import run_eval
+
+    class Llama(_Fake):
+        model = "llama3.2"
+
+    report = anyio.run(lambda: run_eval(1108, k=1, model_factory=Llama, swap_probe=lambda: 0))
+    assert not any("32 GB" in x for x in report.known_limits)
+    assert report.swapped_runs == 0

@@ -41,6 +41,21 @@ def available_bytes(vm_stat: str | None = None) -> int | None:
     return pages * int(page.group(1))
 
 
+def swapouts(vm_stat: str | None = None) -> int | None:
+    """macOS's running count of pages swapped out to disk, or None when it can't be read.
+    A run whose count goes up made the Mac swap, so its latency measures the machine, not
+    the model (the user's rule, 2026-11-12)."""
+    if vm_stat is None:
+        try:
+            vm_stat = subprocess.run(
+                ["/usr/bin/vm_stat"], capture_output=True, text=True, check=True, timeout=10
+            ).stdout
+        except (OSError, subprocess.SubprocessError):
+            return None
+    found = re.search(r"^Swapouts:\s+(\d+)\.", vm_stat, re.MULTILINE)
+    return int(found.group(1)) if found else None
+
+
 def _tagged(name: str) -> str:
     return name if ":" in name else f"{name}:latest"
 

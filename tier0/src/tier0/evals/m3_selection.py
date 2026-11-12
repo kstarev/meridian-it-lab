@@ -180,6 +180,7 @@ def score(
     wrong: dict[str, int] = {}
     elapsed = 0.0
     calls = 0
+    swap_before = memory.swapouts()
     for run in range(1, k + 1):
         if getattr(model, "supports_seed", False):
             model.seed = DEFAULT_MODEL_SEED_BASE + run
@@ -230,10 +231,17 @@ def score(
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
         "cost_usd": cost_usd(provider, model_name, tokens_in, tokens_out),
-        # Wall-clock per call, for estimating how long a held-out run will take.
+        # Wall-clock per call, for estimating how long a held-out run will take; not
+        # comparable when the Mac swapped meanwhile.
         "mean_call_ms": round(1000 * elapsed / calls, 1) if calls else 0.0,
+        "swapouts": _swap_delta(swap_before),
         "wrong": dict(sorted(wrong.items(), key=lambda kv: -kv[1])),
     }
+
+
+def _swap_delta(before: int | None) -> int | None:
+    after = memory.swapouts()
+    return None if before is None or after is None else max(0, after - before)
 
 
 def _path(model_name: str, version: str) -> Path:
@@ -419,6 +427,7 @@ def time_calls(model_name: str, model: ModelAdapter, n: int = 10) -> dict[str, A
     take at that pace: an estimate, since big models slow down as replies get longer."""
     cases = instances()
     model.complete(triage_request(cases[0].text, None))  # load the model; not timed
+    swap_before = memory.swapouts()
     seconds: list[float] = []
     for i in range(n):
         case = cases[(i * 7) % len(cases)]
@@ -445,6 +454,8 @@ def time_calls(model_name: str, model: ModelAdapter, n: int = 10) -> dict[str, A
     return {
         "model": model_name,
         "timed_calls": n,
+        # Pages swapped out while timing: above 0, the pace measured the Mac, not the model.
+        "swapouts": _swap_delta(swap_before),
         "seconds_per_call": {
             "mean": round(per_call, 2),
             "slowest": round(max(seconds), 2),

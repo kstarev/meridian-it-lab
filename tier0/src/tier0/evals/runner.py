@@ -23,8 +23,9 @@ from tier0.evals.grading import (
     grade,
     policy_violation,
 )
+from tier0.evals.setups import MODEL_LIMITS
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, ticket_bootstrap, wilson
-from tier0.models import ModelAdapter, StubModel
+from tier0.models import ModelAdapter, StubModel, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.pricing import cost_usd
 from tier0.runtime import offline_runtime
@@ -95,6 +96,14 @@ class RunResult:
     self_described: bool = False
     # Tasks whose reply came back off-format (ADR-031): "triage", "own_account_check".
     format_failures: tuple[str, ...] = ()
+    # Pages macOS swapped out during this run (vm_stat before and after), or None when
+    # not recorded. A run that swapped measured the Mac, not the model: its latency is
+    # shown as not comparable.
+    swapouts: int | None = None
+
+    @property
+    def swapped(self) -> bool:
+        return bool(self.swapouts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +198,20 @@ class EvalReport:
         return max((r.duration_ms for r in self.results), default=0.0)
 
     @property
+    def swapped_runs(self) -> int:
+        return sum(1 for r in self.results if r.swapped)
+
+    @property
+    def latency_comparable(self) -> dict[str, Any]:
+        """Latency over the runs where the Mac didn't swap; None when every run swapped."""
+        kept = [r.duration_ms for r in self.results if not r.swapped]
+        return {
+            "runs": len(kept),
+            "mean_ms": sum(kept) / len(kept) if kept else None,
+            "max_ms": max(kept) if kept else None,
+        }
+
+    @property
     def pass_1(self) -> float:
         return _mean([r.grade.passed for r in self.results])
 
@@ -264,7 +287,13 @@ class EvalReport:
 
     @property
     def known_limits(self) -> tuple[str, ...]:
-        """Limits a reader of the final comparison should know (ADR-027)."""
+        """Limits a reader should know (ADR-027), plus any for this model (MODEL_LIMITS)."""
+        model_limits = tuple(
+            limit for name, limits in MODEL_LIMITS.items() if name in self.model for limit in limits
+        )
+        return self._set_limits() + model_limits
+
+    def _set_limits(self) -> tuple[str, ...]:
         if self.seed == HOLDOUT_V3_SEED:
             unnamed = self.colleague_outcomes["unnamed"]["tickets"]
             own = self.self_described_outcomes["tickets"]
@@ -493,6 +522,12 @@ class EvalReport:
             "run_date": self.run_date,
             "mean_latency_ms": self.mean_latency_ms,
             "max_latency_ms": self.max_latency_ms,
+            "swap": {
+                "recorded": any(r.swapouts is not None for r in self.results),
+                "swapped_runs": self.swapped_runs,
+                "runs": len(self.results),
+            },
+            "latency_comparable": self.latency_comparable,
             "result_kind": self.result_kind,
             "label": PIPELINE_CHECK_LABEL if self.is_pipeline_check else None,
             "seed": self.seed,
@@ -579,6 +614,8 @@ class EvalReport:
                     "reasons": list(r.reasons),
                     "model_errors": list(r.model_errors),
                     "format_failures": list(r.format_failures),
+                    "swapouts": r.swapouts,
+                    "swapped": r.swapped,
                     "finish_reasons": list(r.finish_reasons),
                     "own_account_check": r.own_account_check,
                     "mention_others": r.mention_others,
@@ -854,29 +891,35 @@ async def run_eval(
     final_comparison: str | None = None,
     model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
     prompts: Prompts | None = None,
+    swap_probe: Callable[[], int | None] | None = None,
 ) -> EvalReport:
     """Run every ticket k times, one after another. A sealed set needs final_comparison
-    naming it."""
+    naming it. swap_probe reads macOS's swap-out count (default: vm_stat, for real models)."""
     world = generate(seed)
     require_unsealed(world, final_comparison=final_comparison)
     probe: ModelAdapter = model_factory()
     seeded = bool(getattr(probe, "supports_seed", False))
     provenance = describe_model(probe)
+    # Swap activity per run, for real models (runs are sequential, so each count is its own).
+    probe_swap = swap_probe or (memory.swapouts if probe.provider != "stub" else None)
     results = []
     for entry in world.answer_key.entries:
         for run in range(1, k + 1):
-            results.append(
-                await run_ticket(
-                    world,
-                    entry.ticket_id,
-                    run,
-                    model_factory=model_factory,
-                    out_dir=out_dir,
-                    final_comparison=final_comparison,
-                    model_seed=model_seed_base + run if seeded else None,
-                    prompts=prompts,
-                )
+            before = probe_swap() if probe_swap else None
+            result = await run_ticket(
+                world,
+                entry.ticket_id,
+                run,
+                model_factory=model_factory,
+                out_dir=out_dir,
+                final_comparison=final_comparison,
+                model_seed=model_seed_base + run if seeded else None,
+                prompts=prompts,
             )
+            after = probe_swap() if probe_swap else None
+            if before is not None and after is not None:
+                result = replace(result, swapouts=max(0, after - before))
+            results.append(result)
     run_date = (today() if today is not None else datetime.now(UTC).date()).isoformat()
     return build_report(
         world,

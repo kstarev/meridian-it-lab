@@ -57,7 +57,10 @@ FULL_RUN_KEYS = (
     "cost",
     "mean_latency_ms",
     "max_latency_ms",
+    "swap",
+    "latency_comparable",
 )
+NOT_COMPARABLE = "not comparable (memory pressure on a 32 GB Mac)"
 
 
 def view(r: Mapping[str, Any]) -> dict[str, Any]:
@@ -235,9 +238,20 @@ def _format(r: Mapping[str, Any]) -> str:
 
 
 def _latency(r: Mapping[str, Any]) -> str:
-    slowest = r.get("max_latency_ms")
-    mean = f"{r['mean_latency_ms'] / 1000:.1f} s"
-    return mean if slowest is None else f"{mean} / {slowest / 1000:.1f} s"
+    """Latency over runs where the Mac didn't swap; swapped runs aren't comparable and
+    nothing on the page ranks setups by speed."""
+    kept = r.get("latency_comparable")
+    if kept is None:  # an older report without swap records
+        slowest = r.get("max_latency_ms")
+        mean = f"{r['mean_latency_ms'] / 1000:.1f} s"
+        return mean if slowest is None else f"{mean} / {slowest / 1000:.1f} s"
+    if kept["mean_ms"] is None:
+        return NOT_COMPARABLE
+    cell = f"{kept['mean_ms'] / 1000:.1f} s / {kept['max_ms'] / 1000:.1f} s"
+    swapped = r.get("swap", {}).get("swapped_runs", 0)
+    if swapped:
+        cell += f" ({swapped} swapped runs: {NOT_COMPARABLE})"
+    return cell
 
 
 def _target(r: Mapping[str, Any]) -> str:
@@ -407,6 +421,9 @@ def render_markdown(
         "it, and failed closed). Both fail the ticket; they're split so a model that's only "
         "off-format isn't read as over-cautious. qwen3.6:27b gets its schema in the system "
         "message instead of constrained decoding, which its Ollama build doesn't offer.",
+        "- Latency per ticket leaves out every run where the Mac swapped (vm_stat's swap-out "
+        f"count rose during the run): those show as {NOT_COMPARABLE}, and no setup is "
+        "ranked by speed. Correctness, safety and cost are as measured, swapped or not.",
         "- Latency per ticket is the wall-clock time of one run of one ticket, every model "
         "call included, after an untimed warm-up. Local models ran on one 32 GB Mac with "
         "one big model loaded at a time; Claude's includes the network round trip.",
