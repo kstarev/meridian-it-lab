@@ -1,0 +1,90 @@
+"""Memory headroom before a big local model runs (ADR-031).
+
+On a 32 GB Mac a 15-20 GB model leaves little room, and a run that runs the machine out
+of memory gets killed part-way. So before each big-model run tier0 checks what macOS can
+hand out (free, inactive and speculative pages, from `vm_stat`) and pauses with a message
+when less than about 4 GB would be left once the model is loaded.
+"""
+
+import re
+import subprocess
+
+import httpx2
+
+from tier0.models.base import ModelError
+from tier0.models.ollama import DEFAULT_OLLAMA_URL
+
+GB = 10**9
+HEADROOM_BYTES = 4 * GB
+_RECLAIMABLE = ("Pages free", "Pages inactive", "Pages speculative")
+
+
+def available_bytes(vm_stat: str | None = None) -> int | None:
+    """Bytes macOS can hand out now, or None when vm_stat isn't there (not a Mac)."""
+    if vm_stat is None:
+        try:
+            vm_stat = subprocess.run(
+                ["/usr/bin/vm_stat"], capture_output=True, text=True, check=True, timeout=10
+            ).stdout
+        except (OSError, subprocess.SubprocessError):
+            return None
+    page = re.search(r"page size of (\d+) bytes", vm_stat)
+    if page is None:
+        return None
+    pages = 0
+    for label in _RECLAIMABLE:
+        found = re.search(rf"^{label}:\s+(\d+)\.", vm_stat, re.MULTILINE)
+        if found is None:
+            return None
+        pages += int(found.group(1))
+    return pages * int(page.group(1))
+
+
+def _tagged(name: str) -> str:
+    return name if ":" in name else f"{name}:latest"
+
+
+def model_bytes_to_load(
+    model: str, *, base_url: str = DEFAULT_OLLAMA_URL, client: httpx2.Client | None = None
+) -> int:
+    """What loading the model will still take: 0 if Ollama already has it loaded, else its
+    size on disk (a lower bound; the context cache comes on top)."""
+    client = client or httpx2.Client(base_url=base_url, timeout=30.0)
+    wanted = _tagged(model)
+    try:
+        loaded = client.get("/api/ps")
+        loaded.raise_for_status()
+        if any(m["name"] == wanted for m in loaded.json().get("models", [])):
+            return 0
+        tags = client.get("/api/tags")
+        tags.raise_for_status()
+        return next(int(m["size"]) for m in tags.json()["models"] if m["name"] == wanted)
+    except httpx2.HTTPError as exc:
+        raise ModelError(f"Ollama could not report model sizes: {exc}") from exc
+    except StopIteration:
+        raise ModelError(f"Ollama does not list the model {model!r}") from None
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ModelError(f"Ollama returned an unexpected response: {exc}") from exc
+
+
+def headroom(
+    model: str,
+    *,
+    available: int | None = None,
+    to_load: int | None = None,
+    base_url: str = DEFAULT_OLLAMA_URL,
+    client: httpx2.Client | None = None,
+) -> tuple[bool, str]:
+    """Whether at least HEADROOM_BYTES would stay free with the model loaded, and a
+    message saying how much is free and how much is needed."""
+    available = available_bytes() if available is None else available
+    if available is None:
+        return True, "free memory unknown (no vm_stat); not checked"
+    if to_load is None:
+        to_load = model_bytes_to_load(model, base_url=base_url, client=client)
+    left = available - to_load
+    message = (
+        f"{available / GB:.1f} GB free, {model} needs {to_load / GB:.1f} GB more to load, "
+        f"so {left / GB:.1f} GB would be left (at least {HEADROOM_BYTES / GB:.0f} GB wanted)"
+    )
+    return left >= HEADROOM_BYTES, message

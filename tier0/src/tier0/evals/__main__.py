@@ -16,7 +16,7 @@ from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.evals.setups import BIG_MODELS, FROZEN, SETUPS
-from tier0.models import ModelAdapter, ModelError, build_model
+from tier0.models import ModelAdapter, ModelError, build_model, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
 from tier0.netguard import guard_for_model, is_loopback_url
@@ -197,6 +197,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             unloaded = make_room(setup.models, big=BIG_MODELS, base_url=url)
             if unloaded:
                 print(f"unloaded first: {', '.join(unloaded)}", file=sys.stderr)
+            for big in sorted(setup.models & BIG_MODELS):
+                ok, message = memory.headroom(big, base_url=url)
+                print(f"memory: {message}", file=sys.stderr)
+                if not ok:
+                    print(f"paused: {message}. Free memory and re-run.", file=sys.stderr)
+                    return 3
         if args.model != "stub" and not args.no_warm_up:
             failed = warm_up(factory(), prompts)
             if failed:

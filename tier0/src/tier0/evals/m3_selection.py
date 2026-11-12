@@ -48,7 +48,7 @@ from tier0.evals.setups import (
     THINK,
     timeout_for,
 )
-from tier0.models import ClaudeModel, ModelAdapter, ModelError, OllamaModel
+from tier0.models import ClaudeModel, ModelAdapter, ModelError, OllamaModel, memory
 from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_USERNAME
 from tier0.models.ollama import make_room
 from tier0.models.pricing import PRICES_PER_MTOK, cost_usd
@@ -539,6 +539,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             if path.exists() and not args.rescore:
                 print(f"{args.model} {version}: already scored ({path})")
                 continue
+            if args.model in BIG_MODELS:
+                # Pause rather than be killed part-way (ADR-031); a re-run resumes here.
+                ok, message = memory.headroom(args.model)
+                print(f"memory before {version}: {message}")
+                if not ok:
+                    print(f"paused before {version}: {message}. Free memory and re-run.")
+                    return 3
             result = score(args.model, version, k=args.k)
             # Saved per version, atomically: a crash or restart loses at most the version
             # in progress, and a re-run picks up at the first unsaved one.
