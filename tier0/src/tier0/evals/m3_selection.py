@@ -180,7 +180,8 @@ def score(
     wrong: dict[str, int] = {}
     elapsed = 0.0
     calls = 0
-    swap_before = memory.swapouts()
+    local = getattr(model, "provider", "") == "ollama"
+    swap_before = memory.swapouts() if local else None
     for run in range(1, k + 1):
         if getattr(model, "supports_seed", False):
             model.seed = DEFAULT_MODEL_SEED_BASE + run

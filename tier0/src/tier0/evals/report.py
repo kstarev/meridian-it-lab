@@ -8,7 +8,7 @@ from meridian_dataset.generator import split_for_seed
 from tier0 import messages
 from tier0.evals.runner import COMPARISON_K, PIPELINE_CHECK_LABEL, EvalReport
 from tier0.evals.setups import NO_SCHEMA_ENFORCEMENT
-from tier0.models import StubModel
+from tier0.models import StubModel, memory
 from tier0.sealed import SEALED_POOLS
 
 
@@ -113,9 +113,14 @@ def _latency_cell(r: EvalReport) -> str:
 
 
 def _swap_cell(r: EvalReport) -> str:
+    if r.provider != "ollama":
+        return "not applicable (an API model's speed doesn't depend on this Mac's memory)"
     if all(x.swapouts is None for x in r.results):
         return "not recorded"
-    return f"{r.swapped_runs} of {len(r.results)}"
+    return (
+        f"{r.swapped_runs} of {len(r.results)} (more than {memory.SWAP_THRESHOLD_PAGES:,} "
+        "pages swapped out during the run)"
+    )
 
 
 def _ci(interval: tuple[float, float] | list[float]) -> str:

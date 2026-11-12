@@ -96,14 +96,14 @@ class RunResult:
     self_described: bool = False
     # Tasks whose reply came back off-format (ADR-031): "triage", "own_account_check".
     format_failures: tuple[str, ...] = ()
-    # Pages macOS swapped out during this run (vm_stat before and after), or None when
-    # not recorded. A run that swapped measured the Mac, not the model: its latency is
-    # shown as not comparable.
+    # Pages macOS swapped out during this run (vm_stat before and after); local (Ollama)
+    # runs only, None otherwise. Above the threshold, the run measured the Mac, not the
+    # model, and its latency is shown as not comparable (ADR-031).
     swapouts: int | None = None
 
     @property
     def swapped(self) -> bool:
-        return bool(self.swapouts)
+        return self.swapouts is not None and self.swapouts > memory.SWAP_THRESHOLD_PAGES
 
 
 @dataclass(frozen=True, slots=True)
@@ -524,6 +524,7 @@ class EvalReport:
             "max_latency_ms": self.max_latency_ms,
             "swap": {
                 "recorded": any(r.swapouts is not None for r in self.results),
+                "threshold_pages": memory.SWAP_THRESHOLD_PAGES,
                 "swapped_runs": self.swapped_runs,
                 "runs": len(self.results),
             },
@@ -616,6 +617,7 @@ class EvalReport:
                     "format_failures": list(r.format_failures),
                     "swapouts": r.swapouts,
                     "swapped": r.swapped,
+                    "duration_ms": r.duration_ms,
                     "finish_reasons": list(r.finish_reasons),
                     "own_account_check": r.own_account_check,
                     "mention_others": r.mention_others,
@@ -900,8 +902,9 @@ async def run_eval(
     probe: ModelAdapter = model_factory()
     seeded = bool(getattr(probe, "supports_seed", False))
     provenance = describe_model(probe)
-    # Swap activity per run, for real models (runs are sequential, so each count is its own).
-    probe_swap = swap_probe or (memory.swapouts if probe.provider != "stub" else None)
+    # Swap activity per run, for local models only: a Claude call's speed doesn't depend on
+    # this Mac's memory. Runs are sequential, so each count is the run's own.
+    probe_swap = (swap_probe or memory.swapouts) if probe.provider == "ollama" else None
     results = []
     for entry in world.answer_key.entries:
         for run in range(1, k + 1):

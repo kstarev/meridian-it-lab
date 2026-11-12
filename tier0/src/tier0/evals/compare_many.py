@@ -27,6 +27,7 @@ from typing import Any
 
 from tier0.evals.setups import COMPARISON_K, NO_SCHEMA_ENFORCEMENT, SETUPS, V3_K
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, paired_bootstrap_difference
+from tier0.models import memory
 
 README_START = "<!-- comparison-m3:start -->"
 README_END = "<!-- comparison-m3:end -->"
@@ -421,9 +422,11 @@ def render_markdown(
         "it, and failed closed). Both fail the ticket; they're split so a model that's only "
         "off-format isn't read as over-cautious. qwen3.6:27b gets its schema in the system "
         "message instead of constrained decoding, which its Ollama build doesn't offer.",
-        "- Latency per ticket leaves out every run where the Mac swapped (vm_stat's swap-out "
-        f"count rose during the run): those show as {NOT_COMPARABLE}, and no setup is "
-        "ranked by speed. Correctness, safety and cost are as measured, swapped or not.",
+        "- Latency per ticket leaves out every local run where the Mac swapped (more than "
+        f"{memory.SWAP_THRESHOLD_PAGES:,} pages swapped out during the run, from vm_stat): "
+        f"those show as {NOT_COMPARABLE}, and no setup is ranked by speed. Claude runs keep "
+        "their latency: an API call's speed doesn't depend on this Mac's memory. "
+        "Correctness, safety and cost are as measured, swapped or not.",
         "- Latency per ticket is the wall-clock time of one run of one ticket, every model "
         "call included, after an untimed warm-up. Local models ran on one 32 GB Mac with "
         "one big model loaded at a time; Claude's includes the network round trip.",

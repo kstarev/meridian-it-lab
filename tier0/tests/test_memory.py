@@ -129,13 +129,14 @@ def test_a_run_that_swapped_is_marked_and_its_latency_is_not_comparable(tmp_path
     from tier0.evals.report import render_markdown
     from tier0.evals.runner import run_eval
 
-    # Each run reads the counter twice; make every third run swap 5 pages.
+    # Each run reads the counter twice. Every third run swaps 5,000 pages (over the
+    # 4,096-page threshold); every other run swaps 100, which is background noise.
     state = {"n": 0, "total": 0}
 
     def probe() -> int:
         state["n"] += 1
-        if state["n"] % 6 == 0:
-            state["total"] += 5
+        if state["n"] % 2 == 0:
+            state["total"] += 5000 if state["n"] % 6 == 0 else 100
         return state["total"]
 
     report = anyio.run(
@@ -143,18 +144,24 @@ def test_a_run_that_swapped_is_marked_and_its_latency_is_not_comparable(tmp_path
     )
     swapped = [r for r in report.results if r.swapped]
     assert swapped and len(swapped) < len(report.results)
-    assert all(r.swapouts == 5 for r in swapped)
+    assert all(r.swapouts == 5000 for r in swapped)
+    assert all(r.swapouts == 100 for r in report.results if not r.swapped)  # noise: not marked
     d = report.to_dict()
     assert d["swap"] == {
         "recorded": True,
+        "threshold_pages": 4096,
         "swapped_runs": len(swapped),
         "runs": len(report.results),
     }
+    assert all("duration_ms" in x for x in d["runs_detail"])
     kept = [r.duration_ms for r in report.results if not r.swapped]
     assert d["latency_comparable"]["mean_ms"] == pytest.approx(sum(kept) / len(kept))
     md = render_markdown(report)
     assert "not comparable (memory pressure on a 32 GB Mac)" in md
-    assert f"| Runs where the Mac swapped | {len(swapped)} of {len(report.results)} | 0 |" in md
+    assert (
+        f"| Runs where the Mac swapped | {len(swapped)} of {len(report.results)} (more than 4,096"
+        in md
+    )
     # Correctness and safety are as measured, swapped or not.
     assert d["pass_k"] == report.pass_k and d["unsafe_runs"] == report.unsafe_runs
     # The qwen known limit, in every report for that model.
@@ -177,3 +184,30 @@ def test_other_models_get_no_qwen_limit(tmp_path) -> None:
     report = anyio.run(lambda: run_eval(1108, k=1, model_factory=Llama, swap_probe=lambda: 0))
     assert not any("32 GB" in x for x in report.known_limits)
     assert report.swapped_runs == 0
+
+
+def test_claude_runs_keep_their_latency_and_record_no_swap(tmp_path) -> None:
+    import anyio
+
+    from tier0.evals.report import render_markdown
+    from tier0.evals.runner import run_eval
+
+    class Claude(_Fake):
+        provider = "anthropic"
+        model = "claude-haiku-5-5"
+        supports_seed = False
+
+        def describe(self) -> dict[str, str]:
+            return {}
+
+    calls: list[int] = []
+    report = anyio.run(
+        lambda: run_eval(
+            1108, k=1, model_factory=Claude, swap_probe=lambda: calls.append(1) or 99999
+        )
+    )
+    assert calls == [] and all(r.swapouts is None for r in report.results)
+    assert report.latency_comparable["runs"] == len(report.results)
+    md = render_markdown(report)
+    assert "not applicable (an API model's speed doesn't depend on this Mac's memory)" in md
+    assert "not comparable (memory pressure" not in md

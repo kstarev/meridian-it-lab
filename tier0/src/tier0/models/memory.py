@@ -41,6 +41,13 @@ def available_bytes(vm_stat: str | None = None) -> int | None:
     return pages * int(page.group(1))
 
 
+# A local run counts as swapped only above this many pages swapped out during it: 4,096
+# pages, 64 MiB at this Mac's 16 KiB pages. Picked from the dev sets (ADR-031): the swap
+# seen during Claude runs, which comes from other processes, was 328-2,952 pages in 5 of
+# its 6 cases (one outlier at 30,956), while 63 of qwen's 70 swapping v2 runs were above.
+SWAP_THRESHOLD_PAGES = 4096
+
+
 def swapouts(vm_stat: str | None = None) -> int | None:
     """macOS's running count of pages swapped out to disk, or None when it can't be read.
     A run whose count goes up made the Mac swap, so its latency measures the machine, not
