@@ -111,9 +111,9 @@ class Setup:
         return make
 
 
-# Frozen 2026-11-11 from the tuning scores by the selection rule (ADR-030, ADR-031);
-# tests pin each prompt's hash. The two big models are placeholders on version 1 until
-# they're tuned: FROZEN says which setups may run on a held-out set.
+# Frozen from the tuning scores by the selection rule (ADR-030, ADR-031, ADR-032): the
+# llamas and Haiku on 2026-11-11, Sonnet, gpt-oss and Qwen on 2026-11-12. Tests pin
+# each prompt's hash. Nothing runs on v3 until every setup is in FROZEN.
 SETUPS: dict[str, Setup] = {
     s.name: s
     for s in (
@@ -125,8 +125,8 @@ SETUPS: dict[str, Setup] = {
         Setup("sonnet", "claude", SONNET, SONNET, "T1", "C1"),
         # Added before anything ran on v3 (ADR-031); not run until the user says the
         # downloads are done.
-        Setup("gpt-oss:20b", "ollama", GPT_OSS, GPT_OSS, "T1", "C1"),
-        Setup("qwen3.6:27b", "ollama", QWEN, QWEN, "T1", "C1"),
+        Setup("gpt-oss:20b", "ollama", GPT_OSS, GPT_OSS, "T1", "GC5"),
+        Setup("qwen3.6:27b", "ollama", QWEN, QWEN, "T1", "QC5"),
     )
 }
-FROZEN = frozenset({"llama3.2", "llama3.1:8b", "mixed", "haiku"})
+FROZEN = frozenset(SETUPS)  # all seven, 2026-11-12

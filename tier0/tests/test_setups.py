@@ -159,6 +159,9 @@ FROZEN_HASHES = {
     "llama3.1:8b": ("T2", "C2", "472db65fe39577d9", "99302488ff68a5e8"),
     "mixed": ("T1", "C2", "114d1fc8c4f0dd5a", "99302488ff68a5e8"),
     "haiku": ("T1", "C1", "114d1fc8c4f0dd5a", "eb1037ddaed10c7b"),
+    "sonnet": ("T1", "C1", "114d1fc8c4f0dd5a", "eb1037ddaed10c7b"),
+    "gpt-oss:20b": ("T1", "GC5", "114d1fc8c4f0dd5a", "195d622ab6a65e7d"),
+    "qwen3.6:27b": ("T1", "QC5", "114d1fc8c4f0dd5a", "535dcc8fa1dd521f"),
 }
 
 
@@ -177,7 +180,10 @@ def test_the_frozen_setups_keep_their_prompts() -> None:
 
 
 @pytest.mark.parametrize("seed", ["2611", "3107", "4417"])
-def test_an_unfrozen_setup_never_runs_on_a_held_out_set(seed: str, capsys, tmp_path) -> None:
+def test_an_unfrozen_setup_never_runs_on_a_held_out_set(
+    seed: str, capsys, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS) - {"gpt-oss:20b"})
     args = ["--setup", "gpt-oss:20b", "--seed", seed, "--k", "1", "--out", str(tmp_path)]
     if seed == "4417":
         args.append("--final-comparison=held_out_v3")
@@ -225,7 +231,10 @@ def test_off_format_replies_are_counted_apart_from_wrong_answers(tmp_path) -> No
     assert "| Failed everyday runs: wrong answer / off-format reply | 0 / " in md
 
 
-def test_nothing_runs_on_v3_until_every_setup_is_frozen(capsys, tmp_path) -> None:
+def test_nothing_runs_on_v3_until_every_setup_is_frozen(
+    capsys, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "FROZEN", frozenset(SETUPS) - {"gpt-oss:20b", "qwen3.6:27b"})
     args = ["--setup", "haiku", "--final-comparison=held_out_v3", "--seed", "4417"]
     assert cli.main([*args, "--out", str(tmp_path)]) == 2
     err = capsys.readouterr().err
