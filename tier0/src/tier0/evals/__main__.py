@@ -190,6 +190,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             final_comparison=args.final_comparison,
             model_seed_base=args.model_seed,
             prompts=prompts,
+            setup=setup.name if setup is not None else None,
         )
 
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.

@@ -153,6 +153,8 @@ class EvalReport:
     triage_prompt_sha256: str = ""
     # SHA-256 of the "own account only?" check prompt (frozen, ADR-017).
     check_prompt_sha256: str = ""
+    # The milestone 3 setup this ran as (--setup), or None; reruns need it (ADR-030).
+    setup: str | None = None
 
     def first_runs(self, n: int) -> "EvalReport":
         """The same report on runs 1..n only, so a k = 5 run can be compared at pass^3
@@ -535,6 +537,7 @@ class EvalReport:
             "generator_version": self.generator_version,
             "k": self.k,
             "provider": self.provider,
+            "setup": self.setup,
             "model": self.model,
             "temperature": self.temperature,
             "model_seeds": list(self.model_seeds),
@@ -658,6 +661,7 @@ def build_report(
     provenance: dict[str, str] | None = None,
     triage_prompt_sha256: str | None = None,
     check_prompt_sha256: str | None = None,
+    setup: str | None = None,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -688,6 +692,7 @@ def build_report(
             if check_prompt_sha256 is not None
             else _sha(messages.OWN_ACCOUNT_CHECK_SYSTEM)
         ),
+        setup=setup,
     )
 
 
@@ -894,6 +899,7 @@ async def run_eval(
     model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
     prompts: Prompts | None = None,
     swap_probe: Callable[[], int | None] | None = None,
+    setup: str | None = None,
 ) -> EvalReport:
     """Run every ticket k times, one after another. A sealed set needs final_comparison
     naming it. swap_probe reads macOS's swap-out count (default: vm_stat, for real models)."""
@@ -938,4 +944,5 @@ async def run_eval(
         provenance=provenance,
         triage_prompt_sha256=_sha(prompts.triage) if prompts and prompts.triage else None,
         check_prompt_sha256=_sha(prompts.check) if prompts and prompts.check else None,
+        setup=setup,
     )

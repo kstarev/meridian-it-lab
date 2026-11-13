@@ -43,7 +43,9 @@ class NotComparableError(ValueError):
 
 
 def name(r: Mapping[str, Any]) -> str:
-    """The setup's name, from its models."""
+    """The setup's name: recorded in the report since ADR-030's fix, else from its models."""
+    if r.get("setup") in SETUPS:
+        return str(r["setup"])
     for setup in SETUPS.values():
         if setup.label == r["model"]:
             return setup.name
