@@ -7,6 +7,7 @@ instead of anyone waiting it out. The run itself goes on: stopping it is the use
 """
 
 import json
+import logging
 import sys
 import time
 from collections import deque
@@ -16,9 +17,13 @@ from pathlib import Path
 from typing import Any
 
 from tier0.models import ModelAdapter, ModelRequest, ModelResponse
+from tier0.secrets import REPO_ROOT
 
-TIMINGS = Path("out/m3/timing")
-LOG = Path("out/m3/watch.jsonl")
+# Anchored at the repo root, like the spend ledger, so a run started from another
+# directory still finds its timing (and the watchdog doesn't quietly switch off).
+TIMINGS = REPO_ROOT / "out" / "m3" / "timing"
+LOG = REPO_ROOT / "out" / "m3" / "watch.jsonl"
+_log = logging.getLogger(__name__)
 SLOW_FACTOR = 3.0
 WINDOW = 10
 
@@ -43,10 +48,14 @@ def expected_seconds(model: str) -> float | None:
 
 
 def log(event: dict[str, Any]) -> None:
-    LOG.parent.mkdir(parents=True, exist_ok=True)
-    with LOG.open("a") as f:
-        f.write(json.dumps({"at": datetime.now(UTC).isoformat(timespec="seconds"), **event}))
-        f.write("\n")
+    """Append one event. Monitoring must never fail a run: a write error is only warned."""
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a") as f:
+            f.write(json.dumps({"at": datetime.now(UTC).isoformat(timespec="seconds"), **event}))
+            f.write("\n")
+    except OSError as exc:
+        _log.warning("could not write the watch log %s: %s", LOG, exc)
 
 
 class SlowWatch:
@@ -106,4 +115,9 @@ class WatchedModel:
         try:
             return self._inner.complete(request)
         finally:
-            self._watch.record(time.perf_counter() - started)
+            # The watchdog only watches: whatever goes wrong in it, the call's reply (or
+            # its ModelError) is what the caller gets.
+            try:
+                self._watch.record(time.perf_counter() - started)
+            except Exception:
+                _log.warning("the slowness watchdog failed; the call is unaffected", exc_info=True)

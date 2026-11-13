@@ -52,3 +52,50 @@ def test_timings_are_saved_and_read_back(monkeypatch: pytest.MonkeyPatch, tmp_pa
     assert watch.expected_seconds("qwen3.6:27b") is None
     watch.save_timing("qwen3.6:27b", {"seconds_per_call": {"mean": 3.07}})
     assert watch.expected_seconds("qwen3.6:27b") == 3.07
+
+
+def test_a_failing_watch_log_never_changes_a_calls_result(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Finding 6: the log write fails (here, its folder is a file) as SLOW trips; the
+    model's reply still comes back, and a ModelError still reaches the caller."""
+    from tier0.models import ModelError
+
+    blocker = tmp_path / "m3"
+    blocker.write_text("a file where the folder should be")
+    monkeypatch.setattr(watch, "LOG", blocker / "watch.jsonl")
+
+    class Slow:
+        provider = "ollama"
+        fail = False
+
+        def complete(self, request: ModelRequest) -> ModelResponse:
+            if self.fail:
+                raise ModelError("down")
+            return ModelResponse('{"category": "other"}', "m", 1, 1, "stop", None)
+
+    inner = Slow()
+    w = watch.SlowWatch("x", expected=1e-9, say=lambda _: None)  # every call is "slow"
+    model = watch.WatchedModel(inner, w)  # type: ignore[arg-type]
+    request = ModelRequest(task="triage", system="s", user="u")
+    for _ in range(12):
+        assert model.complete(request).text == '{"category": "other"}'
+    assert w.warned  # SLOW tripped, and its log write failed quietly
+    inner.fail = True
+    with pytest.raises(ModelError, match="down"):
+        model.complete(request)
+
+    def broken(seconds: float) -> None:
+        raise RuntimeError("watchdog bug")
+
+    monkeypatch.setattr(w, "record", broken)
+    inner.fail = False
+    assert model.complete(request).text  # even a bug in the watchdog doesn't leak out
+
+
+def test_timing_and_log_paths_are_anchored_at_the_repo_root() -> None:
+    """Finding 9: not relative to wherever the command was started."""
+    from tier0.secrets import REPO_ROOT
+
+    for path in (watch.TIMINGS, watch.LOG):
+        assert path.is_absolute() and path.is_relative_to(REPO_ROOT)
