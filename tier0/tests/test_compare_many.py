@@ -339,3 +339,16 @@ def test_the_recorded_setup_name_comes_first() -> None:
     r = _all()[0]
     assert cm.name({**r, "setup": "llama3.2"}) == "llama3.2"
     assert cm.name({**r, "setup": None}) == "llama3.2"  # older reports: by models
+
+
+def test_shared_constants_have_one_definition() -> None:
+    """Finding 7: one COMPARISON_K and one 'not comparable' wording, imported everywhere."""
+    from tier0.evals import report, runner, setups
+
+    assert runner.COMPARISON_K is setups.COMPARISON_K is cm.COMPARISON_K
+    assert cm.NOT_COMPARABLE is report.NOT_COMPARABLE
+    import inspect
+
+    for module in (runner, cm):
+        assert "COMPARISON_K = " not in inspect.getsource(module)
+    assert "NOT_COMPARABLE = " not in inspect.getsource(cm)

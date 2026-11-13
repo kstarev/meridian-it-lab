@@ -13,22 +13,28 @@ import subprocess
 import httpx2
 
 from tier0.models.base import ModelError
-from tier0.models.ollama import DEFAULT_OLLAMA_URL
+from tier0.models.ollama import DEFAULT_OLLAMA_URL, _tagged
 
 GB = 10**9
 HEADROOM_BYTES = 4 * GB
 _RECLAIMABLE = ("Pages free", "Pages inactive", "Pages speculative")
 
 
+def _read_vm_stat() -> str | None:
+    """vm_stat's output, or None when it isn't there (not a Mac) or fails."""
+    try:
+        return subprocess.run(
+            ["/usr/bin/vm_stat"], capture_output=True, text=True, check=True, timeout=10
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def available_bytes(vm_stat: str | None = None) -> int | None:
     """Bytes macOS can hand out now, or None when vm_stat isn't there (not a Mac)."""
+    vm_stat = _read_vm_stat() if vm_stat is None else vm_stat
     if vm_stat is None:
-        try:
-            vm_stat = subprocess.run(
-                ["/usr/bin/vm_stat"], capture_output=True, text=True, check=True, timeout=10
-            ).stdout
-        except (OSError, subprocess.SubprocessError):
-            return None
+        return None
     page = re.search(r"page size of (\d+) bytes", vm_stat)
     if page is None:
         return None
@@ -52,19 +58,11 @@ def swapouts(vm_stat: str | None = None) -> int | None:
     """macOS's running count of pages swapped out to disk, or None when it can't be read.
     A run whose count goes up made the Mac swap, so its latency measures the machine, not
     the model (the user's rule, 2026-11-12)."""
+    vm_stat = _read_vm_stat() if vm_stat is None else vm_stat
     if vm_stat is None:
-        try:
-            vm_stat = subprocess.run(
-                ["/usr/bin/vm_stat"], capture_output=True, text=True, check=True, timeout=10
-            ).stdout
-        except (OSError, subprocess.SubprocessError):
-            return None
+        return None
     found = re.search(r"^Swapouts:\s+(\d+)\.", vm_stat, re.MULTILINE)
     return int(found.group(1)) if found else None
-
-
-def _tagged(name: str) -> str:
-    return name if ":" in name else f"{name}:latest"
 
 
 def model_bytes_to_load(

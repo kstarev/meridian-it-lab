@@ -211,3 +211,19 @@ def test_claude_runs_keep_their_latency_and_record_no_swap(tmp_path) -> None:
     md = render_markdown(report)
     assert "not applicable (an API model's speed doesn't depend on this Mac's memory)" in md
     assert "not comparable (memory pressure" not in md
+
+
+def test_one_tag_rule_and_one_vm_stat_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Finding 8: memory uses ollama's _tagged and a single vm_stat helper."""
+    from tier0.models import ollama
+
+    assert memory._tagged is ollama._tagged
+    reads: list[int] = []
+    monkeypatch.setattr(
+        memory, "_read_vm_stat", lambda: reads.append(1) or VM_STAT + "Swapouts:  7.\n"
+    )
+    assert memory.available_bytes() == (100000 + 200000 + 10000) * 16384
+    assert memory.swapouts() == 7
+    assert reads == [1, 1]
+    monkeypatch.setattr(memory, "_read_vm_stat", lambda: None)
+    assert memory.available_bytes() is None and memory.swapouts() is None

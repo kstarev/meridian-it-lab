@@ -26,6 +26,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from tier0.evals.report import NOT_COMPARABLE
 from tier0.evals.setups import COMPARISON_K, NO_SCHEMA_ENFORCEMENT, SETUPS, V3_K
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, paired_bootstrap_difference
 from tier0.models import memory
@@ -64,7 +65,6 @@ FULL_RUN_KEYS = (
     "swap",
     "latency_comparable",
 )
-NOT_COMPARABLE = "not comparable (memory pressure on a 32 GB Mac)"
 
 
 def view(r: Mapping[str, Any]) -> dict[str, Any]:

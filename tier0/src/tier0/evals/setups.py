@@ -20,7 +20,7 @@ SONNET = "claude-sonnet-5-5"
 # Runs per ticket on held-out v3: the Claude setups get 5 (the user's budget, ADR-032);
 # every setup is still compared at pass^3, on its first 3 runs.
 V3_K = {"claude": 5, "ollama": 3}
-COMPARISON_K = 3
+COMPARISON_K = 3  # the one definition; runner, report and compare_many import it
 GPT_OSS = "gpt-oss:20b"
 QWEN = "qwen3.6:27b"
 # Too big to share a 32 GB Mac with each other: one at a time, never paired (ADR-031).

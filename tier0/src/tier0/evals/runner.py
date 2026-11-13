@@ -23,7 +23,7 @@ from tier0.evals.grading import (
     grade,
     policy_violation,
 )
-from tier0.evals.setups import MODEL_LIMITS
+from tier0.evals.setups import COMPARISON_K, MODEL_LIMITS
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, ticket_bootstrap, wilson
 from tier0.models import ModelAdapter, StubModel, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
@@ -124,10 +124,6 @@ class TicketRow:
 
 # Stub-model scores prove the pipeline and the safety controls, not AI quality.
 PIPELINE_CHECK_LABEL = "pipeline check (stub model), not AI accuracy"
-
-
-# Every setup is compared at pass^3, even one that ran more runs per ticket (ADR-032).
-COMPARISON_K = 3
 
 
 @dataclass(frozen=True, slots=True)
