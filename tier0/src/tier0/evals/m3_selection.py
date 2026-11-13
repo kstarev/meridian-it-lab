@@ -284,8 +284,22 @@ def load_results(directory: Path = RESULTS) -> list[dict[str, Any]]:
     return [json.loads(p.read_text()) for p in sorted(directory.glob("*.json"))]
 
 
+def current(r: dict[str, Any], k: int = K) -> bool:
+    """A saved score counts only if it was made at k runs (K for the selection rule) on the
+    prompt text in force now: counts are compared raw, so a k = 1 score or a reworded
+    prompt would skew the rule."""
+    pool = M3_TRIAGE_VERSIONS if r.get("task") == "triage" else M3_CHECK_VERSIONS
+    text = pool.get(r.get("version", ""))
+    return (
+        text is not None
+        and r.get("k") == k
+        and r.get("prompt_sha256") == hashlib.sha256(text.encode()).hexdigest()
+    )
+
+
 def _for(results: Sequence[dict[str, Any]], model: str, task: str) -> list[dict[str, Any]]:
-    return [r for r in results if r["model"] == model and r["task"] == task]
+    """The model's current scores for the task; stale ones are left out."""
+    return [r for r in results if r["model"] == model and r["task"] == task and current(r)]
 
 
 def choose_setups(results: Sequence[dict[str, Any]]) -> dict[str, dict[str, str | None]]:
@@ -563,8 +577,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         for version in args.versions:
             path = _path(args.model, version)
             if path.exists() and not args.rescore:
-                print(f"{args.model} {version}: already scored ({path})")
-                continue
+                if current(json.loads(path.read_text()), k=args.k):
+                    print(f"{args.model} {version}: already scored ({path})")
+                    continue
+                print(
+                    f"{args.model} {version}: saved score is stale (k or prompt changed); rescoring"
+                )
             model: ModelAdapter | None = None
             if args.model in BIG_MODELS:
                 # Warn and log, never pause: the run goes on even if it swaps (ADR-031).

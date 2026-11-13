@@ -110,11 +110,20 @@ def _scores(model: str, task: str, colleague: dict[str, int], everyday: dict[str
                 "colleague_unnamed": 21,
             },
             "prompt_chars": 600 + i,
-            "prompt_sha256": "f" * 64,
+            "prompt_sha256": _hash(task, f"{prefix}{i}"),
+            "k": sel.K,
             "cost_usd": 0.0,
         }
         for i in range(1, sel.MAX_VERSIONS + 1)
     ]
+
+
+def _hash(task: str, version: str) -> str:
+    """The current prompt's hash, so a made-up score counts as current."""
+    import hashlib
+
+    pool = M3_TRIAGE_VERSIONS if task == "triage" else M3_CHECK_VERSIONS
+    return hashlib.sha256(pool.get(version, version).encode()).hexdigest()
 
 
 def test_each_setup_picks_from_its_own_models_and_waits_for_missing_scores() -> None:
@@ -148,11 +157,17 @@ def test_the_cli_refuses_a_version_outside_the_models_budget(capsys) -> None:
     assert sel.main(["score", "--model", "llama3.2", "--versions", "nope"]) == 2
 
 
-def test_haiku_is_chosen_from_its_own_versions() -> None:
+def test_haiku_is_chosen_from_its_own_versions(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Haiku's own versions were never written (its version 1 was flawless); stand-ins here.
+    for pool, prefix in ((M3_TRIAGE_VERSIONS, "HT"), (M3_CHECK_VERSIONS, "HC")):
+        for i in range(2, sel.MAX_VERSIONS + 1):
+            monkeypatch.setitem(pool, f"{prefix}{i}", f"{prefix}{i}")
+
     def rename(rows: list[dict], prefix: str) -> list[dict]:
         for r in rows:
             if r["version"][1] != "1":
                 r["version"] = prefix + r["version"][1:]
+                r["prompt_sha256"] = _hash(r["task"], r["version"])
         return rows
 
     haiku = "claude-haiku-5-5"
@@ -187,10 +202,10 @@ def test_tuning_scores_split_off_format_misses_from_wrong_answers() -> None:
                 return ModelResponse(f"```{right.text}```", "m", 100, 5, "stop", None)
             return right
 
-    result = sel.score("llama3.2", "T1", k=1, model=HalfFenced())
-    assert result["correct"]["colleague"] == 0 and result["off_format"]["colleague"] == 14
+    result = sel.score("llama3.2", "T1", k=sel.K, model=HalfFenced())
+    assert result["correct"]["colleague"] == 0 and result["off_format"]["colleague"] == 42
     assert result["off_format"]["everyday"] == 0
-    assert "| 14 of 14 |" in sel.render([result], "cmd")
+    assert "| 42 of 42 |" in sel.render([result], "cmd")
 
 
 def test_scoring_resumes_at_the_first_unsaved_version(monkeypatch, tmp_path, capsys) -> None:
@@ -245,3 +260,28 @@ def test_gpt_oss_check_versions_exist_and_name_the_exact_reply() -> None:
 def test_qwen_check_versions_exist_and_name_the_exact_reply() -> None:
     for v in sel.candidates("qwen3.6:27b", "check")[1:]:
         assert '{"own_account_only": true}' in M3_CHECK_VERSIONS[v]
+
+
+def test_a_stale_saved_score_is_rescored_and_never_counted(monkeypatch, tmp_path, capsys) -> None:
+    """Finding 4: a score made at another k, or on older prompt text, isn't reused."""
+    monkeypatch.setattr(sel, "RESULTS", tmp_path)
+    monkeypatch.setattr(sel, "make_model", lambda name: Perfect())
+    monkeypatch.setattr(sel, "make_room", lambda *a, **k: [])
+    fresh = sel.score("llama3.2", "T2", k=sel.K, model=Perfect())
+    assert sel.current(fresh)
+    quick = sel.score("llama3.2", "T2", k=1, model=Perfect())
+    assert not sel.current(quick)  # k = 1
+    assert not sel.current({**fresh, "prompt_sha256": "0" * 64})  # reworded since
+    (tmp_path / "llama3.2__T2.json").write_text(json.dumps(quick))
+    assert sel.main(["score", "--model", "llama3.2", "--versions", "T2"]) == 0
+    out = capsys.readouterr().out
+    assert "saved score is stale (k or prompt changed); rescoring" in out
+    assert json.loads((tmp_path / "llama3.2__T2.json").read_text())["k"] == sel.K
+    # Stale scores never reach the selection rule: a T2 that would win counts only when
+    # it's current.
+    rows = _scores("llama3.2", "triage", {}, {"T2": 137})
+    assert sel.choose_setups(rows)["llama3.2"]["triage"] == "T2"
+    rows[1]["k"] = 1
+    assert sel.choose_setups(rows)["llama3.2"]["triage"] is None  # T2 now unscored
+    rows[1]["k"], rows[1]["prompt_sha256"] = sel.K, "0" * 64
+    assert sel.choose_setups(rows)["llama3.2"]["triage"] is None
