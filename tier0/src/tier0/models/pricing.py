@@ -15,6 +15,27 @@ PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
 PAID_PROVIDER = "anthropic"
 
 
+def highest_rate() -> tuple[float, float]:
+    """The highest known input and output rates, for pricing what we can't name."""
+    return (
+        max(rate[0] for rate in PRICES_PER_MTOK.values()),
+        max(rate[1] for rate in PRICES_PER_MTOK.values()),
+    )
+
+
+def rate_for(model: str) -> tuple[tuple[float, float], bool]:
+    """The model's rates, and whether they're its own (False: the highest known rate)."""
+    if model in PRICES_PER_MTOK:
+        return PRICES_PER_MTOK[model], True
+    return highest_rate(), False
+
+
+def worst_case_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+    """An upper bound on one call's cost, before it is sent (the spend cap, ADR-030)."""
+    (per_in, per_out), _ = rate_for(model)
+    return input_tokens * per_in / 1_000_000 + output_tokens * per_out / 1_000_000
+
+
 def cost_usd(provider: str, model: str, input_tokens: int, output_tokens: int) -> float:
     """USD for one call; 0 for anything but the Claude API. An unknown Claude model
     raises, so a price can't silently be missing from a report."""

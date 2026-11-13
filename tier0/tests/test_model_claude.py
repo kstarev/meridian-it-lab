@@ -207,7 +207,7 @@ def test_dotenv_is_gitignored() -> None:
 def test_every_call_is_ledgered_and_the_cap_stops_the_next(tmp_path: Path) -> None:
     from tier0.models.spend import SpendCapReached, SpendLedger
 
-    ledger = SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=0.0001)
+    ledger = SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=0.01)
     model, seen = capture(message() | {"model": "claude-haiku-5-5"})
     model.model = "claude-haiku-5-5"
     model._ledger = ledger
@@ -217,7 +217,7 @@ def test_every_call_is_ledgered_and_the_cap_stops_the_next(tmp_path: Path) -> No
     assert line["cost_usd"] == pytest.approx(42 * 0.10e-6 + 7 * 0.50e-6)
     assert set(line) == {"at", "model", "input_tokens", "output_tokens", "cost_usd"}
     # Push the total over the cap: the next call is refused before anything is sent.
-    ledger.record("claude-haiku-5-5", 1_000, 1_000)
+    ledger.record("claude-haiku-5-5", 20_000, 20_000)
     with pytest.raises(SpendCapReached):
         model.complete(ModelRequest(task="triage", system="s", user="u"))
     assert len(seen) == 1
@@ -231,3 +231,46 @@ def test_local_models_cost_nothing_and_unknown_claude_models_have_no_silent_pric
     assert cost_usd("anthropic", "claude-haiku-5-5", 1_000_000, 1_000_000) == pytest.approx(0.60)
     with pytest.raises(KeyError):
         cost_usd("anthropic", "claude-unknown", 1, 1)
+
+
+def test_an_unknown_model_id_is_ledgered_at_the_highest_rate_and_never_raises(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Finding 1: the API may answer under an id we have no price for (a fallback, a dated
+    id). The call is already paid for, so it's written down, never raised."""
+    from tier0.models.pricing import highest_rate
+    from tier0.models.spend import SpendLedger
+
+    ledger = SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=4.0)
+    model, _ = capture(message() | {"model": "claude-fable-5-2-20261101"})
+    model.model = "claude-sonnet-5-5"
+    model._ledger = ledger
+    with caplog.at_level("WARNING"):
+        response = model.complete(ModelRequest(task="triage", system="s", user="u"))
+    assert response.text  # the reply still comes back
+    line = json.loads((tmp_path / "spend.jsonl").read_text().splitlines()[0])
+    per_in, per_out = highest_rate()
+    assert line["cost_usd"] == pytest.approx(42 * per_in / 1e6 + 7 * per_out / 1e6)
+    assert line["priced_as"] == "highest known rate (unknown model id)"
+    assert "no price for claude-fable-5-2-20261101" in caplog.text
+
+
+def test_the_cap_stops_a_call_whose_worst_case_would_cross_it(tmp_path: Path) -> None:
+    """Finding 5: refused before sending when spent + worst case > cap, not only once the
+    cap is already reached."""
+    from tier0.models.pricing import worst_case_usd
+    from tier0.models.spend import SpendCapReached, SpendLedger
+
+    ledger = SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=1.0)
+    ledger.record("claude-sonnet-5-5", 0, 99_000)  # $0.99 spent, under the cap
+    model, seen = capture(message() | {"model": "claude-sonnet-5-5"})
+    model.model = "claude-sonnet-5-5"
+    model._ledger = ledger
+    request = ModelRequest(task="triage", system="s", user="u")  # 1,024 output tokens: $0.01+
+    assert worst_case_usd("claude-sonnet-5-5", 0, request.max_tokens) > 0.01
+    with pytest.raises(SpendCapReached, match="could cost up to"):
+        model.complete(request)
+    assert seen == []  # nothing was sent
+    ledger.check(0.005)  # a cheaper call would still fit
+    with pytest.raises(SpendCapReached):
+        ledger.check(0.011)

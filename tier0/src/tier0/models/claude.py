@@ -14,16 +14,20 @@ recorded in the spend ledger after (tier0.models.spend).
 """
 
 import contextlib
+import json
 import os
 from collections.abc import Iterator
 from typing import Any
 
 from tier0.models.base import ModelError, ModelRequest, ModelResponse
+from tier0.models.pricing import worst_case_usd
 from tier0.models.spend import SpendLedger
 from tier0.netguard import ANTHROPIC_API_HOST
 from tier0.secrets import read_api_key
 
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
+# Tokens the API adds around a request (roles, schema framing): a generous bound.
+INPUT_OVERHEAD_TOKENS = 512
 # Models with server-side fallbacks; any other model is called without them.
 FALLBACK_MODELS = frozenset({"claude-opus-5-5", "claude-sonnet-5-5", "claude-fable-5-2"})
 # Models whose thinking can be turned off at low effort.
@@ -88,7 +92,14 @@ class ClaudeModel:
 
     def complete(self, request: ModelRequest) -> ModelResponse:
         anthropic = _import_anthropic()
-        self._ledger.check()  # before any paid call: raises SpendCapReached
+        # Before any paid call: refuse if its worst case would cross the cap. Every token
+        # is at least one byte, so the request's UTF-8 size bounds its input tokens.
+        request_bytes = len(
+            json.dumps([request.system, request.user, request.json_schema]).encode("utf-8")
+        )
+        self._ledger.check(
+            worst_case_usd(self.model, request_bytes + INPUT_OVERHEAD_TOKENS, request.max_tokens)
+        )
         if self._client is None:
             with _without_sdk_env():
                 self._client = anthropic.Anthropic(api_key=read_api_key(), base_url=API_BASE_URL)

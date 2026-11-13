@@ -11,15 +11,17 @@ treat it as a model failure and carry on.
 """
 
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from tier0.models.pricing import cost_usd
+from tier0.models.pricing import rate_for
 from tier0.secrets import REPO_ROOT
 
 DEFAULT_LEDGER = REPO_ROOT / "out" / "claude-spend.jsonl"
 DEFAULT_CAP_USD = 4.0
+log = logging.getLogger(__name__)
 
 
 class SpendCapReached(RuntimeError):
@@ -42,24 +44,33 @@ class SpendLedger:
                 total += float(json.loads(line)["cost_usd"])
         return total
 
-    def check(self) -> None:
+    def check(self, next_call_usd: float = 0.0) -> None:
+        """Refuse the next call if its worst-case cost would take spend past the cap, so
+        the cap is never crossed, not even by one call."""
         spent = self.total_usd()
-        if spent >= self.cap_usd:
+        if spent >= self.cap_usd or spent + next_call_usd > self.cap_usd:
             raise SpendCapReached(
-                f"Claude spend cap reached: ${spent:.4f} of ${self.cap_usd:.2f} "
-                f"(ledger {self.path})"
+                f"Claude spend cap: ${spent:.4f} spent, the next call could cost up to "
+                f"${next_call_usd:.4f}, cap ${self.cap_usd:.2f} (ledger {self.path})"
             )
 
     def record(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        cost = cost_usd("anthropic", model, input_tokens, output_tokens)
+        """Write the call down. This runs after money is spent, so it never raises on a
+        model it can't price: an unknown id (a fallback, a dated id) is priced at the
+        highest known rate and logged."""
+        (per_in, per_out), known = rate_for(model)
+        cost = input_tokens * per_in / 1_000_000 + output_tokens * per_out / 1_000_000
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        entry = {
+        entry: dict[str, object] = {
             "at": datetime.now(UTC).isoformat(timespec="seconds"),
             "model": model,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "cost_usd": round(cost, 8),
         }
+        if not known:
+            entry["priced_as"] = "highest known rate (unknown model id)"
+            log.warning("no price for %s; ledgered at the highest known rate", model)
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, sort_keys=True) + "\n")
         return cost
