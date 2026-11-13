@@ -49,7 +49,7 @@ async def offline_runtime(
     model: ModelAdapter | None = None,
     clock: MockClock | None = None,
     tracer: Tracer | None = None,
-    final_comparison: bool = False,
+    final_comparison: str | None = None,
     **agent_options: Any,
 ) -> AsyncIterator[Runtime]:
     """Build the whole agent against the mocks. `agent_options` go to ServiceDeskAgent.

@@ -116,10 +116,22 @@ class _SendFailed(Exception):
     """Slack did not accept the message."""
 
 
-def triage_request(text: str) -> ModelRequest:
+@dataclass(frozen=True, slots=True)
+class Prompts:
+    """The two system prompts a setup uses (milestone 3: each setup has its own frozen
+    pair). None means the frozen default in tier0.messages."""
+
+    triage: str | None = None
+    check: str | None = None
+
+
+def triage_request(text: str, system: str | None = None) -> ModelRequest:
     """The one triage call, shared with the triage check tool."""
     return ModelRequest(
-        task="triage", system=messages.TRIAGE_SYSTEM, user=text, json_schema=TRIAGE_SCHEMA
+        task="triage",
+        system=system if system is not None else messages.TRIAGE_SYSTEM,
+        user=text,
+        json_schema=TRIAGE_SCHEMA,
     )
 
 
@@ -128,24 +140,49 @@ def parse_triage(response: ModelResponse | None) -> str:
     None means the model call failed."""
     if response is None or response.finish_reason == "refusal":
         return OTHER
+    value = _triage_value(response)
+    return OTHER if value is None else value
+
+
+def _triage_value(response: ModelResponse) -> str | None:
+    """The category, or None when the reply isn't exactly the schema."""
     try:
         parsed = json.loads(response.text)
     except ValueError:
-        return OTHER
+        return None
     # Exactly the schema: one key. Extra keys such as "tier" mean the model is off-script.
     if not isinstance(parsed, dict) or set(parsed) != {"category"}:
-        return OTHER
+        return None
     value = parsed["category"]
-    return value if isinstance(value, str) and value in CATEGORIES else OTHER
+    return value if isinstance(value, str) and value in CATEGORIES else None
+
+
+def triage_off_format(response: ModelResponse | None) -> bool:
+    """A reply came back but isn't exactly the triage schema: a format failure, counted
+    apart from a wrong answer (ADR-031). A failed call or a refusal isn't one."""
+    return (
+        response is not None
+        and response.finish_reason != "refusal"
+        and _triage_value(response) is None
+    )
+
+
+def check_off_format(response: ModelResponse | None) -> bool:
+    """The same for the own-account check."""
+    return (
+        response is not None
+        and response.finish_reason != "refusal"
+        and parse_own_account_check(response) is None
+    )
 
 
 def own_account_check_request(
-    text: str, *, sender_name: str | None, sender_email: str
+    text: str, *, sender_name: str | None, sender_email: str, system: str | None = None
 ) -> ModelRequest:
     """The second check. It sees only the sender and the raw message, never triage's output."""
     return ModelRequest(
         task="own_account_check",
-        system=messages.OWN_ACCOUNT_CHECK_SYSTEM,
+        system=system if system is not None else messages.OWN_ACCOUNT_CHECK_SYSTEM,
         user=f"Sender: {sender_name or 'unknown'} <{sender_email}>\nMessage:\n{text}",
         json_schema=OWN_ACCOUNT_CHECK_SCHEMA,
     )
@@ -183,6 +220,7 @@ class ServiceDeskAgent:
         policy: Mapping[str, PolicyRule] = POLICY,
         close_after: timedelta = timedelta(days=3),
         mention_check: MentionCheck | None = None,
+        prompts: Prompts | None = None,
     ) -> None:
         self._slack = slack
         self._secret = signing_secret
@@ -198,6 +236,7 @@ class ServiceDeskAgent:
         self._policy = policy
         self._close_after = close_after
         self._mention_check = mention_check
+        self._prompts = prompts if prompts is not None else Prompts()
         self._seen_event_ids: set[str] = set()
         self._disclosed: set[str] = set()
 
@@ -343,9 +382,11 @@ class ServiceDeskAgent:
 
     def _triage(self, s: Session, text: str) -> str:
         try:
-            response = s.chat(self._model, triage_request(text))
+            response = s.chat(self._model, triage_request(text, self._prompts.triage))
         except ModelError:
             return OTHER
+        if triage_off_format(response):
+            s.event("tier0.format_failure", task="triage")
         return parse_triage(response)
 
     def _refuse(
@@ -446,12 +487,17 @@ class ServiceDeskAgent:
             response = s.chat(
                 self._model,
                 own_account_check_request(
-                    text, sender_name=bound.full_name, sender_email=bound.email
+                    text,
+                    sender_name=bound.full_name,
+                    sender_email=bound.email,
+                    system=self._prompts.check,
                 ),
             )
         except ModelError:
             response = None
         own_only = parse_own_account_check(response)
+        if check_off_format(response):
+            s.event("tier0.format_failure", task="own_account_check")
         s.event(
             "tier0.own_account_check",
             result="failed" if own_only is None else ("yes" if own_only else "no"),

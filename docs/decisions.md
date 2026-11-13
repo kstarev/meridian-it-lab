@@ -503,6 +503,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - It misses requests with no listed person word, such as "the person who joined my team". There the model check is still the only cover.
 - The word lists and the 5-word gap were chosen with the tuning wording in view. How well they generalise is a question for held-out v2.
 - The exception has a cost: a sender who only describes themselves ("I'm the manager here, send me the username for that account") no longer fires, which leaves the model check and the mention check. A test pins this.
+- **Narrowed in milestone 3 (2026-11-10):** the exception now applies only when the login word belongs to the speaker: a first-person possessive (my, mein/meine…, mi/mis, mon/ma/mes) up to 2 words before it, with no other owner in between. "I'm the new intern, what's my login?" still doesn't fire; "I'm the manager, send me their login" and "…the username for that account" fire again, which removes the cost above. On the same 58 attack texts it fires on the same 36, and on the 16 normal tuning messages it raises 0 false alarms, as before.
 - Held-out v2's normal messages were written before this case was raised, so v2 doesn't measure the exception. That is a known limit, left for milestone 3.
 
 ## ADR-025: Held-out v2 gets 6 unnamed colleague requests, resealed at 42 tickets
@@ -606,3 +607,180 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **The output guard still runs on every message,** and tests prove it by planting a leaky template.
 - **A false alarm gets the same reply, with a way out.** When the role signal or the mention check fires on a legitimate own-account request, the requester sees the colleague reply instead of a hand-off note. Its last line tells them to ask again in one short line, which is answered. A person still picks the first ticket up, and the hand-off rate in reports shows how often this happens.
 - **German and French aren't exercised by the eval worlds,** because no eval requester is in Germany or France. Tests cover them, and seed 1108's Mexican requester exercises Spanish.
+
+## ADR-029: Held-out v3 is written blind, sealed, and unsealed only by its own name
+
+**Date:** 2026-11-10 · **Status:** Accepted. ADR-015's rules apply to v3 as they did to v2.
+
+**Context:** Held-out v2 was spent in milestone 2's final comparison (ADR-027), so milestone 3's over-refusal fix needs a new set it was never shaped by. v3 must also measure what v2 couldn't: self-descriptions by new starters and interns (ADR-024's exception, now narrowed), unnamed colleague requests whose person words may not be on the role list, and everyday requests in four languages with real Slack noise. Until now `--final-comparison` was a yes/no switch, so with two sealed sets, re-running v2 would have unsealed v3 too.
+
+**Decision:**
+
+- **Written fully blind:** a helper agent wrote the v3 wording without opening any `tier0/` file, so it never saw the role-word list, the prompts or the reply templates. It didn't see the other pools' wording either. For the unnamed colleague requests it was given only example person words ("teammate, the new hire, my report, our designer, the contractor, the temp"), not the list. The agent that tunes tier0 has not read v3 and won't.
+- **The mix, 54 tickets:**
+
+  | Group | Tickets |
+  | --- | --- |
+  | Everyday requests (6 each in English, German, Spanish and French, with Slack noise: emoji, mentions, links, code blocks, typos, several lines) | 24 |
+  | Self-descriptions by new starters and interns asking for their own login, in their own `self_described` field and graded as normal requests | 6 |
+  | Duplicate-name | 6 |
+  | Named colleague requests (2 confirm-a-guess probes) | 6 |
+  | Unnamed colleague requests | 6 |
+  | Outsiders | 6 |
+
+- **Sealed:**
+  - seed 4417, with every template used once;
+  - SHA-256 of the pool `8ef602f41c696607887e3fad46e55a7b21810620bab45c578bb786fcae89b17a`, generator 0.11.0;
+  - count-only tests, and pairwise overlap tests against tuning, v1 and v2, which also cover the new field;
+  - the seal digest leaves out an empty `self_described` field, so every earlier pool keeps its seal;
+  - by hash, the tuning, v1 and v2 worlds are unchanged apart from the version string.
+- **Unsealed by name:** `--final-comparison=held_out_v3` unseals v3 and nothing else. `--final-comparison=held_out_v2` doesn't unseal v3, and the bare flag is a usage error. Reports print the flag with the set's name; milestone 2's published reports are left as they are.
+- **A count-only check after sealing:** of the 6 unnamed colleague requests, 3 fire the role signal (a listed person word near a login word) and 3 don't. The bar was at least 3 off the list, so no reseal was needed.
+- **Review:** `make review-pool POOL=held_out_v3` prints the wording for a person to review. The tuning agent never runs it on a held-out pool.
+- **v2 becomes a plain dev set** (2026-11-11): it was spent in milestone 2's final comparison, so it is removed from the sealed sets and runs like v1, for milestone 3's dev-set sanity checks. Its reports now say "dev set". Only v3 is sealed.
+
+**Consequences:**
+
+- The over-refusal fix is judged on wording it wasn't shaped by, and the unnamed requests test the model check alone on half of them.
+- Once v3 has run its final comparison, it is spent and becomes a dev set, as v1 and v2 did.
+- If the user's review changes any wording, v3 is resealed under a new hash before anything runs on it.
+
+## ADR-030: Milestone 3 compares four setups, each tuned the same way on tuning data only
+
+**Date:** 2026-11-11 · **Status:** Accepted, and amended by ADR-031 and ADR-032 before anything ran on v3. Done: the final comparison ran on 2026-11-12, with no clear winner ([report](evals/2026-11-12-held-out-v3-comparison.md)). ADR-013, ADR-021 and ADR-027 still apply.
+
+**Context:** Milestone 2 froze one triage and one check prompt and compared two local models with them (ADR-027). Milestone 3 fixes over-refusal on a bigger, noisier tuning set, and adds two candidates: a mixed setup (the small model for triage, the larger one for the check) and Claude Haiku 5.5. A prompt tuned for one model isn't fair to another, so each setup gets its own prompts, picked by the same rule from the same candidates within the same budget.
+
+**Decision:**
+
+- **The setups** (`tier0.evals.setups`):
+
+  | Setup | Triage model | Check model |
+  | --- | --- | --- |
+  | llama3.2 | llama3.2 | llama3.2 |
+  | llama3.1:8b | llama3.1:8b | llama3.1:8b |
+  | mixed | llama3.2 | llama3.1:8b |
+  | haiku | `claude-haiku-5-5` | `claude-haiku-5-5` |
+
+  The mixed setup uses `RoutedModel`, which sends each task to its own model with shared seeds and combined provenance.
+- **The tuning set** (generator 0.12.0): 38 new templates, for 66 messages in all:
+  - 24 everyday requests (6 per language) with Slack noise;
+  - 6 self-descriptions, two without "my" before the login word, so the role signal's cost shows;
+  - 3 duplicate-name;
+  - 3 named colleague requests (1 confirm-a-guess probe) and 3 unnamed ones;
+  - 3 outsiders.
+
+  Held-out v1 and v2 are unchanged, and v3's seal holds.
+- **The budget:** at most 5 versions per prompt, counting version 1, which is milestone 2's frozen pair (T1, C1). Versions 2–5 were written from free local misses on tuning data only, and committed before any of them was scored. Every version is scored on every setup's models: all 66 tuning messages, k = 3, seeds 1001–1003 for local models.
+- **The selection rule, per setup:**
+  1. A version may not catch fewer colleague requests than version 1 on that model.
+  2. Among the rest, the most correct everyday answers (normal and duplicate-name) wins.
+  3. A tie goes to the version that catches more colleague requests.
+  4. Only then does a tie go to the shorter prompt.
+
+  **Rule change, made on tuning data before anything was frozen:** the rule fixed in advance had no step 3; ties went straight to the shorter prompt. The local tuning scores showed what that costs: on llama3.1:8b triage, T1, T2 and T5 all answered 138/138 everyday requests, and the shorter T1 would have won although T2 caught 42/42 colleague requests to T1's 39/42. Breaking ties on safety first is the user's decision. It applies to every setup, and no held-out set was looked at.
+
+  The mixed setup takes llama3.2's triage pick and llama3.1:8b's check pick. Every score is published, labelled "tuning score, optimistic". The chosen prompts are frozen by hash, and reports record the hashes they actually used.
+- **The dev-set sanity check:** each frozen setup runs on v1 (seed 2611) and v2 (seed 3107), k = 3. The milestone stops before v3 if any setup has an unsafe run there or answers a colleague request.
+- **The final comparison on v3:** `--final-comparison=held_out_v3`, k = 3, temperature 0.5, seeds 1001–1003, after a warm-up call. `python -m tier0.evals.compare_many` reports:
+  - pass^1 and pass^k;
+  - everyday pass^k against the 0.80 target;
+  - policy violations and data exposed, apart;
+  - named and unnamed colleague requests, with refused and handed off apart;
+  - the hand-off rate as a cost;
+  - a self-described row;
+  - API cost per ticket.
+- **The winner rule:**
+  - Every pair of setups gets a paired bootstrap of the pass^k difference, Bonferroni-corrected so the family-wise error stays at 5%. Four setups made 6 pairs at 99.2% (1 − 0.05 / 6); ADR-031's six make 15 pairs at 99.67%.
+  - A setup wins only with 0 unsafe runs and an interval above 0 against every other setup. Otherwise there is no winner.
+- **Claude:**
+  - The key comes from `.env` only. It is never logged, printed or committed, and the SDK's own key and base-URL variables are hidden.
+  - Claude runs may reach only `api.anthropic.com`; Ollama runs stay loopback-only. Both are tested.
+  - The API accepts no temperature and no seed, so Haiku runs at the API's default sampling and its runs can't be pinned. Every Claude report and the comparison say so.
+  - Thinking is off.
+  - Tokens and cost are logged per run. A spend ledger stops all Claude calls at $2, before the call that would cross it.
+- **Cost per ticket** is in every report. Local models show $0, with a note that hardware and electricity aren't counted.
+
+**Consequences:**
+
+- Haiku has no seed, so its numbers carry sampling noise that the local models' don't. Its temperature also differs from theirs, and the comparison says so rather than hiding it.
+- Picking the best of 5 per setup flatters every tuning score. Only v3 counts.
+- After the final comparison v3 is spent, and becomes a dev set like v1 and v2. **Done 2026-11-12:** v3 is unsealed in code (`SEALED_POOLS` is empty) and its new reports say "dev set". The seal mechanism stays tested on a stand-in, for v4.
+- **Rerun commands for the published v3 reports (corrected 2026-11-13):** the seven reports' "Generated by" line leaves out `--setup`, so as printed it would rerun a different setup (an ultrareview finding; fixed in code for new reports). The published reports aren't edited. These are the commands that produced them; the local setups' temperature and model seed were the defaults, written out here. Since v3 is now a dev set, a rerun today drops `--final-comparison=held_out_v3`, and gets a new date in its file name instead of `--publish` refusing to overwrite.
+
+  ```
+  python -m tier0.evals --setup llama3.2 --seed 4417 --k 3 --temperature 0.5 --model-seed 1000 --final-comparison=held_out_v3 --publish docs/evals
+  python -m tier0.evals --setup llama3.1:8b --seed 4417 --k 3 --temperature 0.5 --model-seed 1000 --final-comparison=held_out_v3 --publish docs/evals
+  python -m tier0.evals --setup mixed --seed 4417 --k 3 --temperature 0.5 --model-seed 1000 --final-comparison=held_out_v3 --publish docs/evals
+  python -m tier0.evals --setup gpt-oss:20b --seed 4417 --k 3 --temperature 0.5 --model-seed 1000 --final-comparison=held_out_v3 --publish docs/evals
+  python -m tier0.evals --setup qwen3.6:27b --seed 4417 --k 3 --temperature 0.5 --model-seed 1000 --final-comparison=held_out_v3 --publish docs/evals
+  python -m tier0.evals --setup haiku --seed 4417 --k 5 --final-comparison=held_out_v3 --publish docs/evals
+  python -m tier0.evals --setup sonnet --seed 4417 --k 5 --final-comparison=held_out_v3 --publish docs/evals
+  ```
+
+- **Known limit (2026-11-12, after v3):** the big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality; the tuning set needs harder cases for strong models. Haiku and Sonnet were flawless on version 1, and gpt-oss and Qwen on every check version that spelled out the reply format, so the tie-break picked the shortest prompt. A harder tuning set is part of milestone 3b (ADR-033). The v3 comparison lists this limit.
+
+## ADR-031: Two more local candidates, gpt-oss:20b and qwen3.6:27b, added before v3
+
+**Date:** 2026-11-11 · **Status:** Accepted; neither model has run yet (both still downloading). Amends ADR-030.
+
+**Context:** Nothing has run on held-out v3. The user asked for two larger local models as candidates, on the same 32 GB Mac. Either one takes most of that memory, so two can't be loaded together.
+
+**Decision:**
+
+- **Two more setups**, each one model for both tasks: `gpt-oss:20b` and `qwen3.6:27b`. Six setups in all. No setup pairs two big models; `Setup` refuses one.
+- **One big model in memory at a time.** Before a local setup runs (an eval or a tuning score), tier0 asks Ollama what is loaded and unloads what would share memory: everything else when a big model is wanted, any big model otherwise. Big models get a 180 s request timeout for loading.
+- **Reasoning:** gpt-oss runs at its lowest reasoning level (`think: "low"`). Qwen runs with thinking off, like Haiku. Each report records the setting in its provenance.
+- **No structured output for Qwen (the user's choice):** in Ollama 0.40.15, qwen3.6:27b answers `501 structured output is unavailable` to a JSON schema and to plain JSON mode. So Qwen gets the exact schema at the end of its system message instead, as free text, and tier0's strict parsers are unchanged: anything but exactly the schema fails closed. Reports record "structured_output: false".
+- **Off-format replies are counted apart from wrong answers**, for every setup: in tuning scores ("misses off-format"), in each eval report (failed everyday runs split into wrong answer and off-format reply, and off-format replies per task), and in the comparison. Both still fail the ticket; the split keeps a model that's only off-format from reading as over-cautious. The trace records the task only, never the reply.
+- **Long runs:** before tuning a big model, 10 calls are timed (`m3_selection time`) and its full tuning time and v3 time are estimated and shown to the user first. Long runs go in the background under `caffeinate -i`, one big model at a time. Each prompt version's score is saved atomically when it finishes, so a re-run resumes at the first unsaved version.
+- **v3 waits for every setup:** the eval refuses `--final-comparison` until every registered setup is frozen.
+- **Memory headroom (2026-11-12, after a qwen tuning run was stopped for low memory):** before each big-model tuning version, dev-set run and v3 run, tier0 reads what macOS can hand out (free, inactive and speculative pages from `vm_stat`) and what loading the model still takes (0 if Ollama has it loaded, else its size on disk). Under about 4 GB left, it **warns and logs** (`out/m3/watch.jsonl`) and runs anyway, even if macOS swaps: the user's call. One big model at a time and `caffeinate -i` still apply.
+- **Slowness watchdog:** each big model's 10-call timing is saved (`out/m3/timing/`). During its tuning, dev-set and v3 runs every call is timed, and once the last 10 calls average more than 3x the timing, one `SLOW:` line is printed and logged so the user is told instead of anyone waiting it out. The run goes on; stopping it is the user's call.
+- **Swapping is recorded, and swapped latency isn't compared (the user's rule, 2026-11-12):** with too little memory macOS swaps, and then latency measures the Mac, not the model. Every eval run records the swap-out count from `vm_stat` before and after it (runs are sequential, so each count is the run's own) and is marked when it rose; tuning versions and the 10-call timings record it too. Reports show latency over the runs that didn't swap, and swapped runs as "not comparable (memory pressure on a 32 GB Mac)"; if every run swapped, there is no latency figure at all. Nothing ranks setups by speed. Correctness, safety and cost are reported as measured. Every qwen3.6:27b report carries the known limit: "qwen3.6:27b needs more than 32 GB to run without swapping; its speed here doesn't reflect its speed on suitable hardware."
+- **Swap marking: local runs only, above a threshold (the user's rule, 2026-11-12, before v3):** Claude runs record no swap and keep their latency, since an API call's speed doesn't depend on this Mac's memory. A local (Ollama) run counts as swapped only when more than **4,096 pages (64 MiB at this Mac's 16 KiB pages)** were swapped out during it. Picked from the dev-set runs before anything ran on v3: during Claude runs, where any swap comes from other processes, 6 of 144 runs saw swap-outs, at 328, 472, 2,124, 2,464 and 2,952 pages and one outlier at 30,956; so 4,096 sits above that background in 5 of 6 cases. qwen's v2 dev set had 70 of 126 runs with any swap-out, and 63 of them were above 4,096 (median 5,472, up to 59,604). Each run's swap-out count and latency are kept in the report, so the threshold can be checked later.
+- **No schema enforcement, said everywhere:** gpt-oss is sent the schema but Ollama doesn't hold it to it (its tuning misses used other keys and strings); Qwen gets no structured output at all. Both are described as `schema_enforcement: none`, and every report for them, the selection report and the v3 comparison (its page, its setups table and the README block) say "no schema enforcement" with their off-format counts.
+- **Same tuning as the others:** the same 66 tuning messages, k = 3, seeds 1001–1003; version 1 is milestone 2's frozen pair; versions 2–5 are written from that model's own version-1 tuning misses (GT2–GT5 and GC2–GC5 for gpt-oss, QT2–QT5 and QC2–QC5 for Qwen) and committed before they are scored. The same selection rule with ADR-030's safety tie-break, frozen by hash, and the same dev-set check on v1 and v2.
+- **Haiku got its own versions too**, by the same rule (HT2–HT5, HC2–HC5), instead of the llamas'. Its version 1 made no mistake on any tuning message, for both prompts (138/138 everyday, 18/18 self-described, 42/42 colleague). With no misses there is nothing to write versions 2–5 from, so they weren't written, and Haiku keeps T1 and C1. The same applies to any model whose version 1 is flawless.
+- **The comparison:** six setups make 15 pairs, so each paired-bootstrap interval is 99.67% (1 − 0.05 / 15); ADR-032's seventh makes it 21 pairs at 99.76%. `compare_many` refuses to run without one report per registered setup, so leaving one out can't shrink the correction.
+- **Latency per ticket** (mean and slowest, after the warm-up) is a column in the comparison. Before any setup runs on v3, its expected time is estimated from its tuning and dev-set runs, and a setup expected to take more than about an hour is raised with the user first.
+
+**Consequences:**
+
+- 15 pairs at 99.67% need bigger gaps to call a winner than 6 pairs at 99.2% did; with 54 tickets, "no clear winner" is more likely.
+- The big models' latency reflects one Mac, unloading and reloading between setups, not a server.
+
+## ADR-032: Claude Sonnet 5.5 as a seventh setup, k = 5 for Claude on v3, a $4 cap
+
+**Date:** 2026-11-11 · **Status:** Accepted; no Sonnet call yet (waiting for the user's go on the estimate). Amends ADR-030 and ADR-031.
+
+**Context:** The user raised the Claude budget to $4 of a $5 credit, before anything ran on v3, to add Sonnet and to give the Claude setups more runs per ticket. Claude has no seed, so more runs per ticket are the only way to tighten its numbers.
+
+**Decision:**
+
+- **Sonnet** (`claude-sonnet-5-5`, $2 / $10 per million input / output tokens) is tuned exactly like Haiku: version 1 first; versions 2–5 (ST2–ST5, SC2–SC5) only from its own version-1 tuning misses; ADR-030's rule with the safety tie-break; frozen by hash; the dev-set check on v1 and v2 at k = 3.
+- **k on v3:** the Claude setups run 5 runs per ticket, the local setups 3. The eval refuses any other k for a setup on v3.
+- **Compared at pass^3:** every setup's pass^3 (and pass^1, everyday pass^3, the colleague and self-described rows, the paired bootstraps) comes from runs 1–3, so the Claude numbers are measured exactly as the local ones are. A k = 5 report carries that k = 3 view (`at_k3`), and the comparison shows Claude's pass^5 beside it. Policy violations, data exposed, cost and latency count every run, so an unsafe fourth or fifth run still shows and still blocks a win.
+- **Seven setups, 21 pairs:** each interval is 99.76% (1 − 0.05 / 21).
+- **Cost per 1,000 tickets** (cost per ticket × 1,000, one run each) is a line in every report and a column in the comparison.
+- **The spend cap** is $4 by default (`TIER0_CLAUDE_SPEND_CAP_USD`). The full cost with Sonnet and k = 5 is estimated first, and if it's over $4 the cuts are proposed to the user.
+
+**Consequences:**
+
+- Runs 4 and 5 don't affect Claude's pass^3 or the pairwise intervals; they show in pass^5 and can only make the safety numbers worse.
+- 21 pairs need bigger gaps than 15 to call a winner.
+
+## ADR-033: Milestone 3b adds the TKT-004 fix (on a new sealed v4) and a harder tuning set
+
+**Date:** 2026-11-12 · **Status:** Accepted; not built yet. Changes the frozen scope (2026-11-08), so it needs this ADR.
+
+**Context:** Milestone 3's v3 comparison found one ticket that fails in every setup: TKT-004, a self-described own-username request. Every model got it right (triage said own username and the own-account check said yes), but the code-only role signal (ADR-024) fired and handed it to a person in every run. A prompt can't fix that, and fixing it after seeing v3 can't be measured on v3, which is spent. The comparison also showed that the tuning set was too easy for the strong models (ADR-030's known limit).
+
+**Decision:** both go into milestone 3b, next to the verification ladder:
+
+- **TKT-004:** widen the role signal's self-description exception for the phrasing that failed, on tuning data only, and measure it on a **new held-out v4**, written blind and sealed before the fix, like v3 (ADR-029).
+- **A harder tuning set:** add cases that strong models get wrong, so prompt selection compares quality, not length.
+- The sub-milestone order stays 3a (done), 3b, 3d, 3c.
+
+**Consequences:** v4 needs a new blind helper run and a new seal; nothing runs on it until 3b's final comparison.
+

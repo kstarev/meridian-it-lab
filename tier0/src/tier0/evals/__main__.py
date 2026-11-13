@@ -1,7 +1,6 @@
 """Command line: python -m tier0.evals [--seed N] [--k 3] [--model stub] [--out out/eval]."""
 
 import argparse
-import contextlib
 import os
 import re
 import sys
@@ -12,14 +11,17 @@ from pathlib import Path
 import anyio
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
-from meridian_dataset.generator import HOLDOUT_V2_SEED
+from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
+from tier0.agent import Prompts, own_account_check_request, triage_request
+from tier0.evals import watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.models import build_model
+from tier0.evals.setups import BIG_MODELS, FROZEN, SETUPS
+from tier0.models import ModelAdapter, ModelError, build_model, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
-from tier0.models.ollama import DEFAULT_OLLAMA_URL
-from tier0.netguard import is_loopback_url, loopback_only
-from tier0.sealed import SealedSetError, require_unsealed
+from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
+from tier0.netguard import guard_for_model, is_loopback_url
+from tier0.sealed import SEALED_POOLS, SealedSetError, require_unsealed
 
 
 def today() -> date:
@@ -34,7 +36,11 @@ def default_seed(model: str) -> int:
 
 def split_label(seed: int) -> str:
     """Which message set a seed uses, for published file names."""
-    return {HOLDOUT_SEED: "held-out-v1", HOLDOUT_V2_SEED: "held-out-v2"}.get(seed, "tuning")
+    return {
+        HOLDOUT_SEED: "held-out-v1",
+        HOLDOUT_V2_SEED: "held-out-v2",
+        HOLDOUT_V3_SEED: "held-out-v3",
+    }.get(seed, "tuning")
 
 
 def _model_factory(name: str, temperature: float | None = None):  # type: ignore[no-untyped-def]
@@ -42,6 +48,29 @@ def _model_factory(name: str, temperature: float | None = None):  # type: ignore
         return lambda: build_model(name)
     env = {**os.environ, "TIER0_OLLAMA_TEMPERATURE": str(temperature)}
     return lambda: build_model(name, env=env)
+
+
+WARM_UP_TEXT = "Warm-up call before the eval; not a ticket."
+
+
+def warm_up(model: ModelAdapter, prompts: Prompts | None) -> int:
+    """One untimed call per task, so loading the model doesn't land in the first run's
+    latency. Not part of the report; a Claude call still goes through the spend ledger.
+    Returns the number of calls that failed."""
+    prompts = prompts or Prompts()
+    requests = (
+        triage_request(WARM_UP_TEXT, prompts.triage),
+        own_account_check_request(
+            WARM_UP_TEXT, sender_name=None, sender_email="warm-up@invalid", system=prompts.check
+        ),
+    )
+    failed = 0
+    for request in requests:
+        try:
+            model.complete(request)
+        except ModelError:
+            failed += 1
+    return failed
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -71,12 +100,52 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--publish", type=Path, default=None, metavar="DIR")
     parser.add_argument(
         "--final-comparison",
+        choices=sorted(SEALED_POOLS),
+        default=None,
+        metavar="SET",
+        help="unseal exactly this held-out set for its final comparison, e.g. "
+        "--final-comparison=held_out_v3 (ADR-015, ADR-029)",
+    )
+    parser.add_argument(
+        "--setup",
+        choices=sorted(SETUPS),
+        default=None,
+        help="milestone 3: a named setup (models per task and its frozen prompts); "
+        "overrides --model (ADR-030)",
+    )
+    parser.add_argument(
+        "--no-warm-up",
         action="store_true",
-        help="unseal held-out v2 for milestone 2's final comparison (ADR-015)",
+        help="skip the untimed warm-up calls real models get before the runs",
     )
     args = parser.parse_args(argv)
+    setup = SETUPS[args.setup] if args.setup else None
+    if setup is not None:
+        args.model = setup.provider
     if args.seed is None:
         args.seed = default_seed(args.model)
+    if args.final_comparison is not None and set(SETUPS) != FROZEN:
+        waiting = ", ".join(sorted(set(SETUPS) - FROZEN))
+        print(
+            f"refused: nothing runs on {args.final_comparison} until every setup is frozen; "
+            f"not yet: {waiting} (ADR-031)",
+            file=sys.stderr,
+        )
+        return 2
+    if args.final_comparison is not None and setup is not None and args.k != setup.v3_k:
+        print(
+            f"refused: {setup.name} runs at k = {setup.v3_k} on {args.final_comparison} "
+            f"(ADR-032), not {args.k}",
+            file=sys.stderr,
+        )
+        return 2
+    if setup is not None and setup.name not in FROZEN and args.seed != DEFAULT_SEED:
+        print(
+            f"refused: {setup.name}'s prompts aren't frozen yet, so it runs on tuning data "
+            "only (ADR-030, ADR-031)",
+            file=sys.stderr,
+        )
+        return 2
 
     try:
         require_unsealed(generate(args.seed), final_comparison=args.final_comparison)
@@ -102,20 +171,55 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.model != "stub":
         print(f"WARNING: --model {args.model} may call a paid or local model.", file=sys.stderr)
 
+    if setup is not None:
+        factory = setup.factory(args.temperature if args.temperature is not None else 0.5)
+        prompts = setup.prompts()
+    else:
+        factory, prompts = _model_factory(args.model, args.temperature), None
+
+    # The runs' factory; for a big model it times every call against its estimate.
+    run_factory = factory
+
     async def go():  # type: ignore[no-untyped-def]
         return await run_eval(
             args.seed,
             k=args.k,
-            model_factory=_model_factory(args.model, args.temperature),
+            model_factory=run_factory,
             out_dir=args.out,
             today=today,
             final_comparison=args.final_comparison,
             model_seed_base=args.model_seed,
+            prompts=prompts,
+            setup=setup.name if setup is not None else None,
         )
 
-    # Stub and Ollama runs must never leave this machine; only a Claude run needs the internet.
-    guard = loopback_only() if args.model in ("stub", "ollama") else contextlib.nullcontext()
+    # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
+    guard = guard_for_model(args.model)
     with guard:
+        if setup is not None and setup.provider == "ollama":
+            # Never two big models in memory together (ADR-031).
+            url = os.environ.get("TIER0_OLLAMA_URL", DEFAULT_OLLAMA_URL)
+            unloaded = make_room(setup.models, big=BIG_MODELS, base_url=url)
+            if unloaded:
+                print(f"unloaded first: {', '.join(unloaded)}", file=sys.stderr)
+            for big in sorted(setup.models & BIG_MODELS):
+                # Warn and log, never pause: the run goes on even if it swaps (ADR-031).
+                ok, message = memory.headroom(big, base_url=url)
+                watch.log({"event": "memory", "model": big, "ok": ok, "message": message})
+                print(f"{'memory' if ok else 'WARNING: low memory'}: {message}", file=sys.stderr)
+            expected = [watch.expected_seconds(m) for m in sorted(setup.models & BIG_MODELS)]
+            if expected and all(e is not None for e in expected):
+                slow = watch.SlowWatch(
+                    f"{setup.name} on seed {args.seed}", max(e for e in expected if e)
+                )
+
+                def run_factory() -> ModelAdapter:
+                    return watch.WatchedModel(factory(), slow)  # type: ignore[return-value]
+
+        if args.model != "stub" and not args.no_warm_up:
+            failed = warm_up(factory(), prompts)
+            if failed:
+                print(f"WARNING: {failed} warm-up call(s) failed", file=sys.stderr)
         report = anyio.run(go)
     json_path, md_path = write_report(report, args.out)
     if args.publish is not None:
@@ -132,7 +236,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         name = re.sub(
             r"[^A-Za-z0-9._-]",
             "-",
-            f"{report.run_date}-{split_label(report.seed)}-{report.provider}-{report.model}",
+            f"{report.run_date}-{split_label(report.seed)}-{report.provider}-"
+            f"{setup.name if setup is not None else report.model}",
         )
         args.publish.mkdir(parents=True, exist_ok=True)
         published = args.publish / f"{name}.md"

@@ -90,6 +90,10 @@ class AnswerKeyEntry:
     forbidden_facts: tuple[str, ...]
     notes: str
     confirm_guess: bool = False
+    # A normal request from someone describing themselves (a new starter, an intern),
+    # milestone 3's over-refusal case (ADR-029). Written to answer_key.json only when
+    # true, so worlds without self-descriptions are byte-identical to before.
+    self_described: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,15 +3,16 @@
 import hashlib
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from meridian_dataset import GENERATOR_VERSION, World, generate
-from meridian_dataset.generator import HOLDOUT_V2_SEED
+from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from meridian_dataset.model import AnswerKeyEntry
 from tier0 import messages
+from tier0.agent import Prompts
 from tier0.clock import parse_time
 from tier0.evals.explain import explain
 from tier0.evals.grading import (
@@ -22,9 +23,11 @@ from tier0.evals.grading import (
     grade,
     policy_violation,
 )
+from tier0.evals.setups import COMPARISON_K, MODEL_LIMITS
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, ticket_bootstrap, wilson
-from tier0.models import ModelAdapter, StubModel
+from tier0.models import ModelAdapter, StubModel, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
+from tier0.models.pricing import cost_usd
 from tier0.runtime import offline_runtime
 from tier0.sealed import require_unsealed
 from tier0.tickets.adapter import (
@@ -88,6 +91,19 @@ class RunResult:
     # Colleague tickets only: whether the message names someone the mention check can look
     # up (ADR-023, ADR-025). None for every other scenario.
     colleague_named: bool | None = None
+    # A normal request from someone describing themselves (ADR-029); milestone 3's
+    # over-refusal case, reported in its own row.
+    self_described: bool = False
+    # Tasks whose reply came back off-format (ADR-031): "triage", "own_account_check".
+    format_failures: tuple[str, ...] = ()
+    # Pages macOS swapped out during this run (vm_stat before and after); local (Ollama)
+    # runs only, None otherwise. Above the threshold, the run measured the Mac, not the
+    # model, and its latency is shown as not comparable (ADR-031).
+    swapouts: int | None = None
+
+    @property
+    def swapped(self) -> bool:
+        return self.swapouts is not None and self.swapouts > memory.SWAP_THRESHOLD_PAGES
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +149,20 @@ class EvalReport:
     triage_prompt_sha256: str = ""
     # SHA-256 of the "own account only?" check prompt (frozen, ADR-017).
     check_prompt_sha256: str = ""
+    # The milestone 3 setup this ran as (--setup), or None; reruns need it (ADR-030).
+    setup: str | None = None
+
+    def first_runs(self, n: int) -> "EvalReport":
+        """The same report on runs 1..n only, so a k = 5 run can be compared at pass^3
+        with k = 3 setups (ADR-032)."""
+        if not 1 <= n <= self.k:
+            raise ValueError(f"need 1 <= n <= k = {self.k}, got {n}")
+        return replace(
+            self,
+            k=n,
+            results=tuple(r for r in self.results if r.run <= n),
+            model_seeds=self.model_seeds[:n],
+        )
 
     def explanation(self, run: RunResult) -> str | None:
         """Plain-English reason a run failed; None when it passed (or no key is known)."""
@@ -164,6 +194,20 @@ class EvalReport:
     @property
     def max_latency_ms(self) -> float:
         return max((r.duration_ms for r in self.results), default=0.0)
+
+    @property
+    def swapped_runs(self) -> int:
+        return sum(1 for r in self.results if r.swapped)
+
+    @property
+    def latency_comparable(self) -> dict[str, Any]:
+        """Latency over the runs where the Mac didn't swap; None when every run swapped."""
+        kept = [r.duration_ms for r in self.results if not r.swapped]
+        return {
+            "runs": len(kept),
+            "mean_ms": sum(kept) / len(kept) if kept else None,
+            "max_ms": max(kept) if kept else None,
+        }
 
     @property
     def pass_1(self) -> float:
@@ -219,8 +263,47 @@ class EvalReport:
         return out
 
     @property
+    def self_described_outcomes(self) -> dict[str, Any]:
+        """Normal requests from new starters and interns describing themselves (ADR-029).
+        They should be answered; a refusal or a hand-off here is the over-refusal cost."""
+        runs = [r for r in self.results if r.self_described]
+        by_ticket: dict[str, list[RunResult]] = {}
+        for r in runs:
+            by_ticket.setdefault(r.ticket_id, []).append(r)
+        n = len(by_ticket)
+        passed_all = sum(all(r.grade.passed for r in g) for g in by_ticket.values())
+        return {
+            "tickets": n,
+            "runs": len(runs),
+            "answered": sum(1 for r in runs if r.grade.final_state in (DONE, AWAITING_REPLY)),
+            "refused": sum(1 for r in runs if r.grade.final_state == CANCELED),
+            "handed_off": sum(1 for r in runs if r.grade.final_state == TRIAGE),
+            "passed_runs": sum(1 for r in runs if r.grade.passed),
+            "pass_k": passed_all / n if n else 0.0,
+            "pass_k_ci": list(wilson(passed_all, n)),
+        }
+
+    @property
     def known_limits(self) -> tuple[str, ...]:
-        """Limits a reader of the final comparison should know (ADR-027)."""
+        """Limits a reader should know (ADR-027), plus any for this model (MODEL_LIMITS)."""
+        model_limits = tuple(
+            limit for name, limits in MODEL_LIMITS.items() if name in self.model for limit in limits
+        )
+        return self._set_limits() + model_limits
+
+    def _set_limits(self) -> tuple[str, ...]:
+        if self.seed == HOLDOUT_V3_SEED:
+            unnamed = self.colleague_outcomes["unnamed"]["tickets"]
+            own = self.self_described_outcomes["tickets"]
+            return (
+                f"Only {unnamed} colleague tickets name nobody and {own} tickets are "
+                f"self-descriptions, each run {self.k} times, so those rows have wide "
+                "intervals.",
+                "Ollama results reproduce on the same machine with the same model digest and "
+                "Ollama version; the Claude API has no seed, so its runs can't be pinned.",
+                "Cost per ticket is API cost only; local models' hardware and electricity "
+                "are not counted.",
+            )
         if self.seed != HOLDOUT_V2_SEED:
             return ()
         unnamed = self.colleague_outcomes["unnamed"]["tickets"]
@@ -345,6 +428,23 @@ class EvalReport:
         return n / len(self.results) if self.results else 0.0
 
     @property
+    def format_outcomes(self) -> dict[str, int]:
+        """Off-format replies apart from wrong answers, so a model that's only off-format
+        isn't read as over-cautious (ADR-031)."""
+        failed = [r for r in self.results if r.attack is None and not r.grade.passed]
+        off = sum(1 for r in failed if r.format_failures)
+        return {
+            "runs_off_format": sum(1 for r in self.results if r.format_failures),
+            "triage_replies": sum(r.format_failures.count("triage") for r in self.results),
+            "check_replies": sum(
+                r.format_failures.count("own_account_check") for r in self.results
+            ),
+            "everyday_failed_runs": len(failed),
+            "everyday_failed_off_format": off,
+            "everyday_failed_wrong_answer": len(failed) - off,
+        }
+
+    @property
     def handoff_runs(self) -> int:
         return sum(1 for r in self.results if self._is_handoff(r))
 
@@ -363,6 +463,19 @@ class EvalReport:
             ):
                 count += 1
         return count
+
+    def run_cost_usd(self, r: RunResult) -> float:
+        """API cost of one run from its tokens (0 for local models)."""
+        return cost_usd(self.provider, self.model, r.input_tokens, r.output_tokens)
+
+    @property
+    def total_cost_usd(self) -> float:
+        return sum(self.run_cost_usd(r) for r in self.results)
+
+    @property
+    def cost_per_ticket_usd(self) -> float:
+        """Mean API cost of handling one ticket once (one run)."""
+        return self.total_cost_usd / len(self.results) if self.results else 0.0
 
     @property
     def mean_model_calls(self) -> float:
@@ -394,16 +507,33 @@ class EvalReport:
         return tuple(rows)
 
     def to_dict(self) -> dict[str, Any]:
+        out = self._to_dict()
+        if self.k > COMPARISON_K:
+            # The first 3 runs on their own, for comparison with k = 3 setups (ADR-032).
+            view = self.first_runs(COMPARISON_K)._to_dict()
+            view.pop("runs_detail")
+            out["at_k3"] = view
+        return out
+
+    def _to_dict(self) -> dict[str, Any]:
         return {
             "run_date": self.run_date,
             "mean_latency_ms": self.mean_latency_ms,
             "max_latency_ms": self.max_latency_ms,
+            "swap": {
+                "recorded": any(r.swapouts is not None for r in self.results),
+                "threshold_pages": memory.SWAP_THRESHOLD_PAGES,
+                "swapped_runs": self.swapped_runs,
+                "runs": len(self.results),
+            },
+            "latency_comparable": self.latency_comparable,
             "result_kind": self.result_kind,
             "label": PIPELINE_CHECK_LABEL if self.is_pipeline_check else None,
             "seed": self.seed,
             "generator_version": self.generator_version,
             "k": self.k,
             "provider": self.provider,
+            "setup": self.setup,
             "model": self.model,
             "temperature": self.temperature,
             "model_seeds": list(self.model_seeds),
@@ -423,6 +553,7 @@ class EvalReport:
                 "bootstrap_seed": BOOTSTRAP_SEED,
             },
             "colleague_outcomes": self.colleague_outcomes,
+            "self_described_outcomes": self.self_described_outcomes,
             "known_limits": list(self.known_limits),
             "everyday_pass_k": self.everyday_pass_k,
             "attack_by_category": self.attack_by_category,
@@ -435,8 +566,15 @@ class EvalReport:
             "second_checks": self.second_checks,
             "handoff_rate": self.handoff_rate,
             "handoff_runs": self.handoff_runs,
+            "format_outcomes": self.format_outcomes,
             "unexpected_handoffs": self.unexpected_handoffs,
             "mean_model_calls": self.mean_model_calls,
+            "cost": {
+                "per_ticket_usd": self.cost_per_ticket_usd,
+                "per_1000_tickets_usd": 1000 * self.cost_per_ticket_usd,
+                "total_usd": self.total_cost_usd,
+                "note": "API cost only; for local models hardware and electricity are not counted",
+            },
             "tickets": [
                 {
                     "ticket": r.ticket,
@@ -459,9 +597,13 @@ class EvalReport:
                     "ticket": r.ticket_id,
                     "run": r.run,
                     "passed": r.grade.passed,
+                    "input_tokens": r.input_tokens,
+                    "output_tokens": r.output_tokens,
+                    "cost_usd": self.run_cost_usd(r),
                     "handed_off_pass": r.grade.handed_off,
                     "scenario": r.scenario,
                     "colleague_named": r.colleague_named,
+                    "self_described": r.self_described,
                     "state_ok": r.grade.state_ok,
                     "missing_facts": list(r.grade.missing_facts),
                     "unsafe": list(r.grade.unsafe),
@@ -471,6 +613,10 @@ class EvalReport:
                     "action": r.action,
                     "reasons": list(r.reasons),
                     "model_errors": list(r.model_errors),
+                    "format_failures": list(r.format_failures),
+                    "swapouts": r.swapouts,
+                    "swapped": r.swapped,
+                    "duration_ms": r.duration_ms,
                     "finish_reasons": list(r.finish_reasons),
                     "own_account_check": r.own_account_check,
                     "mention_others": r.mention_others,
@@ -510,6 +656,8 @@ def build_report(
     model_seed_base: int | None = None,
     provenance: dict[str, str] | None = None,
     triage_prompt_sha256: str | None = None,
+    check_prompt_sha256: str | None = None,
+    setup: str | None = None,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -535,10 +683,17 @@ def build_report(
             if triage_prompt_sha256 is not None
             else hashlib.sha256(messages.TRIAGE_SYSTEM.encode("utf-8")).hexdigest()
         ),
-        check_prompt_sha256=hashlib.sha256(
-            messages.OWN_ACCOUNT_CHECK_SYSTEM.encode("utf-8")
-        ).hexdigest(),
+        check_prompt_sha256=(
+            check_prompt_sha256
+            if check_prompt_sha256 is not None
+            else _sha(messages.OWN_ACCOUNT_CHECK_SYSTEM)
+        ),
+        setup=setup,
     )
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def seeded_model(model_factory: ModelFactory, model_seed: int | None) -> ModelAdapter:
@@ -556,8 +711,9 @@ async def run_ticket(
     *,
     model_factory: ModelFactory,
     out_dir: Path | None = None,
-    final_comparison: bool = False,
+    final_comparison: str | None = None,
     model_seed: int | None = None,
+    prompts: Prompts | None = None,
 ) -> RunResult:
     """One run of one ticket on a fresh runtime, so nothing leaks between runs.
 
@@ -575,6 +731,7 @@ async def run_ticket(
         model=seeded_model(model_factory, model_seed),
         tracer=tracer,
         final_comparison=final_comparison,
+        **({"prompts": prompts} if prompts is not None else {}),
     ) as rt:
         rt.clock.advance_to(parse_time(ticket.received_at))
         outcome = await rt.agent.handle(rt.slack.message_event(ticket))
@@ -603,6 +760,7 @@ async def run_ticket(
         summaries = summarize(spans).values()
         reasons, model_errors, finish_reasons = _diagnostics(spans)
         checks = _second_check_events(spans)
+        off_format = _format_failures(spans)
     tracer.shutdown()
     return RunResult(
         ticket_id=ticket_id,
@@ -621,6 +779,7 @@ async def run_ticket(
         reasons=reasons,
         model_errors=model_errors,
         finish_reasons=finish_reasons,
+        format_failures=off_format,
         own_account_check=checks[0],
         mention_others=checks[1],
         mention_namesakes=checks[2],
@@ -629,6 +788,7 @@ async def run_ticket(
         colleague_named=(
             names_another_person(world, ticket_id) if entry.scenario == COLLEAGUE else None
         ),
+        self_described=entry.self_described,
     )
 
 
@@ -660,6 +820,22 @@ def _second_check_events(
             elif ev.name == "tier0.role_check":
                 role = bool(ea.get("matched"))
     return result, others, namesakes, lookups, role
+
+
+def _format_failures(spans: Any) -> tuple[str, ...]:
+    """Which tasks' replies came back off-format in the intake session (task names only)."""
+    intake = {
+        s.context.trace_id
+        for s in spans
+        if (s.attributes or {}).get(TIER0_SESSION_KIND) == "intake"
+    }
+    return tuple(
+        str((ev.attributes or {}).get("task"))
+        for s in spans
+        if s.context.trace_id in intake
+        for ev in s.events
+        if ev.name == "tier0.format_failure"
+    )
 
 
 def _diagnostics(spans: Any) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
@@ -715,29 +891,40 @@ async def run_eval(
     model_factory: ModelFactory = StubModel,
     out_dir: Path | None = None,
     today: Callable[[], date] | None = None,
-    final_comparison: bool = False,
+    final_comparison: str | None = None,
     model_seed_base: int = DEFAULT_MODEL_SEED_BASE,
+    prompts: Prompts | None = None,
+    swap_probe: Callable[[], int | None] | None = None,
+    setup: str | None = None,
 ) -> EvalReport:
-    """Run every ticket k times, one after another. Held-out v2 needs final_comparison."""
+    """Run every ticket k times, one after another. A sealed set needs final_comparison
+    naming it. swap_probe reads macOS's swap-out count (default: vm_stat, for real models)."""
     world = generate(seed)
     require_unsealed(world, final_comparison=final_comparison)
     probe: ModelAdapter = model_factory()
     seeded = bool(getattr(probe, "supports_seed", False))
     provenance = describe_model(probe)
+    # Swap activity per run, for local models only: a Claude call's speed doesn't depend on
+    # this Mac's memory. Runs are sequential, so each count is the run's own.
+    probe_swap = (swap_probe or memory.swapouts) if probe.provider == "ollama" else None
     results = []
     for entry in world.answer_key.entries:
         for run in range(1, k + 1):
-            results.append(
-                await run_ticket(
-                    world,
-                    entry.ticket_id,
-                    run,
-                    model_factory=model_factory,
-                    out_dir=out_dir,
-                    final_comparison=final_comparison,
-                    model_seed=model_seed_base + run if seeded else None,
-                )
+            before = probe_swap() if probe_swap else None
+            result = await run_ticket(
+                world,
+                entry.ticket_id,
+                run,
+                model_factory=model_factory,
+                out_dir=out_dir,
+                final_comparison=final_comparison,
+                model_seed=model_seed_base + run if seeded else None,
+                prompts=prompts,
             )
+            after = probe_swap() if probe_swap else None
+            if before is not None and after is not None:
+                result = replace(result, swapouts=max(0, after - before))
+            results.append(result)
     run_date = (today() if today is not None else datetime.now(UTC).date()).isoformat()
     return build_report(
         world,
@@ -751,4 +938,7 @@ async def run_eval(
         model_seeds=tuple(model_seed_base + r for r in range(1, k + 1)) if seeded else (),
         model_seed_base=model_seed_base if seeded else None,
         provenance=provenance,
+        triage_prompt_sha256=_sha(prompts.triage) if prompts and prompts.triage else None,
+        check_prompt_sha256=_sha(prompts.check) if prompts and prompts.check else None,
+        setup=setup,
     )

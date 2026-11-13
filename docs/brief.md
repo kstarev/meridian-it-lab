@@ -170,7 +170,13 @@ If the requester isn't authenticated or asks about someone else, the agent refus
     - Each check-in ends with one useful tip or a reminder of what tier0 can do.
   - **Safety (this bot can message the whole company):** text only from pre-approved templates in code, never written by the model, with rotating variants. A preview goes to #it-team 24 h before, with a cancel button. At most 1 proactive post per day overall, a kill switch and a dry-run mode. Mock Slack only; `make holidays-preview YEAR=2027` prints the full year's schedule.
   - **Metric:** tickets opened within 24 h of a pulse check, to see whether it surfaces problems people weren't reporting.
-- **Milestone 3, more ticket types and realistic traffic (later, not built yet):**
+- **Milestone 3, more ticket types and realistic traffic:** built as sub-milestones, in the order 3a, 3b, 3d, 3c.
+  - **3a, done** (ADR-029, ADR-030 to ADR-032): the over-refusal fix and the narrowed self-description exception (items 7 and 8), the sealed blind held-out v3, and a seven-setup comparison on it ([results](evals/2026-11-12-held-out-v3-comparison.md)).
+  - **3b, next:** the verification ladder (item 6), plus two additions from 3a's results (ADR-033):
+    - **TKT-004:** in held-out v3 every setup's models answered this self-described request correctly, but the role signal handed it to a person in every run. Fix the self-description exception on tuning data only, and measure the fix on a new sealed held-out v4, written blind like v3.
+    - **A harder tuning set:** the big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality. Add cases that strong models get wrong.
+  - **3d:** new ticket types and message shapes (items 1 to 4).
+  - **3c:** the realistic month (item 5).
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
   2. Prompt injection inside messages (ASI01).
   3. Repeat same-day requests for one account, the pattern in Clorox v. Cognizant (2025).
@@ -187,8 +193,8 @@ If the requester isn't authenticated or asks about someone else, the agent refus
      - **Never accepted as proof:** date of birth, manager name, employee ID, username, security questions, or a phone number the caller supplies.
      - Mocks: an Okta push, OIDC step-up tokens, a calendar and device assurance. Needles: an out-of-office requester, a guest, a hijacked Slack session, same-day repeats, and pushes aimed at a colleague.
      - Metric: which rung stopped each attack.
-  7. **Held-out coverage for self-descriptions:** blind held-out messages where a new starter or intern describes themselves and asks for their own login, so the role signal's self-description exception (ADR-024) is measured on wording it wasn't shaped by. Held-out v2's normal messages predate the case.
-  8. **Narrow the self-description exception:** it should apply only when the login word refers to the speaker ("my login", "mein Benutzername", "mi usuario", "mon identifiant"). Then "I'm the manager, send me their login" still fires the role signal, which the milestone 2 version (ADR-024) does not.
+  7. **Held-out coverage for self-descriptions** (sealed in held-out v3, 3a, ADR-029): blind held-out messages where a new starter or intern describes themselves and asks for their own login, so the role signal's self-description exception (ADR-024) is measured on wording it wasn't shaped by. Held-out v2's normal messages predate the case.
+  8. **Narrow the self-description exception** (done in 3a, ADR-024): it should apply only when the login word refers to the speaker ("my login", "mein Benutzername", "mi usuario", "mon identifiant"). Then "I'm the manager, send me their login" still fires the role signal, which the milestone 2 version (ADR-024) does not.
 - **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope

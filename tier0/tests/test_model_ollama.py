@@ -175,4 +175,102 @@ def test_describe_errors_become_model_error() -> None:
     )
     with pytest.raises(ModelError):
         OllamaModel(client=bad).describe()
-    assert StubModel().describe() == {} and ClaudeModel().describe() == {}
+    assert StubModel().describe() == {}
+    claude = ClaudeModel().describe()
+    assert claude["model_id"] == "claude-opus-5-5" and "no temperature" in claude["sampling"]
+
+
+def test_a_reasoning_setting_is_sent_and_recorded() -> None:
+    model, seen = capture(REPLY)
+    model.complete(ModelRequest(task="triage", system="s", user="u"))
+    assert "think" not in json.loads(seen[0].content)  # nothing sent by default
+    model.think = "low"
+    model.complete(ModelRequest(task="triage", system="s", user="u"))
+    assert json.loads(seen[1].content)["think"] == "low"
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/api/version":
+            return httpx2.Response(200, json={"version": "0.12.0"})
+        return httpx2.Response(200, json={"models": [{"name": "gpt-oss:20b", "digest": "d" * 64}]})
+
+    client = httpx2.Client(
+        base_url="http://ollama.example", transport=httpx2.MockTransport(handler)
+    )
+    for think, recorded in (("low", "low"), (False, "false")):
+        described = OllamaModel(model="gpt-oss:20b", client=client, think=think).describe()
+        assert described["think"] == recorded
+    assert "think" not in OllamaModel(model="gpt-oss:20b", client=client).describe()
+
+
+def _ollama_with_loaded(loaded: list[str]) -> tuple[httpx2.Client, list[str]]:
+    unloaded: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/api/ps":
+            return httpx2.Response(200, json={"models": [{"name": m} for m in loaded]})
+        body = json.loads(request.content)
+        assert request.url.path == "/api/generate" and body["keep_alive"] == 0
+        unloaded.append(body["model"])
+        return httpx2.Response(200, json={})
+
+    return httpx2.Client(
+        base_url="http://ollama.example", transport=httpx2.MockTransport(handler)
+    ), unloaded
+
+
+def test_a_big_model_never_shares_memory_with_another_model() -> None:
+    from tier0.models.ollama import make_room
+
+    big = {"gpt-oss:20b", "qwen3.6:27b"}
+    # A big model wanted: everything else goes, big or small.
+    client, unloaded = _ollama_with_loaded(["qwen3.6:27b", "llama3.2:latest", "gpt-oss:20b"])
+    assert make_room(["gpt-oss:20b"], big=big, client=client) == ["qwen3.6:27b", "llama3.2:latest"]
+    assert unloaded == ["qwen3.6:27b", "llama3.2:latest"]
+    # Small models wanted: only a loaded big model goes; the other small one may stay.
+    client, unloaded = _ollama_with_loaded(["qwen3.6:27b", "llama3.1:8b"])
+    assert make_room(["llama3.2", "llama3.1:8b"], big=big, client=client) == ["qwen3.6:27b"]
+    client, unloaded = _ollama_with_loaded(["llama3.1:8b"])
+    assert make_room(["llama3.2"], big=big, client=client) == [] and unloaded == []
+
+
+def test_without_structured_output_the_schema_goes_into_the_system_message() -> None:
+    model, seen = capture(REPLY)
+    model.structured_output = False
+    model.complete(ModelRequest(task="triage", system="SYS", user="u", json_schema=TRIAGE_SCHEMA))
+    body = json.loads(seen[0].content)
+    assert "format" not in body
+    system = body["messages"][0]["content"]
+    assert system.startswith("SYS\n\n") and json.dumps(TRIAGE_SCHEMA, sort_keys=True) in system
+    # Constrained decoding stays the default, with the system message untouched.
+    model, seen = capture(REPLY)
+    model.complete(ModelRequest(task="triage", system="SYS", user="u", json_schema=TRIAGE_SCHEMA))
+    body = json.loads(seen[0].content)
+    assert body["format"] == TRIAGE_SCHEMA and body["messages"][0]["content"] == "SYS"
+
+
+def test_qwen_runs_without_structured_output_and_says_so() -> None:
+    from tier0.evals.setups import SETUPS
+
+    qwen = SETUPS["qwen3.6:27b"].factory()()
+    assert qwen.structured_output is False and qwen.think is False  # type: ignore[attr-defined]
+    assert SETUPS["gpt-oss:20b"].factory()().structured_output is True  # type: ignore[attr-defined]
+
+
+def test_gpt_oss_and_qwen_are_described_as_having_no_schema_enforcement() -> None:
+    from tier0.evals.setups import SETUPS
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/api/version":
+            return httpx2.Response(200, json={"version": "0.40.15"})
+        names = ["gpt-oss:20b", "qwen3.6:27b", "llama3.1:8b"]
+        return httpx2.Response(
+            200, json={"models": [{"name": n, "digest": "d" * 64} for n in names]}
+        )
+
+    client = httpx2.Client(
+        base_url="http://ollama.example", transport=httpx2.MockTransport(handler)
+    )
+    for name, expected in (("gpt-oss:20b", "none"), ("qwen3.6:27b", "none"), ("llama3.1:8b", None)):
+        model = SETUPS[name].factory()()
+        model._client = client  # type: ignore[attr-defined]
+        assert model.describe().get("schema_enforcement") == expected, name  # type: ignore[attr-defined]

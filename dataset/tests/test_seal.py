@@ -2,12 +2,16 @@
 
 import dataclasses
 
-from meridian_dataset.names import HELD_OUT_V2_POOL, TUNING_POOL
-from meridian_dataset.seal import HELD_OUT_V2_SHA256, pool_digest
+from meridian_dataset.names import HELD_OUT_V2_POOL, HELD_OUT_V3_POOL, TUNING_POOL
+from meridian_dataset.seal import HELD_OUT_V2_SHA256, HELD_OUT_V3_SHA256, pool_digest
 
 
 def test_held_out_v2_is_unchanged() -> None:
     assert pool_digest(HELD_OUT_V2_POOL) == HELD_OUT_V2_SHA256
+
+
+def test_held_out_v3_is_unchanged() -> None:
+    assert pool_digest(HELD_OUT_V3_POOL) == HELD_OUT_V3_SHA256
 
 
 def test_digest_is_deterministic() -> None:

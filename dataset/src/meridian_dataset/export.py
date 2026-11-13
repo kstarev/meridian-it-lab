@@ -25,6 +25,9 @@ def write_dataset(world: World, out_dir: Path) -> dict[str, Path]:
     del everything["tickets"]
     del everything["answer_key"]
     key = asdict(world.answer_key)
+    for entry in key["entries"]:
+        if not entry["self_described"]:
+            del entry["self_described"]
     contents = {
         "world.json": everything,
         "tickets.json": {

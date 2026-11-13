@@ -1,0 +1,212 @@
+{
+  "verdict": {
+    "winner": null,
+    "text": "**No clear winner at this sample size:** no setup's 99.76% interval of the pass^3 difference lies above 0 against all the others.",
+    "method": {
+      "difference": "paired bootstrap over tickets, 99.76% percentile interval (Bonferroni over 21 pairs, family-wise 95%)",
+      "level": 0.9976190476190476,
+      "bootstrap_samples": 10000,
+      "bootstrap_seed": 20261109
+    }
+  },
+  "pairs": [
+    {
+      "a": "llama3.2",
+      "b": "llama3.1:8b",
+      "difference": -0.018518518518518517,
+      "ci": [
+        -0.09259259259259259,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.2",
+      "b": "mixed",
+      "difference": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.2",
+      "b": "gpt-oss:20b",
+      "difference": -0.05555555555555555,
+      "ci": [
+        -0.16666666666666666,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.2",
+      "b": "qwen3.6:27b",
+      "difference": -0.05555555555555555,
+      "ci": [
+        -0.16666666666666666,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.2",
+      "b": "haiku",
+      "difference": -0.037037037037037035,
+      "ci": [
+        -0.16666666666666666,
+        0.07407407407407407
+      ]
+    },
+    {
+      "a": "llama3.2",
+      "b": "sonnet",
+      "difference": -0.05555555555555555,
+      "ci": [
+        -0.16666666666666666,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.1:8b",
+      "b": "mixed",
+      "difference": 0.018518518518518517,
+      "ci": [
+        0.0,
+        0.09259259259259259
+      ]
+    },
+    {
+      "a": "llama3.1:8b",
+      "b": "gpt-oss:20b",
+      "difference": -0.037037037037037035,
+      "ci": [
+        -0.12962962962962962,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.1:8b",
+      "b": "qwen3.6:27b",
+      "difference": -0.037037037037037035,
+      "ci": [
+        -0.12962962962962962,
+        0.0
+      ]
+    },
+    {
+      "a": "llama3.1:8b",
+      "b": "haiku",
+      "difference": -0.018518518518518517,
+      "ci": [
+        -0.12962962962962962,
+        0.07407407407407407
+      ]
+    },
+    {
+      "a": "llama3.1:8b",
+      "b": "sonnet",
+      "difference": -0.037037037037037035,
+      "ci": [
+        -0.12962962962962962,
+        0.0
+      ]
+    },
+    {
+      "a": "mixed",
+      "b": "gpt-oss:20b",
+      "difference": -0.05555555555555555,
+      "ci": [
+        -0.16666666666666666,
+        0.0
+      ]
+    },
+    {
+      "a": "mixed",
+      "b": "qwen3.6:27b",
+      "difference": -0.05555555555555555,
+      "ci": [
+        -0.16666666666666666,
+        0.0
+      ]
+    },
+    {
+      "a": "mixed",
+      "b": "haiku",
+      "difference": -0.037037037037037035,
+      "ci": [
+        -0.16666666666666666,
+        0.07407407407407407
+      ]
+    },
+    {
+      "a": "mixed",
+      "b": "sonnet",
+      "difference": -0.05555555555555555,
+      "ci": [
+        -0.16666666666666666,
+        0.0
+      ]
+    },
+    {
+      "a": "gpt-oss:20b",
+      "b": "qwen3.6:27b",
+      "difference": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "a": "gpt-oss:20b",
+      "b": "haiku",
+      "difference": 0.018518518518518517,
+      "ci": [
+        0.0,
+        0.09259259259259259
+      ]
+    },
+    {
+      "a": "gpt-oss:20b",
+      "b": "sonnet",
+      "difference": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "a": "qwen3.6:27b",
+      "b": "haiku",
+      "difference": 0.018518518518518517,
+      "ci": [
+        0.0,
+        0.09259259259259259
+      ]
+    },
+    {
+      "a": "qwen3.6:27b",
+      "b": "sonnet",
+      "difference": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "a": "haiku",
+      "b": "sonnet",
+      "difference": -0.018518518518518517,
+      "ci": [
+        -0.09259259259259259,
+        0.0
+      ]
+    }
+  ],
+  "reports": [
+    "docs/evals/2026-11-12-held-out-v3-ollama-llama3.2.json",
+    "docs/evals/2026-11-12-held-out-v3-ollama-llama3.1-8b.json",
+    "docs/evals/2026-11-12-held-out-v3-ollama-mixed.json",
+    "docs/evals/2026-11-12-held-out-v3-ollama-gpt-oss-20b.json",
+    "docs/evals/2026-11-12-held-out-v3-ollama-qwen3.6-27b.json",
+    "docs/evals/2026-11-12-held-out-v3-anthropic-haiku.json",
+    "docs/evals/2026-11-12-held-out-v3-anthropic-sonnet.json"
+  ]
+}

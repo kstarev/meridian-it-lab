@@ -14,12 +14,14 @@ from meridian_dataset.generator import split_for_seed
 from meridian_dataset.names import MESSAGE_POOLS, TUNING_POOL, MessagePool
 
 SCENARIOS = ("normal", "duplicate", "colleague", "unauthenticated")
+# Every field that holds wording, including self-descriptions (ADR-029).
+TEMPLATE_FIELDS = (*SCENARIOS, "self_described")
 PAIRS = list(itertools.combinations(sorted(MESSAGE_POOLS), 2))
 HELD_OUT_NAMES = sorted(name for name in MESSAGE_POOLS if name != TUNING_POOL.name)
 
 
 def _templates(pool: MessagePool) -> list[str]:
-    return [t for scenario in SCENARIOS for t in getattr(pool, scenario)]
+    return [t for field in TEMPLATE_FIELDS for t in getattr(pool, field)]
 
 
 def _sentences(text: str) -> set[str]:
@@ -92,6 +94,7 @@ def test_templates_keep_the_scenario_shape(name: str) -> None:
     # An outsider may claim to be Alex Kim, a named employee ({claimed_name}), or a vendor.
     bad += sum(fields(t) not in ([], ["claimed_name"]) for t in pool.unauthenticated)
     bad += sum(fields(t) != [] for t in pool.normal)
+    bad += sum(fields(t) != [] for t in pool.self_described)
     assert bad == 0, f"{bad} template(s) in {name} break their scenario's shape"
 
 
@@ -112,4 +115,4 @@ def test_no_sentence_repeats_within_a_pool(name: str) -> None:
 def test_tuning_has_unnamed_colleague_requests() -> None:
     """Requests that name nobody the mention check could look up (ADR-023)."""
     unnamed = [t for t in MESSAGE_POOLS["tuning"].colleague if "{" not in t]
-    assert len(unnamed) == 4
+    assert len(unnamed) == 7  # 4 from milestone 2, 3 more in milestone 3 (ADR-030)

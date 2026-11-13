@@ -65,12 +65,20 @@ def paired_bootstrap_difference(
     *,
     samples: int = BOOTSTRAP_SAMPLES,
     seed: int = BOOTSTRAP_SEED,
+    level: float = 0.95,
 ) -> tuple[float, float, float]:
-    """(observed, low, high) for mean(a) - mean(b) over the same tickets, in the same order."""
+    """(observed, low, high) for mean(a) - mean(b) over the same tickets, in the same order.
+
+    level is the interval's coverage: 0.95 for one pair, 1 - 0.05 / m for m pairs
+    (Bonferroni; milestone 3 compares 6 pairs, so 99.2%).
+    """
     if len(a) != len(b):
         raise ValueError("paired samples must cover the same tickets")
+    if not 0 < level < 1:
+        raise ValueError("level must be between 0 and 1")
     if not a:
         return 0.0, -1.0, 1.0
     diffs = [float(x) - float(y) for x, y in zip(a, b, strict=True)]
     means = _resampled_means(diffs, samples=samples, seed=seed)
-    return sum(diffs) / len(diffs), _percentile(means, 0.025), _percentile(means, 0.975)
+    tail = (1 - level) / 2
+    return sum(diffs) / len(diffs), _percentile(means, tail), _percentile(means, 1 - tail)

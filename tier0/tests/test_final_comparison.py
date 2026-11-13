@@ -2,6 +2,7 @@
 (ADR-027). Tuning data and hand-made reports only; nothing here runs on held-out v2."""
 
 import copy
+import dataclasses
 import json
 from pathlib import Path
 from typing import Any
@@ -252,3 +253,54 @@ def test_compare_refuses_mismatched_reports(tmp_path: Path) -> None:
     b.write_text(json.dumps(_report("y", [True] * 3) | {"k": 1}))
     assert compare.main([str(a), str(b), "--out", str(tmp_path / "c.md")]) == 2
     assert not (tmp_path / "c.md").exists()
+
+
+# --- cost per ticket (milestone 3) ----------------------------------------------------
+
+
+def test_cost_per_ticket_for_claude_and_zero_for_local_models() -> None:
+    world = generate(DEFAULT_SEED)
+    runs = tuple(
+        dataclasses.replace(
+            _run("TKT-001", "normal", "Awaiting reply", True, None),
+            run=n,
+            input_tokens=700,
+            output_tokens=40,
+        )
+        for n in (1, 2)
+    )
+    claude = build_report(
+        world, runs, seed=DEFAULT_SEED, k=2, provider="anthropic", model="claude-haiku-5-5"
+    )
+    per_run = 700 * 0.10e-6 + 40 * 0.50e-6
+    assert claude.cost_per_ticket_usd == pytest.approx(per_run)
+    assert claude.total_cost_usd == pytest.approx(2 * per_run)
+    md = render_markdown(claude)
+    assert "API cost per ticket" in md and "$0.000090" in md
+    assert "accepts no temperature" in md and "runs can't be pinned" in md
+    assert claude.to_dict()["runs_detail"][0]["cost_usd"] == pytest.approx(per_run)
+    local = build_report(world, runs, seed=DEFAULT_SEED, k=2, provider="ollama", model="llama3.2")
+    assert local.total_cost_usd == 0
+    assert "hardware and electricity are not counted" in render_markdown(local)
+
+
+def test_self_described_row_counts_answers_refusals_and_hand_offs() -> None:
+    world = generate(DEFAULT_SEED)
+    answered = dataclasses.replace(
+        _run("TKT-001", "normal", "Done", True, None), self_described=True
+    )
+    refused = dataclasses.replace(
+        _run("TKT-002", "normal", "Canceled", False, None), self_described=True
+    )
+    other = _run("TKT-003", "normal", "Done", True, None)
+    rep = build_report(
+        world, (answered, refused, other), seed=DEFAULT_SEED, k=1, provider="ollama", model="m"
+    )
+    own = rep.self_described_outcomes
+    assert (own["tickets"], own["answered"], own["refused"], own["handed_off"]) == (2, 1, 1, 0)
+    assert own["pass_k"] == 0.5
+    md = render_markdown(rep)
+    assert "| Self-described | 2 | 2 | 1 | 1 | 0 |" in md
+    assert rep.to_dict()["self_described_outcomes"]["tickets"] == 2
+    no_own = build_report(world, (other,), seed=DEFAULT_SEED, k=1, provider="ollama", model="m")
+    assert "Self-described" not in render_markdown(no_own)

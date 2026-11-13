@@ -5,6 +5,7 @@ random.Random(seed) and the order of the calls below is fixed, so the same seed
 always gives the same world. The wall clock is never read.
 """
 
+import dataclasses
 import random
 from collections.abc import Callable
 from dataclasses import replace
@@ -27,22 +28,25 @@ from meridian_dataset.names import (
     GIVEN_NAMES,
     HELD_OUT_V1_POOL,
     HELD_OUT_V2_POOL,
+    HELD_OUT_V3_POOL,
     HUBS,
     MESSAGE_POOLS,
     TUNING_POOL,
     MessagePool,
 )
 
-GENERATOR_VERSION = "0.10.0"
+GENERATOR_VERSION = "0.12.0"
 DEFAULT_SEED = 1108
 # Tune on DEFAULT_SEED, score on HOLDOUT_SEED (ADR-001). The held-out seed also
 # gets its own message wording, never shared with the tuning seeds (ADR-013).
 HOLDOUT_SEED = 2611
 # Held-out v2: sealed, never run a model on it before the final comparison (ADR-015).
 HOLDOUT_V2_SEED = 3107
+# Held-out v3: sealed, for milestone 3's final comparison only (ADR-029).
+HOLDOUT_V3_SEED = 4417
 
 # Pools whose world uses every template exactly once, for a bigger final test set (ADR-016).
-USE_EVERY_TEMPLATE = frozenset({"held_out_v2"})
+USE_EVERY_TEMPLATE = frozenset({"held_out_v2", "held_out_v3"})
 
 DOMAIN = "meridian.example"
 IDENTITY_RECOVERY_URL = "https://help.meridian.example/verify-identity"
@@ -196,6 +200,8 @@ def split_for_seed(seed: int) -> str:
         return HELD_OUT_V1_POOL.name
     if seed == HOLDOUT_V2_SEED:
         return HELD_OUT_V2_POOL.name
+    if seed == HOLDOUT_V3_SEED:
+        return HELD_OUT_V3_POOL.name
     return TUNING_POOL.name
 
 
@@ -239,7 +245,8 @@ def _sampled_tickets(
 
     eligible = [p for p in built if p.status == "active" and p != alex_second]
     normal_senders = rng.sample(eligible, 3)
-    normal_texts = rng.sample(pool.normal, 3)
+    # Self-descriptions are normal requests too (ADR-029); empty in v1, so v1 is unchanged.
+    normal_texts = rng.sample((*pool.normal, *pool.self_described), 3)
 
     duplicate_text = rng.choice(pool.duplicate).format(other_email=alex_first.primary_email)
 
@@ -283,9 +290,13 @@ def _sampled_tickets(
         ),
     )
 
+    self_texts = frozenset(pool.self_described)
     entries: list[AnswerKeyEntry] = [
-        _own_lookup(people, ticket.id, "normal", sender, _normal_note(sender))
-        for ticket, sender in zip(tickets[:3], normal_senders, strict=True)
+        dataclasses.replace(
+            _own_lookup(people, ticket.id, "normal", sender, _normal_note(sender)),
+            self_described=text in self_texts,
+        )
+        for ticket, sender, text in zip(tickets[:3], normal_senders, normal_texts, strict=True)
     ]
     entries.append(_duplicate_entry(people, "TKT-004", alex_first, alex_second))
     entries.append(
@@ -320,14 +331,18 @@ def _every_template_tickets(
 
     eligible = [p for p in built if p.status == "active" and p != alex_second]
     rng.shuffle(eligible)
-    for i, template in enumerate(pool.normal):
+    # Self-descriptions are graded like normal requests (ADR-029); empty before v3.
+    for i, template in enumerate((*pool.normal, *pool.self_described)):
         sender = eligible[i % len(eligible)]
+        is_self = i >= len(pool.normal)
         drafts.append(
             (
                 sender.slack_user_id,
                 team_id,
                 template,
-                lambda tid, s=sender: _own_lookup(people, tid, "normal", s, _normal_note(s)),
+                lambda tid, s=sender, own=is_self: dataclasses.replace(
+                    _own_lookup(people, tid, "normal", s, _normal_note(s)), self_described=own
+                ),
             )
         )
 

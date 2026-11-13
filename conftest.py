@@ -23,3 +23,16 @@ from tier0.netguard import loopback_only
 def _block_outbound_network() -> Iterator[None]:
     with loopback_only():
         yield
+
+
+@pytest.fixture(autouse=True)
+def _private_spend_ledger(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Tests never write to the real Claude spend ledger, so fake calls can't count
+    against the paid-call cap."""
+    mp = pytest.MonkeyPatch()
+    path = tmp_path_factory.mktemp("spend") / "claude-spend.jsonl"
+    mp.setenv("TIER0_CLAUDE_SPEND_LEDGER", str(path))
+    try:
+        yield
+    finally:
+        mp.undo()

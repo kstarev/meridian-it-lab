@@ -232,7 +232,12 @@ def test_stub_results_are_labelled_as_a_pipeline_check(
 def test_real_model_results_are_not_labelled_as_a_pipeline_check(tmp_path: Path) -> None:
     world = generate(DEFAULT_SEED)
     rep = build_report(
-        world, (_result("TKT-001", 1, True),), seed=1, k=1, provider="anthropic", model="m"
+        world,
+        (_result("TKT-001", 1, True),),
+        seed=1,
+        k=1,
+        provider="anthropic",
+        model="claude-haiku-5-5",
     )
     assert not rep.is_pipeline_check and rep.result_kind == "model_eval"
     json_path, md_path = write_report(rep, tmp_path)
@@ -468,14 +473,13 @@ def test_reproducibility_section_for_stub_and_claude() -> None:
         seed=1,
         k=1,
         provider="anthropic",
-        model="m",
+        model="claude-haiku-5-5",
     )
     md = render_markdown(claude)
-    assert (
-        "The Claude API has no seed or temperature parameter, so runs can't be pinned; "
-        "results may vary between runs."
-    ) in md
-    assert claude.to_dict()["model_seeds"] == [] and claude.to_dict()["provenance"] == {}
+    assert "The Claude API accepts no temperature" in md
+    assert "not at the temperature the local models use" in md
+    assert "runs can't be pinned" in md
+    assert claude.to_dict()["model_seeds"] == []
 
 
 def test_publish_refused_without_provenance(
