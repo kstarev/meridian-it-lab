@@ -15,6 +15,17 @@ from tier0.evals.stats import paired_bootstrap_difference, wilson
 N = 54
 
 
+def _frozen(model: str, task: str) -> str:
+    """The hash of the frozen prompt of the setup whose models are `model`."""
+    import hashlib
+
+    from tier0.evals.setups import SETUPS
+
+    setup = next(x for x in SETUPS.values() if x.label == model)
+    text = getattr(setup.prompts(), task)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def _report(
     model: str,
     passes: list[bool],
@@ -44,8 +55,8 @@ def _report(
         "seed": HOLDOUT_V3_SEED,
         "k": 3,
         "generator_version": "0.12.0",
-        "triage_prompt_sha256": "a" * 64,
-        "check_prompt_sha256": "b" * 64,
+        "triage_prompt_sha256": _frozen(model, "triage"),
+        "check_prompt_sha256": _frozen(model, "check"),
         "temperature": None if claude else 0.5,
         "model_seeds": [] if claude else [1001, 1002, 1003],
         "tickets": tickets,
@@ -304,3 +315,27 @@ def test_the_comparison_lists_the_tuning_ceiling_as_a_known_limit() -> None:
     limits = md.split("## Known limits", 1)[1]
     assert "their prompts were chosen by length, not quality" in limits
     assert "the tuning set needs harder cases for strong models" in limits
+
+
+def test_a_report_that_didnt_run_its_frozen_prompts_is_refused(tmp_path: Path) -> None:
+    """Finding 3: a run without --setup (default prompts) can't stand in for the setup."""
+    reports = _all()
+    cm.require_frozen_prompts(reports)
+    reports[1]["check_prompt_sha256"] = "c" * 64  # llama3.1:8b on some other check prompt
+    with pytest.raises(
+        cm.NotComparableError, match=r"llama3\.1:8b's report didn't run its frozen check"
+    ):
+        cm.require_frozen_prompts(reports)
+    paths = []
+    for i, r in enumerate(reports):
+        p = tmp_path / f"{i}.json"
+        p.write_text(json.dumps(_raw(r)))
+        paths.append(str(p))
+    assert cm.main([*paths, "--out", str(tmp_path / "x.md")]) == 2
+    assert not (tmp_path / "x.md").exists()
+
+
+def test_the_recorded_setup_name_comes_first() -> None:
+    r = _all()[0]
+    assert cm.name({**r, "setup": "llama3.2"}) == "llama3.2"
+    assert cm.name({**r, "setup": None}) == "llama3.2"  # older reports: by models

@@ -18,6 +18,7 @@ against every other setup lies above 0. Otherwise there is no winner.
 """
 
 import argparse
+import hashlib
 import itertools
 import json
 import sys
@@ -99,6 +100,24 @@ def level(n_reports: int) -> float:
 
 def pct(conf: float) -> str:
     return f"{conf * 100:.2f}%"
+
+
+def _sha(text: str | None) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def require_frozen_prompts(reports: Sequence[Mapping[str, Any]]) -> None:
+    """Each report must have run its setup's frozen prompts, by hash: a run made without
+    --setup (default prompts) can't stand in for the setup (ADR-030)."""
+    for r in reports:
+        prompts = SETUPS[name(r)].prompts()
+        for task, text in (("triage", prompts.triage), ("check", prompts.check)):
+            if r.get(f"{task}_prompt_sha256") != _sha(text):
+                raise NotComparableError(
+                    f"{name(r)}'s report didn't run its frozen {task} prompt "
+                    f"(sha256 {str(r.get(f'{task}_prompt_sha256'))[:12]}, frozen "
+                    f"{_sha(text)[:12]}); rerun it with --setup {name(r)}"
+                )
 
 
 def require_every_setup(reports: Sequence[Mapping[str, Any]]) -> None:
@@ -509,6 +528,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         reports = [view(r) for r in raw]
         check_comparable(reports)
         require_every_setup(reports)
+        require_frozen_prompts(reports)
     except NotComparableError as error:
         print(f"refused: {error}", file=sys.stderr)
         return 2
