@@ -11,7 +11,7 @@ Meridian's 3-person IT team can't reliably say who has access to what across ~14
 | Company | Meridian (fictional), B2B SaaS |
 | People | 230, fully remote |
 | Footprint | 14 countries, 3 time-zone hubs: Americas, EMEA, APAC |
-| IT team | 3 people |
+| IT team | 3 (lead + 2 engineers) in Berlin and Toronto; nobody in APAC |
 | Identity | Okta SSO, Google Workspace |
 | Usernames | first.last@meridian.example; duplicates get a number (e.g. alex.kim2) |
 | Collaboration | Slack, Google Workspace |
@@ -172,9 +172,11 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **Metric:** tickets opened within 24 h of a pulse check, to see whether it surfaces problems people weren't reporting.
 - **Milestone 3, more ticket types and realistic traffic:** built as sub-milestones, in the order 3a, 3b, 3d, 3c.
   - **3a, done** (ADR-029, ADR-030 to ADR-032): the over-refusal fix and the narrowed self-description exception (items 7 and 8), the sealed blind held-out v3, and a seven-setup comparison on it ([results](evals/2026-11-12-held-out-v3-comparison.md)).
-  - **3b, next:** the verification ladder (item 6), plus two additions from 3a's results (ADR-033):
+  - **3b, next:** the verification ladder (item 6), two additions from 3a's results (ADR-033), and the agent-action kill switch and rate limit (ADR-008):
     - **TKT-004:** in held-out v3 every setup's models answered this self-described request correctly, but the role signal handed it to a person in every run. Fix the self-description exception on tuning data only, and measure the fix on a new sealed held-out v4, written blind like v3.
     - **A harder tuning set:** the big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality. Add cases that strong models get wrong.
+    - **Global kill switch on agent actions:** today a kill switch exists for proactive posts only (ADR-020). Build ADR-008's global switch: it stops all agent actions at once and routes open tickets to people, enforced by the MCP server outside the model, with every toggle in the audit log. Eval target: 0 actions after the switch is on.
+    - **Rate limit on agent actions:** there is none yet. Build ADR-008's limit, globally and per requester, also enforced by the MCP server, with every limit hit and override in the audit log. Eval target: 0 actions over the limit. It also bounds the name-existence probe ADR-017 accepts as residual risk.
   - **3d:** new ticket types and message shapes (items 1 to 4).
   - **3c:** the realistic month (item 5).
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
