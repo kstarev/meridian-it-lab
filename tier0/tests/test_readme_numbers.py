@@ -15,11 +15,14 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from meridian_dataset import generator
 from tier0.evals import compare_many as cm
 from tier0.evals import faults_readme as fr
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPARISON = ROOT / "docs/evals/2026-11-12-held-out-v3-comparison.json"
+M2_COMPARISON = ROOT / "docs/evals/2026-11-09-held-out-v2-comparison.json"
+V1_REPORT = ROOT / "docs/evals/2026-11-08-ollama-llama3.2.md"  # Markdown only, no JSON
 WORDS = {
     1: "one",
     2: "two",
@@ -91,12 +94,22 @@ def _runs_of(raw: dict[str, Any], ticket: str) -> list[dict[str, Any]]:
 
 
 @cache
-def _fault_runs() -> tuple[dict[str, Any], ...]:
-    """Each fault-injection run's models, in the table's run order (the stub left out)."""
+def _fault_reports() -> tuple[dict[str, Any], ...]:
+    """Each fault-injection report, in the table's run order."""
     return tuple(
-        fr._models(json.loads((ROOT / "docs/evals" / f"{stem}.json").read_text()))
-        for stem in fr.PUBLISHED
+        json.loads((ROOT / "docs/evals" / f"{stem}.json").read_text()) for stem in fr.PUBLISHED
     )
+
+
+def _fault_runs() -> tuple[dict[str, Any], ...]:
+    """Each fault-injection run's models (the stub left out)."""
+    return tuple(fr._models(report) for report in _fault_reports())
+
+
+def _one(values: Any) -> Any:
+    """The single value every report shares."""
+    (value,) = set(values)
+    return value
 
 
 def _fault_run(stem: str) -> tuple[int, dict[str, Any]]:
@@ -172,6 +185,92 @@ def test_headline_weaknesses() -> None:
     )
 
 
+# How evaluation works: the held-out set and the statistics bullets.
+
+
+def test_method_held_out_v3() -> None:
+    assert _one(r["seed"] for r in _raw()) == generator.HOLDOUT_V3_SEED
+    _says(f"- Held-out v3 ({_n_tickets()} tickets: ")
+
+
+def test_method_intervals() -> None:
+    methods = {(v["ci_method"]["pass_k"], v["ci_method"]["pass_1"]) for v in _views()}
+    assert methods == {("Wilson score interval, 95%", "ticket bootstrap, 95% percentile interval")}
+    _says(
+        f"- pass^{_k()} gets a Wilson 95% interval. pass^1 gets a bootstrap that resamples "
+        "whole tickets."
+    )
+
+
+def test_method_paired_bootstrap() -> None:
+    method = _comparison()["verdict"]["method"]
+    assert method["difference"].startswith("paired bootstrap over tickets,")
+    _says(
+        f"- Each pair of setups gets a paired bootstrap of the pass^{_k()} difference: "
+        f"{method['bootstrap_samples']:,} resamples of the same tickets, seed "
+        f"{method['bootstrap_seed']}."
+    )
+
+
+def test_method_bonferroni() -> None:
+    method = _comparison()["verdict"]["method"]
+    n = len(_views())
+    pairs = len(_comparison()["pairs"])
+    assert pairs == n * (n - 1) // 2
+    assert method["level"] == cm.level(n)
+    family = round(100 * (1 - cm.FAMILY_ALPHA))
+    assert f"Bonferroni over {pairs} pairs, family-wise {family}%" in method["difference"]
+    _says(
+        f"- {WORDS[n].capitalize()} setups make {pairs} pairs, so each interval is "
+        f"Bonferroni-corrected to {cm.pct(method['level'])} to keep the family-wise error at "
+        f"{round(100 * cm.FAMILY_ALPHA)}%."
+    )
+
+
+def test_method_claude_first_runs() -> None:
+    k = _k()
+    claude_k = _one(r["k"] for r in _claude())
+    for r in _claude():
+        v = cm.view(r)
+        assert v["full_k"] == claude_k
+        # The k = 3 view is the first k runs of each ticket.
+        first = sorted({run["run"] for run in r["runs_detail"]})[:k]
+        passed = {t["ticket"]: t["runs_passed"] for t in v["tickets"]}
+        for ticket in passed:
+            runs = [x for x in _runs_of(r, ticket) if x["run"] in first]
+            assert len(runs) == k and sum(x["passed"] for x in runs) == passed[ticket]
+        # Safety, cost and latency come from every run.
+        for key in ("unsafe_runs", "policy_violation_runs", "data_exposed_runs", "cost"):
+            assert v[key] == r[key], (cm.name(r), key)
+        assert v["latency_comparable"] == r["latency_comparable"]
+    _says(
+        f"- The Claude setups ran {claude_k} times per ticket, but are compared at pass^{k} on "
+        f"their first {k} runs. Safety, cost and latency count all {claude_k}."
+    )
+
+
+# Fault injection: the intro above the table.
+
+
+def test_faults_intro_setup() -> None:
+    reports = _fault_reports()
+    rate = _one(r["rate"] for r in reports)
+    k = _one(r["k"] for r in reports)
+    for models in _fault_runs():
+        for m in models.values():
+            s = m["summary"]
+            assert "outsider" in s and fr._groups(s)  # colleague and outsider tickets
+            for g in (*fr._groups(s), s["outsider"]):
+                assert g["runs"] == g["tickets"] * k  # each picked ticket runs k times
+    _says(
+        f"They pick {round(100 * rate)}% of the colleague and outsider tickets from "
+        f"{_one(len(r['world_seeds']) for r in reports)} "
+        f"{_one(r['message_pool'] for r in reports)} worlds "
+        f"(fault seed {_one(r['fault_seed'] for r in reports)}), let the real triage call run, "
+        f"and replace its answer with `own_username`. Each picked ticket runs {k} times."
+    )
+
+
 # Fault injection: the paragraph under the table.
 
 
@@ -217,6 +316,22 @@ def test_faults_outsiders_stopped_before_triage() -> None:
     _says(
         f"In every run, all {per_model} picked outsider runs per model were stopped by identity "
         "binding before triage."
+    )
+
+
+# Results on held-out v3: the intro.
+
+
+def test_results_intro() -> None:
+    seed = _one(r["seed"] for r in _raw())
+    assert seed == generator.HOLDOUT_V3_SEED
+    claude_k = _one(r["k"] for r in _claude())
+    for r in _claude():  # "runs 1 to 3": the runs a view keeps are numbered from 1
+        assert sorted({run["run"] for run in r["runs_detail"]})[: _k()] == [*range(1, _k() + 1)]
+    _says(
+        f"The final comparison ran on {_one(r['run_date'] for r in _raw())}: {_n_tickets()} "
+        f"tickets, k = {_k()} (k = {claude_k} for Claude, compared on runs 1 to {_k()}), "
+        f"seed {seed}."
     )
 
 
@@ -306,6 +421,33 @@ def test_bullet_no_off_format_replies() -> None:
         f"**No off-format replies** from the {WORDS[len(unenforced)]} setups without schema "
         f"enforcement: 0 runs each, so each one's {runs} failed everyday runs were all wrong "
         "answers"
+    )
+
+
+# Earlier results: the milestone 2 history paragraph.
+
+
+def test_m2_history() -> None:
+    m2 = json.loads(M2_COMPARISON.read_text())
+    reports = [json.loads((ROOT / p).read_text()) for p in m2["reports"]]
+    assert _one(r["seed"] for r in reports) == generator.HOLDOUT_V2_SEED
+    assert _one(r["provider"] for r in reports) == "ollama"  # local models
+    _says(
+        f"v2 was the sealed set for milestone 2's final comparison of {WORDS[len(reports)]} "
+        "local models"
+    )
+    text = V1_REPORT.read_text()
+    found = re.search(r"\*\*Model eval: (\w+) / (\S+), run on (\d{4}-\d\d-\d\d)\.\*\*", text)
+    assert found
+    provider, model, date = found.groups()
+    found = re.search(r"^seed (\d+) \(held-out\), k = (\d+),", text, re.MULTILINE)
+    assert found
+    seed, k = found.groups()
+    assert int(seed) == generator.HOLDOUT_SEED  # held-out v1
+    assert V1_REPORT.name == f"{date}-{provider}-{model}.md"
+    _says(
+        f"[{date}, {provider.capitalize()} `{model}`, held-out v1, k = {k}]"
+        f"(docs/evals/{V1_REPORT.name})"
     )
 
 
