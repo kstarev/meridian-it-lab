@@ -4,6 +4,7 @@ requires-python = "==3.13.*"
 
 [manifest]
 members = [
+    "meridian-access",
     "meridian-dataset",
     "meridian-it-lab",
     "tier0",
@@ -329,6 +330,17 @@ wheels = [
 ]
 
 [[package]]
+name = "meridian-access"
+version = "0.1.0"
+source = { editable = "access" }
+dependencies = [
+    { name = "meridian-dataset" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "meridian-dataset", editable = "dataset" }]
+
+[[package]]
 name = "meridian-dataset"
 version = "0.1.0"
 source = { editable = "dataset" }
@@ -338,6 +350,7 @@ name = "meridian-it-lab"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "meridian-access" },
     { name = "meridian-dataset" },
     { name = "tier0" },
 ]
@@ -351,6 +364,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "meridian-access", editable = "access" },
     { name = "meridian-dataset", editable = "dataset" },
     { name = "tier0", editable = "tier0" },
 ]
