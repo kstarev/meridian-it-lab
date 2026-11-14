@@ -65,7 +65,7 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 
 ## ADR-004: Ticket adapter with mock and real Linear
 
-**Date:** 2026-11-08 · **Status:** Accepted
+**Date:** 2026-11-08 · **Status:** Accepted; the real Linear demo workspace is superseded by ADR-036 (the demo uses the mock).
 
 **Context:** Meridian's ticketing tool is now Linear (previously Jira Service Management). tier0 opens, links and closes a Linear ticket for every request. Grading needs a ticket system that resets between runs and has a controllable clock for the 3-day close. The demo needs a real tool.
 
@@ -142,7 +142,7 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 
 ## ADR-009: Walking skeleton as milestone 1
 
-**Date:** 2026-11-08 · **Status:** Accepted
+**Date:** 2026-11-08 · **Status:** Accepted; the demo's free Slack workspace is superseded by ADR-036 (a replay shown as simulated Slack).
 
 **Context:** The plan now covers many features across four projects. Building it layer by layer risks finding integration problems late.
 
@@ -786,7 +786,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-034: Production runs on Slack, GitHub and AWS, with Claude behind a spend cap
 
-**Date:** 2026-11-14 · **Status:** Accepted; the CI tests are built, the rest is planned. Changes the out-of-scope list (hosting beyond GitHub Pages), so it needs this ADR.
+**Date:** 2026-11-14 · **Status:** Accepted; the CI tests are built, the rest is planned. Changes the out-of-scope list (hosting beyond GitHub Pages), so it needs this ADR. Amended by ADR-036: the AWS deployment stays planned, and a real Slack app is optional, not planned.
 
 **Context:** tier0 was benchmarked with local open models on one Mac and with Claude through the Anthropic API (ADR-030, ADR-031, ADR-032). Nothing said which of these a production deployment would use, and the brief ruled out any hosting beyond GitHub Pages.
 
@@ -824,3 +824,28 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - Hidden instructions in tickets and guides become test cases, not only a review concern.
 - The dataset grows, and the new test set needs its own blind helper run and seal.
 - This refines ADR-010's "code-owner review by the repo owner": the code owners are the IT team.
+
+## ADR-036: The demo is a replay on the mocks, labelled simulated Slack; a real Slack app is optional, not planned
+
+**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. The user's decision: there will be no Slack or Linear demo workspace. Changes the in-scope and out-of-scope lists (the demo workspaces), so it needs this ADR. Supersedes the demo halves of ADR-004 and ADR-009, and amends ADR-034.
+
+**Context:** The plan relied on free Slack and Linear workspaces with fake data for the demo: `make demo-live` and a 90-second video recorded in them (ADR-004, ADR-009, the brief's reviewer experience). There won't be any. The demo still has to show a person what tier0 does, from the request to the closed ticket, without anyone running code.
+
+**Decision:**
+
+- **No Slack or Linear demo workspace,** and no `make demo-live`.
+- **The demo is a scripted replay of real tier0 runs on the mocks:**
+  - The source is a recorded run log: for each ticket, the request as tier0 received it, the model's labels, the checks that ran, tier0's reply and the ticket's final state, as logged by a real run through the full pipeline (mock Slack, mock Linear, mock directory). The replay reads the log; it never calls a model, and nothing in it is written by hand or invented.
+  - It's rendered as a **Slack-style transcript in HTML**: the channel, the requester's message, tier0's reply, the hand-off to a person, the ticket closing three days later. A short screen recording of that page is optional.
+  - **Clearly labelled "Simulated Slack, fake data"** at the top of the page and on every screenshot or recording, so nobody mistakes it for a real workspace.
+  - It covers the stories the README tells: an answered request, a request for a colleague's login that's stopped and handed to a person, and an outsider who is refused.
+  - It's published on the project site (kstarev.dev/meridian-it-lab), and `make demo` keeps printing the plain-text transcript offline.
+- **The AWS deployment plan stays** (ADR-034): the tier0 service on AWS, tested and scheduled with GitHub Actions.
+- **A real Slack app is optional, not planned.** tier0 stays built and tested against the mock of Slack. Connecting a real workspace would be a new decision.
+- **The ticket adapter keeps both sides of its contract** (ADR-004), but only the mock Linear exists; a real Linear adapter is optional, not planned.
+
+**Consequences:**
+
+- The demo shows real behaviour (every line comes from a logged run) without a workspace or credentials, and it can't drift from the code: regenerating it from a new run log updates it.
+- Nothing shows tier0 talking to real Slack or Linear, so real HTTP, rate limits and Slack's own rendering stay untested; ADR-012's note that the demo workspaces would cover that gap no longer holds, and the brief's honest limits say so.
+- The brief's scope lists drop the demo workspaces, and the 90-second video becomes the replay page (with an optional recording).

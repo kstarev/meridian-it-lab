@@ -215,7 +215,7 @@ tier0 is built to run on hosted services only ([ADR-034](decisions.md#adr-034-pr
 
 | Part | Runs on | Status |
 | --- | --- | --- |
-| Where employees ask | Slack | Built against a mock of Slack; no live workspace yet |
+| Where employees ask | Slack | Built against a mock of Slack; a real Slack app is optional, not planned ([ADR-036](decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned)) |
 | Tests | GitHub Actions: lint and the full test suite on every pull request and on main, with the stub model only, no API keys and outbound network blocked ([workflow](../.github/workflows/ci.yml)) | Built |
 | Evals | GitHub Actions: a smoke eval on every pull request, the full k = 3 suite nightly and on main ([brief](brief.md#reviewer-experience)) | Planned |
 | Scheduled jobs | GitHub Actions: proactive posts ([ADR-020](decisions.md#adr-020-proactive-posts-come-only-from-templates-with-a-preview-and-strict-limits)) and the weekly learning loop ([ADR-005](decisions.md#adr-005-weekly-learning-loop-that-adds-knowledge-never-permissions)) | Planned |
