@@ -44,3 +44,5 @@ select = ["E", "W", "F", "I", "UP", "B", "S", "SIM", "RUF"]
 "**/tests/**" = ["S101"]
 # The dataset uses random.Random(seed) on purpose: it must be reproducible, not secret.
 "dataset/src/**" = ["S311"]
+# This test parses only the repo's own generated SVGs, never outside input.
+"tier0/tests/test_docs_img.py" = ["S101", "S314"]

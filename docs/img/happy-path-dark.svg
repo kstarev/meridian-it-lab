@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 934 120" width="934" height="120" role="img" aria-labelledby="title desc">
+<title id="title">A request that Tier0 answers</title>
+<desc id="desc">Animation of a request moving through Tier0: you ask in Slack, it checks it's really you, it looks up only your own account, it replies, and the ticket is closed.</desc>
+<style>
+text { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; fill: #e6edf3; text-anchor: middle; }
+#caption { fill: #f85149; font-size: 12px; }
+rect { stroke-width: 1.5; }
+.s0 { fill: #161b22; stroke: #30363d; animation: k0 6s ease-in-out infinite; }
+.s1 { fill: #161b22; stroke: #30363d; animation: k1 6s ease-in-out infinite; }
+.s2 { fill: #161b22; stroke: #30363d; animation: k2 6s ease-in-out infinite; }
+.s3 { fill: #161b22; stroke: #30363d; animation: k3 6s ease-in-out infinite; }
+.s4 { fill: #161b22; stroke: #30363d; animation: k4 6s ease-in-out infinite; }
+#dot { animation: kd 6s ease-in-out infinite; fill: #4493f8; }
+@keyframes k0 { 0% { fill: #161b22; stroke: #30363d } 0.5% { fill: #161b22; stroke: #30363d } 3% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k1 { 0% { fill: #161b22; stroke: #30363d } 19% { fill: #161b22; stroke: #30363d } 22% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k2 { 0% { fill: #161b22; stroke: #30363d } 38% { fill: #161b22; stroke: #30363d } 41% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k3 { 0% { fill: #161b22; stroke: #30363d } 57% { fill: #161b22; stroke: #30363d } 60% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k4 { 0% { fill: #161b22; stroke: #30363d } 76% { fill: #161b22; stroke: #30363d } 79% { fill: #0f2d1b; stroke: #3fb950 } 92% { fill: #0f2d1b; stroke: #3fb950 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes kd { 0% { transform: translateX(0px); opacity: 0; fill: #4493f8 } 3% { transform: translateX(0px); opacity: 1; fill: #4493f8 } 8% { transform: translateX(0px); opacity: 1; fill: #4493f8 } 22% { transform: translateX(190px); opacity: 1; fill: #4493f8 } 27% { transform: translateX(190px); opacity: 1; fill: #4493f8 } 41% { transform: translateX(380px); opacity: 1; fill: #4493f8 } 46% { transform: translateX(380px); opacity: 1; fill: #4493f8 } 60% { transform: translateX(570px); opacity: 1; fill: #4493f8 } 65% { transform: translateX(570px); opacity: 1; fill: #4493f8 } 79% { transform: translateX(760px); opacity: 1; fill: #4493f8 } 92% { transform: translateX(760px); opacity: 1; fill: #4493f8 } 97% { transform: translateX(760px); opacity: 0; fill: #4493f8 } 100% { transform: translateX(0px); opacity: 0; fill: #4493f8 } }
+@media (prefers-reduced-motion: reduce) {
+  .s0, .s1, .s2, .s3, .s4, #dot, #caption { animation: none; }
+  .s0 { fill: #0c2d4f; stroke: #4493f8; }
+  .s1 { fill: #0c2d4f; stroke: #4493f8; }
+  .s2 { fill: #0c2d4f; stroke: #4493f8; }
+  .s3 { fill: #0c2d4f; stroke: #4493f8; }
+  .s4 { fill: #0f2d1b; stroke: #3fb950; }
+  #dot { transform: translateX(760px); opacity: 1; fill: #4493f8; }
+}
+</style>
+<line x1="87" y1="90" x2="277" y2="90" stroke="#30363d" stroke-width="2"/>
+<line x1="277" y1="90" x2="467" y2="90" stroke="#30363d" stroke-width="2"/>
+<line x1="467" y1="90" x2="657" y2="90" stroke="#30363d" stroke-width="2"/>
+<line x1="657" y1="90" x2="847" y2="90" stroke="#30363d" stroke-width="2"/>
+<circle cx="87" cy="90" r="4" fill="#30363d"/>
+<circle cx="277" cy="90" r="4" fill="#30363d"/>
+<circle cx="467" cy="90" r="4" fill="#30363d"/>
+<circle cx="657" cy="90" r="4" fill="#30363d"/>
+<circle cx="847" cy="90" r="4" fill="#30363d"/>
+<rect class="s0" x="12" y="12" width="150" height="56" rx="10"/>
+<text x="87" y="36.5">You ask</text>
+<text x="87" y="52.5">in Slack</text>
+<rect class="s1" x="202" y="12" width="150" height="56" rx="10"/>
+<text x="277" y="36.5">Is it</text>
+<text x="277" y="52.5">really you?</text>
+<rect class="s2" x="392" y="12" width="150" height="56" rx="10"/>
+<text x="467" y="36.5">Your account</text>
+<text x="467" y="52.5">only</text>
+<rect class="s3" x="582" y="12" width="150" height="56" rx="10"/>
+<text x="657" y="44.5">It replies</text>
+<rect class="s4" x="772" y="12" width="150" height="56" rx="10"/>
+<text x="847" y="36.5">Ticket</text>
+<text x="847" y="52.5">closed</text>
+<circle id="dot" cx="87" cy="90" r="7"/>
+</svg>

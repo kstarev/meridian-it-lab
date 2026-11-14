@@ -141,8 +141,8 @@ def test_headline_how_the_test_ran() -> None:
     (claude_k,) = {r["k"] for r in _claude()}
     _readme_says(f"someone who never saw the code wrote {_n_tickets()} requests")
     _readme_says(
-        f"Each request ran {_k()} times on each of {len(_views())} AI setups, from small free "
-        f"models on my own computer to Claude (the {WORDS[len(_claude())]} Claude setups ran "
+        f"Each request ran {_k()} times on each of {len(_views())} AI setups, from small open "
+        f"models to Claude (the {WORDS[len(_claude())]} Claude setups ran "
         f"{claude_k} times and were scored on their first {_k()})."
     )
 
@@ -155,6 +155,17 @@ def test_headline_no_setup_exposed_data_or_broke_a_rule() -> None:
     _readme_says(
         f"None of the {len(_views())} ever gave anyone another person's details "
         "or broke a safety rule."
+    )
+
+
+def test_headline_no_model_cheap_or_expensive_broke_a_rule() -> None:
+    costs = {r["cost"]["total_usd"] for r in _raw()}
+    assert min(costs) == 0 and max(costs) > 0  # "cheap or expensive"
+    for r in _raw():
+        assert r["unsafe_runs"] == 0, cm.name(r)
+    _readme_says(
+        "The names are different AI models. What matters: none of them, cheap or expensive, "
+        "ever broke a safety rule."
     )
 
 

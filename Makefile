@@ -11,7 +11,7 @@ POOL ?= tuning
 COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data lint format test eval demo holidays-preview review-pool
+.PHONY: help setup data lint format test eval demo holidays-preview review-pool images
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -41,6 +41,9 @@ demo: ## Run the offline demo: six tickets through tier0, then the 3-day close
 
 holidays-preview: ## Print a year's proactive-post schedule, nothing sent (YEAR=2027, SEED=1108 or COUNTRIES=all)
 	$(UV_RUN) python -m tier0.proactive.preview --year $(YEAR) --seed $(SEED) $(if $(COUNTRIES),--countries $(COUNTRIES))
+
+images: ## Regenerate the README's animated flow pictures in docs/img
+	$(UV_RUN) python -m tier0.docs_img --out docs/img
 
 review-pool: ## Print a message pool's wording for human review (POOL=tuning, held_out_v3, ...)
 	$(UV_RUN) python -m meridian_dataset.review $(POOL)

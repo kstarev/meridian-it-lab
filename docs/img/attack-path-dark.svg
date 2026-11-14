@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 744 120" width="744" height="120" role="img" aria-labelledby="title desc">
+<title id="title">A request that Tier0 stops</title>
+<desc id="desc">Animation of a request for a colleague's login: Tier0 checks it's really you, then the check for your own account only turns red and stops the request, and it is handed to a person.</desc>
+<style>
+text { font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; fill: #e6edf3; text-anchor: middle; }
+#caption { fill: #f85149; font-size: 12px; }
+rect { stroke-width: 1.5; }
+.s0 { fill: #161b22; stroke: #30363d; animation: k0 6s ease-in-out infinite; }
+.s1 { fill: #161b22; stroke: #30363d; animation: k1 6s ease-in-out infinite; }
+.s2 { fill: #161b22; stroke: #30363d; animation: k2 6s ease-in-out infinite; }
+.s3 { fill: #161b22; stroke: #30363d; animation: k3 6s ease-in-out infinite; }
+#dot { animation: kd 6s ease-in-out infinite; fill: #4493f8; }
+#caption { opacity: 0; animation: kc 6s ease-in-out infinite; }
+@keyframes k0 { 0% { fill: #161b22; stroke: #30363d } 0.5% { fill: #161b22; stroke: #30363d } 3% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k1 { 0% { fill: #161b22; stroke: #30363d } 21% { fill: #161b22; stroke: #30363d } 24% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k2 { 0% { fill: #161b22; stroke: #30363d } 43% { fill: #161b22; stroke: #30363d } 46% { fill: #3a1014; stroke: #f85149 } 92% { fill: #3a1014; stroke: #f85149 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes k3 { 0% { fill: #161b22; stroke: #30363d } 61% { fill: #161b22; stroke: #30363d } 64% { fill: #0c2d4f; stroke: #4493f8 } 92% { fill: #0c2d4f; stroke: #4493f8 } 98% { fill: #161b22; stroke: #30363d } }
+@keyframes kd { 0% { transform: translateX(0px); opacity: 0; fill: #4493f8 } 3% { transform: translateX(0px); opacity: 1; fill: #4493f8 } 8% { transform: translateX(0px); opacity: 1; fill: #4493f8 } 24% { transform: translateX(190px); opacity: 1; fill: #4493f8 } 29% { transform: translateX(190px); opacity: 1; fill: #4493f8 } 46% { transform: translateX(380px); opacity: 1; fill: #4493f8 } 49% { transform: translateX(380px); opacity: 1; fill: #f85149 } 92% { transform: translateX(380px); opacity: 1; fill: #f85149 } 97% { transform: translateX(380px); opacity: 0; fill: #f85149 } 100% { transform: translateX(0px); opacity: 0; fill: #4493f8 } }
+@keyframes kc { 0% { opacity: 0 } 49% { opacity: 0 } 52% { opacity: 1 } 92% { opacity: 1 } 98% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) {
+  .s0, .s1, .s2, .s3, .s4, #dot, #caption { animation: none; }
+  .s0 { fill: #0c2d4f; stroke: #4493f8; }
+  .s1 { fill: #0c2d4f; stroke: #4493f8; }
+  .s2 { fill: #3a1014; stroke: #f85149; }
+  .s3 { fill: #0c2d4f; stroke: #4493f8; }
+  #dot { transform: translateX(380px); opacity: 1; fill: #f85149; }
+  #caption { opacity: 1; }
+}
+</style>
+<line x1="87" y1="90" x2="277" y2="90" stroke="#30363d" stroke-width="2"/>
+<line x1="277" y1="90" x2="467" y2="90" stroke="#30363d" stroke-width="2"/>
+<line x1="467" y1="90" x2="657" y2="90" stroke="#30363d" stroke-width="2" stroke-dasharray="5 5"/>
+<circle cx="87" cy="90" r="4" fill="#30363d"/>
+<circle cx="277" cy="90" r="4" fill="#30363d"/>
+<circle cx="467" cy="90" r="4" fill="#30363d"/>
+<circle cx="657" cy="90" r="4" fill="#30363d"/>
+<rect class="s0" x="12" y="12" width="150" height="56" rx="10"/>
+<text x="87" y="36.5">“What's my</text>
+<text x="87" y="52.5">colleague's login?”</text>
+<rect class="s1" x="202" y="12" width="150" height="56" rx="10"/>
+<text x="277" y="36.5">Is it</text>
+<text x="277" y="52.5">really you?</text>
+<rect class="s2" x="392" y="12" width="150" height="56" rx="10"/>
+<text x="467" y="36.5">Your account</text>
+<text x="467" y="52.5">only?</text>
+<rect class="s3" x="582" y="12" width="150" height="56" rx="10"/>
+<text x="657" y="36.5">Handed to</text>
+<text x="657" y="52.5">a person</text>
+<text id="caption" x="467" y="112">Not your account</text>
+<circle id="dot" cx="87" cy="90" r="7"/>
+</svg>

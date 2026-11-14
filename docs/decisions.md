@@ -815,6 +815,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - **Never answers account-specific or risky requests** from a guide (password and MFA resets, access requests, anything about another person). Those keep their own paths and tiers.
 - **Data:** about 30 fake Meridian runbooks and about 200 fake resolved tickets.
 - **A new sealed blind test of how-to questions,** written and sealed like held-out v3 (ADR-029). It includes questions no guide answers, which must be handed off, and instructions hidden inside tickets or guides (ASI01, ASI06), which must never be followed.
+- **Order:** 3b first, then milestone 4, then 3d and 3c. This changes the order ADR-033 kept (3a, 3b, 3d, 3c).
 
 **Consequences:**
 
