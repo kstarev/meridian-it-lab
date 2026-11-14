@@ -1,13 +1,15 @@
-"""The README's held-out v3 summary table, generated from the published comparison:
+"""The held-out v3 summary, cost and results tables, generated from the published comparison:
 
-    python -m tier0.evals.summary COMPARISON.json --readme README.md
+    python -m tier0.evals.summary COMPARISON.json --doc docs/how-it-works.md --readme README.md
 
 For the published v3 comparison, COMPARISON.json is
 docs/evals/2026-11-12-held-out-v3-comparison.json.
 
 It reads the comparison's .json, loads the setup reports it lists (published next to it, found by
-file name), and writes the summary table and the cost table between their markers. Nothing is
-re-run or re-scored, and the other generated README blocks are left as they are.
+file name), and writes the summary table and the cost table between their markers in the doc, and
+the short results table between its markers in the README. Doc links are relative to the doc's
+folder. Nothing is re-run or re-scored, every text is built before either file is written, and
+the other generated blocks are left as they are.
 """
 
 import argparse
@@ -23,6 +25,7 @@ from tier0.evals import compare_many
 
 @dataclass(frozen=True)
 class _Loaded:
+    raws: list[dict[str, Any]]
     views: list[dict[str, Any]]
     run_counts: list[int]
     links: list[str]
@@ -57,16 +60,18 @@ def _load(comparison: Path, root: Path) -> _Loaded:
     ]
     comparison_link = comparison.with_suffix(".md").resolve().relative_to(root.resolve()).as_posix()
     run_counts = [sum(t["runs"] for t in raw["tickets"]) for raw in raws]
-    return _Loaded(views, run_counts, links, comparison_link)
+    return _Loaded(raws, views, run_counts, links, comparison_link)
 
 
-def render_blocks(comparison: Path, root: Path) -> tuple[str, str]:
+def render_blocks(comparison: Path, root: Path) -> tuple[str, str, str]:
+    """The summary block, the cost block (links relative to root) and the README results block."""
     loaded = _load(comparison, root)
     return (
         compare_many.summary_block(loaded.views, loaded.links, loaded.comparison_link),
         compare_many.cost_block(
             loaded.views, loaded.run_counts, loaded.links, loaded.comparison_link
         ),
+        compare_many.results_block(loaded.raws, loaded.views),
     )
 
 
@@ -78,19 +83,27 @@ def render_cost(comparison: Path, root: Path) -> str:
     return render_blocks(comparison, root)[1]
 
 
+def render_results(comparison: Path) -> str:
+    return render_blocks(comparison, comparison.parent)[2]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tier0.evals.summary", description=__doc__)
     parser.add_argument("comparison", type=Path)
+    parser.add_argument("--doc", type=Path, required=True)
     parser.add_argument("--readme", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        summary, cost = render_blocks(args.comparison, args.readme.parent)
-        text = compare_many.replace_summary_block(args.readme.read_text(), summary)
-        text = compare_many.replace_cost_block(text, cost)
+        summary, cost, results = render_blocks(args.comparison, args.doc.parent)
+        doc_text = compare_many.replace_summary_block(args.doc.read_text(), summary)
+        doc_text = compare_many.replace_cost_block(doc_text, cost)
+        readme_text = compare_many.replace_results_block(args.readme.read_text(), results)
     except (ValueError, OSError) as error:
         print(f"refused: {error}", file=sys.stderr)
         return 2
-    args.readme.write_text(text)
+    args.doc.write_text(doc_text)
+    args.readme.write_text(readme_text)
+    print(f"doc: {args.doc}")
     print(f"readme: {args.readme}")
     return 0
 

@@ -1,12 +1,12 @@
-"""The README's hand-written result numbers, checked against the published reports.
+"""The hand-written result numbers, checked against the published reports.
 
-The README's tables are generated (test_summary.py, test_faults_readme.py). The numbers in its
-prose are written by hand: the headline in "The short version", the paragraph under the
-fault-injection table, the "What it shows" bullets under the v3 table, the hand-off range under
-the cost table and the "Small sample" and "One Mac" limits. Each test here rebuilds one sentence
-from the published reports (held-out v3, or the fault-injection runs) and requires it in the
-README word for word, and checks the facts the sentence states. If a report or a sentence
-changes, a test fails.
+The tables are generated (test_summary.py, test_faults_readme.py, test_comparison_doc.py). The
+numbers in prose are written by hand: the README's headline sentences ("What the testing
+showed"), and in docs/how-it-works.md the paragraph under the fault-injection table, the "What
+it shows" bullets under the v3 table, the hand-off range under the cost table and the "Small
+sample" and "One Mac" limits. Each test here rebuilds one sentence from the published reports
+(held-out v3, or the fault-injection runs) and requires it in the README or the doc word for
+word, and checks the facts the sentence states. If a report or a sentence changes, a test fails.
 """
 
 import json
@@ -37,9 +37,17 @@ WORDS = {
 }
 
 
+DOC = ROOT / "docs/how-it-works.md"
+
+
 @cache
 def _readme() -> str:
     return (ROOT / "README.md").read_text()
+
+
+@cache
+def _doc() -> str:
+    return DOC.read_text()
 
 
 @cache
@@ -76,6 +84,10 @@ def _claude() -> list[dict[str, Any]]:
 
 
 def _says(sentence: str) -> None:
+    assert sentence in _doc(), f"docs/how-it-works.md no longer says, word for word: {sentence!r}"
+
+
+def _readme_says(sentence: str) -> None:
     assert sentence in _readme(), f"README no longer says, word for word: {sentence!r}"
 
 
@@ -113,7 +125,7 @@ def _one(values: Any) -> Any:
 
 
 def _fault_run(stem: str) -> tuple[int, dict[str, Any]]:
-    """A fault-injection run's number in the README's table, and its models."""
+    """A fault-injection run's number in the doc's table, and its models."""
     i = fr.PUBLISHED.index(stem)
     return i + 1, _fault_runs()[i]
 
@@ -122,16 +134,16 @@ def _answered(models: dict[str, Any]) -> int:
     return sum(g["answered"] for m in models.values() for g in fr._groups(m["summary"]))
 
 
-# The short version: the headline result.
+# The README: the headline result.
 
 
 def test_headline_how_the_test_ran() -> None:
     (claude_k,) = {r["k"] for r in _claude()}
-    _says(f"someone who never saw the code wrote {_n_tickets()} requests")
-    _says(
-        f"Each request ran {_k()} times on each of {len(_views())} different AI setups, from "
-        f"small free models on a laptop to Claude (the {WORDS[len(_claude())]} Claude setups "
-        f"ran {claude_k} times and were scored on their first {_k()})."
+    _readme_says(f"someone who never saw the code wrote {_n_tickets()} requests")
+    _readme_says(
+        f"Each request ran {_k()} times on each of {len(_views())} AI setups, from small free "
+        f"models on my own computer to Claude (the {WORDS[len(_claude())]} Claude setups ran "
+        f"{claude_k} times and were scored on their first {_k()})."
     )
 
 
@@ -140,7 +152,7 @@ def test_headline_no_setup_exposed_data_or_broke_a_rule() -> None:
         assert r["policy_violation_runs"] == 0, cm.name(r)
         assert r["data_exposed_runs"] == 0, cm.name(r)
         assert r["unsafe_runs"] == 0, cm.name(r)
-    _says(
+    _readme_says(
         f"None of the {len(_views())} ever gave anyone another person's details "
         "or broke a safety rule."
     )
@@ -150,36 +162,20 @@ def test_headline_best_and_weakest_pass_k() -> None:
     scores = [round(v["pass_k"], 9) for v in _views()]
     best, worst = max(scores), min(scores)
     assert scores.count(best) > 1  # "the best setups", plural
-    _says(
+    _readme_says(
         f"The best setups got all {_k()} tries right on {round(100 * best)}% of the requests, "
         f"and the weakest on {round(100 * worst)}%."
     )
 
 
-def test_headline_every_colleague_request_was_refused() -> None:
-    for r in (*_raw(), *_views()):
-        for kind in ("named", "unnamed"):
-            group = r["colleague_outcomes"][kind]
-            assert group["refused"] > 0, (cm.name(r), kind)
-            assert group["answered"] == group["handed_off"] == 0, (cm.name(r), kind)
-    _says("Every request for a colleague's login was refused")
-
-
-def test_headline_cheapest_cloud_cost() -> None:
-    cheapest = min(_claude(), key=lambda r: r["cost"]["per_ticket_usd"])
-    cents = round(cheapest["cost"]["per_ticket_usd"] * 1000 * 100)
-    assert cm._cost(cheapest, per=1000) == f"${cents / 100:.2f}"  # the tables' rounding
-    _says(f"The cheapest cloud model cost {cents} cents per 1,000 requests.")
-
-
 def test_headline_weaknesses() -> None:
     assert _comparison()["verdict"]["winner"] is None
-    _says(f"With only {_n_tickets()} requests, no setup was clearly better than the others.")
+    _readme_says(f"With only {_n_tickets()} requests, no setup was clearly better than the others.")
     (ticket,) = set.intersection(*(_failed(v) for v in _views()))
     for r in _raw():
         for run in _runs_of(r, ticket):
             assert run["self_described"] and run["action"] == "escalate", cm.name(r)
-    _says(
+    _readme_says(
         "And one request from a new starter or intern who described themselves was passed to "
         "a person every time, when it should have been answered."
     )
@@ -446,8 +442,7 @@ def test_m2_history() -> None:
     assert int(seed) == generator.HOLDOUT_SEED  # held-out v1
     assert V1_REPORT.name == f"{date}-{provider}-{model}.md"
     _says(
-        f"[{date}, {provider.capitalize()} `{model}`, held-out v1, k = {k}]"
-        f"(docs/evals/{V1_REPORT.name})"
+        f"[{date}, {provider.capitalize()} `{model}`, held-out v1, k = {k}](evals/{V1_REPORT.name})"
     )
 
 

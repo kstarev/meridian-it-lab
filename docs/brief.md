@@ -120,7 +120,8 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 |---|---|---|
 | `docs/site/overview` | Recruiters, non-technical readers | Plain English, no jargon: Mia's story, one illustrated flow diagram, before/after, 3 headline numbers, a 90-second demo video, and skills mapped to IT Engineer, IT Engineering Manager and Head of IT |
 | `docs/site/technical` | IT managers, directors, CTOs | Mermaid architecture diagram, approval tiers, threat model, OWASP and NIST mapping, eval methodology (pass^k, planted needles), results dashboard, links to the ADRs |
-| `README.md` | Everyone, first screen | A 60-second summary: one sentence, demo GIF, results table, links to "Overview (non-technical)" and "Technical deep dive", CI and eval badges |
+| `README.md` | Everyone, first screen | A 2-minute plain-language story in the author's voice: one sentence, why it was built, what it does and what's next, why it's safe, the headline results with a small generated table, a simple flow diagram, links to "How it works (technical)" and "Decisions", a CI badge |
+| `docs/how-it-works.md` | IT managers, engineers | The technical deep dive: architecture, design principles, evaluation method, every generated results table, cost, how it runs in production, known limits, how to run it |
 
 **Mia's story.** "It's 3am in Singapore and Mia is locked out..." She can't authenticate, so the agent routes her to verified recovery. A human approver in the Americas hub, where it's afternoon, approves, and a just-in-time credential resets her MFA. The bot never resets MFA alone.
 
@@ -197,6 +198,14 @@ If the requester isn't authenticated or asks about someone else, the agent refus
      - Metric: which rung stopped each attack.
   7. **Held-out coverage for self-descriptions** (sealed in held-out v3, 3a, ADR-029): blind held-out messages where a new starter or intern describes themselves and asks for their own login, so the role signal's self-description exception (ADR-024) is measured on wording it wasn't shaped by. Held-out v2's normal messages predate the case.
   8. **Narrow the self-description exception** (done in 3a, ADR-024): it should apply only when the login word refers to the speaker ("my login", "mein Benutzername", "mi usuario", "mon identifiant"). Then "I'm the manager, send me their login" still fires the role signal, which the milestone 2 version (ADR-024) does not.
+- **Milestone 4, Knowledge (planned, not built; [ADR-035](decisions.md)):** tier0 answers how-to questions from the IT team's approved guides (runbooks). It builds on the weekly learning loop ([ADR-005](decisions.md)) and the reviewed memory repo ([ADR-010](decisions.md)).
+  - **Approved runbooks live in a GitHub repo** (meridian-memory), changed only by reviewed pull requests. CODEOWNERS is the IT team, so every change needs an IT approval. In the lab, the repo owner stands in for the IT team.
+  - **A weekly GitHub Actions job drafts guide updates** from resolved tickets. Personal details are removed before anything is drafted, and each draft is opened as a pull request for a person to approve. Nothing goes live unapproved.
+  - **The AI only picks which guide answers.** Code posts that guide's approved steps word for word, with a link to it, never steps the model wrote ([ADR-028](decisions.md)).
+  - **No good match means a hand-off** to a person.
+  - **Never answers account-specific or risky requests** from a guide (password and MFA resets, access requests, anything about another person). Those keep their own paths and tiers.
+  - **Dataset:** about 30 fake Meridian runbooks and about 200 fake resolved tickets, generated like the rest of the dataset.
+  - **A new sealed blind test of how-to questions,** written blind and sealed like held-out v3 ([ADR-029](decisions.md)). It includes questions a guide answers, questions no guide answers, which must be handed off, and instructions hidden inside tickets or guides (ASI01, ASI06), which must never be followed. The safety target stays 0 unsafe actions.
 - **Scope frozen 2026-11-08.** Any change needs an ADR.
 
 ## In scope

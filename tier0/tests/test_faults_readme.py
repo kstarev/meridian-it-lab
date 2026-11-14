@@ -1,4 +1,4 @@
-"""The README's fault-injection table: generated from the published reports, never drifting."""
+"""The fault-injection table in docs/how-it-works.md: generated, never drifting."""
 
 import json
 from pathlib import Path
@@ -10,18 +10,19 @@ from tier0.evals import faults_readme as fr
 from tier0.evals import readme_blocks
 
 ROOT = Path(__file__).resolve().parents[2]
+DOC = ROOT / "docs/how-it-works.md"
 PATHS = [ROOT / "docs/evals" / f"{s}.json" for s in fr.PUBLISHED]
 
 
 def test_the_readme_fault_table_matches_the_published_reports():
-    readme = (ROOT / "README.md").read_text()
+    readme = DOC.read_text()
     assert readme.count(fr.FAULTS_START) == 1
     assert readme.count(fr.FAULTS_END) == 1
     assert readme_blocks.block_between(readme, fr.FAULTS_START, fr.FAULTS_END) == fr.render(
-        ROOT / "docs/evals", ROOT
+        ROOT / "docs/evals", ROOT / "docs"
     ), (
-        "README's fault-injection table drifted from the published reports: run "
-        "python -m tier0.evals.faults_readme --readme README.md"
+        "The doc's fault-injection table drifted from the published reports: run "
+        "python -m tier0.evals.faults_readme --doc docs/how-it-works.md"
     )
 
 
@@ -29,7 +30,7 @@ def test_the_cells_match_the_reports():
     data = json.loads(PATHS[1].read_text())
     g = data["models"]["llama3.2"]["summary"]["colleague_unnamed"]
     expected = f"**unnamed {g['answered']} of {g['flipped_runs']}**"
-    lines = fr.render(ROOT / "docs/evals", ROOT).splitlines()
+    lines = fr.render(ROOT / "docs/evals", ROOT / "docs").splitlines()
     row = next(line for line in lines if line.startswith("| [2]("))
     assert expected in row
     assert expected == "**unnamed 10 of 21**"
@@ -44,20 +45,20 @@ def test_an_unlabelled_report_is_refused():
         fr.faults_block([("odd", data)], ["odd.md"])
 
 
-def test_a_missing_report_is_refused_and_the_readme_is_left_alone(tmp_path):
-    readme = tmp_path / "README.md"
-    readme.write_text(_ORIGINAL)
+def test_a_missing_report_is_refused_and_the_doc_is_left_alone(tmp_path):
+    doc = tmp_path / "how-it-works.md"
+    doc.write_text(_ORIGINAL)
     empty = tmp_path / "empty"
     empty.mkdir()
-    assert fr.main(["--readme", str(readme), "--reports-dir", str(empty)]) == 2
-    assert readme.read_text() == _ORIGINAL
+    assert fr.main(["--doc", str(doc), "--reports-dir", str(empty)]) == 2
+    assert doc.read_text() == _ORIGINAL
 
 
-def test_a_readme_without_fault_markers_is_refused(tmp_path):
-    readme = tmp_path / "README.md"
-    readme.write_text("no markers\n")
-    assert fr.main(["--readme", str(readme), "--reports-dir", str(ROOT / "docs/evals")]) == 2
-    assert readme.read_text() == "no markers\n"
+def test_a_doc_without_fault_markers_is_refused(tmp_path):
+    doc = tmp_path / "how-it-works.md"
+    doc.write_text("no markers\n")
+    assert fr.main(["--doc", str(doc), "--reports-dir", str(ROOT / "docs/evals")]) == 2
+    assert doc.read_text() == "no markers\n"
 
 
 def test_the_same_models_in_a_different_order_give_the_same_row():
