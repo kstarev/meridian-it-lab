@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from tier0.evals import readme_blocks
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, paired_bootstrap_difference
 
 README_START = "<!-- comparison:start -->"
@@ -212,10 +213,7 @@ def readme_block(
 
 
 def replace_readme_block(readme: str, block: str) -> str:
-    start, end = readme.find(README_START), readme.find(README_END)
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("README has no comparison markers")
-    return readme[:start] + block + readme[end + len(README_END) :]
+    return readme_blocks.replace_between(readme, block, README_START, README_END, "comparison")
 
 
 def main(argv: Sequence[str] | None = None) -> int:

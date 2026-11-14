@@ -405,7 +405,7 @@ def _repro_line(name: str, m: Mapping[str, Any], base: int) -> str:
     return f"- {name}: {what}; temperature {temp}; seeds {seeds} (base {base} + run)"
 
 
-_COLLEAGUE_LABELS = {
+COLLEAGUE_LABELS = {
     "colleague_named": "named",
     "colleague_unnamed": "unnamed",
 }
@@ -466,7 +466,7 @@ def render_markdown(data: Mapping[str, Any], command: str) -> str:
         "| --- | --- |" + " --- |" * 12,
     ]
     for name, m in data["models"].items():
-        for key, label in _COLLEAGUE_LABELS.items():
+        for key, label in COLLEAGUE_LABELS.items():
             c = m["summary"][key]
             lines.append(
                 f"| {_label(name, m)} | {label} | {c['flipped_runs']} "
@@ -598,7 +598,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args.out.with_suffix(".json").write_text(json.dumps(data, indent=2) + "\n")
     args.out.write_text(render_markdown(data, command))
     for name, m in data["models"].items():
-        for key, label in _COLLEAGUE_LABELS.items():
+        for key, label in COLLEAGUE_LABELS.items():
             c = m["summary"][key]
             print(
                 f"{_label(name, m)} [{label}]: {c['flipped_runs']} flipped colleague runs; "
