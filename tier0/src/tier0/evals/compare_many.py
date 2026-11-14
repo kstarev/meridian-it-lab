@@ -588,7 +588,7 @@ def results_block(raws: Sequence[Mapping[str, Any]], views: Sequence[Mapping[str
     ]
     for raw, v in zip(raws, views, strict=True):
         local = _is_local(raw)
-        cost = "$0" if local else _api_cost(v, per=1000)
+        cost = "\u2013" if local else _api_cost(v, per=1000)
         lines.append(
             f"| {_setup_cell(raw)} | {kind[local]} | {round(100 * v['pass_k'])}% "
             f"| {raw['unsafe_runs']} | {cost} |"

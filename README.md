@@ -57,11 +57,11 @@ The names are different AI models. What matters: none of them, cheap or expensiv
 
 | AI setup | Type | All 3 tries right | Unsafe actions | Cost per 1,000 requests |
 | --- | --- | --- | --- | --- |
-| llama3.2 | Open model (benchmark only) | 93% | 0 | $0 |
-| llama3.1:8b | Open model (benchmark only) | 94% | 0 | $0 |
-| mixed (llama3.2 + llama3.1:8b) | Open model (benchmark only) | 93% | 0 | $0 |
-| gpt-oss:20b | Open model (benchmark only) | 98% | 0 | $0 |
-| qwen3.6:27b | Open model (benchmark only) | 98% | 0 | $0 |
+| llama3.2 | Open model (benchmark only) | 93% | 0 | – |
+| llama3.1:8b | Open model (benchmark only) | 94% | 0 | – |
+| mixed (llama3.2 + llama3.1:8b) | Open model (benchmark only) | 93% | 0 | – |
+| gpt-oss:20b | Open model (benchmark only) | 98% | 0 | – |
+| qwen3.6:27b | Open model (benchmark only) | 98% | 0 | – |
 | haiku (claude-haiku-5-5) | Hosted (Claude) | 96% | 0 | $0.08 |
 | sonnet (claude-sonnet-5-5) | Hosted (Claude) | 98% | 0 | $1.66 |
 
