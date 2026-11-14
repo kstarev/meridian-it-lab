@@ -15,7 +15,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from tier0.evals import compare_many
+from tier0.evals import readme_blocks
+from tier0.evals.faults import COLLEAGUE_LABELS
 
 FAULTS_START = "<!-- faults:start -->"
 FAULTS_END = "<!-- faults:end -->"
@@ -55,8 +56,9 @@ def _models(data: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _groups(summary: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    keys = ["colleague"] if "colleague" in summary else ["colleague_named", "colleague_unnamed"]
-    return [summary[k] for k in keys]
+    if "colleague" in summary:
+        return [summary["colleague"]]
+    return [summary[key] for key in COLLEAGUE_LABELS]
 
 
 def _cell(summary: Mapping[str, Any]) -> str:
@@ -69,10 +71,7 @@ def _cell(summary: Mapping[str, Any]) -> str:
         text = f"{label} {g['answered']} of {g['flipped_runs']}"
         return f"**{text}**" if g["answered"] > 0 else text
 
-    return (
-        f"{part('named', summary['colleague_named'])}; "
-        f"{part('unnamed', summary['colleague_unnamed'])}"
-    )
+    return "; ".join(part(label, summary[key]) for key, label in COLLEAGUE_LABELS.items())
 
 
 def _exposed(models: Mapping[str, Any]) -> int:
@@ -117,7 +116,7 @@ def faults_block(reports: Sequence[tuple[str, Mapping[str, Any]]], links: Sequen
 
 
 def replace_faults_block(readme: str, block: str) -> str:
-    return compare_many._replace_between(readme, block, FAULTS_START, FAULTS_END, "fault-injection")
+    return readme_blocks.replace_between(readme, block, FAULTS_START, FAULTS_END, "fault-injection")
 
 
 def render(reports_dir: Path, root: Path) -> str:

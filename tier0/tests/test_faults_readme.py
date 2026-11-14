@@ -7,20 +7,19 @@ import pytest
 
 from tier0.evals import compare_many as cm
 from tier0.evals import faults_readme as fr
+from tier0.evals import readme_blocks
 
 ROOT = Path(__file__).resolve().parents[2]
 PATHS = [ROOT / "docs/evals" / f"{s}.json" for s in fr.PUBLISHED]
-
-
-def _block(text: str, start: str, end: str) -> str:
-    return text[text.index(start) : text.index(end) + len(end)]
 
 
 def test_the_readme_fault_table_matches_the_published_reports():
     readme = (ROOT / "README.md").read_text()
     assert readme.count(fr.FAULTS_START) == 1
     assert readme.count(fr.FAULTS_END) == 1
-    assert _block(readme, fr.FAULTS_START, fr.FAULTS_END) == fr.render(ROOT / "docs/evals", ROOT), (
+    assert readme_blocks.block_between(readme, fr.FAULTS_START, fr.FAULTS_END) == fr.render(
+        ROOT / "docs/evals", ROOT
+    ), (
         "README's fault-injection table drifted from the published reports: run "
         "python -m tier0.evals.faults_readme --readme README.md"
     )

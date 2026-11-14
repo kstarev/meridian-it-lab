@@ -26,6 +26,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from tier0.evals import readme_blocks
 from tier0.evals.report import NOT_COMPARABLE
 from tier0.evals.setups import COMPARISON_K, NO_SCHEMA_ENFORCEMENT, SETUPS, V3_K
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, paired_bootstrap_difference
@@ -538,25 +539,17 @@ def readme_block(
 
 
 def replace_readme_block(readme: str, block: str) -> str:
-    start, end = readme.find(README_START), readme.find(README_END)
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("README has no milestone 3 comparison markers")
-    return readme[:start] + block + readme[end + len(README_END) :]
-
-
-def _replace_between(readme: str, block: str, start_marker: str, end_marker: str, what: str) -> str:
-    start, end = readme.find(start_marker), readme.find(end_marker)
-    if start == -1 or end == -1 or end < start:
-        raise ValueError(f"README has no {what} markers")
-    return readme[:start] + block + readme[end + len(end_marker) :]
+    return readme_blocks.replace_between(
+        readme, block, README_START, README_END, "milestone 3 comparison"
+    )
 
 
 def replace_summary_block(readme: str, block: str) -> str:
-    return _replace_between(readme, block, SUMMARY_START, SUMMARY_END, "v3 summary")
+    return readme_blocks.replace_between(readme, block, SUMMARY_START, SUMMARY_END, "v3 summary")
 
 
 def replace_cost_block(readme: str, block: str) -> str:
-    return _replace_between(readme, block, COST_START, COST_END, "v3 cost")
+    return readme_blocks.replace_between(readme, block, COST_START, COST_END, "v3 cost")
 
 
 def _models(r: Mapping[str, Any]) -> str:

@@ -7,14 +7,10 @@ from pathlib import Path
 import pytest
 
 from tier0.evals import compare_many as cm
-from tier0.evals import summary
+from tier0.evals import readme_blocks, summary
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPARISON = ROOT / "docs/evals/2026-11-12-held-out-v3-comparison.json"
-
-
-def _block(text: str, start: str, end: str) -> str:
-    return text[text.index(start) : text.index(end) + len(end)]
 
 
 def _rows(block: str) -> dict[str, list[str]]:
@@ -30,7 +26,9 @@ def test_the_readme_summary_matches_the_published_comparison():
     readme = (ROOT / "README.md").read_text()
     assert readme.count(cm.SUMMARY_START) == 1
     assert readme.count(cm.SUMMARY_END) == 1
-    assert _block(readme, cm.SUMMARY_START, cm.SUMMARY_END) == summary.render(COMPARISON, ROOT), (
+    assert readme_blocks.block_between(readme, cm.SUMMARY_START, cm.SUMMARY_END) == summary.render(
+        COMPARISON, ROOT
+    ), (
         "README's v3 summary drifted from the published comparison: run python -m "
         "tier0.evals.summary docs/evals/2026-11-12-held-out-v3-comparison.json "
         "--readme README.md"
@@ -39,8 +37,8 @@ def test_the_readme_summary_matches_the_published_comparison():
 
 def test_the_summary_agrees_with_the_generated_comparison_block():
     readme = (ROOT / "README.md").read_text()
-    mine = _rows(_block(readme, cm.SUMMARY_START, cm.SUMMARY_END))
-    m3 = _rows(_block(readme, cm.README_START, cm.README_END))
+    mine = _rows(readme_blocks.block_between(readme, cm.SUMMARY_START, cm.SUMMARY_END))
+    m3 = _rows(readme_blocks.block_between(readme, cm.README_START, cm.README_END))
     assert len(mine) == 7
     for setup, cells in mine.items():
         assert setup in m3
@@ -74,7 +72,9 @@ def test_the_readme_cost_table_matches_the_published_comparison():
     readme = (ROOT / "README.md").read_text()
     assert readme.count(cm.COST_START) == 1
     assert readme.count(cm.COST_END) == 1
-    assert _block(readme, cm.COST_START, cm.COST_END) == summary.render_cost(COMPARISON, ROOT), (
+    assert readme_blocks.block_between(readme, cm.COST_START, cm.COST_END) == summary.render_cost(
+        COMPARISON, ROOT
+    ), (
         "README's v3 cost table drifted from the published comparison: run python -m "
         "tier0.evals.summary docs/evals/2026-11-12-held-out-v3-comparison.json "
         "--readme README.md"
@@ -83,10 +83,10 @@ def test_the_readme_cost_table_matches_the_published_comparison():
 
 def test_the_cost_table_agrees_with_the_generated_comparison_block():
     readme = (ROOT / "README.md").read_text()
-    cost = _rows(_block(readme, cm.COST_START, cm.COST_END))
-    m3 = _rows(_block(readme, cm.README_START, cm.README_END))
+    cost = _rows(readme_blocks.block_between(readme, cm.COST_START, cm.COST_END))
+    m3 = _rows(readme_blocks.block_between(readme, cm.README_START, cm.README_END))
     for setup in ("haiku", "sonnet"):
-        key = f"| [{setup}"[2:]
+        key = f"[{setup}"
         assert key in cost and key in m3, setup
         for cell in (cost[key][1], cost[key][2]):
             assert cell in m3[key], (setup, cell)
@@ -200,7 +200,7 @@ def test_the_readme_cost_table_quotes_the_reports_cost_note():
     for raw in summary.load_raw(COMPARISON):
         assert cm.LOCAL_COST_NOTE in raw["cost"]["note"]
     readme = (ROOT / "README.md").read_text()
-    assert cm.LOCAL_COST_NOTE in _block(readme, cm.COST_START, cm.COST_END)
+    assert cm.LOCAL_COST_NOTE in readme_blocks.block_between(readme, cm.COST_START, cm.COST_END)
 
 
 def test_cli_refuses_a_readme_without_cost_markers(tmp_path):
