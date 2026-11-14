@@ -1,0 +1,13 @@
+[project]
+name = "meridian-access"
+version = "0.1.0"
+description = "Access-as-Code for the fictional company Meridian. All data is synthetic."
+requires-python = ">=3.13,<3.14"
+dependencies = ["meridian-dataset"]
+
+[tool.uv.sources]
+meridian-dataset = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"

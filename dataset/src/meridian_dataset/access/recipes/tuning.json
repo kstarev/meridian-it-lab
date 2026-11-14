@@ -1,0 +1,21 @@
+{
+  "name": "tuning",
+  "headcount": 230,
+  "contractors": 18,
+  "orphaned_accounts": 23,
+  "orphaned_former_employees": 17,
+  "movers": 11,
+  "leavers_with_access": 8,
+  "rehires": 3,
+  "contractors_past_end": 5,
+  "leave_of_absence": 4,
+  "mass_termination": {"events": 1, "department": "Customer Success", "people": 30, "day": 28},
+  "drift": 6,
+  "break_glass": 3,
+  "name_changes": 4,
+  "duplicate_name_pairs": 2,
+  "export_layouts": 4,
+  "date_formats": ["iso", "dmy_slash", "mdy_slash", "d_mon_y"],
+  "username_only_exports": 20,
+  "cp1252_exports": 3
+}
