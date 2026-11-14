@@ -42,6 +42,8 @@ SAME = ("seed", "k", "generator_version")
 SAME_LOCAL = ("temperature", "model_seeds")
 FAMILY_ALPHA = 0.05
 EVERYDAY_TARGET = 0.80
+# Every report's cost note says this; the README's local-model cost cells quote it.
+LOCAL_COST_NOTE = "hardware and electricity are not counted"
 
 
 class NotComparableError(ValueError):
@@ -245,6 +247,28 @@ def _cost(r: Mapping[str, Any], per: int = 1) -> str:
     cost = r.get("cost", {})
     if not cost.get("total_usd"):
         return "$0 (local; hardware not counted)"
+    if per != 1:
+        return f"${per * cost['per_ticket_usd']:.2f}"
+    return f"${cost['per_ticket_usd']:.5f}"
+
+
+def _is_local(r: Mapping[str, Any]) -> bool:
+    return r["provider"] != "anthropic"
+
+
+def _local_cost(reports: Sequence[Mapping[str, Any]]) -> str:
+    """The local setups' cost cell, in the reports' own words."""
+    for r in reports:
+        if LOCAL_COST_NOTE not in r.get("cost", {}).get("note", ""):
+            raise NotComparableError(f"{name(r)}'s cost note doesn't say {LOCAL_COST_NOTE!r}")
+    return f"$0 (local; {LOCAL_COST_NOTE})"
+
+
+def _api_cost(r: Mapping[str, Any], per: int = 1) -> str:
+    """A paid setup's API cost, even when it is $0: a cloud setup is never shown as local."""
+    cost = r.get("cost", {})
+    if "per_ticket_usd" not in cost or "total_usd" not in cost:
+        raise NotComparableError(f"{name(r)} has no cost record")
     if per != 1:
         return f"${per * cost['per_ticket_usd']:.2f}"
     return f"${cost['per_ticket_usd']:.5f}"
@@ -551,10 +575,11 @@ def _summary_table(reports: Sequence[Mapping[str, Any]], links: Sequence[str]) -
     for r, link in zip(reports, links, strict=True):
         own = r.get("self_described_outcomes", {"tickets": 0})
         self_described = f"{own['pass_k']:.2f}" if own["tickets"] else "-"
+        cost = _local_cost([r]) if _is_local(r) else _api_cost(r, per=1000)
         lines.append(
             f"| [{name(r)}]({link}) | {_models(r)} | {r['pass_k']:.2f} ({_ci(r['pass_k_ci'])}) "
             f"| {_target(r)} | {r['policy_violation_runs']} | {r['data_exposed_runs']} "
-            f"| {r['handoff_rate']:.2f} | {self_described} | {_cost(r, per=1000)} "
+            f"| {r['handoff_rate']:.2f} | {self_described} | {cost} "
             f"| {_latency(r)} |"
         )
     return lines
@@ -586,18 +611,17 @@ def cost_block(
     links: Sequence[str],
     comparison_link: str,
 ) -> str:
-    local = [r for r in reports if not r.get("cost", {}).get("total_usd")]
+    local = [r for r in reports if _is_local(r)]
     rows = []
     if local:
         names = ", ".join(name(r) for r in local)
         rows.append(
-            f"| Local models ({len(local)} setups: {names}) | {_cost(local[0])} "
-            f"| {_cost(local[0], per=1000)} | $0 |"
+            f"| Local models ({len(local)} setups: {names}) | {_local_cost(local)} | $0 | $0 |"
         )
     for r, link, runs in zip(reports, links, run_counts, strict=True):
-        if r.get("cost", {}).get("total_usd"):
+        if not _is_local(r):
             rows.append(
-                f"| [{name(r)}]({link}) | {_cost(r)} | {_cost(r, per=1000)} "
+                f"| [{name(r)}]({link}) | {_api_cost(r)} | {_api_cost(r, per=1000)} "
                 f"| ${r['cost']['total_usd']:.4f} for {runs} runs |"
             )
     return "\n".join(

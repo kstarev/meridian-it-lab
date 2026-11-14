@@ -64,11 +64,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         summary = render(args.comparison, args.readme.parent)
         cost = render_cost(args.comparison, args.readme.parent)
-    except compare_many.NotComparableError as error:
+        text = compare_many.replace_summary_block(args.readme.read_text(), summary)
+        text = compare_many.replace_cost_block(text, cost)
+    except (ValueError, OSError) as error:
         print(f"refused: {error}", file=sys.stderr)
         return 2
-    text = compare_many.replace_summary_block(args.readme.read_text(), summary)
-    args.readme.write_text(compare_many.replace_cost_block(text, cost))
+    args.readme.write_text(text)
     print(f"readme: {args.readme}")
     return 0
 

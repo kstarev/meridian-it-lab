@@ -1,9 +1,10 @@
 """The README's fault-injection table, generated from the published fault-injection reports:
 
-    python -m tier0.evals.faults_readme REPORT.json ... --readme README.md
+    python -m tier0.evals.faults_readme --readme README.md [--reports-dir DIR]
 
-Runs are numbered in the order given. Each report's "what changed" label is fixed below by file
-name, and a report without a label is refused. Nothing is re-run.
+DIR defaults to docs/evals next to the README. Runs are numbered in PUBLISHED order (below), which
+the README's text ("In run 2", ...) depends on. Each report's "what changed" label is fixed below
+by file name, and a report without a label is refused. Nothing is re-run.
 """
 
 import argparse
@@ -45,6 +46,8 @@ LABELS: Mapping[str, str] = MappingProxyType(
     }
 )
 PUBLISHED = tuple(LABELS)
+# The README's intro states these once for every run, so the reports must agree on them.
+SAME_SETTINGS = ("k", "rate", "fault_seed", "world_seeds", "message_pool")
 
 
 def _models(data: Mapping[str, Any]) -> dict[str, Any]:
@@ -59,7 +62,8 @@ def _groups(summary: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 def _cell(summary: Mapping[str, Any]) -> str:
     if "colleague" in summary:
         g = summary["colleague"]
-        return f"{g['answered']} of {g['flipped_runs']}"
+        text = f"{g['answered']} of {g['flipped_runs']}"
+        return f"**{text}**" if g["answered"] > 0 else text
 
     def part(label: str, g: Mapping[str, Any]) -> str:
         text = f"{label} {g['answered']} of {g['flipped_runs']}"
@@ -81,10 +85,16 @@ def _exposed(models: Mapping[str, Any]) -> int:
 
 
 def faults_block(reports: Sequence[tuple[str, Mapping[str, Any]]], links: Sequence[str]) -> str:
-    models = [list(_models(data)) for _, data in reports]
-    if any(m != models[0] for m in models):
+    for stem, _ in reports:
+        if stem not in LABELS:
+            raise ValueError(f"no label for {stem}")
+    names = list(_models(reports[0][1]))
+    if any(set(_models(data)) != set(names) for _, data in reports):
         raise ValueError("the reports do not list the same models")
-    names = models[0]
+    first = reports[0][1]
+    for key in SAME_SETTINGS:
+        if any(data.get(key) != first.get(key) for _, data in reports):
+            raise ValueError(f"the reports differ in {key}")
     header = "| Run | What changed | " + " | ".join(
         f"{m}: flipped colleague runs answered" for m in names
     )
@@ -110,12 +120,9 @@ def replace_faults_block(readme: str, block: str) -> str:
     return compare_many._replace_between(readme, block, FAULTS_START, FAULTS_END, "fault-injection")
 
 
-def render(paths: Sequence[Path], root: Path) -> str:
-    reports = []
-    for p in paths:
-        if p.stem not in LABELS:
-            raise ValueError(f"no label for {p.stem}")
-        reports.append((p.stem, json.loads(p.read_text())))
+def render(reports_dir: Path, root: Path) -> str:
+    paths = [reports_dir / f"{stem}.json" for stem in PUBLISHED]
+    reports = [(p.stem, json.loads(p.read_text())) for p in paths]
     links = [p.with_suffix(".md").resolve().relative_to(root.resolve()).as_posix() for p in paths]
     return faults_block(reports, links)
 
@@ -123,15 +130,17 @@ def render(paths: Sequence[Path], root: Path) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     prog = "python -m tier0.evals.faults_readme"
     parser = argparse.ArgumentParser(prog=prog, description=__doc__)
-    parser.add_argument("reports", nargs="+", type=Path)
     parser.add_argument("--readme", type=Path, required=True)
+    parser.add_argument("--reports-dir", type=Path, default=None)
     args = parser.parse_args(argv)
+    reports_dir = args.reports_dir or args.readme.parent / "docs" / "evals"
     try:
-        block = render(args.reports, args.readme.parent)
-    except ValueError as error:
+        block = render(reports_dir, args.readme.parent)
+        text = replace_faults_block(args.readme.read_text(), block)
+    except (ValueError, OSError) as error:
         print(f"refused: {error}", file=sys.stderr)
         return 2
-    args.readme.write_text(replace_faults_block(args.readme.read_text(), block))
+    args.readme.write_text(text)
     print(f"readme: {args.readme}")
     return 0
 
