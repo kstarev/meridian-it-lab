@@ -33,8 +33,6 @@ _COUNTRY_WEIGHT = {
 }  # fmt: skip
 COUNTRY_WEIGHTS: tuple[int, ...] = tuple(_COUNTRY_WEIGHT[c] for c in COUNTRIES)
 
-# Extra family names with accents; names.py has none and must not change.
-EXTRA_FAMILY_NAMES: tuple[str, ...] = ("Müller", "Çelik", "Gómez", "Núñez", "Østergaard")
 PREFERRED_NAMES: dict[str, str] = {
     "Mateus": "Matt",
     "Oliver": "Ollie",
@@ -55,20 +53,104 @@ NOBODY_ACCOUNTS: tuple[tuple[str, str], ...] = (
     ("jo.marlowe", "Jo Marlowe"),
 )
 
-DATE_FORMATS: tuple[str, ...] = ("iso", "dmy_slash", "mdy_slash", "d_mon_y")
-MONTH_ABBR: tuple[str, ...] = (
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-)  # fmt: skip
-
 HIRES_IN_MONTH = 6
 CLEAN_FORMER = 10  # left before the month and fully deprovisioned
-ACCENTED_PEOPLE = 8
-BOM_MODULUS, BOM_REMAINDER = 16, 7  # which exports start with a byte order mark
+
+# ---- the public vocabulary a recipe is written in ----------------------------------------
+
+FINDING_TYPES: tuple[str, ...] = (
+    "orphaned_account",
+    "mover_stale_access",
+    "leaver_access_left",
+    "rehire",
+    "contractor_past_end",
+    "leave_of_absence",
+    "hris_mass_termination",
+    "drift",
+    "break_glass",
+    "hr_data_error",
+)
+ACTIONS: tuple[str, ...] = (
+    "remove",
+    "suspend",
+    "add",
+    "flag",
+    "never_touch",
+    "block_two_approvers",
+)
+EVENT_KINDS: tuple[str, ...] = (
+    "hire",
+    "move",
+    "terminate",
+    "leave_start",
+    "leave_end",
+    "rehire",
+    "name_change",
+    "field_change",
+)
+EXPORT_FIELDS: tuple[str, ...] = (
+    "email",
+    "username",
+    "full_name",
+    "display_name",
+    "first_name",
+    "last_name",
+    "role_level",
+    "last_login",
+    "created",
+    "status",
+    "department",
+    "title",
+)
+DISPLAY_STYLES: tuple[str, ...] = (
+    "first_last",
+    "last_comma_first",
+    "upper_first_last",
+    "preferred_last",
+    "first_initial_last",
+)
+PLACEHOLDERS: tuple[str, ...] = ("{first}", "{last}", "{f}", "{l}", "{n}")
+DELIMITERS: tuple[str, ...] = (",", ";", "\t", "|")
+SYSTEMS: tuple[str, ...] = ("okta", "google", "slack", "hris")
+SPECIAL_DATES: tuple[str, ...] = ("excel_serial", "unix_epoch")
+EMPLOYMENT_TYPES: tuple[str, ...] = ("employee", "contractor")
+STATUSES: tuple[str, ...] = ("active", "on_leave", "terminated")
+ACCOUNT_STATES: tuple[str, ...] = ("active", "suspended", "deprovisioned")
+ACCOUNT_ROLES: tuple[str, ...] = ("member", "admin")
+
+_FOLD = {
+    "Ø": "O", "ø": "o", "Ł": "L", "ł": "l", "Đ": "D", "đ": "d", "Æ": "AE", "æ": "ae",
+    "Œ": "OE", "œ": "oe", "ß": "ss", "Ð": "D", "ð": "d", "Þ": "Th", "þ": "th", "\u0131": "i",
+    "Ħ": "H", "ħ": "h",
+}  # fmt: skip
 
 
 def ascii_fold(text: str) -> str:
-    text = text.replace("Ø", "O").replace("ø", "o")
-    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    """ASCII form of a name for emails and usernames.
+
+    NFKD, combining marks dropped, a few letters that do not decompose mapped by hand,
+    apostrophes, periods, spaces and hyphens dropped. A name in a script with no ASCII
+    form (say Greek or Han) becomes "u" plus the hex code points, so it is never empty.
+    """
+    mapped = "".join(_FOLD.get(c, c) for c in text)
+    decomposed = unicodedata.normalize("NFKD", mapped)
+    kept = [
+        c
+        for c in decomposed
+        if not unicodedata.combining(c) and c not in "'\u2019. -" and c.isascii()
+    ]
+    folded = "".join(kept)
+    if not folded and text.strip(" '\u2019.-"):
+        return "u" + "".join(f"{ord(c):x}" for c in text if c not in " '\u2019.-")
+    return folded
+
+
+def dept_sizes(headcount: int) -> dict[str, int]:
+    """People per department for a headcount (IT is always exactly 3)."""
+    rest = headcount - IT_SIZE
+    sizes = {d: rest * w // 100 for d, w in DEPT_WEIGHTS.items()}
+    sizes["Engineering"] += rest - sum(sizes.values())
+    return {d: sizes.get(d, IT_SIZE) for d in DEPT_NAMES}
 
 
 # ---- apps: 140 = 45 SSO + 95 not ---------------------------------------------------------

@@ -29,6 +29,8 @@ The access world in the shared dataset ([AAC-004](docs/adr/004-extend-the-shared
 - [ ] The 95 exports use at least 4 column layouts and the 4 date formats, and some list usernames only, checked by a test.
 - [ ] The answer key is written apart from everything the code under test reads, and a test fails if any collector input contains an answer-key field.
 - [ ] A blind helper has written the held-out recipe; it's sealed by SHA-256 with count-only tests, and `--final-score=held_out_a1` is the only way to build it.
+- [ ] The held-out recipe brings mess the tuning recipe doesn't have (new headers, date formats, username patterns, name spellings, an encoding and custom HR cases), checked yes/no by tests ([AAC-009](docs/adr/009-held-out-recipe-can-bring-new-mess.md)).
+- [ ] The held-out answer key passes the code checks (references, duplicates and contradictions, counts against the recipe, completeness from the world), and a second blind reviewer reports PASS.
 - [ ] The package is a workspace member with its tests in CI.
 
 ## 3. Policy YAML and desired state
@@ -97,7 +99,9 @@ The sealed final score and a page that explains it.
 
 **Done when:**
 
-- [ ] The held-out world is scored once, with the frozen prompts and the chosen model, in an owner-approved GitHub Actions run; the report is published in `docs/evals/`.
+- [ ] The held-out world is scored once, with the frozen prompts and the chosen model, in an owner-approved GitHub Actions run.
+- [ ] Every disagreement between the tool and the key has the owner's ruling in the rulings log before any number is published; key errors are reported separately and not counted against the tool ([AAC-010](docs/adr/010-human-rulings-before-publishing.md)).
+- [ ] The report is published in `docs/evals/`.
 - [ ] Precision and recall per problem type (target ≥ 0.90 each), identity matching rules only vs rules + AI, the safety counts (target 0) and cost, with intervals.
 - [ ] `site/access/` is live at kstarev.dev/meridian-it-lab/access/, deployed by the existing Pages workflow.
 - [ ] Every number on the page is checked against the published report by a test, as `test_site_numbers.py` does for tier0.

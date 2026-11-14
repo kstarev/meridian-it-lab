@@ -6,7 +6,7 @@ it was built from the same seed and recipe.
 
 from dataclasses import dataclass
 
-ACCESS_GENERATOR_VERSION = "0.1.0"
+ACCESS_GENERATOR_VERSION = "0.3.0"
 ACCESS_TUNING_SEED = 6108
 # The world is the state at the end of the simulated month; HRIS events fall on
 # days 0-29 of November 2026.
@@ -43,7 +43,7 @@ class HrisEvent:
     day: int  # 0-29, days after MONTH_START
     date: str
     employee_id: str
-    kind: str  # hire | move | terminate | leave_start | leave_end | rehire | name_change
+    kind: str  # hire | move | terminate | leave_start | leave_end | rehire | name_change | ...
     fields: tuple[tuple[str, str], ...]
     source: str  # hr | bulk_import
 
@@ -116,11 +116,15 @@ class SlackScimUser:
 class AppExport:
     app_id: str
     file_name: str  # <app_id>.csv
-    encoding: str  # utf-8 | utf-8-sig | cp1252
-    layout: str  # A | B | C | D
-    date_format: str  # iso | dmy_slash | mdy_slash | d_mon_y
+    encoding: str  # any Python text codec the recipe names
+    layout: str  # the recipe's layout name
+    date_format: str  # the recipe's date format name
     header: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...]  # a blank row is all empty strings
+    delimiter: str = ","
+    quote_all: bool = False
+    preamble: tuple[str, ...] = ()  # lines before the header
+    footer: tuple[str, ...] = ()  # lines after the last row
 
 
 @dataclass(frozen=True, slots=True)
