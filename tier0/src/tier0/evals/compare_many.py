@@ -55,6 +55,12 @@ FAMILY_ALPHA = 0.05
 EVERYDAY_TARGET = 0.80
 # Every report's cost note says this; the README's local-model cost cells quote it.
 LOCAL_COST_NOTE = "hardware and electricity are not counted"
+# The README results table's cost cell for an open model: an en dash for "not applicable",
+# since the open models were a benchmark only. (A plain "-" in the other tables means
+# "not recorded".)
+NO_API_COST = "\N{EN DASH}"
+# Each provider a v3 setup may use, and whether it runs locally (an open model) or is hosted.
+PROVIDER_LOCAL: Mapping[str, bool] = {"ollama": True, "anthropic": False}
 
 
 class NotComparableError(ValueError):
@@ -264,14 +270,23 @@ def _cost(r: Mapping[str, Any], per: int = 1) -> str:
 
 
 def _is_local(r: Mapping[str, Any]) -> bool:
-    return r["provider"] != "anthropic"
+    """True for an open model run locally, False for a hosted API; refuses any other provider,
+    so a new hosted API is never shown as a free local benchmark."""
+    if r["provider"] not in PROVIDER_LOCAL:
+        raise NotComparableError(f"{name(r)} has an unknown provider: {r['provider']!r}")
+    return PROVIDER_LOCAL[r["provider"]]
+
+
+def _check_local_cost_notes(reports: Sequence[Mapping[str, Any]]) -> None:
+    """Refuse a local report whose cost note doesn't say what the tables quote."""
+    for r in reports:
+        if LOCAL_COST_NOTE not in r.get("cost", {}).get("note", ""):
+            raise NotComparableError(f"{name(r)}'s cost note doesn't say {LOCAL_COST_NOTE!r}")
 
 
 def _local_cost(reports: Sequence[Mapping[str, Any]]) -> str:
     """The local setups' cost cell, in the reports' own words."""
-    for r in reports:
-        if LOCAL_COST_NOTE not in r.get("cost", {}).get("note", ""):
-            raise NotComparableError(f"{name(r)}'s cost note doesn't say {LOCAL_COST_NOTE!r}")
+    _check_local_cost_notes(reports)
     return f"$0 (local; {LOCAL_COST_NOTE})"
 
 
@@ -576,7 +591,7 @@ def _setup_cell(r: Mapping[str, Any]) -> str:
 def results_block(raws: Sequence[Mapping[str, Any]], views: Sequence[Mapping[str, Any]]) -> str:
     """The README's short results table. raws are the full reports, views their k = 3 views."""
     k = views[0]["k"]
-    _local_cost([v for v in views if _is_local(v)])
+    _check_local_cost_notes([v for v in views if _is_local(v)])
     kind = {True: "Open model (benchmark only)", False: "Hosted (Claude)"}
     lines = [
         RESULTS_START,
@@ -588,7 +603,7 @@ def results_block(raws: Sequence[Mapping[str, Any]], views: Sequence[Mapping[str
     ]
     for raw, v in zip(raws, views, strict=True):
         local = _is_local(raw)
-        cost = "\u2013" if local else _api_cost(v, per=1000)
+        cost = NO_API_COST if local else _api_cost(v, per=1000)
         lines.append(
             f"| {_setup_cell(raw)} | {kind[local]} | {round(100 * v['pass_k'])}% "
             f"| {raw['unsafe_runs']} | {cost} |"

@@ -282,3 +282,38 @@ def test_the_readme_results_agree_with_the_doc_summary_and_cost():
     for setup in ("haiku", "sonnet"):
         row = next(c for k, c in results.items() if k.startswith(setup))
         assert row[4] == cost[f"[{setup}"][2]
+
+
+def _results_inputs():
+    raws = summary.load_raw(COMPARISON)
+    return [dict(r) for r in raws], [dict(v) for v in summary.load_reports(COMPARISON)]
+
+
+def test_the_readme_results_cost_cells_are_a_dash_for_open_models_and_real_for_claude():
+    raws, views = _results_inputs()
+    rows = _results_rows(cm.results_block(raws, views))
+    assert len(rows) == len(raws) == 7
+    for (setup, cells), raw, view in zip(rows.items(), raws, views, strict=True):
+        if raw["provider"] == "ollama":
+            assert cells[1] == "Open model (benchmark only)", setup
+            assert cells[4] == cm.NO_API_COST == "\N{EN DASH}", setup
+        else:
+            assert raw["provider"] == "anthropic"
+            assert cells[1] == "Hosted (Claude)", setup
+            assert cells[4] == f"${1000 * view['cost']['per_ticket_usd']:.2f}", setup
+            assert cells[4] not in ("$0", cm.NO_API_COST), setup
+
+
+def test_the_results_table_refuses_an_unknown_provider():
+    raws, views = _results_inputs()
+    raws[0] = {**raws[0], "provider": "openai"}
+    views[0] = {**views[0], "provider": "openai"}
+    with pytest.raises(cm.NotComparableError, match="unknown provider"):
+        cm.results_block(raws, views)
+
+
+def test_the_results_table_refuses_a_local_report_whose_cost_note_lacks_the_wording():
+    raws, views = _results_inputs()
+    views[0] = {**views[0], "cost": {**views[0]["cost"], "note": "free"}}
+    with pytest.raises(cm.NotComparableError, match="cost note"):
+        cm.results_block(raws, views)
