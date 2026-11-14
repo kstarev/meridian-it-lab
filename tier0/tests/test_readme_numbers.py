@@ -1,22 +1,37 @@
 """The README's hand-written result numbers, checked against the published reports.
 
 The README's tables are generated (test_summary.py, test_faults_readme.py). The numbers in its
-prose, the headline in "The short version" and the "What it shows" bullets under the v3 table,
-are written by hand. Each test here rebuilds one sentence from the published held-out v3
-reports and requires it in the README word for word, and checks the facts the sentence
-states. If a report or a sentence changes, a test fails.
+prose are written by hand: the headline in "The short version", the paragraph under the
+fault-injection table, the "What it shows" bullets under the v3 table, the hand-off range under
+the cost table and the "Small sample" and "One Mac" limits. Each test here rebuilds one sentence
+from the published reports (held-out v3, or the fault-injection runs) and requires it in the
+README word for word, and checks the facts the sentence states. If a report or a sentence
+changes, a test fails.
 """
 
 import json
+import re
 from functools import cache
 from pathlib import Path
 from typing import Any
 
 from tier0.evals import compare_many as cm
+from tier0.evals import faults_readme as fr
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPARISON = ROOT / "docs/evals/2026-11-12-held-out-v3-comparison.json"
-WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven"}
+WORDS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+}
 
 
 @cache
@@ -73,6 +88,25 @@ def _runs_of(raw: dict[str, Any], ticket: str) -> list[dict[str, Any]]:
     runs = [run for run in raw["runs_detail"] if run["ticket"] == ticket]
     assert runs, (cm.name(raw), ticket)
     return runs
+
+
+@cache
+def _fault_runs() -> tuple[dict[str, Any], ...]:
+    """Each fault-injection run's models, in the table's run order (the stub left out)."""
+    return tuple(
+        fr._models(json.loads((ROOT / "docs/evals" / f"{stem}.json").read_text()))
+        for stem in fr.PUBLISHED
+    )
+
+
+def _fault_run(stem: str) -> tuple[int, dict[str, Any]]:
+    """A fault-injection run's number in the README's table, and its models."""
+    i = fr.PUBLISHED.index(stem)
+    return i + 1, _fault_runs()[i]
+
+
+def _answered(models: dict[str, Any]) -> int:
+    return sum(g["answered"] for m in models.values() for g in fr._groups(m["summary"]))
 
 
 # The short version: the headline result.
@@ -135,6 +169,54 @@ def test_headline_weaknesses() -> None:
     _says(
         "And one request from a new starter or intern who described themselves was passed to "
         "a person every time, when it should have been answered."
+    )
+
+
+# Fault injection: the paragraph under the table.
+
+
+def test_faults_run_2_unnamed_requests_got_through() -> None:
+    n, models = _fault_run("2026-11-09-fault-injection-named-unnamed")
+    for m in models.values():  # no name in the message, so the mention check never fires
+        assert m["summary"]["colleague_unnamed"]["mention_check_caught"] == 0
+    g = models["llama3.2"]["summary"]["colleague_unnamed"]
+    # The runs the model check missed are the ones answered, and the only ones in the run.
+    assert g["answered"] == g["neither"] == g["flipped_runs"] - g["model_check_caught"]
+    assert _answered(models) == g["answered"]
+    assert g["policy_violation_runs"] == g["answered"]
+    _says(
+        f"In run {n}, llama3.2's model check caught only {g['model_check_caught']} of "
+        f"{g['flipped_runs']} flipped unnamed runs, and the mention check had no name to look "
+        f"up. {WORDS[g['answered']].capitalize()} runs were answered: "
+        f"{g['policy_violation_runs']} policy violations. Data exposed stayed "
+        f"{fr._exposed(models)}, because the self-only token can return only the requester's "
+        "own username."
+    )
+
+
+def test_faults_run_3_nothing_answered() -> None:
+    n, models = _fault_run("2026-11-09-fault-injection-k-role-signal")
+    assert _answered(models) == 0
+    g = models["llama3.2"]["summary"]["colleague_unnamed"]
+    _says(
+        f"In run {n} the model check caught {g['model_check_caught']} of {g['flipped_runs']} "
+        f"and the role signal {g['role_signal_caught']} of {g['flipped_runs']}, and nothing "
+        "was answered."
+    )
+
+
+def test_faults_outsiders_stopped_before_triage() -> None:
+    runs = set()
+    for models in _fault_runs():
+        for m in models.values():
+            o = m["summary"]["outsider"]
+            assert o["reached_triage"] == 0
+            assert o["handed_to_identity_verification"] == o["runs"]
+            runs.add(o["runs"])
+    (per_model,) = runs
+    _says(
+        f"In every run, all {per_model} picked outsider runs per model were stopped by identity "
+        "binding before triage."
     )
 
 
@@ -225,3 +307,49 @@ def test_bullet_no_off_format_replies() -> None:
         f"enforcement: 0 runs each, so each one's {runs} failed everyday runs were all wrong "
         "answers"
     )
+
+
+# Cost: the hand-off range under the table.
+
+
+def test_cost_handoff_range() -> None:
+    rates = [f"{v['handoff_rate']:.2f}" for v in _views()]  # the v3 tables' rounding
+    low, high = min(rates), max(rates)
+    assert low != high  # "0.13 to 0.15", a range
+    _says(
+        f"the hand-off rate counts how many runs a person has to pick up ({low} to {high} on v3)."
+    )
+
+
+# Honest limits.
+
+
+def test_limit_small_sample() -> None:
+    assert _comparison()["verdict"]["winner"] is None
+    _says(f"**Small sample.** {_n_tickets()} tickets can only show large gaps")
+    (unnamed,) = {v["colleague_outcomes"]["unnamed"]["tickets"] for v in _views()}
+    (described,) = {v["self_described_outcomes"]["tickets"] for v in _views()}
+    _says(f"Only {unnamed} tickets name nobody and {described} are self-descriptions")
+    scores: dict[tuple[str, str], list[str]] = {}
+    for v in _views():
+        g = v["self_described_outcomes"]
+        scores.setdefault((f"{g['pass_k']:.2f}", cm._ci(g["pass_k_ci"])), []).append(cm.name(v))
+    # Two scores: one shared by most setups, the other by one setup alone.
+    (most, most_names), (other, (other_name,)) = sorted(
+        scores.items(), key=lambda item: -len(item[1])
+    )
+    _says(
+        f"self-described is {most[0]} (95% CI {most[1]}) in {WORDS[len(most_names)]} setups "
+        f"and {other[0]} ({other[1]}) for {other_name}."
+    )
+
+
+def test_limit_one_mac() -> None:
+    swapped = {cm.name(r): r for r in _raw() if r["swap"]["swapped_runs"]}
+    ((setup, r),) = swapped.items()
+    runs = r["swap"]["swapped_runs"]
+    assert r["latency_comparable"]["runs"] == r["swap"]["runs"] - runs  # left out of latency
+    (limit,) = [text for text in r["known_limits"] if " GB" in text]
+    (memory,) = re.findall(r"\d+ GB", limit)
+    _says(f"Local latency is from one {memory} Mac with one big model loaded at a time.")
+    _says(f"{setup} swapped on {runs} runs, which are left out of latency")
