@@ -125,7 +125,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 **Mia's story.** "It's 3am in Singapore and Mia is locked out..." She can't authenticate, so the agent routes her to verified recovery. A human approver in the Americas hub, where it's afternoon, approves, and a just-in-time credential resets her MFA. The bot never resets MFA alone.
 
-**Publishing.** The site is built with MkDocs Material and published to GitHub Pages by a GitHub Actions workflow. Every number on the site and in the README comes from a CI eval run, never typed by hand. The site and the README's first screen are built from milestone 1 on, once real results and the demo exist.
+**Publishing.** The project site is a static page in `site/`, published to GitHub Pages (https://kstarev.dev/meridian-it-lab/) by a GitHub Actions workflow (`.github/workflows/pages.yml`). Every result number on the site and in the README comes from a published eval report: the README's tables are generated, and each hand-written number in the README and on the site is checked against the reports by a test (`test_readme_numbers.py`, `test_site_numbers.py`). The site and the README's first screen are built from milestone 1 on, once real results and the demo exist.
 
 ## Compliance
 
