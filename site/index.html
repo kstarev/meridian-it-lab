@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Tier0 · An AI help desk that knows when to ask a human</title>
+<meta name="description" content="Tier0 answers simple IT questions in Slack around the clock. The AI only sorts the request; code checks who you are; anything risky goes to a person.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Tier0 · An AI help desk that knows when to ask a human">
+<meta property="og:description" content="Tier0 answers simple IT questions in Slack around the clock. The AI only sorts the request; code checks who you are; anything risky goes to a person.">
+<meta property="og:url" content="https://kstarev.dev/meridian-it-lab/">
+<meta property="og:image" content="https://kstarev.dev/meridian-it-lab/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://kstarev.dev/meridian-it-lab/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B1220'/%3E%3Ctext x='32' y='42' font-family='Arial,sans-serif' font-weight='700' font-size='26' text-anchor='middle' fill='%23F3F6FB'%3ET%3Ctspan fill='%2360A5FA'%3E0%3C/tspan%3E%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts.css">
+<style>
+body{margin:0;background:#F6F7F9}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+.flow-dot{position:absolute;top:-6px;left:0;width:14px;height:14px;border-radius:50%;background:#60A5FA;box-shadow:0 0 0 6px rgba(96,165,250,.18);transform:translateX(-50%);animation:dotMove 6s ease-in-out infinite}
+@keyframes dotMove{0%{left:0%;opacity:0}4%{opacity:1}80%{left:100%;opacity:1}88%,100%{left:100%;opacity:0}}
+.flow-node{animation:nodeLit 6s linear infinite}
+@keyframes nodeLit{0%,16%{border-color:#60A5FA;background:#13284A;color:#BFDBFE;box-shadow:0 0 0 6px rgba(96,165,250,.14)}26%,100%{border-color:#2A3A5C;background:#0F1A2E;color:#8D99B0;box-shadow:none}}
+.d1{animation-delay:1.2s}.d2{animation-delay:2.4s}.d3{animation-delay:3.6s}.d4{animation-delay:4.8s}
+.atk-dot{position:absolute;top:-6px;left:0;width:14px;height:14px;border-radius:50%;background:#2563EB;transform:translateX(-50%);animation:atkDot 6s ease-in-out infinite}
+@keyframes atkDot{0%{left:0%;opacity:0;background:#2563EB;transform:translateX(-50%) scale(1)}4%{opacity:1;transform:translateX(-50%) scale(1)}45%{left:66.67%;background:#2563EB;transform:translateX(-50%) scale(1)}50%{left:66.67%;background:#F59E0B;transform:translateX(-50%) scale(1.4)}85%{left:66.67%;opacity:1;background:#F59E0B;transform:translateX(-50%) scale(1.4)}95%,100%{left:66.67%;opacity:0;background:#F59E0B;transform:translateX(-50%) scale(1.4)}}
+.atk-go{animation:atkGo 6s linear infinite}
+@keyframes atkGo{0%,18%{border-color:#2563EB;background:#EFF4FF;color:#1D4ED8}28%,100%{border-color:#CBD3E1;background:#FFFFFF;color:#5B6478}}
+.atk-stop{animation:atkStop 6s linear infinite}
+@keyframes atkStop{0%,58%{border-color:#D97706;background:#FFF4E0;color:#B45309}68%,100%{border-color:#CBD3E1;background:#FFFFFF;color:#5B6478}}
+.a1{animation-delay:1.35s}.a2{animation-delay:2.7s}.a3{animation-delay:3.6s}
+@media (prefers-reduced-motion: reduce){
+.flow-dot,.atk-dot{animation:none;opacity:0}
+.flow-node{animation:none;border-color:#60A5FA;color:#BFDBFE}
+.atk-go{animation:none;border-color:#2563EB;color:#1D4ED8}
+.atk-stop{animation:none;border-color:#D97706;color:#B45309}
+}
+</style>
+<style>
+@media (max-width: 760px){ .navl{display:none} .navlinks{gap:12px} }
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<div style="font-family: Inter, system-ui, sans-serif; color: #141A26; background: #F6F7F9; min-height: 100vh">
+
+<header style="background: #0B1220; border-bottom: 1px solid #1C2840">
+<nav aria-label="Main" style="max-width: 1120px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<a href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #F3F6FB">
+<span style="width: 34px; height: 34px; border-radius: 9px; background: #13284A; border: 1px solid #2A4A7F; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 15px; color: #F3F6FB">T<span style="color: #60A5FA">0</span></span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px">Tier0</span>
+</a>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 22px; font-size: 15px">
+<a class="navl" href="#trust" style="color: #B6C0D3; text-decoration: none">Why trust it</a>
+<a class="navl" href="#results" style="color: #B6C0D3; text-decoration: none">Results</a>
+<a class="navl" href="#testing" style="color: #B6C0D3; text-decoration: none">How it's tested</a>
+<a href="https://github.com/kstarev/meridian-it-lab" style="color: #0B1220; background: #F3F6FB; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; min-height: 24px; display: inline-flex; align-items: center">View on GitHub</a>
+</div>
+</nav>
+</header>
+
+<section id="top" style="background: #0B1220; color: #F3F6FB; padding: 72px 24px 88px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8FB8F6">Portfolio case study · IT engineering</p>
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(40px, 6vw, 68px); line-height: 1.04; letter-spacing: -0.02em; max-width: 860px">IT help that's awake when IT isn't.</h1>
+<p style="margin: 0; font-size: clamp(17px, 2vw, 20px); line-height: 1.55; color: #B6C0D3; max-width: 680px">Tier0 is a Slack assistant built to answer simple IT questions around the clock, and hand anything risky or unclear to a person. I built it from years of working help desks.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<a href="https://github.com/kstarev/meridian-it-lab" style="background: #2563EB; color: #FFFFFF; text-decoration: none; padding: 14px 22px; border-radius: 10px; font-weight: 600; font-size: 16px">See the code on GitHub</a>
+<a href="#testing" style="background: transparent; color: #F3F6FB; text-decoration: none; padding: 13px 21px; border-radius: 10px; font-weight: 600; font-size: 16px; border: 1px solid #34466B">How it was tested</a>
+</div>
+
+<div style="margin-top: 36px; background: #0E1729; border: 1px solid #1F2C47; border-radius: 18px; padding: 28px 24px 30px; overflow-x: auto">
+<p style="margin: 0 0 22px; font-size: 14px; color: #8D99B0">A normal request, start to finish</p>
+<div style="min-width: 720px; position: relative">
+<div style="position: absolute; left: 10%; right: 10%; top: 27px; height: 2px; background: #24324D">
+<div class="flow-dot"></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; position: relative">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="flow-node" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #2A3A5C; background: #0F1A2E; color: #8D99B0; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">You ask in Slack</div>
+<div style="font-size: 13px; color: #8D99B0; line-height: 1.4">"What's my username?"</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="flow-node d1" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #2A3A5C; background: #0F1A2E; color: #8D99B0; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">Checks it's really you</div>
+<div style="font-size: 13px; color: #8D99B0; line-height: 1.4">From your sign-in, not your message</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="flow-node d2" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #2A3A5C; background: #0F1A2E; color: #8D99B0; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">Looks up only your account</div>
+<div style="font-size: 13px; color: #8D99B0; line-height: 1.4">It can't see anyone else's</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="flow-node d3" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #2A3A5C; background: #0F1A2E; color: #8D99B0; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7L4 12l5 5"></path><path d="M4 12h11a5 5 0 0 1 5 5v2"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">Replies in your language</div>
+<div style="font-size: 13px; color: #8D99B0; line-height: 1.4">English, German, Spanish, French</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="flow-node d4" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #2A3A5C; background: #0F1A2E; color: #8D99B0; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">Ticket closed</div>
+<div style="font-size: 13px; color: #8D99B0; line-height: 1.4">Logged, answered, done</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-label="Key numbers" style="background: #FFFFFF; border-bottom: 1px solid #E3E7EE; padding: 40px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; color: #1D4ED8">0</div>
+<div style="font-size: 15px; color: #3A4356; line-height: 1.45">unsafe actions, across every AI model tested</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; color: #141A26">98%</div>
+<div style="font-size: 15px; color: #3A4356; line-height: 1.45">of requests right on all 3 tries (best setups)</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; color: #141A26">54</div>
+<div style="font-size: 15px; color: #3A4356; line-height: 1.45">test requests, written blind and sealed until the final run</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; color: #141A26">1,157</div>
+<div style="font-size: 15px; color: #3A4356; line-height: 1.45">automated tests, run on every change</div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="why-h" style="padding: 88px 24px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 48px; align-items: start">
+<div style="display: flex; flex-direction: column; gap: 16px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #1D4ED8">Why I built it</p>
+<h2 id="why-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em">Someone is always starting their day while IT is asleep.</h2>
+</div>
+<div style="display: flex; flex-direction: column; gap: 16px; font-size: 17px; line-height: 1.65; color: #3A4356">
+<p style="margin: 0">I've worked help desks for years. At a remote company, a simple question like "what's my username?" can wait hours for someone to wake up.</p>
+<p style="margin: 0">So I made up a company to try it on. Meridian has 230 people in 14 countries and an IT team of three, in Berlin and Toronto, with nobody in Asia-Pacific.</p>
+<p style="margin: 0; padding: 14px 16px; background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 12px; font-size: 15px; color: #3A4356"><strong style="color: #141A26">All the data is fake.</strong> Meridian doesn't exist, and nothing comes from a real employer.</p>
+</div>
+</div>
+</section>
+
+<section id="trust" aria-labelledby="trust-h" style="padding: 72px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 720px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #1D4ED8">Why you can trust it</p>
+<h2 id="trust-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em">The AI sorts. Code decides. People handle the risky stuff.</h2>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px">
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 10px">
+<div style="width: 40px; height: 40px; border-radius: 10px; background: #EFF4FF; color: #1D4ED8; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h6"></path></svg></div>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">The AI only sorts the request</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Plain code checks who you are, decides what happens and writes every reply. The AI never makes up an answer.</p>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 10px">
+<div style="width: 40px; height: 40px; border-radius: 10px; background: #EFF4FF; color: #1D4ED8; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg></div>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">It can only see your own account</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">It has no way to look up anyone else, so even a fooled AI can't give out a colleague's details.</p>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 10px">
+<div style="width: 40px; height: 40px; border-radius: 10px; background: #FFF4E0; color: #B45309; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"></circle><path d="M3 20c1-3.5 3.3-5 6-5s5 1.5 6 5"></path><path d="M16 11h5M18.5 8.5L21 11l-2.5 2.5"></path></svg></div>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">When in doubt, a person decides</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Anything unclear, risky or broken goes to the IT team instead of a guess.</p>
+</div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 18px; padding: 28px 24px 30px; overflow-x: auto">
+<p style="margin: 0 0 22px; font-size: 14px; color: #5B6478">A sneaky request, stopped</p>
+<div style="min-width: 640px; position: relative">
+<div style="position: absolute; left: 12.5%; right: 12.5%; top: 27px; height: 2px">
+<div style="position: absolute; left: 0; width: 66.67%; top: 0; height: 2px; background: #D7DCE5"></div>
+<div style="position: absolute; left: 66.67%; right: 0; top: 0; border-top: 2px dashed #F0B45A"></div>
+<div class="atk-dot"></div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; position: relative">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="atk-go" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #CBD3E1; background: #FFFFFF; color: #5B6478; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">"What's my colleague's login?"</div>
+<div style="font-size: 13px; color: #5B6478; line-height: 1.4">"The CFO needs it, quickly"</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="atk-go a1" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #CBD3E1; background: #FFFFFF; color: #5B6478; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">Checks it's really you</div>
+<div style="font-size: 13px; color: #5B6478; line-height: 1.4">Fine, you're signed in</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="atk-stop a2" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #CBD3E1; background: #FFFFFF; color: #5B6478; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M6 6l12 12"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">Your own account? No.</div>
+<div style="font-size: 13px; color: #5B6478; line-height: 1.4">Stopped here. Nothing is shared</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+<div class="atk-stop a3" style="width: 54px; height: 54px; border-radius: 50%; border: 2px solid #CBD3E1; background: #FFFFFF; color: #5B6478; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg></div>
+<div style="font-weight: 600; font-size: 15px">A person on IT takes over</div>
+<div style="font-size: 13px; color: #5B6478; line-height: 1.4">Same reply whether the name is real or not</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section id="results" aria-labelledby="results-h" style="background: #FFFFFF; border-top: 1px solid #E3E7EE; border-bottom: 1px solid #E3E7EE; padding: 88px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 760px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #1D4ED8">What the testing showed</p>
+<h2 id="results-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em">7 AI models. None broke a safety rule.</h2>
+<p style="margin: 0; font-size: 17px; line-height: 1.6; color: #3A4356">Someone who never saw the code wrote 54 requests, and they stayed locked away until the final run. Each request ran 3 times on every setup, and only counted if all 3 tries were right.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px">
+<div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #F8FAFC">
+<div style="font-size: 14px; color: #5B6478">Everyday requests right on all 3 tries</div>
+<div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px">
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; color: #8A93A6; text-decoration: line-through; text-decoration-thickness: 2px">54%</span>
+<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; color: #1D4ED8">89–97%</span>
+</div>
+<div style="font-size: 14px; color: #5B6478; line-height: 1.5">Milestone 2 vs the final version, each on its own sealed test</div>
+</div>
+<div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #F8FAFC">
+<div style="font-size: 14px; color: #5B6478">Cost per 1,000 requests with Claude</div>
+<div style="display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px">
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; color: #141A26">$0.08</span>
+<span style="font-size: 15px; color: #5B6478">Haiku</span>
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; color: #141A26">$1.66</span>
+<span style="font-size: 15px; color: #5B6478">Sonnet</span>
+</div>
+<div style="font-size: 14px; color: #5B6478; line-height: 1.5">A spend cap in the code stops any call that would go over budget</div>
+</div>
+</div>
+
+<div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; overflow-x: auto">
+<div style="min-width: 680px; display: flex; flex-direction: column; gap: 0">
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: end; padding-bottom: 10px; border-bottom: 1px solid #E3E7EE; font-size: 13px; color: #5B6478">
+<div>AI setup</div>
+<div style="position: relative; height: 18px">
+<span style="position: absolute; left: 0%; transform: translateX(-50%)">90%</span>
+<span style="position: absolute; left: 20%; transform: translateX(-50%)">92%</span>
+<span style="position: absolute; left: 40%; transform: translateX(-50%)">94%</span>
+<span style="position: absolute; left: 60%; transform: translateX(-50%)">96%</span>
+<span style="position: absolute; left: 80%; transform: translateX(-50%)">98%</span>
+<span style="position: absolute; left: 100%; transform: translateX(-100%)">100%</span>
+</div>
+<div style="text-align: right">Unsafe</div>
+<div style="text-align: right">Cost / 1,000</div>
+</div>
+
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #EEF1F5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">Claude Sonnet</span><span style="font-size: 12px; color: #5B6478">Hosted</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 80%; top: 1px; width: 14px; height: 14px; border-radius: 50%; background: #2563EB; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right">$1.66</div>
+</div>
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #EEF1F5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">gpt-oss 20B</span><span style="font-size: 12px; color: #5B6478">Open model, benchmark only</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 80%; top: 1px; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #2563EB; background: #FFFFFF; box-sizing: border-box; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right; color: #5B6478">–</div>
+</div>
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #EEF1F5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">Qwen 3.6 27B</span><span style="font-size: 12px; color: #5B6478">Open model, benchmark only</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 80%; top: 1px; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #2563EB; background: #FFFFFF; box-sizing: border-box; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right; color: #5B6478">–</div>
+</div>
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #EEF1F5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">Claude Haiku</span><span style="font-size: 12px; color: #5B6478">Hosted</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 60%; top: 1px; width: 14px; height: 14px; border-radius: 50%; background: #2563EB; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right">$0.08</div>
+</div>
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #EEF1F5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">Llama 3.1 8B</span><span style="font-size: 12px; color: #5B6478">Open model, benchmark only</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 40%; top: 1px; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #2563EB; background: #FFFFFF; box-sizing: border-box; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right; color: #5B6478">–</div>
+</div>
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid #EEF1F5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">Llama 3.2</span><span style="font-size: 12px; color: #5B6478">Open model, benchmark only</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 30%; top: 1px; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #2563EB; background: #FFFFFF; box-sizing: border-box; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right; color: #5B6478">–</div>
+</div>
+<div style="display: grid; grid-template-columns: 230px minmax(0, 1fr) 90px 90px; gap: 16px; align-items: center; padding: 12px 0">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600; font-size: 15px">Mixed (two Llamas)</span><span style="font-size: 12px; color: #5B6478">Open model, benchmark only</span></div>
+<div style="position: relative; height: 16px"><div style="position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: #EEF1F5"></div><div style="position: absolute; left: 30%; top: 1px; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid #2563EB; background: #FFFFFF; box-sizing: border-box; transform: translateX(-50%)"></div></div>
+<div style="text-align: right; font-weight: 600">0</div>
+<div style="text-align: right; color: #5B6478">–</div>
+</div>
+</div>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 1.6; color: #5B6478; max-width: 820px">Each dot is the share of the 54 requests a setup got right on all 3 tries. Filled dots run on Claude, which is what Tier0 uses in production. Hollow dots are open models I only used as a benchmark while building it. With 54 requests, no setup was clearly better than the others.</p>
+</div>
+</section>
+
+<section id="testing" aria-labelledby="testing-h" style="padding: 88px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 720px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #1D4ED8">How it was tested</p>
+<h2 id="testing-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em">I tried hard to prove myself wrong.</h2>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px">
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600">A sealed, blind test</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">The test requests were written by a helper that never saw the code, and stayed locked until the final run.</p>
+</div>
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600">Real attack patterns</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Pressure, fake urgency and "just confirm their login" tricks, based on real help-desk attacks reported by CISA.</p>
+</div>
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600">Broken on purpose</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">I made the AI's first step fail on purpose, to prove the backup checks still stop a leak.</p>
+</div>
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h3 style="margin: 0; font-size: 17px; font-weight: 600">Every number checked</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Tests check every result in the write-up against the raw data. They caught three of my own mistakes.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="hood-h" style="background: #0B1220; color: #F3F6FB; padding: 80px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8FB8F6">For engineers</p>
+<h2 id="hood-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(28px, 3.5vw, 36px); line-height: 1.15">Under the hood</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 13px">
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">Slack signature check</span>
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">Identity from the directory</span>
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">5-minute scoped token</span>
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">MCP tool, own account only</span>
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">Output guard</span>
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">Ticket + 3-day auto-close</span>
+<span style="padding: 8px 12px; border: 1px solid #2A3A5C; border-radius: 8px; color: #D4DBE8">OpenTelemetry traces</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 14px; color: #B6C0D3">
+<span>Python 3.13</span><span aria-hidden="true">·</span><span>Model Context Protocol</span><span aria-hidden="true">·</span><span>Claude API</span><span aria-hidden="true">·</span><span>GitHub Actions</span><span aria-hidden="true">·</span><span>pass^k evaluation</span><span aria-hidden="true">·</span><span>35 decision records</span>
+</div>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md" style="color: #93C5FD; font-weight: 600; font-size: 16px">Read the technical deep dive</a>
+</div>
+</section>
+
+<section aria-labelledby="next-h" style="padding: 88px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px">
+<p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #1D4ED8">What's next</p>
+<h2 id="next-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1">From one question to the IT team's whole playbook.</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px">
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">01</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">Fix the new-starter case</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">One request from a new starter was handed to a person when it should have been answered. A fix is planned.</p>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">02</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">Learn from the IT team's guides</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Answer how-to questions from approved guides. New guides are drafted from solved tickets, and a person approves each one.</p>
+</div>
+<div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">03</span>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">Run it in the cloud</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">A real Slack app on AWS, tested and scheduled with GitHub Actions. Nothing depends on anyone's laptop.</p>
+</div>
+</div>
+</div>
+</section>
+
+<footer style="border-top: 1px solid #E3E7EE; background: #FFFFFF; padding: 40px 24px">
+<div style="max-width: 1120px; margin: 0 auto; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; font-size: 14px; color: #5B6478; line-height: 1.6">
+<div style="display: flex; flex-direction: column; gap: 4px; max-width: 560px">
+<span style="color: #141A26; font-weight: 600">Built by Kris Starev, IT Engineering Team Lead, Berlin</span>
+<span>All data is fake. Meridian is a fictional company, and nothing comes from a real employer.</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start">
+<a href="https://github.com/kstarev/meridian-it-lab">GitHub</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md">How it works</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md">Decisions</a>
+<a href="https://www.linkedin.com/in/kris-starev">LinkedIn</a>
+<a href="https://kstarev.dev/">Kris Starev's portfolio</a>
+</div>
+</div>
+</footer>
+
+</div>
+</body>
+</html>
