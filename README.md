@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/kstarev/meridian-it-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kstarev/meridian-it-lab/actions/workflows/ci.yml)
 
+Project site: https://kstarev.dev/meridian-it-lab/
+
 **Tier0 is a Slack assistant built to answer simple IT questions around the clock, and hand anything risky or unclear to a person.**
 
 A portfolio case study in IT engineering.
