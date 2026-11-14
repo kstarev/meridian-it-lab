@@ -230,8 +230,8 @@ def test_cli_refuses_mismatched_reports(tmp_path: Path) -> None:
     assert not (tmp_path / "x.md").exists()
 
 
-def test_the_readme_has_both_milestones_markers() -> None:
-    readme = (Path(__file__).resolve().parents[2] / "README.md").read_text()
+def test_the_doc_has_both_milestones_markers() -> None:
+    readme = (Path(__file__).resolve().parents[2] / "docs/how-it-works.md").read_text()
     assert readme.count(cm.README_START) == readme.count(cm.README_END) == 1
     assert "<!-- comparison:start -->" in readme  # milestone 2's table stays
 

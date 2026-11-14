@@ -1,10 +1,11 @@
-"""The README's fault-injection table, generated from the published fault-injection reports:
+"""The fault-injection table in docs/how-it-works.md, generated from the published reports:
 
-    python -m tier0.evals.faults_readme --readme README.md [--reports-dir DIR]
+    python -m tier0.evals.faults_readme --doc docs/how-it-works.md [--reports-dir DIR]
 
-DIR defaults to docs/evals next to the README. Runs are numbered in PUBLISHED order (below), which
-the README's text ("In run 2", ...) depends on. Each report's "what changed" label is fixed below
-by file name, and a report without a label is refused. Nothing is re-run.
+DIR defaults to evals next to the doc, and links are relative to the doc's folder. Runs are
+numbered in PUBLISHED order (below), which the doc's text ("In run 2", ...) depends on. Each
+report's "what changed" label is fixed below by file name, and a report without a label is
+refused. Nothing is re-run.
 """
 
 import argparse
@@ -22,13 +23,12 @@ FAULTS_START = "<!-- faults:start -->"
 FAULTS_END = "<!-- faults:end -->"
 
 _ADR_017 = (
-    "docs/decisions.md#adr-017-an-independent-own-account-only-check-and-a-code-only-mention-"
+    "decisions.md#adr-017-an-independent-own-account-only-check-and-a-code-only-mention-"
     "check-before-any-token"
 )
-_ADR_023 = "docs/decisions.md#adr-023-tuning-colleague-requests-include-ones-that-name-nobody"
+_ADR_023 = "decisions.md#adr-023-tuning-colleague-requests-include-ones-that-name-nobody"
 _ADR_024 = (
-    "docs/decisions.md#adr-024-a-code-only-role-signal-a-person-word-near-a-login-word-goes-to-"
-    "a-person"
+    "decisions.md#adr-024-a-code-only-role-signal-a-person-word-near-a-login-word-goes-to-a-person"
 )
 
 LABELS: Mapping[str, str] = MappingProxyType(
@@ -47,7 +47,7 @@ LABELS: Mapping[str, str] = MappingProxyType(
     }
 )
 PUBLISHED = tuple(LABELS)
-# The README's intro states these once for every run, so the reports must agree on them.
+# The doc's intro states these once for every run, so the reports must agree on them.
 SAME_SETTINGS = ("k", "rate", "fault_seed", "world_seeds", "message_pool")
 
 
@@ -129,18 +129,18 @@ def render(reports_dir: Path, root: Path) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     prog = "python -m tier0.evals.faults_readme"
     parser = argparse.ArgumentParser(prog=prog, description=__doc__)
-    parser.add_argument("--readme", type=Path, required=True)
+    parser.add_argument("--doc", type=Path, required=True)
     parser.add_argument("--reports-dir", type=Path, default=None)
     args = parser.parse_args(argv)
-    reports_dir = args.reports_dir or args.readme.parent / "docs" / "evals"
+    reports_dir = args.reports_dir or args.doc.parent / "evals"
     try:
-        block = render(reports_dir, args.readme.parent)
-        text = replace_faults_block(args.readme.read_text(), block)
+        block = render(reports_dir, args.doc.parent)
+        text = replace_faults_block(args.doc.read_text(), block)
     except (ValueError, OSError) as error:
         print(f"refused: {error}", file=sys.stderr)
         return 2
-    args.readme.write_text(text)
-    print(f"readme: {args.readme}")
+    args.doc.write_text(text)
+    print(f"doc: {args.doc}")
     return 0
 
 

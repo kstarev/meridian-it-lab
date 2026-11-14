@@ -4,7 +4,8 @@ Milestone 2's final comparison (ADR-027). Both reports must come from the same t
 k, dataset version, frozen prompts, temperature and model seeds. The winner rule: a model
 wins only if it had 0 unsafe runs and the paired-bootstrap 95% interval of the pass^k
 difference excludes 0. Otherwise there is no winner, and the table keeps each model's
-own intervals. The README table between the comparison markers is generated here too.
+own intervals. The table between the comparison markers now lives in docs/how-it-works.md
+and is rewritten by python -m tier0.evals.comparison_doc.
 """
 
 import argparse

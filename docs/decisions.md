@@ -784,3 +784,43 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 **Consequences:** v4 needs a new blind helper run and a new seal; nothing runs on it until 3b's final comparison.
 
+## ADR-034: Production runs on Slack, GitHub and AWS, with Claude behind a spend cap
+
+**Date:** 2026-11-14 · **Status:** Accepted; the CI tests are built, the rest is planned. Changes the out-of-scope list (hosting beyond GitHub Pages), so it needs this ADR.
+
+**Context:** tier0 was benchmarked with local open models on one Mac and with Claude through the Anthropic API (ADR-030, ADR-031, ADR-032). Nothing said which of these a production deployment would use, and the brief ruled out any hosting beyond GitHub Pages.
+
+**Decision:**
+
+- Employees reach tier0 in Slack.
+- GitHub Actions runs the tests on every pull request and on main: lint and the full test suite, with the stub model only, no API keys and outbound network blocked. Evals (a smoke eval on every pull request, the full k = 3 suite nightly and on main) and scheduled jobs, such as proactive posts (ADR-020) and the weekly learning loop (ADR-005), run there too once built.
+- The tier0 service is deployed to AWS next. That deployment is planned, not built.
+- The model is a hosted AI API: Claude through the Anthropic API, with every paid call checked against the spend cap first (ADR-032).
+- Local open models (Ollama) were used only to benchmark during development. Nothing in production depends on a personal device.
+
+**Consequences:** The brief's out-of-scope line now excludes hosting beyond GitHub Pages and AWS. The AWS deployment gets its own ADR once designed. Production availability depends on Anthropic's API, and production spend is bounded by the cap.
+
+## ADR-035: Milestone 4, Knowledge: answers from approved runbooks, picked by the AI and posted by code
+
+**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR.
+
+**Context:** tier0 answers one request type today. How-to questions are common, and their answers already live in the IT team's guides. ADR-005 (the weekly learning loop) and ADR-010 (memory as a reviewed Git repo) set where that knowledge comes from and how it's reviewed. They don't say how tier0 answers from it, what it must never answer, or how that is tested.
+
+**Decision:** milestone 4, "Knowledge", plan only:
+
+- **Approved runbooks in a GitHub repo** (meridian-memory, ADR-010), changed only by reviewed pull requests. CODEOWNERS is the IT team. In the lab, the repo owner stands in for it.
+- **A weekly GitHub Actions job** drafts guide updates from resolved tickets, with personal details removed before anything is drafted. It opens them as pull requests for a person to approve (ADR-005).
+- **The AI only picks which guide answers.** Code posts that guide's approved steps word for word, with a link, so the model never writes the steps (ADR-028).
+- **No good match means a hand-off** to a person.
+- **Never answers account-specific or risky requests** from a guide (password and MFA resets, access requests, anything about another person). Those keep their own paths and tiers.
+- **Data:** about 30 fake Meridian runbooks and about 200 fake resolved tickets.
+- **A new sealed blind test of how-to questions,** written and sealed like held-out v3 (ADR-029). It includes questions no guide answers, which must be handed off, and instructions hidden inside tickets or guides (ASI01, ASI06), which must never be followed.
+- **Order:** 3b first, then milestone 4, then 3d and 3c. This changes the order ADR-033 kept (3a, 3b, 3d, 3c).
+
+**Consequences:**
+
+- A guide's steps reach employees only after an IT approval, and the model can't change them. A poisoned ticket can at most propose a bad guide in a pull request, which still needs that approval.
+- Picking the wrong guide becomes the main failure to measure. Handing off when nothing fits trades some coverage for safety.
+- Hidden instructions in tickets and guides become test cases, not only a review concern.
+- The dataset grows, and the new test set needs its own blind helper run and seal.
+- This refines ADR-010's "code-owner review by the repo owner": the code owners are the IT team.

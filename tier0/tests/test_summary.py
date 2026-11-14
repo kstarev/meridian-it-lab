@@ -1,4 +1,5 @@
-"""The README's held-out v3 summary: generated from the published comparison, never drifting."""
+"""The held-out v3 tables (summary and cost in the doc, results in the README): generated from the
+published comparison, never drifting."""
 
 import json
 import shutil
@@ -10,6 +11,8 @@ from tier0.evals import compare_many as cm
 from tier0.evals import readme_blocks, summary
 
 ROOT = Path(__file__).resolve().parents[2]
+DOC = ROOT / "docs/how-it-works.md"
+DOCS = ROOT / "docs"
 COMPARISON = ROOT / "docs/evals/2026-11-12-held-out-v3-comparison.json"
 
 
@@ -22,21 +25,21 @@ def _rows(block: str) -> dict[str, list[str]]:
     return rows
 
 
-def test_the_readme_summary_matches_the_published_comparison():
-    readme = (ROOT / "README.md").read_text()
+def test_the_doc_summary_matches_the_published_comparison():
+    readme = DOC.read_text()
     assert readme.count(cm.SUMMARY_START) == 1
     assert readme.count(cm.SUMMARY_END) == 1
     assert readme_blocks.block_between(readme, cm.SUMMARY_START, cm.SUMMARY_END) == summary.render(
-        COMPARISON, ROOT
+        COMPARISON, DOCS
     ), (
-        "README's v3 summary drifted from the published comparison: run python -m "
+        "The doc's v3 summary drifted from the published comparison: run python -m "
         "tier0.evals.summary docs/evals/2026-11-12-held-out-v3-comparison.json "
-        "--readme README.md"
+        "--doc docs/how-it-works.md --readme README.md"
     )
 
 
 def test_the_summary_agrees_with_the_generated_comparison_block():
-    readme = (ROOT / "README.md").read_text()
+    readme = DOC.read_text()
     mine = _rows(readme_blocks.block_between(readme, cm.SUMMARY_START, cm.SUMMARY_END))
     m3 = _rows(readme_blocks.block_between(readme, cm.README_START, cm.README_END))
     assert len(mine) == 7
@@ -68,21 +71,21 @@ def test_replace_summary_block_needs_its_markers():
         cm.replace_summary_block("no markers here", "block")
 
 
-def test_the_readme_cost_table_matches_the_published_comparison():
-    readme = (ROOT / "README.md").read_text()
+def test_the_doc_cost_table_matches_the_published_comparison():
+    readme = DOC.read_text()
     assert readme.count(cm.COST_START) == 1
     assert readme.count(cm.COST_END) == 1
     assert readme_blocks.block_between(readme, cm.COST_START, cm.COST_END) == summary.render_cost(
-        COMPARISON, ROOT
+        COMPARISON, DOCS
     ), (
-        "README's v3 cost table drifted from the published comparison: run python -m "
+        "The doc's v3 cost table drifted from the published comparison: run python -m "
         "tier0.evals.summary docs/evals/2026-11-12-held-out-v3-comparison.json "
-        "--readme README.md"
+        "--doc docs/how-it-works.md --readme README.md"
     )
 
 
 def test_the_cost_table_agrees_with_the_generated_comparison_block():
-    readme = (ROOT / "README.md").read_text()
+    readme = DOC.read_text()
     cost = _rows(readme_blocks.block_between(readme, cm.COST_START, cm.COST_END))
     m3 = _rows(readme_blocks.block_between(readme, cm.README_START, cm.README_END))
     for setup in ("haiku", "sonnet"):
@@ -123,6 +126,9 @@ _MARKERS = (
 )
 
 
+_RESULTS = "top\n" + cm.RESULTS_START + "\nold results\n" + cm.RESULTS_END + "\nbottom\n"
+
+
 def _copy(tmp_path: Path, keep: int | None = None) -> Path:
     evals = tmp_path / "docs/evals"
     evals.mkdir(parents=True)
@@ -136,27 +142,51 @@ def _copy(tmp_path: Path, keep: int | None = None) -> Path:
     return copied
 
 
-def test_cli_writes_the_block(tmp_path):
-    copied = _copy(tmp_path)
+def _write(
+    tmp_path: Path, doc_text: str = _MARKERS, readme_text: str = _RESULTS
+) -> tuple[Path, Path]:
+    doc = tmp_path / "docs/how-it-works.md"
+    doc.parent.mkdir(exist_ok=True)
+    doc.write_text(doc_text)
     readme = tmp_path / "README.md"
-    readme.write_text(_MARKERS)
-    assert summary.main([str(copied), "--readme", str(readme)]) == 0
-    text = readme.read_text()
-    assert summary.render(copied, tmp_path) in text
-    assert summary.render_cost(copied, tmp_path) in text
+    readme.write_text(readme_text)
+    return doc, readme
+
+
+def _cli(copied: Path, doc: Path, readme: Path) -> int:
+    return summary.main([str(copied), "--doc", str(doc), "--readme", str(readme)])
+
+
+def test_cli_writes_the_blocks(tmp_path):
+    copied = _copy(tmp_path)
+    doc, readme = _write(tmp_path)
+    assert _cli(copied, doc, readme) == 0
+    text = doc.read_text()
+    assert summary.render(copied, doc.parent) in text
+    assert summary.render_cost(copied, doc.parent) in text
     assert "old cost" not in text
     assert "intro" in text and "outro" in text
     assert "old" not in text
-    assert "](docs/evals/2026-11-12-held-out-v3-ollama-llama3.2.md)" in text
+    assert "](evals/2026-11-12-held-out-v3-ollama-llama3.2.md)" in text
+    assert summary.render_results(copied) in readme.read_text()
+    assert "old results" not in readme.read_text()
+    assert readme.read_text().startswith("top\n") and readme.read_text().endswith("\nbottom\n")
 
 
 def test_cli_refuses_an_incomplete_comparison(tmp_path):
     copied = _copy(tmp_path, keep=6)
-    readme = tmp_path / "README.md"
-    original = _MARKERS
-    readme.write_text(original)
-    assert summary.main([str(copied), "--readme", str(readme)]) == 2
-    assert readme.read_text() == original
+    doc, readme = _write(tmp_path)
+    assert _cli(copied, doc, readme) == 2
+    assert doc.read_text() == _MARKERS
+    assert readme.read_text() == _RESULTS
+
+
+def test_cli_refuses_a_readme_without_results_markers_and_writes_nothing(tmp_path):
+    copied = _copy(tmp_path)
+    doc, readme = _write(tmp_path, readme_text="no markers\n")
+    assert _cli(copied, doc, readme) == 2
+    assert doc.read_text() == _MARKERS
+    assert readme.read_text() == "no markers\n"
 
 
 def _cost_inputs():
@@ -196,17 +226,59 @@ def test_a_local_report_whose_cost_note_lacks_the_wording_is_refused():
         cm.cost_block(reports, run_counts, links, "c.md")
 
 
-def test_the_readme_cost_table_quotes_the_reports_cost_note():
+def test_the_doc_cost_table_quotes_the_reports_cost_note():
     for raw in summary.load_raw(COMPARISON):
         assert cm.LOCAL_COST_NOTE in raw["cost"]["note"]
-    readme = (ROOT / "README.md").read_text()
+    readme = DOC.read_text()
     assert cm.LOCAL_COST_NOTE in readme_blocks.block_between(readme, cm.COST_START, cm.COST_END)
 
 
-def test_cli_refuses_a_readme_without_cost_markers(tmp_path):
+def test_cli_refuses_a_doc_without_cost_markers(tmp_path):
     copied = _copy(tmp_path)
-    readme = tmp_path / "README.md"
     original = "intro\n" + cm.SUMMARY_START + "\nold\n" + cm.SUMMARY_END + "\noutro\n"
-    readme.write_text(original)
-    assert summary.main([str(copied), "--readme", str(readme)]) == 2
-    assert readme.read_text() == original
+    doc, readme = _write(tmp_path, doc_text=original)
+    assert _cli(copied, doc, readme) == 2
+    assert doc.read_text() == original
+    assert readme.read_text() == _RESULTS
+
+
+def _results_rows(block: str) -> dict[str, list[str]]:
+    rows = {}
+    for line in block.splitlines():
+        if line.startswith("| ") and not line.startswith(("| AI setup", "| ---")):
+            cells = [c.strip() for c in line.strip().strip("|").split(" | ")]
+            rows[cells[0]] = cells
+    return rows
+
+
+def test_the_readme_results_table_matches_the_published_comparison():
+    readme = (ROOT / "README.md").read_text()
+    assert readme.count(cm.RESULTS_START) == 1
+    assert readme.count(cm.RESULTS_END) == 1
+    assert readme_blocks.block_between(
+        readme, cm.RESULTS_START, cm.RESULTS_END
+    ) == summary.render_results(COMPARISON), (
+        "README's results table drifted from the published comparison: run python -m "
+        "tier0.evals.summary docs/evals/2026-11-12-held-out-v3-comparison.json "
+        "--doc docs/how-it-works.md --readme README.md"
+    )
+
+
+def test_the_readme_results_agree_with_the_doc_summary_and_cost():
+    results = _results_rows(
+        readme_blocks.block_between(
+            (ROOT / "README.md").read_text(), cm.RESULTS_START, cm.RESULTS_END
+        )
+    )
+    doc = DOC.read_text()
+    mine = _rows(readme_blocks.block_between(doc, cm.SUMMARY_START, cm.SUMMARY_END))
+    cost = _rows(readme_blocks.block_between(doc, cm.COST_START, cm.COST_END))
+    assert len(results) == len(mine) == 7
+    for (short, cells), (setup, summ) in zip(results.items(), mine.items(), strict=True):
+        assert short.split(" (")[0] == setup.lstrip("[")
+        assert cells[2] == f"{round(100 * float(summ[2].split(' ')[0]))}%"
+        # unsafe runs include the policy violations and data exposures counted in the summary
+        assert int(cells[3]) >= max(int(summ[4]), int(summ[5]))
+    for setup in ("haiku", "sonnet"):
+        row = next(c for k, c in results.items() if k.startswith(setup))
+        assert row[4] == cost[f"[{setup}"][2]
