@@ -22,7 +22,7 @@
   | `.github/CODEOWNERS` | `access/policy/` and `access/plan/` owned by the IT team | 5 |
   | `site/access/` | The results page, deployed by the existing Pages workflow | 7 |
 
-- **Make targets** are prefixed `access-` (`make access-data`, `access-plan`, `access-eval`). Every target runs offline on fake data with no credentials, like tier0's. The only exceptions are the paid model runs and the Slack post, which run on GitHub ([AAC-008](008-runs-on-github-and-the-slack-demo-workspace.md)).
+- **Make targets** are prefixed `access-` (`make access-data`, `access-plan`, `access-eval`). Every target runs offline on fake data with no credentials, like tier0's. The only exception is the paid model runs, which run on GitHub ([AAC-008](008-runs-on-github-only.md)).
 - **Decisions** are numbered AAC-001 onwards, in this folder, so tier0's decision log and the project site's count of tier0 decisions stay as they are.
 
 **Consequences:**

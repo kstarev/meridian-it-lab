@@ -12,7 +12,7 @@ Meridian's IT team is three people. They can't reliably say who has access to wh
 
 ## The story
 
-When Jordan moved from Sales to Marketing, nobody removed the sales CRM. When Sam left, Sam's account in the design tool stayed open for weeks, because that tool isn't behind SSO and the leaver checklist missed it. With Access-as-Code, a bot compares every night what each person should have, based on their job, with what they really have. It then opens one pull request that says in plain English what it would change: "Remove Jordan from the sales CRM (moved to Marketing on 3 March)". It posts the same summary in Slack. Someone on the IT team reads it and approves it, and only then does anything change. If the bot wants to remove a lot at once, for example because the HR system wrongly marked forty people as leavers, it needs two people to approve.
+When Jordan moved from Sales to Marketing, nobody removed the sales CRM. When Sam left, Sam's account in the design tool stayed open for weeks, because that tool isn't behind SSO and the leaver checklist missed it. With Access-as-Code, a bot compares every night what each person should have, based on their job, with what they really have. It then opens one pull request that says in plain English what it would change: "Remove Jordan from the sales CRM (moved to Marketing on 3 March)". Someone on the IT team reads it and approves it, and only then does anything change. If the bot wants to remove a lot at once, for example because the HR system wrongly marked forty people as leavers, it needs two people to approve.
 
 ## How it works
 
@@ -30,7 +30,7 @@ flowchart LR
   DES --> DIFF["Diff + safety checks:<br/>blast radius, break-glass,<br/>drift"]
   ACT --> DIFF
   DIFF --> PR["Rolling plan pull request<br/>+ plain-English summary"]
-  PR --> SLACK["Slack demo workspace"]
+  PR --> SLACK["Mock Slack message:<br/>Block Kit file, never sent"]
   PR -->|"approved by CODEOWNERS,<br/>then merged"| APPLY["Apply<br/>(dry-run by default)"]
   APPLY --> OKTA
   APPLY --> GOOG
@@ -42,9 +42,9 @@ flowchart LR
 
 - **Desired state** is what each person *should* have. Code builds it from the HRIS record (job title, team, employment type, status, start, end and leave dates) and the policy files: a role's apps, apps everyone gets, and time-limited exceptions that each name an approval.
 - **Actual state** is what each person *does* have: Okta app assignments, Google and Slack accounts, and 95 CSV exports from apps without SSO. The exports are messy on purpose: different column names, email addresses in some and usernames in others, and four date formats.
-- **The plan** is the difference between the two, as a pull request. One rolling pull request is updated each night, and only when there's something to change ([AAC-002](docs/adr/002-the-plan-is-a-pull-request.md)).
+- **The plan** is the difference between the two, as a pull request. One rolling pull request is updated each night, and only when there's something to change. The summary is in its description, and each time the plan changes the bot adds a comment saying what changed ([AAC-002](docs/adr/002-the-plan-is-a-pull-request.md)).
 - **Approval** is a pull request review by the code owners. **Apply** happens on merge. It runs idempotent changes against the mock APIs, and it's a dry run unless switched on. Apps without an API get a manual task instead.
-- **Drift** is anything changed outside this process, such as an admin role added by hand. It's flagged in the plan and in Slack.
+- **Drift** is anything changed outside this process, such as an admin role added by hand. It's flagged in the plan pull request.
 
 ### The model interprets, code enforces
 
@@ -62,7 +62,7 @@ Its suggestions go into the reviewed map files, labelled as AI suggestions, thro
 - **Blast-radius limit:** a plan that removes more than N accesses (N = 25 to start, set in the policy) needs two approvers.
 - **Break-glass accounts** are on an allowlist. They are never changed, only reported.
 - **A stale plan is never applied:** if the actual state changed after the plan was made, apply stops and the plan is made again.
-- **Secrets live only in GitHub Actions secrets.** Everything runs on GitHub (Actions, scheduled workflows) and Slack, nothing on a laptop ([AAC-008](docs/adr/008-runs-on-github-and-the-slack-demo-workspace.md)).
+- **Secrets live only in GitHub Actions secrets.** Everything runs on GitHub (Actions, scheduled workflows), nothing on a laptop. There's no real Slack: a mock adapter builds the Slack message and saves it as a file, and nothing is ever sent ([AAC-008](docs/adr/008-runs-on-github-only.md)).
 
 ## Metrics and targets
 
@@ -110,7 +110,7 @@ A mapping, not a claim of compliance.
 ## In scope
 
 - One seeded fake world for Access-as-Code: 230 people, an HRIS timeline over a simulated month, Okta, Google, Slack and 95 CSV exports, planted problems and an answer key ([AAC-004](docs/adr/004-extend-the-shared-dataset.md))
-- Policy as code, desired state, collectors, identity matching, the diff, the plan pull request, the Slack summary, apply against mocks, drift detection and the blast-radius check
+- Policy as code, desired state, collectors, identity matching, the diff, the plan pull request with its summary and change comments, a mock Slack message (built and tested, never sent), apply against mocks, drift detection and the blast-radius check
 - A sealed held-out world and a results page
 
 ## Out of scope
@@ -118,4 +118,5 @@ A mapping, not a claim of compliance.
 - Real tenants, real HR systems and real employer data
 - Passwords, MFA and device management
 - Applying changes to real systems
-- A UI beyond the pull request, Slack and static pages
+- Real Slack: no workspace, token or webhook
+- A UI beyond the pull request and static pages

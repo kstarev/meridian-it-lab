@@ -14,7 +14,7 @@ The brief, decisions AAC-001 to AAC-008 and this plan. No code.
 **Done when:**
 
 - [ ] `access/BRIEF.md`, `access/MILESTONES.md` and `access/docs/adr/` are merged.
-- [ ] The lab brief points to Access-as-Code's brief and includes its Slack summaries in scope ([AAC-008](docs/adr/008-runs-on-github-and-the-slack-demo-workspace.md)).
+- [ ] The lab brief points to Access-as-Code's brief.
 
 ## 2. Data and needles
 
@@ -58,9 +58,9 @@ Reading actual state from the three mocks and the 95 exports, and matching every
 - [ ] Haiku 5.5, Sonnet 5.5 and Opus 5.5 are compared on the tuning world only, in a GitHub Actions run approved by the owner; the report shows accuracy, precision, recall and cost, and the user picks a model ([AAC-006](docs/adr/006-model-choice-and-spend-cap.md)).
 - [ ] The chosen prompts are frozen by hash.
 
-## 5. Diff, plan pull request and Slack
+## 5. Diff, plan pull request and the mock Slack message
 
-The diff, `plan.json` and `PLAN.md`, the rolling plan pull request and the Slack post ([AAC-002](docs/adr/002-the-plan-is-a-pull-request.md)).
+The diff, `plan.json` and `PLAN.md`, the rolling plan pull request and the mock Slack message ([AAC-002](docs/adr/002-the-plan-is-a-pull-request.md), [AAC-008](docs/adr/008-runs-on-github-only.md)).
 
 **Done when:**
 
@@ -69,8 +69,11 @@ The diff, `plan.json` and `PLAN.md`, the rolling plan pull request and the Slack
 - [ ] A leaver's full deprovisioning plan is ready in under 5 minutes from the HRIS change, measured in the workflow.
 - [ ] Changes resting on unreviewed AI suggestions never appear in a plan; they appear only as suggested map entries (a test).
 - [ ] The summary's names, apps and numbers all match `plan.json`, or the template summary is used (a test with a mocked model).
-- [ ] The user has created the GitHub App, the ruleset on `main` (pull request, code-owner review, checks, stale approvals dismissed) and the secrets.
-- [ ] The scheduled workflow opens, updates and closes the one rolling plan pull request on the tuning world's simulated month, and posts to `#it-access-plans` in the Slack demo workspace.
+- [ ] The user has created the GitHub App, the ruleset on `main` (pull request, code-owner review, checks, stale approvals dismissed) and the secrets (the App key and the Anthropic key).
+- [ ] The scheduled workflow opens, updates and closes the one rolling plan pull request on the tuning world's simulated month, with the summary in the description and a comment each time the plan changes.
+- [ ] The mock Slack adapter builds the Block Kit message (header, counts, warnings, pull request link), writes it to `out/access/slack-message.json`, and the workflow uploads it as an artifact.
+- [ ] Tests check the message: valid Block Kit structure, text within Slack's length limits, every number matching `plan.json`, nothing beyond what the pull request shows.
+- [ ] Nothing in Access-as-Code sends to Slack: the adapter has no network code, there is no Slack token or webhook anywhere, and a test fails if one appears.
 - [ ] The workflows pass the lab's baseline: actions pinned to SHAs, `permissions: {}` with per-job grants, no stored checkout credentials.
 
 ## 6. Apply, drift and blast radius
@@ -84,7 +87,7 @@ Merging the plan applies it to the mocks, safely ([AAC-007](docs/adr/007-safety-
 - [ ] A stale plan (actual state changed since it was built) is refused, and the next plan is rebuilt.
 - [ ] A plan over N removals can't be applied with one approval: the required check fails, and apply checks again. The planted mass termination is caught this way.
 - [ ] No code path changes a break-glass account (a test over every change type).
-- [ ] Planted drift is flagged in the plan and in Slack, scored by precision and recall.
+- [ ] Planted drift is flagged in the plan pull request and the mock Slack message, scored by precision and recall.
 - [ ] Non-SSO removals become manual tasks, confirmed against the next export.
 - [ ] N is reviewed against the tuning data, and changed by a policy pull request if needed.
 
