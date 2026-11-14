@@ -48,7 +48,7 @@ tier0 is an AI service desk agent that answers tickets, triages them and takes r
 | B | Low-risk change: e.g. join a Slack channel, install pre-approved software | Automatic, logged |
 | C | Privileged: MFA reset, admin roles, offboarding | Human approval, then a just-in-time credential |
 
-**Ticket lifecycle.** The agent opens a Linear ticket for every request and links every action, approval and credential to it. It closes a ticket only after the fix is verified, and then when the requester confirms or after 3 days with no reply. Tier C tickets close only with the approval record and credential IDs linked. The agent reaches tickets through a ticket adapter: a mock Linear for grading, and a free Linear workspace with fake data for the demo.
+**Ticket lifecycle.** The agent opens a Linear ticket for every request and links every action, approval and credential to it. It closes a ticket only after the fix is verified, and then when the requester confirms or after 3 days with no reply. Tier C tickets close only with the approval record and credential IDs linked. The agent reaches tickets through a ticket adapter, backed by a mock Linear for grading and for the demo ([ADR-036](decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned)).
 
 **Agent identity.** The agent has its own identity, not a user's, and holds no standing privileges. Tier C actions use just-in-time credentials that are short-lived, scoped to one task and issued only after human approval. They expire automatically, and every issue and expiry is written to the audit log.
 
@@ -118,7 +118,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 | Page | For | Contents |
 |---|---|---|
-| `docs/site/overview` | Recruiters, non-technical readers | Plain English, no jargon: Mia's story, one illustrated flow diagram, before/after, 3 headline numbers, a 90-second demo video, and skills mapped to IT Engineer, IT Engineering Manager and Head of IT |
+| `docs/site/overview` | Recruiters, non-technical readers | Plain English, no jargon: Mia's story, one illustrated flow diagram, before/after, 3 headline numbers, a simulated-Slack demo (a replay of real tier0 runs on the mocks, labelled "Simulated Slack, fake data"), and skills mapped to IT Engineer, IT Engineering Manager and Head of IT |
 | `docs/site/technical` | IT managers, directors, CTOs | Mermaid architecture diagram, approval tiers, threat model, OWASP and NIST mapping, eval methodology (pass^k, planted needles), results dashboard, links to the ADRs |
 | `README.md` | Everyone, first screen | A 2-minute plain-language story in the author's voice: one sentence, why it was built, what it does and what's next, why it's safe, the headline results with a small generated table, a simple flow diagram, links to "How it works (technical)" and "Decisions", a CI badge |
 | `docs/how-it-works.md` | IT managers, engineers | The technical deep dive: architecture, design principles, evaluation method, every generated results table, cost, how it runs in production, known limits, how to run it |
@@ -138,7 +138,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 ## Reviewer experience
 
 - A devcontainer opens the repo in GitHub Codespaces in one click.
-- `make demo` runs the full demo on mocks and fake data, with no credentials needed. `make demo-live` uses the Linear and Slack demo workspaces and is used to record the video.
+- `make demo` runs the full demo on mocks and fake data, with no credentials needed. There is no live demo workspace: the shareable demo is a scripted replay of real tier0 runs on the mocks, rendered as a Slack-style HTML transcript (optionally a short screen recording) and labelled "Simulated Slack, fake data" ([ADR-036](decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned)).
 - CI runs a small smoke eval on every pull request and the full k = 3 suite nightly and on main, then publishes the results to the Pages dashboard.
 
 ## Delivery
@@ -213,7 +213,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 - One seeded synthetic dataset of Meridian's people, devices, apps, access, OAuth grants and tickets, covering several simulated weeks, with planted problems and an answer key
 - Four projects (tier0, access-as-code, oauth-radar, evidence) running offline on files shaped like Okta, Google Workspace, Slack, Jamf, Intune and Linear exports. Access-as-Code has its own brief, decisions and milestones in [access/](../access/BRIEF.md)
 - Stateful, resettable mocks shaped like the Google Workspace Directory, Jamf Pro, Microsoft Graph (Intune), Slack and Linear APIs, a mock OAuth 2.1 token issuer and an MCP server for tier0
-- Free Linear and Slack workspaces with fake data, for the tier0 demo only
+- A simulated-Slack demo for tier0: a replay of real runs on the mocks, as an HTML transcript labelled "Simulated Slack, fake data" (ADR-036)
 - OpenTelemetry traces, a kill switch and a rate limit for tier0
 - A public meridian-memory repo for tier0's long-term memory, with a ruleset, provenance and CI scans
 - A GitHub Pages site for two audiences, a regional compliance mapping and a security mapping
@@ -223,7 +223,8 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 ## Out of scope
 
-- Live APIs and real tenants, except the Linear and Slack demo workspaces and the meridian-memory repo; never a real employer's Google, Jamf or Intune tenant
+- Live APIs and real tenants, except the meridian-memory repo; never a real employer's Google, Jamf or Intune tenant
+- Slack or Linear demo workspaces, and a real Slack app (optional, not planned; ADR-036)
 - Any real employer data
 - Tier C actions without human approval
 - Learning that adds permissions or bypasses review
