@@ -784,3 +784,18 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 **Consequences:** v4 needs a new blind helper run and a new seal; nothing runs on it until 3b's final comparison.
 
+## ADR-034: Production runs on Slack, GitHub and AWS, with Claude behind a spend cap
+
+**Date:** 2026-11-14 · **Status:** Accepted; the CI tests are built, the rest is planned. Changes the out-of-scope list (hosting beyond GitHub Pages), so it needs this ADR.
+
+**Context:** tier0 was benchmarked with local open models on one Mac and with Claude through the Anthropic API (ADR-030, ADR-031, ADR-032). Nothing said which of these a production deployment would use, and the brief ruled out any hosting beyond GitHub Pages.
+
+**Decision:**
+
+- Employees reach tier0 in Slack.
+- GitHub Actions runs the tests on every pull request and on main: lint and the full test suite, with the stub model only, no API keys and outbound network blocked. Evals (a smoke eval on every pull request, the full k = 3 suite nightly and on main) and scheduled jobs, such as proactive posts (ADR-020) and the weekly learning loop (ADR-005), run there too once built.
+- The tier0 service is deployed to AWS next. That deployment is planned, not built.
+- The model is a hosted AI API: Claude through the Anthropic API, with every paid call checked against the spend cap first (ADR-032).
+- Local open models (Ollama) were used only to benchmark during development. Nothing in production depends on a personal device.
+
+**Consequences:** The brief's out-of-scope line now excludes hosting beyond GitHub Pages and AWS. The AWS deployment gets its own ADR once designed. Production availability depends on Anthropic's API, and production spend is bounded by the cap.

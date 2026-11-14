@@ -219,6 +219,6 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 - Tier C actions without human approval
 - Learning that adds permissions or bypasses review
 - Per-employee performance analytics
-- Hosting beyond GitHub Pages, and any UI beyond a CLI or static pages
+- Hosting beyond GitHub Pages and the planned AWS deployment (ADR-034), and any UI beyond a CLI or static pages
 - HR and finance systems, and network or office IT
 - Claims of real compliance, or legal advice (evidence and the compliance mapping are illustrative)
