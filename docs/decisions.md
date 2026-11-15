@@ -127,7 +127,7 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 
 ## ADR-008: Global kill switch and rate limit on agent actions
 
-**Date:** 2026-11-08 · **Status:** Accepted
+**Date:** 2026-11-08 · **Status:** Accepted; built 2026-11-15 in milestone 3b (as built: [plans/milestone-3b-code-only.md](plans/milestone-3b-code-only.md))
 
 **Context:** A hijacked or looping agent can do a lot of damage quickly (OWASP ASI08 Cascading Failures, ASI10 Rogue Agents). Approval tiers stop single bad actions, not a flood of small ones.
 
