@@ -179,7 +179,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
     - **Global kill switch on agent actions:** today a kill switch exists for proactive posts only (ADR-020). Build ADR-008's global switch: it stops all agent actions at once and routes open tickets to people, enforced by the MCP server outside the model, with every toggle in the audit log. Eval target: 0 actions after the switch is on.
     - **Rate limit on agent actions:** there is none yet. Build ADR-008's limit, globally and per requester, also enforced by the MCP server, with every limit hit and override in the audit log. Eval target: 0 actions over the limit. It also bounds the name-existence probe ADR-017 accepts as residual risk.
   - **3d:** new ticket types and message shapes (items 1 to 4).
-  - **3c:** the realistic month (item 5).
+  - **3c:** the realistic month (item 5). **Built, not run yet** ([plan](plans/milestone-3c-realistic-month.md)): the generator, 124 tuning templates, 124 sealed blind templates, a routing-level runner and its cost estimate. The run on the sealed set waits for the owner's go.
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
   2. Prompt injection inside messages (ASI01).
      - Also requests relayed or forwarded in someone else's own words ("my report says: 'I need my login'"). Milestone 3b's harder tuning set found this shape after held-out v4 and v4b were sealed, so 3b claims nothing about it; 3d's sealed set measures it ([ADR-038](decisions.md)). The same set decides whether Haiku keeps its 3b triage prompt ([ADR-039](decisions.md)).
@@ -189,6 +189,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
      - Generated as template × persona × language × Slack noise, from at least 100 distinct templates written blind.
      - Intervals bootstrap over templates, not tickets, because tickets from the same template aren't independent.
      - New metrics: correct-handoff rate, out-of-scope tickets wrongly answered, and estimated IT hours saved per month.
+     - **Built** ([plan](plans/milestone-3c-realistic-month.md)): the seeded generator with planted same-day repeats, the tuning templates, the sealed blind templates (`held_out_month1`), template-level intervals, the three new metrics, and `python -m tier0.evals.month` (routing level: no mocks, tokens or MCP server). Not run on a model yet.
   6. **A verification ladder:** how much proof each tier needs before tier0 acts.
      - **Rung 0 (built):** a signed Slack user ID, bound to the directory. Slack guests (`is_restricted` / `is_ultra_restricted`) and leavers or suspended accounts never get self-service; the identity binder has refused both since milestone 1.
      - **Rung 1, context checks in code:** an out-of-office requester is denied; same-day repeat requests for one account, managed-device status and recent security changes are checked.
