@@ -23,6 +23,7 @@ name, at its fixed seed, and its result files hold ids, kinds and outcomes, neve
 
 import argparse
 import hashlib
+import importlib
 import json
 import math
 import os
@@ -157,12 +158,13 @@ NONE_PICKER = Picker("none", no_picker)
 def knowledge_picker(setup: Setup, model: ModelAdapter, prompt: str | None = None) -> Picker:
     """Milestone 4's guide picker as the second stage. Imported here, not at the top, so the
     month runs without milestone 4; a clear error says what's missing."""
+    # importlib, not import statements: the import sorter groups these two packages
+    # differently depending on the workspace's members, and this reads the same either way.
     try:
-        from meridian_dataset.knowledge import load_runbooks
-
-        from tier0.knowledge.answer import answer_question
-        from tier0.knowledge.prompts import PICKER_VERSIONS
-    except ImportError as exc:
+        load_runbooks = importlib.import_module("meridian_dataset.knowledge").load_runbooks
+        answer_question = importlib.import_module("tier0.knowledge.answer").answer_question
+        PICKER_VERSIONS = importlib.import_module("tier0.knowledge.prompts").PICKER_VERSIONS
+    except (ImportError, AttributeError) as exc:
         raise PickerUnavailable(
             "--picker knowledge needs milestone 4 (tier0.knowledge.answer, "
             "tier0.knowledge.prompts and meridian_dataset.knowledge), which is not installed "
