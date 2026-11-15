@@ -14,6 +14,7 @@ from meridian_dataset import (
     HOLDOUT_V2_SEED,
     HOLDOUT_V3_SEED,
     HOLDOUT_V4_SEED,
+    HOLDOUT_V4B_SEED,
     generate,
 )
 from tier0 import demo, sealed
@@ -35,7 +36,7 @@ def seal_v3(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_only_v4_is_sealed_and_v3_runs_as_a_dev_set(tmp_path: Path) -> None:
-    assert frozenset({"held_out_v4"}) == sealed.SEALED_POOLS
+    assert frozenset({"held_out_v4", "held_out_v4b"}) == sealed.SEALED_POOLS
     for seed in (DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED):
         require_unsealed(generate(seed))
     result = anyio.run(lambda: run_eval(HOLDOUT_V3_SEED, k=1))
@@ -50,6 +51,15 @@ def test_only_v4_is_sealed_and_v3_runs_as_a_dev_set(tmp_path: Path) -> None:
     with pytest.raises(SealedSetError):
         anyio.run(lambda: run_eval(HOLDOUT_V4_SEED, k=1))
     assert demo.main(["--seed", str(HOLDOUT_V4_SEED), "--out", str(tmp_path)]) == 2
+    # v4b (ADR-038) is sealed too, and neither set's name unseals the other.
+    v4b = generate(HOLDOUT_V4B_SEED)
+    assert v4b.message_pool == "held_out_v4b"
+    with pytest.raises(SealedSetError, match="--final-comparison=held_out_v4b"):
+        require_unsealed(v4b)
+    with pytest.raises(SealedSetError):
+        require_unsealed(v4b, final_comparison="held_out_v4")
+    with pytest.raises(SealedSetError):
+        require_unsealed(v4, final_comparison="held_out_v4b")
 
 
 def test_v3_reports_say_dev_set() -> None:
