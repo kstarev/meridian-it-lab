@@ -40,7 +40,7 @@ Policy as code and the code that turns HRIS records into what each person should
 
 **Done when:**
 
-- [ ] `access/policy/` holds roles, apps, birthright apps, exceptions (each with an expiry and an approval reference), the break-glass allowlist and settings (N = 25), validated against a schema in CI.
+- [ ] `access/policy/` holds roles, apps, birthright apps, exceptions (each with an expiry and an approval reference), the break-glass allowlist and settings (5 people per day, 50 accesses per day), validated against a schema in CI.
 - [ ] The roles, birthright and app lists in `access/policy/` are built from the public access policy table in `dataset/ACCESS_RECIPE.md` (the one the generator uses), and a test fails if the two drift apart.
 - [ ] Desired state for every tuning-world person is built from HRIS + policy + the reviewed title map, deterministically.
 - [ ] Contractors past their end date, leavers and people on leave get the expected desired state, checked against the tuning answer key.
@@ -89,7 +89,7 @@ Merging the plan applies it to the mocks, safely ([AAC-007](docs/adr/007-safety-
 - [ ] Apply is a dry run unless `ACCESS_APPLY_MODE=mock-live`, and there is no mode for real systems.
 - [ ] Applying the same plan twice changes nothing the second time, including after injected `429` and `5xx` errors.
 - [ ] A stale plan (actual state changed since it was built) is refused, and the next plan is rebuilt.
-- [ ] A plan over N removals can't be applied with one approval: the required check fails, and apply checks again. The planted mass termination is caught this way.
+- [ ] The plan is split per cause-day: a day with 5 or more people or 50 or more removals (and the no-date bucket, and every bulk import) goes to a held plan that needs two approvals and can't be applied with one: the required check fails, and apply checks again; the rest is the main plan with one approval. The planted mass termination is caught this way.
 - [ ] No code path changes a break-glass account (a test over every change type).
 - [ ] Planted drift is flagged in the plan pull request and the mock Slack message, scored by precision and recall.
 - [ ] Non-SSO removals become manual tasks, confirmed against the next export.

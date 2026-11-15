@@ -106,7 +106,7 @@ def test_approvals_follow_adr_002_plan_branch_files_and_not_a_plan_pr_exit():
     runs = step["run"]
     assert "/files" in runs and "--paginate" in runs and "grep -q '^access/plan/'" in runs
     assert "not a plan PR" in runs and "exit 0" in runs
-    assert "/reviews" in runs and "contents/access/plan/plan.json?ref=${HEAD_SHA}" in runs
+    assert "/reviews" in runs and "contents/${plan_path}?ref=${HEAD_SHA}" in runs
     assert "meridian_access.approvals" in runs and "--head-sha" in runs
     assert '--author "${PR_AUTHOR}"' in runs and "--policy-dir access/policy" in runs
     assert step["env"]["PR_AUTHOR"] == "${{ github.event.pull_request.user.login }}"
@@ -144,3 +144,36 @@ def test_codeowners_cover_the_workflows_and_the_plan_directory():
     assert owned["/.github/workflows/"] == ["@kstarev"]
     assert owned["/access/plan/"] == ["@kstarev"]
     assert owned["/access/policy/"] == ["@kstarev"]
+
+
+def test_approvals_check_the_part_the_pull_request_touches_and_fail_on_both():
+    data, _ = load(APPROVALS)
+    (job,) = data["jobs"].values()
+    step = next(s for s in job["steps"] if "GH_TOKEN" in s.get("env", {}))
+    runs = step["run"]
+    assert "grep -qx 'access/plan/held/plan\\.json' files.txt" in runs  # dots escaped
+    assert "grep -qx 'access/plan/plan\\.json' files.txt" in runs
+    assert "plan_path=access/plan/plan.json" in runs
+    assert "plan_path=access/plan/held/plan.json" in runs
+    # both parts in one pull request: fail
+    both = runs[runs.index('if [ "${touches_held}" = yes ] && [ "${touches_main}" = yes ]') :]
+    assert both.index("exit 1") < both.index("gh api -H")
+    assert "a plan pull request holds one part" in runs
+    # access/plan/ touched but neither plan.json: fail before anything is read
+    neither = runs[runs.index('if [ "${touches_held}" = no ] && [ "${touches_main}" = no ]') :]
+    assert "a plan pull request without a plan file" in neither
+    assert neither.index("exit 1") < neither.index("gh api -H")
+    # the path the file was read from goes to the check, which matches it to the part
+    assert '--plan-path "${plan_path}"' in runs
+    assert "held plan" in comment(APPROVALS) and "access/plan-held" in comment(APPROVALS)
+
+
+def test_apply_only_ever_applies_the_main_part_and_has_no_held_path():
+    assert "held/plan.json" in comment(APPLY)  # only the explanation names it
+    assert "held/plan.json" not in code(APPLY)
+    assert "no override" in comment(APPLY) and "two code-owner approvals" in comment(APPLY)
+    data, _ = load(APPLY)
+    (job,) = data["jobs"].values()
+    runs = "\n".join(s.get("run", "") for s in job["steps"])
+    assert "--plan out/access/plan/plan.json" in runs and "held" not in runs
+    assert "held" not in code(APPLY)  # no step, input or env var can reach the held part

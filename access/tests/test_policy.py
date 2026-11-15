@@ -32,7 +32,8 @@ def test_files_load_and_validate(policy: Policy) -> None:
     assert len(policy.roles) == 23
     assert len(policy.birthright_employee) == 8
     assert len(policy.birthright_contractor) == 6
-    assert policy.settings.blast_radius_n == 25
+    assert policy.settings.blast_radius_people == 5
+    assert policy.settings.blast_radius_removals == 50
     assert policy.exceptions == ()
     assert len(policy.break_glass_accounts) == 3
 
@@ -70,7 +71,7 @@ def test_a_missing_directory_file_is_a_clear_error(tmp_path: Path) -> None:
 def test_a_copy_of_the_files_loads(tmp_path: Path) -> None:
     for name in FILES:
         shutil.copy(default_policy_dir() / f"{name}.yaml", tmp_path)
-    assert load_policy(tmp_path).settings.blast_radius_n == 25
+    assert load_policy(tmp_path).settings.blast_radius_removals == 50
 
 
 def test_unknown_app_in_a_role_fails() -> None:
@@ -133,9 +134,24 @@ def test_exception_for_an_unknown_app_fails(policy: Policy) -> None:
         rebuild(raw)
 
 
-def test_blast_radius_zero_fails() -> None:
+@pytest.mark.parametrize("key", ["blast_radius_people", "blast_radius_removals"])
+def test_blast_radius_zero_fails(key: str) -> None:
     raw = copy.deepcopy(raw_files())
-    raw["settings"]["blast_radius_n"] = 0  # type: ignore[index]
+    raw["settings"][key] = 0  # type: ignore[index]
+    with pytest.raises(PolicyError, match=key):
+        rebuild(raw)
+
+
+def test_missing_blast_radius_people_fails() -> None:
+    raw = copy.deepcopy(raw_files())
+    del raw["settings"]["blast_radius_people"]  # type: ignore[attr-defined]
+    with pytest.raises(PolicyError, match="blast_radius_people"):
+        rebuild(raw)
+
+
+def test_the_old_blast_radius_n_key_is_rejected() -> None:
+    raw = copy.deepcopy(raw_files())
+    raw["settings"]["blast_radius_n"] = 25  # type: ignore[index]
     with pytest.raises(PolicyError, match="blast_radius_n"):
         rebuild(raw)
 
@@ -181,8 +197,8 @@ def test_break_glass_needs_an_account() -> None:
 def test_duplicate_yaml_key_fails(tmp_path: Path) -> None:
     for name in FILES:
         shutil.copy(default_policy_dir() / f"{name}.yaml", tmp_path)
-    (tmp_path / "settings.yaml").write_text("blast_radius_n: 25\nblast_radius_n: 99\n")
-    with pytest.raises(PolicyError, match=r"settings\.yaml.*duplicate key 'blast_radius_n'"):
+    (tmp_path / "settings.yaml").write_text("blast_radius_people: 5\nblast_radius_people: 99\n")
+    with pytest.raises(PolicyError, match=r"settings\.yaml.*duplicate key 'blast_radius_people'"):
         load_policy(tmp_path)
 
 

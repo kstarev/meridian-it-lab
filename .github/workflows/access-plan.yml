@@ -48,5 +48,6 @@ jobs:
             out/access/plan/summary.md
             out/access/plan/slack-message.json
             out/access/plan/timing.json
+            out/access/plan/held/
           if-no-files-found: error
           retention-days: 30

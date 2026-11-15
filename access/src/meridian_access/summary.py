@@ -1,7 +1,8 @@
 """The plain-English summary of a plan (AAC-006): the model interprets, code checks.
 
 `template_summary` is deterministic. `model_summary` asks the model for one paragraph in which
-every number is a placeholder (`{total}`, `{held}`, `{approvals}`, `{count:<type>}`); code fills
+every number is a placeholder (`{total}`, `{held}` for bad HR data, `{held_plan}`, `{approvals}`,
+`{count:<type>}`); code fills
 them in from plan.json, so a number can never be wrong or carry the wrong label. The paragraph
 is accepted only if it has no raw digit, no spelled-out number, no unknown placeholder, and
 every word is in a closed allowlist (common English words, the finding-type words, the systems,
@@ -88,7 +89,8 @@ ALLOWED_WORDS = _words(
     approvers apps birthright change contractor contractors department directory employee
     employees export exports finding findings former hand holds list month moved owner owners
     policy pull request requests role roles row rows system systems team teams user users
-    held back example examples around among along already almost appear appears affect
+    held back bad bulk import imports limit separate bucket buckets example examples
+    around among along already almost appear appears affect
     affected affects available based certain currently different enough especially exactly
     following given happen happens important instead large main majority minor nothing others
     otherwise overall part partly possible rather really recent right several simple single
@@ -117,7 +119,8 @@ def placeholder_values(plan: "Plan") -> dict[str, int]:
     counts = plan.counts
     values = {
         "total": counts["total"],
-        "held": counts["held"],
+        "held": counts["held_bad_data"],
+        "held_plan": (plan.data.get("held_plan") or {}).get("changes", 0),
         "approvals": plan.data["approvals_required"],
     }
     values.update({f"count:{t}": n for t, n in counts["by_type"].items()})
@@ -185,8 +188,19 @@ def template_summary(plan: "Plan") -> str:
     text += f": {', '.join(parts)}." if parts else "."
     n = plan.data["approvals_required"]
     text += f" It needs {n} approval{'s' if n != 1 else ''}."
-    if counts["held"]:
-        text += f" {counts['held']} changes are held and not applied."
+    if plan.data.get("part") == "held":
+        text += (
+            " This is the held part of the plan: it has the changes of days over the limit and "
+            "any bulk import, and is applied only after two approvals."
+        )
+    held_plan = plan.data.get("held_plan")
+    if held_plan:
+        text += (
+            f" {held_plan['changes']} changes are in the held plan "
+            "(applied only after two approvals)."
+        )
+    if counts["held_bad_data"]:
+        text += f" {counts['held_bad_data']} changes are held for bad HR data and never applied."
     if counts["warnings"]:
         text += f" {counts['warnings']} warnings need a look."
     if counts["manual_tasks"]:
@@ -201,7 +215,8 @@ def model_prompt(plan: "Plan") -> str:
         "Placeholders you may use for numbers (write them exactly, never digits):",
         "{total}: all changes",
         "{approvals}: approvals required",
-        "{held}: changes held back",
+        "{held}: changes held for bad HR data, never applied",
+        "{held_plan}: changes in the held plan, applied only after two approvals",
         *(f"{{count:{t}}}: {TYPE_WORDS.get(t, t)}" for t in counts["by_type"]),
         f"Change lines (the first {len(lines)} of {counts['total']} changes):",
     ]

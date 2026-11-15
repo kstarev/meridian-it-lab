@@ -82,8 +82,8 @@ def test_each_labelled_number_is_the_matching_plan_count(message, plan):
         title: counts["by_type"][key] for key, title in SECTIONS if counts["by_type"].get(key)
     }
     expected["Approvals required"] = plan.data["approvals_required"]
-    if counts["held"]:
-        expected["Changes held, not applied"] = counts["held"]
+    if counts["held_bad_data"]:
+        expected["Held for bad HR data, never applied"] = counts["held_bad_data"]
     if counts["by_type"].get("break_glass"):
         expected["Break-glass entries seen, never touched"] = counts["by_type"]["break_glass"]
     if counts["warnings"]:
@@ -97,8 +97,7 @@ def test_each_labelled_number_is_the_matching_plan_count(message, plan):
 def test_the_warnings_section_reflects_the_plan(message, plan):
     warnings = message["blocks"][2]["text"]["text"]
     assert f"Approvals required: {plan.data['approvals_required']}" in warnings
-    if plan.counts["by_type"].get("hris_mass_termination"):
-        assert "Bulk HR change held" in warnings
+    assert "Bulk HR change held" not in warnings  # the old dead bullet is gone
     if plan.counts["by_type"].get("break_glass"):
         assert "Break-glass" in warnings
 
@@ -151,3 +150,27 @@ def test_write_message_makes_a_json_file(message, tmp_path):
     path = tmp_path / "slack-message.json"
     slack_mock.write_message(message, path)
     assert json.loads(path.read_text(encoding="utf-8")) == message
+
+
+def _held_line(message):
+    warnings = message["blocks"][2]["text"]["text"]
+    return next((ln for ln in warnings.splitlines() if ln.startswith("• Held plan")), "")
+
+
+def test_the_main_message_has_one_held_plan_section_with_buckets_and_counts_by_type(plan, policy):
+    from meridian_access.plan import SECTIONS, split_plan
+
+    main_plan, held = split_plan(plan, policy)
+    assert held is not None
+    message = slack_mock.build_message(main_plan, "https://example.com/pull/PR")
+    text = message["blocks"][2]["text"]["text"]
+    assert len([ln for ln in text.splitlines() if "Held plan" in ln]) == 1
+    line = _held_line(message)
+    held_plan = main_plan.data["held_plan"]
+    assert f"{len(held_plan['buckets'])} buckets over the limit" in line
+    assert f"{held_plan['changes']} changes" in line and line.endswith("needs two approvers")
+    titles = dict(SECTIONS)
+    for kind, n in held_plan["by_type"].items():  # drift and the bulk change included
+        assert f"{titles[kind]}: {n}" in line
+    assert held_plan["by_type"]["drift"] and held_plan["by_type"]["hris_mass_termination"]
+    assert "0 buckets" not in text and "Bulk HR change held" not in text

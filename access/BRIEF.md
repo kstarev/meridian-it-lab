@@ -59,7 +59,7 @@ Its suggestions go into the reviewed map files, labelled as AI suggestions, thro
 ### Safety rails
 
 - **Nothing changes without a merged, approved plan.** Apply is a dry run by default.
-- **Blast-radius limit:** a plan that removes more than N accesses (N = 25 to start, set in the policy) needs two approvers.
+- **Blast-radius limit:** the limit is counted per cause-day: a day with 5 or more people losing access, or 50 or more removals, goes to a separate held plan that needs two approvers (the "no date" removals count as one day, and every bulk import is held); everything else is the main plan with one approver, so one bad day never blocks the rest. The numbers are set in the policy.
 - **Break-glass accounts** are on an allowlist. They are never changed, only reported.
 - **A stale plan is never applied:** if the actual state changed after the plan was made, apply stops and the plan is made again.
 - **Secrets live only in GitHub Actions secrets.** Everything runs on GitHub (Actions, scheduled workflows), nothing on a laptop. There's no real Slack: a mock adapter builds the Slack message and saves it as a file, and nothing is ever sent ([AAC-008](docs/adr/008-runs-on-github-only.md)).
@@ -96,7 +96,7 @@ Every number on the results page is generated from published reports and checked
 - **What the sealed world can and can't test.** It can bring mess the practice world never had (new column names, date formats, name spellings, username patterns and HR edge cases), but only within the generator's fixed list of systems, fields and problem types, so a kind of problem nobody thought to describe can't appear in it.
 - **The answer key and the system share an author.** The same builder writes the generator that makes the answer key and Access-as-Code itself, so one misreading of the rules could end up in both and look like agreement. The blind referee, a script written by a helper who has seen neither and that builds its own key from the raw held-out files, is the check against those shared mistakes ([AAC-011](docs/adr/011-blind-referee-against-shared-mistakes.md)).
 - **Small numbers.** The tuning world has 23 orphaned accounts and 11 movers. Counts like that give wide intervals, and they're reported with them.
-- **One person stands in for the IT team.** The two-approver rule needs a second reviewer; in the lab that's a second GitHub account or a scripted stand-in, said plainly wherever it's used.
+- **A held plan stays blocked by design.** The owner is the only code owner, so a held plan (one that needs two approvers) stays blocked by design. There is no override and no stand-in second approver; the blocked bulk-import pull request is the demo that the rail works.
 - **Non-SSO apps can't be changed by API.** For those, the plan creates a manual task and can only check the next export.
 - **The nightly demo runs on the tuning world,** never the held-out one, so what's public each night is never the scored test.
 - **The model isn't deterministic.** Suggestions can differ between runs, which is one reason they need a review before they count.

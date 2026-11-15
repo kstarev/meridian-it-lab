@@ -63,7 +63,8 @@ class PolicyException:
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    blast_radius_n: int
+    blast_radius_people: int
+    blast_radius_removals: int
     approvals_over_n: int
     approvals_default: int
     reference_date: date
@@ -221,14 +222,16 @@ def build_policy(raw: dict[str, Any]) -> Policy:
     except re.error as exc:
         raise PolicyError(f"break_glass.yaml: bad pattern: {exc}") from exc
     s = raw["settings"]
-    if s["blast_radius_n"] <= 0:
-        raise PolicyError("settings.yaml: blast_radius_n must be above 0")
+    for key in ("blast_radius_people", "blast_radius_removals"):
+        if s[key] <= 0:
+            raise PolicyError(f"settings.yaml: {key} must be above 0")
     if not s["approvals_over_n"] >= s["approvals_default"] >= 1:
         raise PolicyError(
             "settings.yaml: approvals must satisfy approvals_over_n >= approvals_default >= 1"
         )
     settings = Settings(
-        s["blast_radius_n"],
+        s["blast_radius_people"],
+        s["blast_radius_removals"],
         s["approvals_over_n"],
         s["approvals_default"],
         _date(s["reference_date"], "settings.yaml reference_date"),

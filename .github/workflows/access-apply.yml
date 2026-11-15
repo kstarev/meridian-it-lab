@@ -4,6 +4,10 @@
 # systems: apply only talks to the in-process mocks. It is a dry run unless the repository
 # variable ACCESS_APPLY_MODE is mock-live. The approvals input stands in for the approvals
 # on the pull request; at 0 a plan that needs approvals is refused. No secrets are used.
+# This workflow applies only the main part of the plan (out/access/plan/plan.json). The held
+# plan (a separate pull request, out/access/plan/held/plan.json) needs two code-owner approvals
+# on its own pull request and has no dispatch path here: the workflow never reads it and there
+# is no override.
 name: Access apply
 
 on:

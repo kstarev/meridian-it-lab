@@ -71,6 +71,7 @@ def test_checkout_keeps_no_credentials_and_the_steps_are_the_documented_ones():
     upload = next(s for s in steps if "upload-artifact" in s.get("uses", ""))
     for name in ("plan.json", "PLAN.md", "summary.md", "slack-message.json", "timing.json"):
         assert f"{name}" in upload["with"]["path"]
+    assert "out/access/plan/held/" in upload["with"]["path"]  # the held plan, if there is one
 
 
 def test_no_secrets_and_the_model_summary_is_never_switched_on():

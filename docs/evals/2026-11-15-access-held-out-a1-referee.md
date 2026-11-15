@@ -63,7 +63,7 @@ Split by cause, on the practice world. An export counts as unreadable to the ref
 | **Total** | **263** | **7** | **270** |
 <!-- referee-split:end -->
 
-In all of the (b) cases the referee matched a username to the wrong one of two namesakes, and the row's name columns show the key is right (practice-world rulings pending with the owner).
+In all of the (b) cases the referee matched a username to the wrong one of two namesakes, and the row's name columns show the key is right. The owner ruled "key right" on all 7 (practice-world rulings, below).
 
 The referee's 19 judgment calls are in its notes, kept outside the repository for the owner.
 
@@ -77,3 +77,17 @@ None needed: there are 0 disagreements. If the generator or the recipe changes, 
 
 | Id | Kind | Ruling | Reason |
 |---|---|---|---|
+
+### Practice-world rulings (tuning world, seed 6108)
+
+The referee's run on the practice world, which it was never fitted to, had 7 disagreements of kind (b), read it and decided differently. These ids number the practice world's details file, not the held-out comparison. The owner ruled on all 7 on 2026-11-15. No generator change followed.
+
+| Id | Kind | Ruling | Reason |
+|---|---|---|---|
+| D036 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+| D039 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+| D040 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+| D043 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+| D171 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+| D238 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+| D270 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |

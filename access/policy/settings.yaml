@@ -1,7 +1,13 @@
 # Safety-rail settings (AAC-007). Fake data. Changing a number here is a reviewed change.
-# A plan that removes or suspends more than blast_radius_n accesses needs approvals_over_n
-# code-owner approvals; otherwise approvals_default.
-blast_radius_n: 25
+# The limit is counted per cause-day (the day of the HR event behind a removal or suspension),
+# not per plan. Removals with no cause day form one extra "no date" bucket. A bucket is over
+# the limit when it has blast_radius_people or more different people (5 or more), or
+# blast_radius_removals or more removals and suspensions (50 or more).
+# The plan is split: over-limit buckets (and every bulk import, held with a block_two_approvers
+# entry) go to a held plan that needs approvals_over_n approvals; everything else is the main
+# plan and needs approvals_default. One bad day never blocks the rest.
+blast_radius_people: 5
+blast_radius_removals: 50
 approvals_over_n: 2
 approvals_default: 1
 reference_date: "2026-12-01"

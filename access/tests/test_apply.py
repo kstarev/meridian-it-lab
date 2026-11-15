@@ -20,9 +20,10 @@ from meridian_access.apply import (
     issue_write_tokens,
     normalise_mode,
 )
+from meridian_access.approvals import required_for
 from meridian_access.collect import Mocks, actual_state
 from meridian_access.mocks import GoogleMock, MockResponse, OktaMock, SlackMock
-from meridian_access.plan import Plan, build_plan
+from meridian_access.plan import Plan, build_plan, split_plan
 from meridian_access.policy.load import default_policy_dir, load_policy
 
 SRC = Path(apply_mod.__file__)
@@ -31,8 +32,29 @@ BG = "breakglass-01@meridian.example"
 
 
 @pytest.fixture(scope="module")
-def plan(world_dir, policy) -> Plan:
+def combined(world_dir, policy) -> Plan:
     return build_plan(world_dir, policy)
+
+
+@pytest.fixture(scope="module")
+def parts(combined, policy) -> tuple[Plan, Plan]:
+    main, held = split_plan(combined, policy)
+    assert held is not None
+    return main, held
+
+
+@pytest.fixture(scope="module")
+def plan(parts) -> Plan:
+    """The main part of the tuning-world plan (what the apply workflow applies)."""
+    return parts[0]
+
+
+@pytest.fixture(scope="module")
+def everything(combined) -> Plan:
+    """Main and held changes in one hand-made plan, for tests that need every kind of change
+    (drift, orphans, mover adds, leavers). It is applied with `rebuild=lambda state: everything`:
+    the real split would never produce it."""
+    return Plan({**combined.data, "part": "main", "approvals_required": 2})
 
 
 def make_mocks(world_dir) -> Mocks:
@@ -67,8 +89,9 @@ def run(plan, world_dir, policy, mocks=None, *, mode="mock-live", approvals=2, *
 
 
 def run_hand(hand, world_dir, policy, mocks, **kw):
-    """Apply a hand-made plan: the rebuild step returns that same plan, because the diff would
-    never produce the changes a guard test needs (the guard is what is under test)."""
+    """Apply a hand-made plan: the rebuild step (which returns the fresh plan of the same part)
+    returns that same plan, because the diff would never produce the changes a guard test
+    needs (the guard is what is under test)."""
     return run(hand, world_dir, policy, mocks, rebuild=lambda state: hand, **kw)
 
 
@@ -92,7 +115,8 @@ def hand_plan(mocks, world_dir, policy, changes, approvals_required=1) -> Plan:
     state = actual_state(mocks, policy, world_dir / "exports")
     return Plan(
         {
-            "version": 1,
+            "version": 2,
+            "part": "main",
             "as_of": "2026-12-01",
             "actual_state_sha256": state.digest(),
             "changes": changes,
@@ -115,6 +139,7 @@ def change(system, action, account, app_id="", type_="leaver_access_left"):
         "action": action,
         "reason": "test",
         "evidence": [],
+        "cause_date": "",
     }
 
 
@@ -211,14 +236,126 @@ def test_a_dry_run_also_refuses_a_stale_plan(plan, world_dir, policy):
     assert result.refused_reason == "stale"
 
 
-def test_missing_approvals_are_refused_and_nothing_changes(plan, world_dir, policy):
-    assert plan.data["approvals_required"] == 2
+def test_missing_approvals_are_refused_and_nothing_changes(parts, world_dir, policy):
+    held = parts[1]
+    assert held.data["part"] == "held" and held.data["approvals_required"] == 2
     for have in (0, 1):
         mocks = make_mocks(world_dir)
         before = snapshot(mocks)
-        result, _ = run(plan, world_dir, policy, mocks, approvals=have)
+        result, _ = run(held, world_dir, policy, mocks, approvals=have)
         assert result.refused_reason == "needs 2 approvals"
         assert not result.applied and snapshot(mocks) == before
+    ok, _ = run(held, world_dir, policy, approvals=2, mode="dry-run")
+    assert not ok.refused_reason and ok.applied
+
+
+def test_the_main_part_with_one_approval_passes_the_approvals_step(plan, world_dir, policy):
+    assert plan.data["part"] == "main" and plan.data["approvals_required"] == 1
+    result, _ = run(plan, world_dir, policy, approvals=1, mode="dry-run")
+    assert not result.refused_reason and result.applied
+    zero, _ = run(plan, world_dir, policy, approvals=0, mode="dry-run")
+    assert zero.refused_reason == "needs 1 approvals"
+
+
+def test_moving_a_change_from_the_held_plan_into_main_is_refused(parts, world_dir, policy):
+    main, held = parts
+    moved = next(c for c in held.changes if c["action"] in ("remove", "suspend"))
+    data = copy.deepcopy(main.data)
+    data["changes"].append(moved)
+    mocks = make_mocks(world_dir)
+    before = snapshot(mocks)
+    # One extra removal in main does not raise main's requirement (one person on one day, far
+    # below the limits), so approvals are not what stops it: one approval gets past that step,
+    # and the rebuild comparison refuses the plan because the fresh main plan lacks the change.
+    assert required_for(data["changes"], policy) == 1
+    result, _ = run(Plan(data), world_dir, policy, mocks, approvals=1)
+    assert result.refused_reason == "plan changed"
+    assert not result.applied and snapshot(mocks) == before
+    result, _ = run(Plan(data), world_dir, policy, make_mocks(world_dir), approvals=2)
+    assert result.refused_reason == "plan changed"
+
+
+def test_a_held_plan_relabelled_main_with_one_approval_is_refused(parts, world_dir, policy):
+    _, held = parts
+    data = {**copy.deepcopy(held.data), "part": "main", "approvals_required": 1}
+    mocks = make_mocks(world_dir)
+    before = snapshot(mocks)
+    # the changes still need two (bucket limits), whatever the label and the claim say
+    result, _ = run(Plan(data), world_dir, policy, mocks, approvals=1)
+    assert result.refused_reason == "needs 2 approvals"
+    assert not result.applied and snapshot(mocks) == before
+    # with two approvals it is a main plan that differs from the fresh main plan
+    result, _ = run(Plan(data), world_dir, policy, make_mocks(world_dir), approvals=2)
+    assert result.refused_reason == "plan changed"
+
+
+def test_a_main_plan_relabelled_held_is_refused(parts, world_dir, policy):
+    main, _ = parts
+    data = {**copy.deepcopy(main.data), "part": "held"}
+    mocks = make_mocks(world_dir)
+    before = snapshot(mocks)
+    # the held floor: needs two approvals although main's changes need one
+    result, _ = run(Plan(data), world_dir, policy, mocks, approvals=1)
+    assert result.refused_reason == "needs 2 approvals"
+    assert not result.applied and snapshot(mocks) == before
+    # with two it is compared with the fresh held plan and differs
+    result, _ = run(Plan(data), world_dir, policy, make_mocks(world_dir), approvals=2)
+    assert result.refused_reason == "plan changed"
+
+
+def test_the_held_part_needs_two_approvals_whatever_the_file_and_the_changes_say(world_dir, policy):
+    mocks = make_mocks(world_dir)
+    hand = hand_plan(mocks, world_dir, policy, [], approvals_required=1)
+    held = Plan({**hand.data, "part": "held"})
+    result, _ = run_hand(held, world_dir, policy, mocks, approvals=1)
+    assert result.refused_reason == "needs 2 approvals"
+    ok, _ = run_hand(held, world_dir, policy, make_mocks(world_dir), approvals=2)
+    assert not ok.refused_reason
+
+
+def test_applying_one_part_makes_the_other_stale(parts, world_dir, policy):
+    main, held = parts
+    assert main.data["actual_state_sha256"] == held.data["actual_state_sha256"]
+    mocks = make_mocks(world_dir)
+    first, _ = run(main, world_dir, policy, mocks, approvals=1)
+    assert not first.refused_reason and first.applied
+    before = snapshot(mocks)
+    second, _ = run(held, world_dir, policy, mocks, approvals=2)
+    assert second.refused_reason == "stale"
+    assert not second.applied and snapshot(mocks) == before
+    # and the other way round
+    mocks = make_mocks(world_dir)
+    first, _ = run(held, world_dir, policy, mocks, approvals=2)
+    assert not first.refused_reason and first.applied
+    second, _ = run(main, world_dir, policy, mocks, approvals=1)
+    assert second.refused_reason == "stale"
+
+
+def test_a_plan_with_a_missing_or_unknown_part_is_refused(plan, world_dir, policy):
+    for part in (None, "", "both", "Main", 1):
+        data = copy.deepcopy(plan.data)
+        if part is None:
+            del data["part"]
+        else:
+            data["part"] = part
+        mocks = make_mocks(world_dir)
+        before = snapshot(mocks)
+        result, _ = run(Plan(data), world_dir, policy, mocks, approvals=2)
+        assert "unknown plan part" in result.refused_reason
+        assert not result.applied and snapshot(mocks) == before
+
+
+def test_a_part_the_fresh_split_does_not_have_is_plan_changed(
+    parts, world_dir, policy, monkeypatch
+):
+    main, held = parts
+    # the fresh build has no held plan any more (for example the bulk import was corrected)
+    monkeypatch.setattr(apply_mod, "split_plan", lambda plan, pol: (main, None))
+    mocks = make_mocks(world_dir)
+    before = snapshot(mocks)
+    result, _ = run(held, world_dir, policy, mocks, approvals=2)
+    assert result.refused_reason.startswith("plan changed")
+    assert "no held plan" in result.refused_reason and snapshot(mocks) == before
 
 
 def test_a_state_that_cannot_be_read_is_a_refusal_not_a_change(plan, world_dir, policy):
@@ -238,7 +375,8 @@ def test_held_changes_are_never_applied(plan, world_dir, policy):
     mocks = make_mocks(world_dir)
     before = snapshot(mocks)
     result, _ = run(plan, world_dir, policy, mocks)
-    assert result.held_not_applied == len(plan.data["held"])
+    bad = [c for c in plan.data["held"] if c["hold"] == "bad_data"]
+    assert result.held_not_applied == len(bad)  # moved changes are in the held plan, not "never"
     held_okta_users = {a for s, app, a in held_accounts if s == "okta" and not app} - {
         a for s, app, a in applied if s == "okta" and not app
     }
@@ -339,7 +477,9 @@ def test_the_real_plan_has_no_break_glass_in_what_apply_drops(plan, world_dir, p
     assert result.dropped_break_glass == []  # the diff already kept them out
 
 
-def test_suspend_comes_before_remove_and_each_action_has_its_api_meaning(plan, world_dir, policy):
+def test_suspend_comes_before_remove_and_each_action_has_its_api_meaning(
+    everything, world_dir, policy
+):
     mocks = make_mocks(world_dir)
     before = snapshot(mocks)
     seen = []
@@ -352,7 +492,7 @@ def test_suspend_comes_before_remove_and_each_action_has_its_api_meaning(plan, w
             return _o(method, path, **kw)
 
         mock.request = spy
-    result, _ = run(plan, world_dir, policy, mocks)
+    result, _ = run_hand(everything, world_dir, policy, mocks)
     order = [apply_mod._step(c) for c in result.applied]
     assert order == sorted(order)
     assert order[0] == 0 and order[-1] == 3
@@ -411,8 +551,8 @@ def test_the_old_plan_is_stale_after_the_first_run(plan, world_dir, policy):
     assert again.refused_reason == "stale"
 
 
-def test_a_re_plan_after_apply_has_nothing_left_to_apply(plan, world_dir, policy):
-    _, mocks = run(plan, world_dir, policy)
+def test_a_re_plan_after_apply_has_nothing_left_to_apply(everything, world_dir, policy):
+    _, mocks = run_hand(everything, world_dir, policy, make_mocks(world_dir))
     state = actual_state(mocks, policy, world_dir / "exports")
     fresh = build_plan(world_dir, policy, state=state)
     removals = [
@@ -423,7 +563,8 @@ def test_a_re_plan_after_apply_has_nothing_left_to_apply(plan, world_dir, policy
         and not (c["system"] == "google" and c["action"] == "remove")
     ]
     assert removals == []
-    result, _ = run(fresh, world_dir, policy, mocks, approvals=fresh.data["approvals_required"])
+    fresh_main, _ = split_plan(fresh, policy)
+    result, _ = run(fresh_main, world_dir, policy, mocks, approvals=1)
     assert result.applied == [] and not result.refused_reason
 
 
@@ -490,9 +631,9 @@ def test_export_flags_become_manual_tasks_and_not_api_calls(plan, world_dir, pol
     assert not any(c["system"] == c["app_id"] for c in result.applied)
 
 
-def test_drift_flags_are_listed_for_review_and_change_nothing(plan, world_dir, policy):
-    result, _ = run(plan, world_dir, policy)
-    flags = [c for c in plan.changes if c["type"] == "drift" and c["action"] == "flag"]
+def test_drift_flags_are_listed_for_review_and_change_nothing(everything, world_dir, policy):
+    result, _ = run_hand(everything, world_dir, policy, make_mocks(world_dir))
+    flags = [c for c in everything.changes if c["type"] == "drift" and c["action"] == "flag"]
     assert flags
     assert [c["account"] for c in result.flagged_for_review] == [c["account"] for c in flags]
     assert not any(c["action"] == "flag" for c in result.applied)
@@ -549,32 +690,43 @@ def test_a_task_whose_export_file_is_missing_is_not_done(plan, world_dir, policy
 # ---------------------------------------------------------------- drift in the plan files
 
 
-def test_drift_is_in_plan_md_and_the_slack_warnings_with_the_plan_json_count(plan):
-    drift = plan.counts["by_type"]["drift"]
-    assert drift > 0 and drift == sum(1 for c in plan.changes if c["type"] == "drift")
-    md = plan.markdown()
-    assert f"| Drift (changed outside the process) | {drift} |" in md
-    section = md.split("## Drift (changed outside the process)\n", 1)[1].split("\n## ", 1)[0]
-    assert len([ln for ln in section.splitlines() if ln.startswith("- ")]) == drift
-    message = slack_mock.build_message(plan, "https://example.com/pr")
+def test_drift_is_in_plan_md_and_the_slack_message_with_the_plan_json_count(parts, combined):
+    """The real tuning parts: drift in main plus drift in the held plan is the combined drift."""
+    main, held = parts
+    in_main = main.counts["by_type"].get("drift", 0)
+    in_held = main.data["held_plan"]["by_type"].get("drift", 0)
+    combined_drift = combined.counts["by_type"]["drift"]
+    assert combined_drift > 0 and in_main + in_held == combined_drift
+    assert in_held == held.counts["by_type"].get("drift", 0)
+    title = "Drift (changed outside the process)"
+    md = main.markdown()
+    assert f"| {title} | {in_main} |" in md  # main's own table
+    if in_held:
+        held_section = md.split("## Held plan (needs two approvers)\n", 1)[1].split("\n## ", 1)[0]
+        assert f"- {title}: {in_held}" in held_section
+    message = slack_mock.build_message(main, "https://example.com/pr")
     warnings = next(
         b["text"]["text"]
         for b in message["blocks"]
         if b.get("type") == "section" and b["text"]["text"].startswith("*Warnings*")
     )
-    found = re.search(r"Drift \(changed outside the process\): (\d+)", warnings)
-    assert found and int(found.group(1)) == drift
+    held_line = next(ln for ln in warnings.splitlines() if ln.startswith("• Held plan"))
+    if in_held:
+        assert f"{title}: {in_held}" in held_line
+    if in_main:
+        assert re.search(rf"Drift \(changed outside the process\): {in_main}\b", warnings)
 
 
 # ---------------------------------------------------------------- CLI
 
 
 def test_the_cli_is_a_dry_run_unless_the_env_says_mock_live(
-    plan, world_dir, policy, tmp_path, monkeypatch, capsys
+    parts, world_dir, policy, tmp_path, monkeypatch, capsys
 ):
+    plan, held = parts
     plan_file = tmp_path / "plan.json"
     plan_file.write_text(plan.json(), encoding="utf-8")
-    argv = ["--plan", str(plan_file), "--world", str(world_dir), "--approvals", "2"]
+    argv = ["--plan", str(plan_file), "--world", str(world_dir), "--approvals", "1"]
     monkeypatch.delenv("ACCESS_APPLY_MODE", raising=False)
     assert apply_mod.main([*argv, "--log", str(tmp_path / "log.json")]) == 0
     out = capsys.readouterr().out
@@ -584,23 +736,108 @@ def test_the_cli_is_a_dry_run_unless_the_env_says_mock_live(
     assert apply_mod.main(argv) == 0 and "mode: dry-run" in capsys.readouterr().out
     monkeypatch.setenv("ACCESS_APPLY_MODE", "mock-live")
     assert apply_mod.main(argv) == 0 and "mode: mock-live" in capsys.readouterr().out
-    assert apply_mod.main([*argv[:-1], "1"]) == 1  # refused: needs 2 approvals
-    assert "needs 2 approvals" in capsys.readouterr().out
+    assert apply_mod.main([*argv[:-1], "1"]) == 0  # the main part needs one approval
+    capsys.readouterr()
+    held_file = tmp_path / "held.json"
+    held_file.write_text(held.json(), encoding="utf-8")
+    # the CLI never applies the held part, even with a self-declared second approver
+    for n in ("1", "2"):
+        held_argv = ["--plan", str(held_file), "--world", str(world_dir), "--approvals", n]
+        assert apply_mod.main(held_argv) == 1
+        out = capsys.readouterr().out
+        assert "the held plan is applied only when its pull request is merged with two" in out
+        assert "owner's GitHub App and is not built" in out
+        assert "applied:" not in out
 
 
 # ---------------------------------------------------------------- approved content is applied
 
 
-def test_a_plan_claiming_one_approval_with_forty_removals_needs_two(plan, world_dir, policy):
+def test_a_plan_claiming_one_approval_with_fifty_removals_needs_two(plan, world_dir, policy):
     mocks = make_mocks(world_dir)
-    forty = [c for c in plan.changes if c["action"] in ("remove", "suspend")][:40]
-    assert len(forty) == 40
-    hand = hand_plan(mocks, world_dir, policy, forty, approvals_required=1)
+    removals = [c for c in plan.changes if c["action"] in ("remove", "suspend")][:50]
+    # two people, no cause dates: neither people leg can fire, only the backstop can
+    rows = [{**c, "employee_id": f"E{i % 2}", "cause_date": ""} for i, c in enumerate(removals)]
+    assert len(rows) == policy.settings.blast_radius_removals == 50
+    hand = hand_plan(mocks, world_dir, policy, rows, approvals_required=1)
     before = snapshot(mocks)
     result, _ = run_hand(hand, world_dir, policy, mocks, approvals=1)
     assert result.refused_reason == "needs 2 approvals" and snapshot(mocks) == before
     ok, _ = run_hand(hand, world_dir, policy, make_mocks(world_dir), approvals=2)
     assert not ok.refused_reason
+    below = hand_plan(mocks, world_dir, policy, rows[:49], approvals_required=1)
+    one, _ = run_hand(below, world_dir, policy, make_mocks(world_dir), approvals=1)
+    assert not one.refused_reason
+
+
+def test_a_plan_of_another_version_is_refused_before_anything_else(plan, world_dir, policy):
+    mocks = make_mocks(world_dir)
+    old = Plan({**plan.data, "version": 1})
+    before = snapshot(mocks)
+    result, _ = run(old, world_dir, policy, mocks, approvals=2)
+    assert result.refused_reason == "plan version 1, expected 2: build the plan again"
+    assert snapshot(mocks) == before
+    result, _ = run(old, world_dir, policy, make_mocks(world_dir), approvals=0)
+    assert "plan version 1" in result.refused_reason  # before the approvals check
+
+
+def _tampered(plan, index, **fields):
+    data = copy.deepcopy(plan.data)
+    data["changes"][index].update(fields)
+    return Plan(data)
+
+
+def test_editing_a_cause_date_or_owner_in_the_plan_file_is_refused_as_changed(
+    plan, world_dir, policy
+):
+    index = next(
+        i
+        for i, c in enumerate(plan.changes)
+        if c["action"] in ("remove", "suspend") and c["cause_date"] and c["employee_id"]
+    )
+    for edit in ({"cause_date": "2026-11-02"}, {"employee_id": "E-tampered"}):
+        edited = _tampered(plan, index, **edit)
+        assert edited.changes[index] != plan.changes[index]
+        mocks = make_mocks(world_dir)
+        before = snapshot(mocks)
+        result, _ = run(edited, world_dir, policy, mocks, approvals=2)
+        assert result.refused_reason == "plan changed", edit
+        assert snapshot(mocks) == before
+
+
+def test_a_plan_claiming_one_approval_with_five_people_on_one_day_needs_two(world_dir, policy):
+    mocks = make_mocks(world_dir)
+    rows = []
+    for i in range(5):
+        row = change("okta", "suspend", f"p{i}@meridian.example")
+        rows.append({**row, "employee_id": f"E{i}", "cause_date": "2026-11-10"})
+    hand = hand_plan(mocks, world_dir, policy, rows, approvals_required=1)
+    before = snapshot(mocks)
+    result, _ = run_hand(hand, world_dir, policy, mocks, approvals=1)
+    assert result.refused_reason == "needs 2 approvals" and snapshot(mocks) == before
+
+
+def test_a_plan_without_cause_dates_is_refused_with_a_clear_reason(world_dir, policy):
+    mocks = make_mocks(world_dir)
+    row = {
+        k: v
+        for k, v in change("okta", "suspend", "x@meridian.example").items()
+        if k != "cause_date"
+    }
+    hand = hand_plan(mocks, world_dir, policy, [row], approvals_required=1)
+    before = snapshot(mocks)
+    result, _ = run_hand(hand, world_dir, policy, mocks, approvals=2)
+    assert "cause_date" in result.refused_reason and snapshot(mocks) == before
+
+
+@pytest.mark.parametrize("bad", [None, 5, "garbage"])
+def test_a_plan_with_a_bad_cause_date_is_refused_with_a_clear_reason(world_dir, policy, bad):
+    mocks = make_mocks(world_dir)
+    row = {**change("okta", "suspend", "x@meridian.example"), "cause_date": bad}
+    hand = hand_plan(mocks, world_dir, policy, [row], approvals_required=1)
+    before = snapshot(mocks)
+    result, _ = run_hand(hand, world_dir, policy, mocks, approvals=2)
+    assert "cause_date" in result.refused_reason and snapshot(mocks) == before
 
 
 def test_a_plan_with_a_block_claiming_one_approval_needs_two(plan, world_dir, policy):
@@ -639,10 +876,12 @@ def test_a_changed_policy_refuses_the_plan(plan, world_dir, policy, tmp_path):
     shutil.copytree(default_policy_dir(), pdir)
     settings = pdir / "settings.yaml"
     text = settings.read_text(encoding="utf-8")
-    assert "blast_radius_n: 25" in text
-    settings.write_text(text.replace("blast_radius_n: 25", "blast_radius_n: 30"), encoding="utf-8")
+    assert "blast_radius_removals: 50" in text
+    settings.write_text(
+        text.replace("blast_radius_removals: 50", "blast_radius_removals: 60"), encoding="utf-8"
+    )
     changed = load_policy(pdir)
-    assert changed.settings.blast_radius_n == 30
+    assert changed.settings.blast_radius_removals == 60
     mocks = make_mocks(world_dir)
     before = snapshot(mocks)
     result, _ = run(plan, world_dir, changed, mocks, policy_dir=pdir)
@@ -753,8 +992,11 @@ def lose_one_answer(mock, wanted):
     return state
 
 
-def test_a_lost_acknowledgement_is_retried_safely_and_the_counts_add_up(plan, world_dir, policy):
-    clean, clean_mocks = run(plan, world_dir, policy)
+def test_a_lost_acknowledgement_is_retried_safely_and_the_counts_add_up(
+    everything, world_dir, policy
+):
+    plan = everything
+    clean, clean_mocks = run_hand(plan, world_dir, policy, make_mocks(world_dir))
     want = snapshot(clean_mocks)
     mocks = make_mocks(world_dir)
     lost = [
@@ -765,7 +1007,7 @@ def test_a_lost_acknowledgement_is_retried_safely_and_the_counts_add_up(plan, wo
         lose_one_answer(mocks.google, lambda m, p: m == "PATCH"),
         lose_one_answer(mocks.slack, lambda m, p: m == "PATCH"),
     ]
-    result, _ = run(plan, world_dir, policy, mocks)
+    result, _ = run_hand(plan, world_dir, policy, mocks)
     assert all(s["lost"] for s in lost), "every kind of write should have lost one answer"
     assert not result.refused_reason and not result.failed
     assert snapshot(mocks) == want
