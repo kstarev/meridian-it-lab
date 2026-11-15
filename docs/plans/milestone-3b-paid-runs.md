@@ -52,7 +52,11 @@ v4 is sealed first, before any line of the fix exists, so the fix can't be shape
 - **The guard:** the signal is plain code, so it is checked for free on every unsealed message: it must fire on no fewer colleague requests than today in tuning, v1, v2 and v3. A fix that lets one colleague request through is rejected.
 - TKT-004 itself is in v3, a dev set. If it passes after the fix, that is a regression check, not a result. The result is v4.
 
-**Checkpoint B:** the harder set and the fix are in a pull request with the screening cost. The owner says go before tuning.
+**Checkpoint B, done 2026-11-15** (the owner had already given the go for the item's paid calls):
+
+- **Screening, $0.94:** 142 candidates in two rounds, Haiku and Sonnet, k=3, both prompts. Round 1 (102 candidates): Sonnet got none wrong and Haiku 2. Round 2 (40 candidates in the two shapes that tripped Haiku): Haiku got 14 wrong and Sonnet 4. The hard shape is a request relayed in someone's own words ("my report says: 'I need my login'"); triage reads it as the sender's own request.
+- **The harder tuning set:** 50 messages in `dataset/src/meridian_dataset/pools/tuning_hard.json` (15 own-login requests that mention someone else, 15 self-descriptions, 8 named and 12 unnamed colleague requests), scored together with the first 66. No world is generated from it, so the tuning world is unchanged. One candidate was dropped because its right answer is arguable.
+- **The fix:** the old signal wrongly fired on 2 of 6 tuning self-descriptions and 8 of 15 in the harder set; with the fix, 0 and 2. It fires on exactly the same colleague and outsider requests as before in tuning, the harder set and dev sets v1 to v3. On dev set v3 the one self-description that failed (TKT-004) now passes. The fix was never run on v4 or v4b.
 
 ### Step 4: re-tune the Claude prompts on the harder set (paid)
 

@@ -568,8 +568,15 @@ HELD_OUT_V4_POOL = _load_pool("held_out_v4")
 # blind by a second helper and sealed before the fix. Reported apart from v4, never pooled.
 HELD_OUT_V4B_POOL = _load_pool("held_out_v4b")
 
+# The harder tuning set (milestone 3b, ADR-033): tuning data, readable like TUNING_POOL. It is
+# used to score prompts and to test the role signal; no world is generated from it, so the
+# tuning world (seed 1108) is unchanged. Written by the tuning agent and screened on Haiku and
+# Sonnet; never shaped by a held-out set.
+TUNING_HARD_POOL = _load_pool("tuning_hard")
+
 MESSAGE_POOLS: dict[str, MessagePool] = {
     TUNING_POOL.name: TUNING_POOL,
+    TUNING_HARD_POOL.name: TUNING_HARD_POOL,
     HELD_OUT_V1_POOL.name: HELD_OUT_V1_POOL,
     HELD_OUT_V2_POOL.name: HELD_OUT_V2_POOL,
     HELD_OUT_V3_POOL.name: HELD_OUT_V3_POOL,
