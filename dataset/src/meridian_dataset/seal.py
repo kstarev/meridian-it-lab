@@ -24,3 +24,6 @@ HELD_OUT_V2_SHA256 = "49d63402909afc1520a6a4a163dee9d5e3a3665723e759a08aaf2e62a9
 
 HELD_OUT_V3_SHA256 = "8ef602f41c696607887e3fad46e55a7b21810620bab45c578bb786fcae89b17a"
 """Held-out v3's seal (ADR-029); set when the blind helper writes the pool."""
+
+HELD_OUT_V4_SHA256 = "1cceb610dbda48a63eafd546b08eb32b11916db5357d8832a4e54b1f4257dc25"
+"""Held-out v4's seal (ADR-033); set on 2026-11-15, before the TKT-004 fix existed."""

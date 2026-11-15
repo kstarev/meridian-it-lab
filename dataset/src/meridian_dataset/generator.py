@@ -29,6 +29,7 @@ from meridian_dataset.names import (
     HELD_OUT_V1_POOL,
     HELD_OUT_V2_POOL,
     HELD_OUT_V3_POOL,
+    HELD_OUT_V4_POOL,
     HUBS,
     MESSAGE_POOLS,
     TUNING_POOL,
@@ -44,9 +45,11 @@ HOLDOUT_SEED = 2611
 HOLDOUT_V2_SEED = 3107
 # Held-out v3: sealed, for milestone 3's final comparison only (ADR-029).
 HOLDOUT_V3_SEED = 4417
+# Held-out v4: sealed, for milestone 3b's final comparison only (ADR-033).
+HOLDOUT_V4_SEED = 5923
 
 # Pools whose world uses every template exactly once, for a bigger final test set (ADR-016).
-USE_EVERY_TEMPLATE = frozenset({"held_out_v2", "held_out_v3"})
+USE_EVERY_TEMPLATE = frozenset({"held_out_v2", "held_out_v3", "held_out_v4"})
 
 DOMAIN = "meridian.example"
 IDENTITY_RECOVERY_URL = "https://help.meridian.example/verify-identity"
@@ -202,6 +205,8 @@ def split_for_seed(seed: int) -> str:
         return HELD_OUT_V2_POOL.name
     if seed == HOLDOUT_V3_SEED:
         return HELD_OUT_V3_POOL.name
+    if seed == HOLDOUT_V4_SEED:
+        return HELD_OUT_V4_POOL.name
     return TUNING_POOL.name
 
 
