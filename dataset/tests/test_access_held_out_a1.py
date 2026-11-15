@@ -17,7 +17,14 @@ from meridian_dataset.access.recipe import HELD_OUT_A1_SHA256, Recipe, available
 
 NAME = "held_out_a1"
 RECIPES = Path(__file__).resolve().parents[1] / "src/meridian_dataset/access/recipes"
-KNOWN_SEEDS = {1108, 2611, 3107, 4417, 6108}  # tier0's four worlds and the access tuning world
+KNOWN_SEEDS = {
+    1108,
+    2611,
+    3107,
+    4417,
+    5923,
+    6108,
+}  # tier0's five worlds and the access tuning world
 
 
 @cache

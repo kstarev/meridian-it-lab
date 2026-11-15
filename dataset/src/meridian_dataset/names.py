@@ -5,7 +5,9 @@ These lists are our own, so the dataset has no third-party licence to track.
 generated world is the planted one.
 """
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 GIVEN_NAMES: tuple[str, ...] = (
     "Priya",
@@ -547,9 +549,22 @@ HELD_OUT_V3_POOL = MessagePool(
     ),
 )
 
+
+def _load_pool(name: str) -> MessagePool:
+    """A pool kept in its own JSON file under pools/, so its wording is never on screen when
+    this module is read or edited."""
+    raw = json.loads((Path(__file__).parent / "pools" / f"{name}.json").read_text("utf-8"))
+    return MessagePool(name=name, **{field: tuple(texts) for field, texts in raw.items()})
+
+
+# Held-out v4 (milestone 3b, ADR-033): written fully blind by a helper agent and sealed before
+# the TKT-004 fix existed. The agent that tunes tier0 never opens pools/held_out_v4.json.
+HELD_OUT_V4_POOL = _load_pool("held_out_v4")
+
 MESSAGE_POOLS: dict[str, MessagePool] = {
     TUNING_POOL.name: TUNING_POOL,
     HELD_OUT_V1_POOL.name: HELD_OUT_V1_POOL,
     HELD_OUT_V2_POOL.name: HELD_OUT_V2_POOL,
     HELD_OUT_V3_POOL.name: HELD_OUT_V3_POOL,
+    HELD_OUT_V4_POOL.name: HELD_OUT_V4_POOL,
 }

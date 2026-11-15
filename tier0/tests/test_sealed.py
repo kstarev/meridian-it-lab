@@ -1,14 +1,21 @@
 """The seal: nothing runs the agent on a sealed set before its final comparison, and only
 its own name unseals it (ADR-015, ADR-029). Held-out v2 and v3 are spent and run like any
-dev set (ADR-029, ADR-030), so nothing is sealed today; the mechanism is tested on v3 as a
-stand-in, the way milestone 3b's v4 will be sealed."""
+dev set (ADR-029, ADR-030). Held-out v4 (ADR-033) is sealed. The mechanism's details are
+tested on v3 as a stand-in, so no test needs to run anything on v4."""
 
 from pathlib import Path
 
 import anyio
 import pytest
 
-from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED, generate
+from meridian_dataset import (
+    DEFAULT_SEED,
+    HOLDOUT_SEED,
+    HOLDOUT_V2_SEED,
+    HOLDOUT_V3_SEED,
+    HOLDOUT_V4_SEED,
+    generate,
+)
 from tier0 import demo, sealed
 from tier0.evals import __main__ as cli
 from tier0.evals import report
@@ -27,12 +34,22 @@ def seal_v3(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(module, "SEALED_POOLS", STAND_IN)
 
 
-def test_nothing_is_sealed_now_and_v3_runs_as_a_dev_set() -> None:
-    assert frozenset() == sealed.SEALED_POOLS
+def test_only_v4_is_sealed_and_v3_runs_as_a_dev_set(tmp_path: Path) -> None:
+    assert frozenset({"held_out_v4"}) == sealed.SEALED_POOLS
     for seed in (DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED):
         require_unsealed(generate(seed))
     result = anyio.run(lambda: run_eval(HOLDOUT_V3_SEED, k=1))
     assert result.seed == HOLDOUT_V3_SEED
+    # Held-out v4 (ADR-033): nothing runs on it before milestone 3b's final comparison.
+    v4 = generate(HOLDOUT_V4_SEED)
+    assert v4.message_pool == "held_out_v4"
+    with pytest.raises(SealedSetError, match="--final-comparison=held_out_v4"):
+        require_unsealed(v4)
+    with pytest.raises(SealedSetError):
+        require_unsealed(v4, final_comparison="held_out_v3")
+    with pytest.raises(SealedSetError):
+        anyio.run(lambda: run_eval(HOLDOUT_V4_SEED, k=1))
+    assert demo.main(["--seed", str(HOLDOUT_V4_SEED), "--out", str(tmp_path)]) == 2
 
 
 def test_v3_reports_say_dev_set() -> None:
