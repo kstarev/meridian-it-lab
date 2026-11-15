@@ -17,11 +17,12 @@ from meridian_dataset.generator import (
     HOLDOUT_V4_SEED,
     HOLDOUT_V4B_SEED,
 )
+from tier0 import roles
 from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals import watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.evals.setups import BIG_MODELS, FROZEN, SETUPS
+from tier0.evals.setups import ALL_SETUPS, BIG_MODELS, FROZEN, SETUPS, SETUPS_3B
 from tier0.models import ModelAdapter, ModelError, build_model, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
@@ -114,8 +115,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--final-comparison=held_out_v4 (ADR-015, ADR-029, ADR-033)",
     )
     parser.add_argument(
+        "--tkt004-fix",
+        choices=("on", "off"),
+        default="on",
+        help="off runs the role signal as it was before milestone 3b's TKT-004 fix: the "
+        '"before" arm of the paired run on held-out v4 and v4b (ADR-038)',
+    )
+    parser.add_argument(
         "--setup",
-        choices=sorted(SETUPS),
+        choices=sorted(ALL_SETUPS),
         default=None,
         help="milestone 3: a named setup (models per task and its frozen prompts); "
         "overrides --model (ADR-030)",
@@ -126,7 +134,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="skip the untimed warm-up calls real models get before the runs",
     )
     args = parser.parse_args(argv)
-    setup = SETUPS[args.setup] if args.setup else None
+    setup = ALL_SETUPS[args.setup] if args.setup else None
+    roles.TKT004_FIX = args.tkt004_fix == "on"
     if setup is not None:
         args.model = setup.provider
     if args.seed is None:
@@ -146,7 +155,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if setup is not None and setup.name not in FROZEN and args.seed != DEFAULT_SEED:
+    if (
+        setup is not None
+        and setup.name not in FROZEN | set(SETUPS_3B)
+        and args.seed != DEFAULT_SEED
+    ):
         print(
             f"refused: {setup.name}'s prompts aren't frozen yet, so it runs on tuning data "
             "only (ADR-030, ADR-031)",

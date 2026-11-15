@@ -130,3 +130,16 @@ SETUPS: dict[str, Setup] = {
     )
 }
 FROZEN = frozenset(SETUPS)  # all seven, 2026-11-12
+
+# Milestone 3b (ADR-033, ADR-038): Haiku and Sonnet re-tuned on the harder tuning set, picked
+# by the same rule and frozen on 2026-11-15, before anything ran on held-out v4 or v4b. They
+# are kept apart from the seven 3a setups, which stay as they were so that the v3 comparison
+# can be rerun. Tests pin each prompt's hash.
+SETUPS_3B: dict[str, Setup] = {
+    s.name: s
+    for s in (
+        Setup("haiku-3b", "claude", HAIKU, HAIKU, "HT4", "C1"),
+        Setup("sonnet-3b", "claude", SONNET, SONNET, "ST4", "SC4"),
+    )
+}
+ALL_SETUPS: dict[str, Setup] = SETUPS | SETUPS_3B
