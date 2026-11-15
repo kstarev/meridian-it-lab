@@ -214,6 +214,7 @@ class OktaMock(_Mock):
             _route("GET", r"/api/v1/apps/([^/]+)/users", self._app_users),
             _route("GET", r"/api/v1/logs", self._logs),
             _route("POST", r"/api/v1/users/([^/]+)/lifecycle/([a-z]+)", self._lifecycle),
+            _route("POST", r"/api/v1/apps/([^/]+)/users", self._assign),
             _route("DELETE", r"/api/v1/apps/([^/]+)/users/([^/]+)", self._unassign),
         ]
 
@@ -263,6 +264,33 @@ class OktaMock(_Mock):
                 user["status"] = self._LIFECYCLE[action]
                 return MockResponse(200, {}, {})
         return MockResponse(404, {}, {"errorCode": "E0000007", "errorSummary": "Not found"})
+
+    def _assign(self, params, body, app_id):
+        """Assign a user to an app. Idempotent: a user already assigned gets a 200 and the
+        existing assignment (a repeated request after a lost answer changes nothing)."""
+        if not any(a["id"] == app_id for a in self.data["apps"]):
+            return MockResponse(404, {}, {"errorCode": "E0000007", "errorSummary": "Not found"})
+        body = body if isinstance(body, dict) else {}
+        user_id = body.get("id")
+        if not any(u["id"] == user_id for u in self.data["users"]):
+            return MockResponse(404, {}, {"errorCode": "E0000007", "errorSummary": "Not found"})
+        scope = body.get("scope", "USER")
+        role = (body.get("profile") or {}).get("role", "member")
+        if scope not in ("USER", "GROUP") or role not in ("member", "admin"):
+            return MockResponse(400, {}, {"errorCode": "E0000001", "errorSummary": "bad body"})
+        for a in self.data["assignments"]:
+            if a["appId"] == app_id and a["userId"] == user_id:
+                return MockResponse(200, {}, {"id": user_id, "scope": a["scope"]})
+        self.data["assignments"].append(
+            {
+                "appId": app_id,
+                "userId": user_id,
+                "created": "",
+                "scope": scope,
+                "profile": {"role": role},
+            }
+        )
+        return MockResponse(200, {}, {"id": user_id, "scope": scope})
 
     def _unassign(self, params, body, app_id, user_id):
         before = len(self.data["assignments"])

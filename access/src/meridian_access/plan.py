@@ -160,9 +160,8 @@ def build_plan(
     by_type = collections.Counter(c["type"] for c in changes)
     by_action = collections.Counter(c["action"] for c in changes)
     removals = sum(1 for c in changes if c["action"] in REMOVING)
-    n = policy.settings.blast_radius_n
-    needs_more = removals > n or any(c["action"] == "block_two_approvers" for c in changes)
-    settings = policy.settings
+    from meridian_access.approvals import required_for
+
     tasks = manual_tasks(changes)
     data: dict[str, Any] = {
         "version": PLAN_VERSION,
@@ -183,9 +182,7 @@ def build_plan(
             "warnings": len(result.warnings),
             "manual_tasks": len(tasks),
         },
-        "approvals_required": settings.approvals_over_n
-        if needs_more
-        else settings.approvals_default,
+        "approvals_required": required_for(changes, policy),
         "manual_tasks": tasks,
     }
     return Plan(data)

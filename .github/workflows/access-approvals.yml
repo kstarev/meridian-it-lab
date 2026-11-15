@@ -1,0 +1,74 @@
+# Access-as-Code: the approvals check for the plan pull request (AAC-002, AAC-007).
+# The plan pull request comes from the bot branch access/plan and holds access/plan/plan.json.
+# This job always runs (so it can be a required check), looks at the files of the pull request,
+# and says "not a plan PR" and passes when none is under access/plan/. For a plan pull request
+# it needs as many code-owner approvals as the plan needs: 1 normally, 2 when it removes or
+# suspends more than N accesses or holds a bulk change. The number is recomputed from the
+# changes and the policy on the base branch, never taken from plan.json alone. Only approvals
+# on the latest commit count, and the pull request author cannot approve their own plan.
+#
+# Be plain about what this check can and cannot do: GitHub runs this workflow file from the
+# pull request's merge ref, so a pull request can edit this file, and this check alone can be
+# edited by the thing it checks. The protection is the repository ruleset (required code-owner
+# review, with CODEOWNERS covering .github/workflows/ and access/plan/), plus the re-check that
+# apply does itself before it changes anything. The owner must also mark "Plan approvals" as a
+# required check in the ruleset. That is an owner step and is not done here.
+name: Access approvals
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted, dismissed, edited]
+
+permissions: {}
+
+jobs:
+  approvals:
+    name: Plan approvals
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pull-requests: read
+      contents: read
+    steps:
+      # The base branch is checked out, never the pull request's code: the check code, the
+      # policy and the code owners come from the base branch, only plan.json is read from the
+      # pull request head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: uv sync --locked
+
+      - name: Check the code-owner approvals of a plan pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > files.txt
+          if ! grep -q '^access/plan/' files.txt; then
+            echo "not a plan PR"
+            exit 0
+          fi
+          gh api --paginate --slurp "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
+            | python3 -c 'import json,sys; print(json.dumps([r for page in json.load(sys.stdin) for r in page]))' \
+            > reviews.json
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/${REPO}/contents/access/plan/plan.json?ref=${HEAD_SHA}" > plan.json
+          uv run --locked python -m meridian_access.approvals \
+            --plan plan.json --reviews reviews.json \
+            --codeowners-file .github/CODEOWNERS --head-sha "${HEAD_SHA}" \
+            --author "${PR_AUTHOR}" --policy-dir access/policy
