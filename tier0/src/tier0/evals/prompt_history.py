@@ -467,3 +467,10 @@ M3_TRIAGE_VERSIONS |= {
 M3_CHECK_VERSIONS |= {
     "HC6": f"{_C1_RULES} {_C_RELAY} {_C_FORWARDED} {_C_ASSIGNED}{_C1_TAIL}",
 }
+
+# Sonnet 5.5's 3d triage version, written from its one screening miss on 3d's tuning messages:
+# with ST4 it read a pasted ticket from another person ("...pasted below: 'I need my VPN
+# username'") as the sender's own request, in all 3 runs. SC4 caught it; no check version.
+M3_TRIAGE_VERSIONS |= {
+    "ST5": f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_QUOTE_TO_SENDER}{_T1_TAIL}",
+}
