@@ -32,7 +32,7 @@ from tier0.evals.stats import wilson
 from tier0.knowledge import sealed
 from tier0.knowledge.answer import GUIDE, HAND_OFF, decide, entries_for
 from tier0.knowledge.picker import Entry, Pick, parse_pick, pick_request
-from tier0.knowledge.prompts import PICKER_VERSIONS
+from tier0.knowledge.prompts import FROZEN, PICKER_VERSIONS
 from tier0.knowledge.screen import hand_off_signal
 from tier0.models import ClaudeModel, ModelAdapter, ModelError
 from tier0.models.pricing import PRICES_PER_MTOK, cost_usd
@@ -119,6 +119,11 @@ def score(
 ) -> dict[str, Any]:
     """Score one prompt version of the picker on one model and one question set."""
     sealed.require_unsealed(set_name, final_test=final_test)
+    if set_name in sealed.SEALED_SETS and FROZEN.get(model_name) != version:
+        frozen = FROZEN.get(model_name)
+        raise sealed.SealedSetError(
+            f"the sealed test runs only the frozen version for {model_name}: {frozen}"
+        )
     system = PICKER_VERSIONS[version]
     qset = kn.load_question_set(set_name)
     approved = frozenset(g.id for g in kn.load_runbooks())

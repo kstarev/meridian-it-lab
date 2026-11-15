@@ -79,3 +79,8 @@ CANDIDATES: dict[str, tuple[str, ...]] = {
 
 def sha256(version: str) -> str:
     return hashlib.sha256(PICKER_VERSIONS[version].encode("utf-8")).hexdigest()
+
+
+# Frozen on 2026-11-15 by the selection rule, on tuning scores only
+# (docs/evals/2026-11-15-m4-picker-tuning.md). The sealed how-to test runs only these.
+FROZEN: dict[str, str] = {"claude-haiku-5-5": "KH2", "claude-sonnet-5-5": "KS2"}

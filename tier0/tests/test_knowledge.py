@@ -268,3 +268,24 @@ def test_the_report_is_built_from_saved_scores_only() -> None:
     assert "| haiku-5-5 | K1 | 1 | no screen | 0 | 0 | 0 |" in md
     assert f"SHA-256 `{hashlib.sha256(K1.encode()).hexdigest()}`" in md
     assert "has not been run" in md
+
+
+FROZEN_SHA256 = {
+    "KH2": "d8e4775e41368f68feef2d10a35b9992ba9bcf3e0c7c01fef9541d843528795c",
+    "KS2": "c8861963340c53e6715f76c18cfd156a139eb1f47e90362fc708499450f14f49",
+}
+
+
+def test_the_picks_are_frozen_by_hash() -> None:
+    from tier0.knowledge.prompts import FROZEN, sha256
+
+    assert FROZEN == {"claude-haiku-5-5": "KH2", "claude-sonnet-5-5": "KS2"}
+    assert {v: sha256(v) for v in FROZEN.values()} == FROZEN_SHA256
+
+
+def test_the_sealed_test_runs_only_the_frozen_version() -> None:
+    with pytest.raises(sealed.SealedSetError, match="frozen version"):
+        ev.score(
+            "claude-haiku-5-5", "K1", set_name=kn.HELD_OUT_K1, model=FakePicker(),
+            final_test=kn.HELD_OUT_K1,
+        )  # fmt: skip
