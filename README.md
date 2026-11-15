@@ -31,11 +31,11 @@ It runs on simulated copies of the real tools (Slack, the ticket system and the 
 
 ## What's next
 
-1. **Fix the new-starter request.** In testing, one request from a new starter or intern who described themselves was handed to a person every time, when Tier0 should have answered it. The fix will be checked on a new set of test requests, written and locked away like the last one.
-2. **Milestone 4, "Knowledge":** answering how-to questions ("How do I set up the VPN?") from the IT team's own approved guides.
+1. **Milestone 4, "Knowledge":** answering how-to questions ("How do I set up the VPN?") from the IT team's own approved guides. Built, and tuned on practice questions; its locked-away test has not run yet.
    - The AI only picks which guide fits. Tier0 then posts that guide's approved steps word for word, with a link.
-   - Once a week, Tier0 drafts new or updated guides from solved tickets, with personal details removed. Each draft waits for a person on the IT team to approve it.
    - If no guide fits, or the question is about someone's account or is risky, it goes to a person.
+   - Planned: once a week, Tier0 drafts new or updated guides from solved tickets, with personal details removed. Each draft waits for a person on the IT team to approve it.
+2. **Requests passed on in someone else's words,** and instructions hidden inside messages. A new locked-away test set will measure both, and decide whether the cheaper Claude setup keeps its new instructions.
 
 ## Why you can trust it
 
