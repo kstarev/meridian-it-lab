@@ -1,7 +1,9 @@
 # Access-as-Code: compare Haiku, Sonnet and Opus 5.5 on the tuning world (AAC-006).
 # Manual only (workflow_dispatch), and the `access-ai` environment needs the owner's
 # approval before the job starts and the secret is released. It makes paid API calls,
-# behind the spend cap ($3 in total, a $2.50 limit for this run). The tuning world is
+# charged to the budget item aac-model-comparison (ADR-037: a $12 sub-cap inside
+# Access-as-Code's $30, refused until the owner approves the item in
+# budget/claude-credit-2026-12.json and after 2026-12-17), with a $2.50 limit for this run. The tuning world is
 # generated on the runner; nothing is read from or written to a real tenant.
 # The cap holds across runs through the ledger artifact (`access-ai-ledger`, 90-day
 # retention): each run downloads the last run's ledger first. This stands in until the
@@ -56,7 +58,7 @@ jobs:
         env:
           ACCESS_CLAUDE_SPEND_LEDGER: out/access-claude-spend.jsonl
           ACCESS_AI_LIVE: "1"
-          ACCESS_CLAUDE_SPEND_CAP_USD: "3.0"
+          ACCESS_CLAUDE_BUDGET_ITEM: aac-model-comparison
           ACCESS_CLAUDE_RUN_LIMIT_USD: "2.5"
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: >

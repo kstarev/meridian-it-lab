@@ -1,6 +1,6 @@
 # AAC-006: The model interprets, code enforces; Haiku, Sonnet and Opus 5.5 compared on tuning data; a $3 cap
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. The comparison and the cap were the user's choice (2026-11-14). Follows lab ADR-028, ADR-030, ADR-032 and ADR-034.
+**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. The comparison and the cap were the user's choice (2026-11-14). Follows lab ADR-028, ADR-030, ADR-032 and ADR-034. The $3 cap is replaced by lab ADR-037's per-item budget (2026-11-15): Access-as-Code has $30, in three sub-capped items.
 
 **Context:** Three jobs in Access-as-Code are hard for rules: reading messy job titles, matching accounts that rules can't place, and explaining a plan in plain English. None of them should let a model decide access. tier0 showed the pattern that works: the model classifies, code acts and speaks (lab ADR-028), with every paid call checked against a spend cap (lab ADR-032).
 

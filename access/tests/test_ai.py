@@ -103,17 +103,24 @@ def test_prices_match_the_tier0_table():
 
 
 def test_ledger_defaults_and_environment(monkeypatch, tmp_path):
-    monkeypatch.delenv("ACCESS_CLAUDE_SPEND_CAP_USD", raising=False)
+    monkeypatch.delenv("ACCESS_CLAUDE_BUDGET_ITEM", raising=False)
     monkeypatch.delenv("ACCESS_CLAUDE_RUN_LIMIT_USD", raising=False)
     monkeypatch.delenv("ACCESS_CLAUDE_SPEND_LEDGER", raising=False)
     default = SpendLedger()
-    assert default.cap_usd == 3.0 and default.run_limit_usd == 0.5
+    # No fixed cap: the budget file's caps apply (ADR-037), and with no item nothing is paid.
+    assert default.cap_usd is None and default.item is None and default.run_limit_usd == 0.5
     assert default.path.parts[-2:] == ("out", "access-claude-spend.jsonl")
-    monkeypatch.setenv("ACCESS_CLAUDE_SPEND_CAP_USD", "1.25")
+    with pytest.raises(SpendCapReached, match="no budget item"):
+        default.check(0.01)
+    monkeypatch.setenv("ACCESS_CLAUDE_BUDGET_ITEM", "aac-red-team")
     monkeypatch.setenv("ACCESS_CLAUDE_RUN_LIMIT_USD", "0.1")
     monkeypatch.setenv("ACCESS_CLAUDE_SPEND_LEDGER", str(tmp_path / "x.jsonl"))
     custom = SpendLedger()
-    assert (custom.cap_usd, custom.run_limit_usd, custom.path) == (1.25, 0.1, tmp_path / "x.jsonl")
+    assert (custom.item, custom.run_limit_usd, custom.path) == (
+        "aac-red-team",
+        0.1,
+        tmp_path / "x.jsonl",
+    )
 
 
 def test_a_call_that_would_cross_the_cap_is_not_made(tmp_path):
@@ -161,7 +168,7 @@ def test_the_ledger_rejects_a_cap_or_limit_that_is_not_a_positive_number(tmp_pat
 
 @pytest.mark.parametrize("bad", ["0", "-3", "nan", "inf"])
 def test_the_ledger_rejects_a_bad_environment_value(monkeypatch, tmp_path, bad):
-    monkeypatch.setenv("ACCESS_CLAUDE_SPEND_CAP_USD", bad)
+    monkeypatch.setenv("ACCESS_CLAUDE_RUN_LIMIT_USD", bad)
     with pytest.raises(ValueError):
         SpendLedger(tmp_path / "l.jsonl")
 
