@@ -220,7 +220,7 @@ html{scroll-behavior:smooth}
 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#5B6478" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
 <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 36px; color: #1D4ED8">89–97%</span>
 </div>
-<div style="font-size: 14px; color: #5B6478; line-height: 1.5">Milestone 2 vs the final version, each on its own sealed test</div>
+<div style="font-size: 14px; color: #5B6478; line-height: 1.5">Milestone 2 vs the version in the chart below, each on its own sealed test</div>
 </div>
 <div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #F8FAFC">
 <div style="font-size: 14px; color: #5B6478">Cost per 1,000 requests with Claude</div>
@@ -295,6 +295,82 @@ html{scroll-behavior:smooth}
 </div>
 </div>
 <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #5B6478; max-width: 820px">Each dot is the share of the 54 requests a setup got right on all 3 tries. Filled dots run on Claude, which is what Tier0 uses in production. Hollow dots are open models I only used as a benchmark while building it. With 54 requests, no setup was clearly better than the others.</p>
+
+<section aria-labelledby="followup-h" style="border-top: 1px solid #E3E7EE; padding-top: 48px; margin-top: 16px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 760px">
+<h3 id="followup-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(24px, 3vw, 30px); line-height: 1.15; letter-spacing: -0.01em">The follow-up test</h3>
+<p style="margin: 0; font-size: 17px; line-height: 1.6; color: #3A4356">In the test above, one request from a new starter or intern who described themselves was passed to a person every time, when it should have been answered. The fault was in a code check, not in the AI.</p>
+<p style="margin: 0; font-size: 17px; line-height: 1.6; color: #3A4356">After the fix, two new sets of requests were written the same way, by someone who never saw the code, and locked away until the test: 72 requests of every kind, and 32 short ones of the two kinds the fix could change. Each request ran 5 times on the two Claude setups, in three versions: the old one, new instructions for the AI on their own, and the new instructions with the fix.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<h4 style="margin: 0; font-size: 18px; font-weight: 600">Requests handled right on all 5 tries</h4>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px">
+<div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; background: #F8FAFC">
+<table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.4">
+<caption style="caption-side: top; text-align: left; padding-bottom: 14px; font-size: 16px; line-height: 1.4; font-weight: 600; color: #141A26">72 new requests of every kind</caption>
+<thead>
+<tr style="font-size: 13px; color: #5B6478"><th scope="col" style="text-align: left; font-weight: 400; padding: 0 8px 8px 0; border-bottom: 1px solid #E3E7EE">Version</th><th scope="col" style="text-align: right; font-weight: 400; padding: 0 0 8px 8px; border-bottom: 1px solid #E3E7EE; white-space: nowrap">Haiku</th><th scope="col" style="text-align: right; font-weight: 400; padding: 0 0 8px 8px; border-bottom: 1px solid #E3E7EE; white-space: nowrap">Sonnet</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">Old version</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">72 of 72</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">71 of 72</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">New instructions only</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">71 of 72</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">72 of 72</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">New instructions and the fix</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">70 of 72</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">72 of 72</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 0 0; color: #3A4356">Unsafe actions, all three versions</th><td style="text-align: right; font-weight: 600; padding: 10px 0 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums">0</td><td style="text-align: right; font-weight: 600; padding: 10px 0 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums">0</td></tr>
+</tbody>
+</table>
+</div>
+<div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; background: #F8FAFC">
+<table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.4">
+<caption style="caption-side: top; text-align: left; padding-bottom: 14px; font-size: 16px; line-height: 1.4; font-weight: 600; color: #141A26">20 short requests from people describing themselves</caption>
+<thead>
+<tr style="font-size: 13px; color: #5B6478"><th scope="col" style="text-align: left; font-weight: 400; padding: 0 8px 8px 0; border-bottom: 1px solid #E3E7EE">Version</th><th scope="col" style="text-align: right; font-weight: 400; padding: 0 0 8px 8px; border-bottom: 1px solid #E3E7EE; white-space: nowrap">Haiku</th><th scope="col" style="text-align: right; font-weight: 400; padding: 0 0 8px 8px; border-bottom: 1px solid #E3E7EE; white-space: nowrap">Sonnet</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">Old version</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">17 of 20</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">18 of 20</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">New instructions only</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">18 of 20</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">18 of 20</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">New instructions and the fix</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">19 of 20</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">19 of 20</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 0 0; color: #3A4356">Unsafe actions, all three versions</th><td style="text-align: right; font-weight: 600; padding: 10px 0 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums">0</td><td style="text-align: right; font-weight: 600; padding: 10px 0 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums">0</td></tr>
+</tbody>
+</table>
+</div>
+<div style="border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; background: #F8FAFC">
+<table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.4">
+<caption style="caption-side: top; text-align: left; padding-bottom: 14px; font-size: 16px; line-height: 1.4; font-weight: 600; color: #141A26">12 short requests for a colleague's login, with no name given<span style="display: block; margin-top: 4px; font-size: 13px; font-weight: 400; color: #5B6478">The right answer here is a refusal.</span></caption>
+<thead>
+<tr style="font-size: 13px; color: #5B6478"><th scope="col" style="text-align: left; font-weight: 400; padding: 0 8px 8px 0; border-bottom: 1px solid #E3E7EE">Version</th><th scope="col" style="text-align: right; font-weight: 400; padding: 0 0 8px 8px; border-bottom: 1px solid #E3E7EE; white-space: nowrap">Haiku</th><th scope="col" style="text-align: right; font-weight: 400; padding: 0 0 8px 8px; border-bottom: 1px solid #E3E7EE; white-space: nowrap">Sonnet</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">Old version</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">12 of 12</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">12 of 12</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">New instructions only</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">12 of 12</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">12 of 12</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 10px 0; border-bottom: 1px solid #EEF1F5; color: #3A4356">New instructions and the fix</th><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">12 of 12</td><td style="text-align: right; font-weight: 600; padding: 10px 0 10px 8px; border-bottom: 1px solid #EEF1F5; white-space: nowrap; font-variant-numeric: tabular-nums">12 of 12</td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 400; padding: 10px 8px 0 0; color: #3A4356">Unsafe actions, all three versions</th><td style="text-align: right; font-weight: 600; padding: 10px 0 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums">0</td><td style="text-align: right; font-weight: 600; padding: 10px 0 0 8px; white-space: nowrap; font-variant-numeric: tabular-nums">0</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<p style="margin: 0; font-size: 14px; line-height: 1.6; color: #5B6478; max-width: 820px">The new instructions also cost more to run. On the 72 new requests they came to $0.09 per 1,000 requests on Haiku and $2.16 on Sonnet, against $0.08 and $1.68 for the old ones.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 20px">
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h4 style="margin: 0; font-size: 17px; font-weight: 600">Nothing unsafe happened</h4>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Not in any version, on either Claude setup. Every request for a colleague's login was refused on every try.</p>
+</div>
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h4 style="margin: 0; font-size: 17px; font-weight: 600">The fix helped with one request</h4>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Of the 20 short requests from people describing themselves, 18 were answered on every try without the fix and 19 with it. One is still passed to a person. One request is too small a difference to say the fix improved the rate.</p>
+</div>
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h4 style="margin: 0; font-size: 17px; font-weight: 600">The new instructions cost Haiku one request</h4>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">On the 72 new requests, Haiku, the cheaper Claude setup, refused one person who described themselves, whom the old instructions answered every time. Nothing was given out, but someone who should have been helped was turned away. Its other miss with the fix comes from a different check, whose answer varied from try to try.</p>
+</div>
+<div style="border-top: 2px solid #2563EB; padding-top: 16px; display: flex; flex-direction: column; gap: 8px">
+<h4 style="margin: 0; font-size: 17px; font-weight: 600">Not measured yet</h4>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Requests passed on in someone else's words ("my colleague says: 'I need my login'") have not been measured. The new instructions were written for these, but both sets were written before this kind of request was found. The next test set will include them, and will decide whether Haiku keeps its new instructions.</p>
+</div>
+</div>
+</section>
 </div>
 </section>
 
@@ -352,13 +428,13 @@ html{scroll-behavior:smooth}
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px">
 <div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">01</span>
-<h3 style="margin: 0; font-size: 18px; font-weight: 600">Fix the new-starter case</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">One request from a new starter was handed to a person when it should have been answered. A fix is planned.</p>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">Learn from the IT team's guides</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Answer how-to questions from approved guides. New guides are drafted from solved tickets, and a person approves each one.</p>
 </div>
 <div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">02</span>
-<h3 style="margin: 0; font-size: 18px; font-weight: 600">Learn from the IT team's guides</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Answer how-to questions from approved guides. New guides are drafted from solved tickets, and a person approves each one.</p>
+<h3 style="margin: 0; font-size: 18px; font-weight: 600">Measure passed-on requests</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Requests passed on in someone else's words are not measured yet. A new locked-away test set will include them, and will decide whether Claude Haiku keeps its new instructions.</p>
 </div>
 <div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">03</span>
