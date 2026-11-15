@@ -101,24 +101,29 @@ def _letters(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", fold(text))
 
 
-def username_schemes(first: str, last: str) -> set[str]:
-    """Usernames a person could have under the known schemes, without any number."""
+def username_templates(first: str, last: str) -> dict[str, str]:
+    """Usernames a person could have under each known scheme (name -> username, no number)."""
     f, ln = _letters(first), _letters(last)
     if not f or not ln:
-        return set()
+        return {}
     return {
-        f"{f}.{ln}",
-        f"{f[0]}{ln}",
-        f"{f}{ln[0]}",
-        f"{f}.{ln[0]}",
-        f"{f}_{ln}",
-        f"{ln}{f[0]}",
-        f"{f[0]}.{ln}",
-        f"{ln}.{f}",
-        f"{f}{ln}",
-        f"{f}_{ln[0]}",
-        f"{ln}_{f}",
+        "first.last": f"{f}.{ln}",
+        "flast": f"{f[0]}{ln}",
+        "firstl": f"{f}{ln[0]}",
+        "first.l": f"{f}.{ln[0]}",
+        "first_last": f"{f}_{ln}",
+        "lastf": f"{ln}{f[0]}",
+        "f.last": f"{f[0]}.{ln}",
+        "last.first": f"{ln}.{f}",
+        "firstlast": f"{f}{ln}",
+        "first_l": f"{f}_{ln[0]}",
+        "last_first": f"{ln}_{f}",
     }
+
+
+def username_schemes(first: str, last: str) -> set[str]:
+    """Usernames a person could have under the known schemes, without any number."""
+    return set(username_templates(first, last).values())
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,9 +279,9 @@ def match_accounts(
 
 
 def _break_glass(policy: Policy, a: Account) -> str | None:
-    """The break-glass kind of an account: its login, its email, or either as a bare
-    username (`value` -> `value@meridian.example`)."""
-    for value in (a.account, a.email):
+    """The break-glass kind of an account: its login, its email or a Google alias, or any of
+    them as a bare username (`value` -> `value@meridian.example`)."""
+    for value in (a.account, a.email, *a.aliases):
         value = value.strip()
         if not value:
             continue

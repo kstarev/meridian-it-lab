@@ -1,0 +1,52 @@
+# Access-as-Code: build the plan for the tuning world (AAC-002, AAC-008).
+# Manual only (workflow_dispatch) for now. Scheduling it and opening the rolling plan pull
+# request need the owner's GitHub App, ruleset and secrets: those are milestone 5's owner
+# steps and are not set up here. This workflow uses no secrets: the summary is the template
+# (the model summary runs only when ACCESS_AI_LIVE=1, which this workflow never sets), and
+# the Slack message is a JSON file, never sent. The tuning world is generated on the runner.
+name: Access plan
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  plan:
+    name: Build the plan for the tuning world
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: uv sync --locked
+
+      - name: Generate the tuning world
+        run: make access-data
+
+      - name: Build the plan
+        run: uv run --locked python -m meridian_access.plan --world out/access/seed-6108 --out out/access/plan
+
+      - name: Keep the plan files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: access-plan
+          path: |
+            out/access/plan/plan.json
+            out/access/plan/PLAN.md
+            out/access/plan/summary.md
+            out/access/plan/slack-message.json
+            out/access/plan/timing.json
+          if-no-files-found: error
+          retention-days: 30

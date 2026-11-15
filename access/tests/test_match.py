@@ -286,6 +286,13 @@ def test_a_bare_break_glass_username_is_marked_too(policy):
     assert res.matches[pattern.key].note == "pattern"
 
 
+def test_a_google_alias_that_is_break_glass_marks_the_account(policy):
+    people = [rec("E1", "Ann", "Lee", email="ann.lee@meridian.example")]
+    google = acct("google", "ann.lee@meridian.example", aliases=("breakglass-01@meridian.example",))
+    res = match_accounts([google], people, policy)
+    assert res.matches[google.key].rule == "break_glass"
+
+
 def test_the_tuning_break_glass_accounts_are_all_marked(world, result):
     _, _, res = result
     marked = {k[2] for k, m in res.matches.items() if m.rule == "break_glass"}

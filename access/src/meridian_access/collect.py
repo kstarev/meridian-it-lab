@@ -296,12 +296,18 @@ class ActualState:
     exports_result: ExportsResult | None
 
     def digest(self) -> str:
-        """sha256 of a canonical JSON dump of the sorted accounts (the plan records it)."""
+        """sha256 of a canonical JSON dump of the sorted accounts and the Okta log (the plan
+        records it)."""
         rows = sorted(
             (asdict(a) for a in self.accounts),
             key=lambda d: (d["system"], d["app_id"], d["account"], d["source_ref"]),
         )
-        text = json.dumps(rows, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        log = sorted(
+            (asdict(e) for e in self.log),
+            key=lambda d: (d["published"], d["uuid"], d["event_type"], d["user_login"]),
+        )
+        body = {"accounts": rows, "log": log}
+        text = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return hashlib.sha256(text.encode()).hexdigest()
 
 
