@@ -1,0 +1,86 @@
+{
+  "kind": "admin#directory#tokenList",
+  "etag": "\"fake-etag-list\"",
+  "items": [
+    {
+      "kind": "admin#directory#token",
+      "etag": "\"fake-etag-1\"",
+      "clientId": "000000000001-fakenotesprout.apps.googleusercontent.com",
+      "displayText": "NoteSprout AI",
+      "anonymous": false,
+      "nativeApp": false,
+      "userKey": "sam.okafor@meridian.example",
+      "scopes": [
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/drive",
+        "openid"
+      ]
+    },
+    {
+      "kind": "admin#directory#token",
+      "etag": "\"fake-etag-2\"",
+      "clientId": "000000000001-fakenotesprout.apps.googleusercontent.com",
+      "displayText": "NoteSprout AI",
+      "anonymous": false,
+      "nativeApp": false,
+      "userKey": "priya.nair@meridian.example",
+      "scopes": [
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/drive.file"
+      ]
+    },
+    {
+      "kind": "admin#directory#token",
+      "etag": "\"fake-etag-3\"",
+      "clientId": "000000000002-fakewordloom.apps.googleusercontent.com",
+      "displayText": "Wordloom Assistant",
+      "anonymous": false,
+      "nativeApp": false,
+      "userKey": "alex.kim@meridian.example",
+      "scopes": [
+        "https://mail.google.com/",
+        "https://www.googleapis.com/auth/userinfo.email"
+      ]
+    },
+    {
+      "kind": "admin#directory#token",
+      "etag": "\"fake-etag-4\"",
+      "clientId": "000000000003-fakesheetsmith.apps.googleusercontent.com",
+      "displayText": "Sheetsmith Charts",
+      "anonymous": false,
+      "nativeApp": false,
+      "userKey": "alex.kim2@meridian.example",
+      "scopes": [
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/spreadsheets"
+      ]
+    },
+    {
+      "kind": "admin#directory#token",
+      "etag": "\"fake-etag-5\"",
+      "clientId": "000000000004-fakecalendarkite.apps.googleusercontent.com",
+      "displayText": "Calendar Kite",
+      "anonymous": false,
+      "nativeApp": false,
+      "userKey": "jordan.weber@meridian.example",
+      "scopes": [
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "openid"
+      ]
+    },
+    {
+      "kind": "admin#directory#token",
+      "etag": "\"fake-etag-6\"",
+      "clientId": "000000000005-faketaskmole.apps.googleusercontent.com",
+      "displayText": "Taskmole Agent",
+      "anonymous": false,
+      "nativeApp": false,
+      "userKey": "jordan.weber@meridian.example",
+      "scopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/drive.readonly"
+      ]
+    }
+  ]
+}
