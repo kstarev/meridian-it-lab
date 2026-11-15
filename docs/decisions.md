@@ -772,7 +772,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-033: Milestone 3b adds the TKT-004 fix (on a new sealed v4) and a harder tuning set
 
-**Date:** 2026-11-12 · **Status:** Accepted; not built yet. Changes the frozen scope (2026-11-08), so it needs this ADR.
+**Date:** 2026-11-12 · **Status:** Accepted; v4 was written blind and sealed on 2026-11-15, and a second sealed set, v4b, measures the fix (ADR-038). The fix and the harder tuning set are not built yet. Changes the frozen scope (2026-11-08), so it needs this ADR.
 
 **Context:** Milestone 3's v3 comparison found one ticket that fails in every setup: TKT-004, a self-described own-username request. Every model got it right (triage said own username and the own-account check said yes), but the code-only role signal (ADR-024) fired and handed it to a person in every run. A prompt can't fix that, and fixing it after seeing v3 can't be measured on v3, which is spent. The comparison also showed that the tuning set was too easy for the strong models (ADR-030's known limit).
 
@@ -926,3 +926,32 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 - Nothing is paid by accident: no item is approved by this decision, and after 2026-12-17 no paid call goes out at all, even with an approved item.
 - The ledgers are still two separate files: tier0's is local and gitignored, and Access's is a CI artifact that each run downloads first. So the lab-wide $100 total is held by the budget file's arithmetic, not by one shared counter.
 - Estimates for unbuilt milestones are guesses from today's per-call costs. Each item's own pull request re-estimates from its first measured run before the full run.
+
+## ADR-038: Held-out v4 stays sealed as written; a second sealed set, v4b, measures the TKT-004 fix
+
+**Date:** 2026-11-15 · **Status:** Accepted (the owner's decision, 2026-11-15). Adds to ADR-033. The bar below was committed before v4b was written.
+
+**Context:** Held-out v4 was written blind and sealed on 2026-11-15, before any TKT-004 fix existed (ADR-033): 72 tickets, seed 5923. A count-only check after sealing showed that today's role signal fires on 0 of its 20 self-descriptions and 0 of its 12 unnamed colleague requests. In v3 it fired on 1 of 6 and 3 of 6.
+
+TKT-004 failed because the role signal fired on a self-description. With no such message in v4, the fix has nothing to improve there, so v4 alone can't show the fix helping.
+
+The likely cause is a mistake in the helper's brief, written by the tuning agent. To keep v4 from sharing a sentence with the other sets, the brief told the helper to give every message specific context and to avoid bare one-liners. That probably made the messages long, and the signal fires only when a person word is within five words of a login word. This can't be confirmed, because neither the tuning agent nor the owner reads v4's wording.
+
+**Decision:**
+
+- **v4 stays sealed exactly as written.** Its job is to show that the fix does no harm, and how the models do on 72 new messages.
+- **A second sealed set, v4b,** holds only the two groups the fix can move: 20 self-descriptions and 12 unnamed colleague requests, 32 tickets.
+  - A new helper agent writes it blind, as for v4: it opens no file in the repo and is told nothing about the role-word list, the prompts or what failed in v3.
+  - Its brief is v4's brief for those two groups, without the "add specific context" instruction, and with "lengths like real Slack, many one-liners".
+  - It is sealed like v4: its own seed (6247), every template used once, its SHA-256 recorded, in `SEALED_POOLS`, unsealed only by `--final-comparison=held_out_v4b`, with count-only tests and the pairwise no-shared-wording tests.
+- **The bar, set before v4b is written:** today's role signal fires on at least 3 of the 20 self-descriptions. It is a count from code, with no model and no wording read, as in ADR-029.
+  - If v4b misses the bar, work stops and the owner decides. The tuning agent does not rewrite the set or ask for another on its own.
+- **Reported separately, never pooled.** v4 and v4b get their own tables and intervals. The report says why v4b exists, including the brief mistake above.
+- **Nobody on the tuning side reads either set.** The tuning agent never opens the pool files, and the owner has chosen not to read the wording either.
+
+**Consequences:**
+
+- The fix's benefit is measured on 20 short self-descriptions, so its interval is wide. The report must say so.
+- v4b was asked for after v4's counts were known. What keeps it honest: it was written blind, the bar was fixed first, and a miss stops the work.
+- v4b at k=5 adds about $0.28 (32 × 5 × $0.00174) to `tier0-3b`, well inside its $15 cap.
+- Short messages are more likely to share a sentence with another set. If the no-shared-wording tests find one, the helper is told only which position to rewrite, never the text.
