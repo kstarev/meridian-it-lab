@@ -6,12 +6,19 @@ of the pull request, so a push after an approval makes the approval stale. Apply
 with the same function, because a required check is only as good as the ruleset behind it.
 
     python -m meridian_access.approvals --plan plan.json --reviews reviews.json \\
+        --plan-path access/plan/plan.json \\
         --codeowners kstarev --head-sha SHA --author PR_AUTHOR --policy-dir access/policy
 
 The number of approvals a plan needs is recomputed from its changes and the policy the check
 loads itself (in the workflow: from the base branch). The number written in the plan file is
 never trusted below that: the requirement is the larger of the two. The author of the pull
-request cannot approve their own plan.
+request cannot approve their own plan. The rule itself is in `required_for`.
+
+A plan file is one part of the split plan: `part` is "main" (file `access/plan/plan.json`) or
+"held" (file `access/plan/held/plan.json`). The part must be one of the two and the path the
+plan was read from (`--plan-path`) must be the one for its part, so a held plan cannot be
+passed off as a main plan by relabelling it or by moving the file. The held part always needs
+`approvals_over_n` approvals, whatever the file says.
 
 `reviews.json` has the shape of GitHub's `GET /repos/{o}/{r}/pulls/{n}/reviews`. The exit code
 is 1 when there are not enough approvals.
@@ -23,12 +30,18 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from meridian_access.diff import REMOVING
-from meridian_access.plan import Plan
+from meridian_access.limits import buckets, over_limit
+from meridian_access.plan import PLAN_VERSION, Plan
 from meridian_access.policy.load import Policy, load_policy
+
+PART_PATHS = {"main": "access/plan/plan.json", "held": "access/plan/held/plan.json"}
 
 # These review states change what a reviewer currently says; a plain comment does not.
 STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+
+
+def version_message(found: Any) -> str:
+    return f"plan version {found}, expected {PLAN_VERSION}: build the plan again"
 
 
 def _login(name: str) -> str:
@@ -36,14 +49,20 @@ def _login(name: str) -> str:
 
 
 def required_for(changes: Iterable[dict[str, Any]], policy: Policy) -> int:
-    """Approvals a set of changes needs: `approvals_over_n` when it removes or suspends more
-    than N accesses or holds a `block_two_approvers` entry, else `approvals_default`."""
+    """Approvals a set of changes needs: `approvals_over_n` when any cause-day bucket is over the
+    limit (see `limits`: `blast_radius_people` or more distinct people, or
+    `blast_radius_removals` or more removals and suspensions, per cause day; removals with no
+    cause day form one "no-date" bucket) or there is a `block_two_approvers` change, else
+    `approvals_default`. There is no plan-total limit: a plan with many small days needs one.
+
+    Raises ValueError when a removal or suspension has no `cause_date` key, or one that is not
+    "" or a real YYYY-MM-DD string: such a plan is malformed (made by an older version or
+    edited), and guessing 1 would be silent."""
     rows = list(changes)
-    removals = sum(1 for c in rows if c["action"] in REMOVING)
     settings = policy.settings
-    if removals > settings.blast_radius_n or any(
-        c["action"] == "block_two_approvers" for c in rows
-    ):
+    if any(c["action"] == "block_two_approvers" for c in rows):
+        return settings.approvals_over_n
+    if any(over_limit(b, settings) for b in buckets(rows).values()):
         return settings.approvals_over_n
     return settings.approvals_default
 
@@ -79,10 +98,27 @@ def check(
     head_sha: str,
     *,
     policy: Policy,
+    plan_path: str,
     author: str = "",
 ) -> tuple[bool, str]:
+    """`plan_path` is where the plan file sits in the repository (`PART_PATHS`)."""
     data = plan.data if isinstance(plan, Plan) else plan
-    need = max(int(data["approvals_required"]), required_for(data["changes"], policy))
+    if data.get("version") != PLAN_VERSION:
+        return False, version_message(data.get("version"))
+    part = data.get("part")
+    if part not in PART_PATHS:
+        return False, f"unknown plan part {part!r}: expected main or held"
+    if str(plan_path).removeprefix("./") != PART_PATHS[part]:
+        return False, (
+            f"the plan says it is the {part} part but was read from {plan_path}, "
+            f"expected {PART_PATHS[part]}"
+        )
+    try:
+        need = max(int(data["approvals_required"]), required_for(data["changes"], policy))
+        if part == "held":
+            need = max(need, policy.settings.approvals_over_n)
+    except ValueError as exc:
+        return False, f"cannot work out the approvals the plan needs: {exc}"
     have = count_approvals(reviews, codeowners, head_sha, author)
     if have >= need:
         return True, f"{have} of {need} required code-owner approvals on {head_sha[:12]}"
@@ -102,6 +138,9 @@ def parse_codeowners(text: str, path_prefix: str = "/access/plan/") -> set[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m meridian_access.approvals")
     parser.add_argument("--plan", type=Path, required=True)
+    parser.add_argument(
+        "--plan-path", required=True, help="where the plan file is in the repository"
+    )
     parser.add_argument("--reviews", type=Path, required=True)
     parser.add_argument("--codeowners", default="", help="comma-separated logins")
     parser.add_argument("--codeowners-file", type=Path, default=None)
@@ -124,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         owners,
         args.head_sha,
         policy=load_policy(args.policy_dir),
+        plan_path=args.plan_path,
         author=args.author,
     )
     print(message)

@@ -218,7 +218,7 @@ def test_break_glass_accounts_are_never_touched_and_a_pattern_match_warns(policy
 
 def _bulk(policy, n_people, limit):
     pol = dataclasses.replace(
-        policy, settings=dataclasses.replace(policy.settings, blast_radius_n=limit)
+        policy, settings=dataclasses.replace(policy.settings, blast_radius_removals=limit)
     )
     records, events, accounts = [], [], []
     for i in range(n_people):
@@ -230,17 +230,42 @@ def _bulk(policy, n_people, limit):
 
 
 def test_a_bulk_hr_change_over_the_limit_is_held_as_one_finding(policy):
-    result = _bulk(policy, 3, 4)  # 3 people x 2 suspensions = 6 > 4
+    result = _bulk(policy, 3, 4)  # 3 people x 2 suspensions = 6 >= 4
     assert [(c.type, c.system, c.action, c.account, c.employee_id) for c in result.changes] == [
         ("hris_mass_termination", "hris", "block_two_approvers", "", "")
     ]
     assert len(result.held) == 6
 
 
-def test_a_bulk_hr_change_within_the_limit_is_treated_as_normal_leavers(policy):
-    result = _bulk(policy, 3, 6)
-    assert {c.type for c in result.changes} == {"leaver_access_left"}
-    assert result.held == ()
+def test_every_bulk_import_is_held_whatever_its_size(policy):
+    result = _bulk(policy, 3, 7)  # 6 removals, far below any backstop
+    assert [c.type for c in result.changes] == ["hris_mass_termination"]
+    assert len(result.held) == 6
+    assert _bulk(policy, 1, 1000).held
+
+
+def test_a_three_person_bulk_import_with_forty_five_removals_is_held_and_needs_two(policy):
+    from meridian_access.approvals import required_for
+
+    apps = [a for a in sorted(policy.apps.values(), key=lambda a: a.id) if a.sso]
+    assert len(apps) >= 14
+    records, events, accounts = [], [], []
+    for i in range(3):
+        r = rec(f"E{i}", "Pat", f"Lee{chr(97 + i)}", status="terminated", end_date="2026-11-28")
+        records.append(r)
+        events.append(ev(r.employee_id, "terminate", 27, "bulk_import"))
+        accounts += [okta(r.work_email)] + [assignment(r.work_email, a.id) for a in apps[:14]]
+    result = run(policy, records, accounts, events)
+    blocks = [c for c in result.changes if c.type == "hris_mass_termination"]
+    assert len(blocks) == 1 and blocks[0].action == "block_two_approvers"
+    assert not [c for c in result.changes if c.action in ("remove", "suspend")]
+    removals = [c for c in result.held if c.action in ("remove", "suspend")]
+    assert len(removals) == 45
+    rows = [
+        {"action": c.action, "employee_id": c.employee_id, "cause_date": c.cause_date}
+        for c in result.changes
+    ]
+    assert required_for(rows, policy) == policy.settings.approvals_over_n
 
 
 def test_hr_data_errors(policy):
@@ -511,6 +536,7 @@ def test_a_duplicate_employee_id_holds_both_records(policy):
     assert one.work_email in errors[0].reason and two.work_email in errors[0].reason
     assert [c for c in result.changes if c.type != "hr_data_error"] == []
     assert result.held  # the accounts' changes are held, not applied
+    assert {c.hold for c in result.held} == {"bad_data"}
 
 
 def test_hr_data_errors_make_one_change_per_record_with_the_problems_joined(policy):
@@ -530,7 +556,7 @@ def test_hr_data_errors_make_one_change_per_record_with_the_problems_joined(poli
 
 def _hr_batch(policy, n_people, limit, source="hr"):
     pol = dataclasses.replace(
-        policy, settings=dataclasses.replace(policy.settings, blast_radius_n=limit)
+        policy, settings=dataclasses.replace(policy.settings, blast_radius_removals=limit)
     )
     records, events, accounts = [], [], []
     for i in range(n_people):
@@ -541,18 +567,86 @@ def _hr_batch(policy, n_people, limit, source="hr"):
     return run(policy, records, accounts, events, pol=pol)
 
 
-def test_a_big_batch_of_hr_terminations_on_one_day_is_held_as_one_finding(policy):
-    from meridian_access.diff import MIN_BATCH_PEOPLE
+def test_a_big_same_day_hr_batch_is_not_held_by_the_diff_the_split_handles_it(policy):
+    # only a bulk import is held by the diff; an over-limit day goes to the held plan in
+    # plan.split_plan (tested in test_plan.py)
+    people = policy.settings.blast_radius_people
+    for n, per in ((people + 1, 4), (people + 1, 100), (2, 1)):
+        result = _hr_batch(policy, n, per)
+        assert result.held == ()
+        assert {c.type for c in result.changes} == {"leaver_access_left"}
 
-    result = _hr_batch(policy, MIN_BATCH_PEOPLE + 1, 4)
-    assert [(c.type, c.action) for c in result.changes] == [
-        ("hris_mass_termination", "block_two_approvers")
+
+def test_a_bulk_import_is_held_whatever_its_size_and_other_batches_never_are(policy):
+    assert _bulk(policy, 1, 2).held and _bulk(policy, 1, 3).held
+    result = _bulk(policy, 3, 15)
+    assert {c.hold for c in result.held} == {"bulk"} and result.held
+    blocks = [c for c in result.changes if c.action == "block_two_approvers"]
+    assert len(blocks) == 1 and blocks[0].type == "hris_mass_termination"
+    big = _hr_batch(policy, policy.settings.blast_radius_people, 100)
+    assert big.held == ()
+
+
+def test_five_same_day_hr_terminations_below_the_backstop_need_two_approvals_unheld(policy):
+    from meridian_access.approvals import required_for
+
+    people = policy.settings.blast_radius_people
+    result = _hr_batch(policy, people, policy.settings.blast_radius_removals)
+    assert result.held == ()
+    assert {c.type for c in result.changes} == {"leaver_access_left"}
+    rows = [
+        {"action": c.action, "employee_id": c.employee_id, "cause_date": c.cause_date}
+        for c in result.changes
     ]
-    assert len(result.held) == 2 * (MIN_BATCH_PEOPLE + 1)
-    few = _hr_batch(policy, 2, 1)  # two people are two ordinary leavers
-    assert {c.type for c in few.changes} == {"leaver_access_left"}
-    within = _hr_batch(policy, MIN_BATCH_PEOPLE + 1, 100)
-    assert within.held == ()
+    assert sum(1 for r in rows if r["action"] in ("remove", "suspend")) < (
+        policy.settings.blast_radius_removals
+    )
+    assert required_for(rows, policy) == policy.settings.approvals_over_n
+    assert required_for(rows[:-2], policy) == policy.settings.approvals_default
+
+
+def test_cause_dates_follow_the_hr_event_behind_each_change(policy):
+    # every record date differs from its event's date, so only event attribution passes
+    leaver = rec("E1", "Ada", "Stone", status="terminated", end_date="2026-11-03")
+    mover = rec("E2", "Bo", "Reed", department="Sales")
+    on_leave = rec("E3", "Cy", "Moss", status="on_leave", leave_start="2026-11-05")
+    orphan = okta("ghost@meridian.example")
+    accounts = [
+        okta(leaver.work_email),
+        assignment(mover.work_email, "github"),
+        okta(on_leave.work_email),
+        orphan,
+    ]
+    events = [
+        ev("E1", "terminate", 9),
+        ev("E2", "move", 14, department="Sales"),
+        ev("E3", "leave_start", 11),
+    ]
+    result = run(policy, [leaver, mover, on_leave], accounts, events)
+    dates = {(c.employee_id, c.type): c.cause_date for c in result.changes}
+    assert dates.get(("E1", "leaver_access_left")) == "2026-11-10"
+    assert dates.get(("E3", "leave_of_absence")) == "2026-11-12"
+    movers = {c.cause_date for c in result.changes if c.type == "mover_stale_access"}
+    assert movers == {"2026-11-15"}
+    orphans = [c for c in result.changes if c.type == "orphaned_account"]
+    assert orphans and all(c.employee_id == "" and c.cause_date == "" for c in orphans)
+
+
+def test_the_last_of_two_events_gives_the_cause_date(policy):
+    leaver = rec("E1", "Ada", "Stone", status="terminated", end_date="2026-11-03")
+    mover = rec("E2", "Bo", "Reed", department="Sales")
+    accounts = [okta(leaver.work_email), assignment(mover.work_email, "github")]
+    for first, second in (((5, 20), (20, 5)), ((20, 5), (5, 20))):  # input order never matters
+        events = [
+            ev("E1", "terminate", first[0]),
+            ev("E1", "terminate", first[1]),
+            ev("E2", "move", second[0], department="Sales"),
+            ev("E2", "move", second[1], department="Sales"),
+        ]
+        result = run(policy, [leaver, mover], accounts, events)
+        dates = {(c.employee_id, c.type): c.cause_date for c in result.changes}
+        assert dates[("E1", "leaver_access_left")] == "2026-11-21"
+        assert dates[("E2", "mover_stale_access")] == "2026-11-21"
 
 
 BG = "breakglass-01@meridian.example"  # listed

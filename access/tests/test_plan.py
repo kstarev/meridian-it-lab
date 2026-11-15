@@ -122,9 +122,9 @@ def test_plan_json_has_the_documented_fields(plan, policy):
     assert counts["total"] == len(d["changes"]) == sum(counts["by_type"].values())
     assert counts["total"] == sum(counts["by_action"].values())
     assert counts["held"] == len(d["held"]) > 0
-    n = policy.settings.blast_radius_n
-    over, default = policy.settings.approvals_over_n, policy.settings.approvals_default
-    assert d["approvals_required"] == (over if counts["removals_and_suspensions"] > n else default)
+    over = policy.settings.approvals_over_n
+    assert d["version"] == 2
+    assert all("cause_date" in c for c in [*d["changes"], *d["held"]])
     assert d["approvals_required"] == over  # the bulk change alone asks for the larger number
 
 

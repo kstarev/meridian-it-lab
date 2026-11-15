@@ -1,10 +1,16 @@
 # Access-as-Code: the approvals check for the plan pull request (AAC-002, AAC-007).
-# The plan pull request comes from the bot branch access/plan and holds access/plan/plan.json.
+# A plan pull request holds one part of the split plan: the main plan (bot branch access/plan,
+# access/plan/plan.json, one approval normally) or the held plan (bot branch access/plan-held,
+# access/plan/held/plan.json, two approvals). The check reads the part the pull request touches
+# and fails when it touches both.
 # This job always runs (so it can be a required check), looks at the files of the pull request,
 # and says "not a plan PR" and passes when none is under access/plan/. For a plan pull request
-# it needs as many code-owner approvals as the plan needs: 1 normally, 2 when it removes or
-# suspends more than N accesses or holds a bulk change. The number is recomputed from the
-# changes and the policy on the base branch, never taken from plan.json alone. Only approvals
+# it needs as many code-owner approvals as that plan needs: 1 normally, 2 when a cause-day
+# bucket is over the limit (5 or more people lose access because of one day's HR event, or 50
+# or more accesses are removed on that day; removals with no day count as one bucket) or it
+# holds a bulk change. Over-limit buckets are in the held plan, so the main plan needs 1 and the
+# held plan 2. The number is recomputed from the changes and the policy on the base branch,
+# never taken from the plan file alone. Only approvals
 # on the latest commit count, and the pull request author cannot approve their own plan.
 #
 # Be plain about what this check can and cannot do: GitHub runs this workflow file from the
@@ -66,9 +72,23 @@ jobs:
           gh api --paginate --slurp "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
             | python3 -c 'import json,sys; print(json.dumps([r for page in json.load(sys.stdin) for r in page]))' \
             > reviews.json
+          touches_held=no
+          touches_main=no
+          if grep -qx 'access/plan/held/plan\.json' files.txt; then touches_held=yes; fi
+          if grep -qx 'access/plan/plan\.json' files.txt; then touches_main=yes; fi
+          if [ "${touches_held}" = yes ] && [ "${touches_main}" = yes ]; then
+            echo "a plan pull request holds one part: it touches both access/plan/plan.json and access/plan/held/plan.json"
+            exit 1
+          fi
+          if [ "${touches_held}" = no ] && [ "${touches_main}" = no ]; then
+            echo "a plan pull request without a plan file: it touches access/plan/ but neither access/plan/plan.json nor access/plan/held/plan.json"
+            exit 1
+          fi
+          plan_path=access/plan/plan.json
+          if [ "${touches_held}" = yes ]; then plan_path=access/plan/held/plan.json; fi
           gh api -H "Accept: application/vnd.github.raw" \
-            "repos/${REPO}/contents/access/plan/plan.json?ref=${HEAD_SHA}" > plan.json
+            "repos/${REPO}/contents/${plan_path}?ref=${HEAD_SHA}" > plan.json
           uv run --locked python -m meridian_access.approvals \
-            --plan plan.json --reviews reviews.json \
+            --plan plan.json --plan-path "${plan_path}" --reviews reviews.json \
             --codeowners-file .github/CODEOWNERS --head-sha "${HEAD_SHA}" \
             --author "${PR_AUTHOR}" --policy-dir access/policy

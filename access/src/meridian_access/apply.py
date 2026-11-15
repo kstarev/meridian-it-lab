@@ -9,7 +9,13 @@ enough approvals (the requirement is recomputed from the changes and the policy,
 from the plan file alone) and is not stale (the actual state still has the hash the plan was
 built from). It then rebuilds the plan from the current world, state and policy and refuses
 when the changes, the policy hash or the desired-state hash differ from the approved plan, so
-what was approved is what gets applied. Held changes are never applied. A final break-glass
+what was approved is what gets applied. A plan file is one part of the split plan, "main" or
+"held" (its `part`); the rebuild splits the fresh plan and compares against the same part, and
+a plan with no known part is refused. The held part needs `approvals_over_n` approvals and the
+main part `approvals_default`. Changes held for bad HR data are never applied. Applying either
+part makes the other one stale: both were built from the same actual state, and the apply
+changes it, so the other part is refused as "stale" and must be built again and approved
+again. A final break-glass
 guard drops any change that names a break-glass account, whatever the diff did. Every change
 checks the current state first, so a second run does nothing. Suspension comes before removal
 where the API allows it.
@@ -17,7 +23,11 @@ After a mock-live apply the state is read again and every applied change is chec
 taken effect; one that did not is reported as failed.
 
     ACCESS_APPLY_MODE=mock-live python -m meridian_access.apply --plan plan.json \\
-        --world out/access/seed-6108 --approvals 2
+        --world out/access/seed-6108 --approvals 1
+
+The command line applies only the main part. The held part needs two code-owner approvals on
+its own pull request, and the command line takes the approval count from the caller, so it
+refuses a held plan; `apply_plan` (the function) supports the held part.
 """
 
 import argparse
@@ -31,16 +41,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from meridian_access.approvals import required_for
+from meridian_access.approvals import required_for, version_message
 from meridian_access.collect import ActualState, HttpishClient, Mocks, actual_state
 from meridian_access.exports import parse_exports
 from meridian_access.mocks import GoogleMock, OktaMock, SlackMock, Token
 from meridian_access.models import Account, CollectorError
-from meridian_access.plan import Plan, build_plan, canonical_json
+from meridian_access.plan import PLAN_VERSION, Plan, build_plan, canonical_json, split_plan
 from meridian_access.plan import manual_tasks as plan_manual_tasks
 from meridian_access.policy.load import Policy, load_policy
 from meridian_dataset.access.model import DOMAIN
 
+PARTS = ("main", "held")
 DRY_RUN = "dry-run"
 MOCK_LIVE = "mock-live"
 ACCEPTED_MODES = frozenset({DRY_RUN, MOCK_LIVE})
@@ -169,21 +180,40 @@ def apply_plan(
     (see `issue_write_tokens`). `world_dir` is the world directory (the HR data the plan is
     rebuilt from, and the exports); `exports_dir` defaults to its `exports/`. `policy_dir` is
     where `policy` was loaded from (default: the repository's). `rebuild` replaces the
-    rebuild-from-the-world step, for tests that apply a hand-made plan. Dry run unless `mode`
-    is exactly `mock-live`."""
+    rebuild-from-the-world step, for tests that apply a hand-made plan: it returns the fresh
+    plan of the SAME part as the plan being applied (the default rebuilds the combined plan,
+    splits it, and picks that part; a part missing from the fresh split is "plan changed").
+    Dry run unless `mode` is exactly `mock-live`."""
     mode = normalise_mode(mode)
     plan = _load_plan(plan)
     data = plan.data
     result = ApplyResult(mode=mode)
     result.log.append(f"mode: {mode}")
-    result.held_not_applied = len(data.get("held", []))
+    result.held_not_applied = sum(1 for c in data.get("held", []) if c.get("hold") == "bad_data")
     if result.held_not_applied:
-        result.log.append(f"{result.held_not_applied} held changes are never applied")
+        result.log.append(
+            f"{result.held_not_applied} changes held for bad HR data are never applied"
+        )
     if exports_dir is None and world_dir is not None:
         exports_dir = Path(world_dir) / "exports"
 
+    if data.get("version") != PLAN_VERSION:
+        result.refused_reason = version_message(data.get("version"))
+        result.log.append(f"refused: {result.refused_reason}")
+        return result
+    if data.get("part") not in PARTS:
+        result.refused_reason = f"unknown plan part {data.get('part')!r}: expected main or held"
+        result.log.append(f"refused: {result.refused_reason}")
+        return result
     # what the plan file says is a floor, never the answer: recompute from its own changes
-    need = max(int(data["approvals_required"]), required_for(data["changes"], policy))
+    try:
+        need = max(int(data["approvals_required"]), required_for(data["changes"], policy))
+        if data["part"] == "held":
+            need = max(need, policy.settings.approvals_over_n)
+    except ValueError as exc:
+        result.refused_reason = f"cannot work out the approvals the plan needs: {exc}"
+        result.log.append(f"refused: {result.refused_reason}")
+        return result
     if approvals < need:
         result.refused_reason = f"needs {need} approvals"
         result.log.append(f"refused: needs {need} approvals, has {approvals}")
@@ -205,8 +235,16 @@ def apply_plan(
             return result
         root = Path(world_dir)
 
+        part = data["part"]
+
         def rebuild(st: ActualState) -> Plan:
-            return build_plan(root, policy, policy_dir=policy_dir, state=st)
+            main, held = split_plan(
+                build_plan(root, policy, policy_dir=policy_dir, state=st), policy
+            )
+            chosen = main if part == "main" else held
+            if chosen is None:
+                raise ValueError(f"a fresh build has no {part} plan")
+            return chosen
 
     try:
         fresh = rebuild(state).data
@@ -578,6 +616,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     policy = load_policy(args.policy_dir)
     mode = normalise_mode(os.environ.get(MODE_ENV))
+    if json.loads(args.plan.read_text(encoding="utf-8")).get("part") == "held":
+        print(
+            "refused: the held plan is applied only when its pull request is merged with two "
+            "code-owner approvals; that path needs the owner's GitHub App and is not built"
+        )
+        return 1
     root = args.world
     mocks = Mocks(
         OktaMock.from_files(root), GoogleMock.from_files(root), SlackMock.from_files(root)

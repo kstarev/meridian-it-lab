@@ -33,10 +33,25 @@ def build_message(plan: Plan, pr_url: str) -> dict[str, Any]:
     lines = [f"*{counts['total']} changes*"]
     lines += [f"• {title}: {by_type[key]}" for key, title in SECTIONS if by_type.get(key)]
     warnings = [f"• Approvals required: {data['approvals_required']}"]
-    if by_type.get("hris_mass_termination"):
-        warnings.append("• Bulk HR change held, two approvers needed")
-    if counts["held"]:
-        warnings.append(f"• Changes held, not applied: {counts['held']}")
+    held_plan = data.get("held_plan")
+    if held_plan:
+        titles = dict(SECTIONS)
+        kinds = held_plan["by_type"]
+        order = [k for k, _ in SECTIONS if kinds.get(k)] + sorted(
+            k for k in kinds if k not in titles
+        )
+        what = (
+            f"{len(held_plan['buckets'])} buckets over the limit"
+            if held_plan["buckets"]
+            else "a bulk import"
+        )
+        warnings.append(
+            f"• Held plan (its own pull request): {what}, {held_plan['changes']} changes "
+            f"({', '.join(f'{titles.get(k, k)}: {kinds[k]}' for k in order)}), "
+            "needs two approvers"
+        )
+    if counts["held_bad_data"]:
+        warnings.append(f"• Held for bad HR data, never applied: {counts['held_bad_data']}")
     if by_type.get("drift"):
         warnings.append(f"• Drift (changed outside the process): {by_type['drift']}")
     if by_type.get("break_glass"):

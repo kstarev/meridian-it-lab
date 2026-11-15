@@ -42,9 +42,14 @@ TYPE_ORDER = (
 DIRECTORY = ("okta", "google", "slack")
 REMOVING = ("remove", "suspend")
 REVIEWED_RULE = "reviewed_map"
-# A same-day, same-source batch of terminations is only a "mass" termination from this many
-# people up; two people with many apps each are two ordinary leavers.
-MIN_BATCH_PEOPLE = 5
+# The HR event kind that causes each type of removal or suspension (the day it is attributed to).
+CAUSE_KIND = {
+    "leaver_access_left": "terminate",
+    "contractor_past_end": "terminate",
+    "orphaned_account": "terminate",
+    "mover_stale_access": "move",
+    "leave_of_absence": "leave_start",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +62,10 @@ class Change:
     action: str
     reason: str
     evidence: tuple[str, ...] = ()
+    cause_date: str = ""  # ISO date of the HR event that caused it; "" when there is none
+    # why a held change is held: "bulk" (a bulk import, applied only by the held plan after two
+    # approvals) or "bad_data" (HR data error, notice period, duplicate id: never applied)
+    hold: str = ""
 
     def sort_key(self) -> tuple[Any, ...]:
         order = TYPE_ORDER.index(self.type) if self.type in TYPE_ORDER else len(TYPE_ORDER)
@@ -694,6 +703,8 @@ def build_changes(
     policy: Policy,
     *,
     records: Sequence[HrisRecord] = (),
+    # the default is only for callers with no HR events: with no cause dates the approval rule can
+    # only get stricter (all removals fall in the one no-date bucket)
     events: Sequence[HrisEvent] = (),
     map_entries: Iterable[Mapping[str, Any]] = (),
 ) -> Changes:
@@ -714,16 +725,16 @@ def build_changes(
     changes = list(b.changes.values())
     errors = hr_data_errors(list(records))
     changes += errors
-    n = policy.settings.blast_radius_n
     held: list[Change] = []
 
-    def hold(ids: Mapping[str, str]) -> None:
+    def hold(ids: Mapping[str, str], kind: str) -> None:
         nonlocal changes
         moved = [c for c in changes if c.employee_id in ids and c.type != "hr_data_error"]
         if not moved:
             return
         held.extend(
-            dataclasses.replace(c, reason=f"{c.reason}; held: {ids[c.employee_id]}") for c in moved
+            dataclasses.replace(c, reason=f"{c.reason}; held: {ids[c.employee_id]}", hold=kind)
+            for c in moved
         )
         changes = [c for c in changes if not (c.employee_id in ids and c.type != "hr_data_error")]
 
@@ -734,29 +745,23 @@ def build_changes(
     for p in b.people.values():
         if p.notice_until and p.employee_id not in reasons:
             reasons[p.employee_id] = f"notice period until {p.notice_until}"
-    hold(reasons)
-    # bulk HR changes: a bulk import, or any batch of terminations from one source on one day
-    batches: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
-    for eid, (_day, date, source) in sorted(b.terminates.items()):
-        person = b.people.get(eid)
-        if person is None or eid in reasons:
-            continue
-        if person.via_bulk_import:
-            batches[("bulk_import", "")].append(eid)
-        else:
-            batches[(date, source)].append(eid)
-    for key in sorted(batches):
-        ids = set(batches[key])
-        caused = sum(1 for c in changes if c.employee_id in ids and c.action in REMOVING)
-        if caused <= n or (key[0] != "bulk_import" and len(ids) < MIN_BATCH_PEOPLE):
-            continue
-        what = (
-            f"one bulk import ended {len(ids)} people at once"
-            if key[0] == "bulk_import"
-            else f"{len(ids)} people were terminated on {key[0]} by {key[1]}"
+    hold(reasons, "bad_data")
+    # every bulk import that causes any removal or suspension is held, whatever its size (a bulk
+    # HR error: one block finding and no removals for those people). Other same-day batches are
+    # not held here: the plan split (plan.split_plan) puts over-limit days in the held plan.
+    bulk_ids = sorted(
+        eid
+        for eid in b.terminates
+        if eid not in reasons and (p := b.people.get(eid)) is not None and p.via_bulk_import
+    )
+    ids = set(bulk_ids)
+    caused = sum(1 for c in changes if c.employee_id in ids and c.action in REMOVING)
+    if caused >= 1:
+        why = (
+            f"one bulk import ended {len(ids)} people at once; {caused} removals or suspensions "
+            "held (every bulk import is held)"
         )
-        why = f"{what}; {caused} removals or suspensions held (limit {n})"
-        hold({eid: "bulk HR change awaiting two approvers" for eid in ids})
+        hold({eid: "bulk HR change awaiting two approvers" for eid in ids}, "bulk")
         changes.append(
             Change(
                 "hris_mass_termination",
@@ -781,6 +786,15 @@ def build_changes(
 
     changes = [c for c in changes if keep(c)]
     held = [c for c in held if keep(c)]
+    # the HR event behind each change: the last event of the kind that causes its type
+    last_date: dict[tuple[str, str], str] = {}
+    for ev in sorted(events, key=lambda e: (e.day, e.employee_id)):
+        last_date[(ev.employee_id, ev.kind)] = ev.date
+    for lst in (changes, held):
+        for i, c in enumerate(lst):
+            kind = CAUSE_KIND.get(c.type, "")
+            date = last_date.get((c.employee_id, kind), "") if kind and c.employee_id else ""
+            lst[i] = dataclasses.replace(c, cause_date=date)
     changes.sort(key=Change.sort_key)
     held.sort(key=Change.sort_key)
     suggested = sorted(
