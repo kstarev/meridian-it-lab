@@ -201,6 +201,7 @@ APP_BY_ID: dict[str, App] = {a.app_id: a for a in APPS}
 SSO_IDS: tuple[str, ...] = tuple(a.app_id for a in APPS if a.sso)
 NON_SSO_IDS: tuple[str, ...] = tuple(a.app_id for a in APPS if not a.sso)
 BIRTHRIGHT_IDS: tuple[str, ...] = SSO_IDS[:BIRTHRIGHT_COUNT]
+CONTRACTOR_BIRTHRIGHT_IDS: tuple[str, ...] = BIRTHRIGHT_IDS[:-2]
 
 
 # ---- roles -------------------------------------------------------------------------------

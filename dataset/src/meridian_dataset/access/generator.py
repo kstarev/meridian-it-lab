@@ -196,7 +196,7 @@ class _Entry:
 
 def _role_apps(role_id: str, contractor: bool) -> tuple[list[str], list[str]]:
     role = cat.ROLE_BY_ID[role_id]
-    birthright = cat.BIRTHRIGHT_IDS[:-2] if contractor else cat.BIRTHRIGHT_IDS
+    birthright = cat.CONTRACTOR_BIRTHRIGHT_IDS if contractor else cat.BIRTHRIGHT_IDS
     return [*birthright, *role.sso_apps], list(role.other_apps)
 
 

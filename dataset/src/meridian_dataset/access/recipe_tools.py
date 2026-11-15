@@ -38,11 +38,12 @@ def access_policy_markdown() -> str:
     from this table too.
     """
     birthright = cat.BIRTHRIGHT_IDS
+    contractor = cat.CONTRACTOR_BIRTHRIGHT_IDS
     lines = [
         "Every current worker has an Okta user, a Google user and a Slack user.",
         "",
         f"Birthright SSO apps, for every employee: {', '.join(birthright)}.",
-        f"Contractors get the first {len(birthright) - 2} of them: {', '.join(birthright[:-2])}.",
+        f"Contractors get the first {len(contractor)} of them: {', '.join(contractor)}.",
         "",
         "SSO access is a group assignment with the `member` role. Non-SSO apps are rows in that "
         "app's export.",

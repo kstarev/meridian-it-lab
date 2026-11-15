@@ -1,6 +1,8 @@
 """The blind referee comparison: matching, safety scan, runner. Tuning world and fakes only."""
 
-from dataclasses import asdict
+import subprocess
+import time
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -87,6 +89,8 @@ def test_source_safety() -> None:
     assert rf.source_safety("import json\nfrom pathlib import Path\nx = 1") == {
         "disallowed_imports": 0,
         "forbidden_names": 0,
+        "review_names": 0,
+        "suspicious_strings": 0,
     }
     assert rf.source_safety("import os")["disallowed_imports"] == 1
     assert rf.source_safety("from subprocess import run")["disallowed_imports"] == 1
@@ -94,6 +98,38 @@ def test_source_safety() -> None:
     assert rf.source_safety('__import__("x")')["forbidden_names"] >= 1
     assert rf.source_safety("eval('1')")["forbidden_names"] >= 1
     assert rf.source_safety("import json\njson.os")["forbidden_names"] == 1
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        'import sys; sys.modules["os"].system("x")',
+        'getattr(__builtins__, "ev"+"al")("1")',
+        'open("/etc/passwd").read()',
+        'pathlib.Path.home().joinpath("x").unlink()',
+    ],
+)
+def test_source_safety_catches_the_bypass_snippets(snippet: str) -> None:
+    assert any(n > 0 for n in rf.source_safety(snippet).values())
+
+
+def test_review_names_are_counted_but_do_not_block(tmp_path: Path) -> None:
+    source = (
+        "import json, sys\n"
+        "fields = getattr(json, 'dumps')\n"
+        "open(sys.argv[2], 'w').write(fields({'findings': []}))\n"
+    )
+    safety = rf.source_safety(source)
+    assert safety["review_names"] == 1
+    assert all(safety[k] == 0 for k in rf.BLOCKING)
+    world = tmp_path / "world"
+    world.mkdir()
+    assert rf.run_referee(source, world) == []
+
+
+def test_source_safety_counts_suspicious_strings() -> None:
+    assert rf.source_safety('x = "answer_key.json"')["suspicious_strings"] >= 1
+    assert rf.source_safety('x = "hello"')["suspicious_strings"] == 0
 
 
 _FAKE = """
@@ -167,3 +203,126 @@ def test_table_total_row_is_column_sums(key: list[AccessFinding]) -> None:
 def test_log_file_has_table_block() -> None:
     log = ROOT / "docs" / "evals" / "2026-11-15-access-held-out-a1-referee.md"
     assert rf.read_table_block(log)
+
+
+def test_split_marks_an_export_unreadable_when_its_owned_rows_are_called_orphaned(
+    access_world: AccessWorld,
+) -> None:
+    from meridian_dataset.access.referee import compare, split_disagreements, unreadable_exports
+
+    key = access_world.answer_key
+    mine = _as_referee(list(key.findings))
+    assert unreadable_exports(access_world, compare(key.findings, mine)) == set()
+    app, _ = _export_with_owned_rows(access_world)  # asserts it found one
+    rows = [o for o in key.owners if o.system == app and o.owner_employee_id]
+    blind = [
+        {
+            "type": "orphaned_account",
+            "employee_id": "",
+            "account": o.account,
+            "system": app,
+            "app_id": app,
+            "expected_action": "flag",
+        }
+        for o in rows
+    ]
+    result = compare(key.findings, mine + blind)
+    assert unreadable_exports(access_world, result) == {app}
+    counts, decided = split_disagreements(access_world, result)
+    assert sum(r["unreadable"] for r in counts.values()) == result.total_disagreements
+    assert decided == []
+
+
+def test_run_referee_times_out(access_world: AccessWorld, tmp_path: Path) -> None:
+    """A timeout raises subprocess.TimeoutExpired; subprocess.run has killed the child by then."""
+    world = rf.raw_world(access_world, tmp_path / "w")
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        rf.run_referee(_FAKE.format(body="while True:\n    pass"), world, timeout=0.5)
+    assert time.monotonic() - started < 10
+
+
+def test_run_referee_no_output_and_invalid_json(access_world: AccessWorld, tmp_path: Path) -> None:
+    world = rf.raw_world(access_world, tmp_path / "w")
+    with pytest.raises(ValueError, match="wrote no output"):
+        rf.run_referee(_FAKE.format(body="pass"), world)
+    with pytest.raises(ValueError, match="not valid JSON"):
+        rf.run_referee(_FAKE.format(body="out.write_text('{nope')"), world)
+
+
+def _blind(account: str, system: str) -> dict[str, str]:
+    return {
+        "type": "orphaned_account",
+        "employee_id": "",
+        "account": account,
+        "system": system,
+        "app_id": system,
+        "expected_action": "flag",
+    }
+
+
+def _export_with_owned_rows(world: AccessWorld, even: bool = False) -> tuple[str, list[str]]:
+    for e in world.exports:
+        mine = [
+            o.account
+            for o in world.answer_key.owners
+            if o.system == e.app_id and o.owner_employee_id
+        ]
+        if len(mine) >= 2 and (not even or len(mine) % 2 == 0):
+            return e.app_id, mine
+    raise AssertionError("no export with enough owned rows")
+
+
+def test_exactly_half_wrongly_orphaned_is_not_unreadable_but_over_half_is(
+    access_world: AccessWorld,
+) -> None:
+    key = access_world.answer_key
+    app, accounts = _export_with_owned_rows(access_world, even=True)
+    mine = _as_referee(list(key.findings))
+    half = len(accounts) // 2
+    at_half = rf.compare(key.findings, mine + [_blind(a, app) for a in accounts[:half]])
+    assert rf.unreadable_exports(access_world, at_half) == set()
+    over = rf.compare(key.findings, mine + [_blind(a, app) for a in accounts[: half + 1]])
+    assert rf.unreadable_exports(access_world, over) == {app}
+
+
+def test_a_wrong_orphan_in_okta_google_slack_never_makes_the_system_unreadable(
+    access_world: AccessWorld,
+) -> None:
+    key = access_world.answer_key
+    mine = _as_referee(list(key.findings))
+    for system in ("okta", "google", "slack"):
+        owned = [o.account for o in key.owners if o.system == system and o.owner_employee_id]
+        assert owned
+        blind = [_blind(a, system) for a in owned]
+        result = rf.compare(key.findings, mine + blind)
+        assert rf.unreadable_exports(access_world, result) == set()
+
+
+def test_system_name_case_and_whitespace_still_found(access_world: AccessWorld) -> None:
+    key = access_world.answer_key
+    app, accounts = _export_with_owned_rows(access_world)
+    mine = _as_referee(list(key.findings))
+    blind = [_blind(f" {a.upper()} ", f" {app.upper()} ") for a in accounts]
+    result = rf.compare(key.findings, mine + blind)
+    assert rf.unreadable_exports(access_world, result) == {rf._norm(app)}
+    counts, decided = rf.split_disagreements(access_world, result)
+    assert sum(r["unreadable"] for r in counts.values()) == result.total_disagreements
+    assert decided == []
+
+
+def test_two_unmatched_findings_on_one_target_both_differ(key: list[AccessFinding]) -> None:
+    i = _non_hris(key)
+    f = key[i]
+    twin = replace(
+        f, expected_action="flag" if f.expected_action != "flag" else "remove", detail="a"
+    )
+    twin2 = replace(twin, detail="b")
+    ref_row = _as_referee([f])[0]
+    other = "remove" if ref_row["expected_action"] != "remove" else "flag"
+    ref_row["expected_action"] = other
+    ref_row["type"] = "drift" if f.type != "drift" else "break_glass"
+    ref_row2 = dict(ref_row)
+    result = rf.compare([twin, twin2], [ref_row, ref_row2])
+    assert result.counts[f.type]["differ"] == 2
+    assert [d["kind"] for d in result.disagreements] == ["differ", "differ"]

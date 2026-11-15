@@ -10,7 +10,7 @@ import tempfile
 from functools import cache
 from pathlib import Path
 
-from meridian_dataset.access import generate_access, load_recipe
+from meridian_dataset.access import AccessWorld, generate_access, load_recipe
 from meridian_dataset.access.referee import (
     HELD_OUT_A1_REFEREE,
     HELD_OUT_A1_REFEREE_SHA256,
@@ -22,7 +22,10 @@ from meridian_dataset.access.referee import (
     read_table_block,
     run_referee,
     source_safety,
+    split_disagreements,
+    split_markdown,
     table_markdown,
+    unreadable_exports,
 )
 
 LOG = Path(__file__).resolve().parents[2] / "docs/evals/2026-11-15-access-held-out-a1-referee.md"
@@ -48,6 +51,13 @@ def test_the_referee_uses_only_allowed_imports() -> None:
     safety = source_safety(load_sealed_referee())
     assert safety["disallowed_imports"] == 0
     assert safety["forbidden_names"] == 0
+    assert safety["suspicious_strings"] == 0
+
+
+def test_the_logged_review_name_count_matches() -> None:
+    review = source_safety(load_sealed_referee())["review_names"]
+    logged = f"uses {review} names from the review list" in LOG.read_text(encoding="utf-8")
+    assert logged
 
 
 def test_the_logged_table_matches_the_live_comparison() -> None:
@@ -65,15 +75,35 @@ def test_the_referee_has_no_typed_in_identifiers() -> None:
     assert okta_ids == 0
 
 
-def test_the_logged_tuning_sanity_numbers_match() -> None:
-    """On the practice world it was never fitted to, the referee agrees far less, as logged."""
+@cache
+def _tuning_run() -> tuple[AccessWorld, Comparison]:
     recipe = load_recipe("tuning")
     assert recipe.seed is not None
     world = generate_access(recipe.seed, recipe)
     with tempfile.TemporaryDirectory() as tmp:
         found = run_referee(load_sealed_referee(), raw_world(world, Path(tmp) / "world"))
-    result = compare(world.answer_key.findings, found)
+    return world, compare(world.answer_key.findings, found)
+
+
+def test_the_logged_tuning_sanity_numbers_match() -> None:
+    """On the practice world it was never fitted to, the referee agrees far less, as logged."""
+    _, result = _tuning_run()
     agree = sum(row["agree"] for row in result.counts.values())
     text = LOG.read_text(encoding="utf-8")
     assert f"agrees with the generator on {agree} findings" in text
     assert f"It disagrees on {result.total_disagreements}," in text
+
+
+def test_the_logged_practice_world_split_matches() -> None:
+    world, comparison = _tuning_run()
+    counts, _ = split_disagreements(world, comparison)
+    text = LOG.read_text(encoding="utf-8")
+    unreadable = unreadable_exports(world, comparison)
+    assert f"{len(unreadable)} exports are unreadable." in text
+    only_c = {e.layout for e in world.exports if e.app_id in unreadable} == {"C"}
+    assert only_c, "unreadable exports are not all layout C"
+    exports_only = unreadable <= {e.app_id for e in world.exports}
+    assert exports_only
+    start, end = "<!-- referee-split:start -->", "<!-- referee-split:end -->"
+    block = text[text.index(start) + len(start) : text.index(end)].strip()
+    assert block == split_markdown(counts)

@@ -118,3 +118,14 @@ def test_the_guide_holds_the_access_policy_the_generator_uses() -> None:
     assert access_policy_markdown() in catalog_text()
     for role in cat.ROLES:
         assert f"| {role.role_id} | {', '.join(role.sso_apps)} |" in block
+    sso_birthright = f"Birthright SSO apps, for every employee: {', '.join(cat.BIRTHRIGHT_IDS)}."
+    assert sso_birthright in block
+    contractor = f"{len(cat.CONTRACTOR_BIRTHRIGHT_IDS)} of them: "
+    assert f"{contractor}{', '.join(cat.CONTRACTOR_BIRTHRIGHT_IDS)}." in block
+    rows = [ln for ln in block.splitlines() if ln.startswith("| ") and "---" not in ln][1:]
+    assert len(rows) == len(cat.ROLES)
+    for line in rows:
+        role_id, sso, other = (c.strip() for c in line.strip("|").split("|"))
+        role = cat.ROLE_BY_ID[role_id]
+        assert sso == ", ".join(role.sso_apps)
+        assert other == ", ".join(role.other_apps)

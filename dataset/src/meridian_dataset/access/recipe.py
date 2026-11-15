@@ -806,7 +806,7 @@ def finding_key(system: str) -> tuple[str, str]:
 
 def _standard_keys(role_id: str, contractor: bool) -> set[tuple[str, str]]:
     role = cat.ROLE_BY_ID[role_id]
-    birthright = cat.BIRTHRIGHT_IDS[:-2] if contractor else cat.BIRTHRIGHT_IDS
+    birthright = cat.CONTRACTOR_BIRTHRIGHT_IDS if contractor else cat.BIRTHRIGHT_IDS
     keys = {("okta", ""), ("google", ""), ("slack", "")}
     keys |= {("okta", a) for a in (*birthright, *role.sso_apps)}
     keys |= {(a, a) for a in role.other_apps}
