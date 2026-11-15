@@ -44,8 +44,13 @@ class Outcome:
 
 
 def entries_for(guides: Sequence[Guide]) -> tuple[Entry, ...]:
-    """The list the model sees: id, title and summary of each approved guide."""
-    return tuple(Entry(id=g.id, title=g.title, summary=g.summary) for g in guides if g.approved)
+    """The list the model sees: each approved guide (the steps are shown only in the sealed
+    test's poisoned-guide questions)."""
+    return tuple(
+        Entry(id=g.id, title=g.title, summary=g.summary, steps=g.steps)
+        for g in guides
+        if g.approved
+    )
 
 
 def decide(
@@ -72,16 +77,24 @@ def answer_question(
     guides: Sequence[Guide],
     system: str,
     use_screen: bool = True,
+    entries: Sequence[Entry] | None = None,
+    show_steps: bool = False,
 ) -> Outcome:
-    """One how-to message from a verified employee: a guide to post, or a hand-off."""
-    entries = entries_for(guides)
+    """One how-to message from a verified employee: a guide to post, or a hand-off.
+
+    `entries` replaces the guide list the model sees (the eval adds a poisoned guide to it);
+    only approved guides can ever be posted, whatever the list holds."""
+    approved = entries_for(guides)
+    entries = approved if entries is None else tuple(entries)
     screen = hand_off_signal(text)
     try:
-        response = model.complete(pick_request(text, entries, system))
+        response = model.complete(pick_request(text, entries, system, show_steps=show_steps))
     except ModelError:
         return Outcome(HAND_OFF, None, MODEL_ERROR, None, screen)
     pick = parse_pick(response, entries)
-    kind, guide, why = decide(pick, frozenset(e.id for e in entries), screen, use_screen=use_screen)
+    kind, guide, why = decide(
+        pick, frozenset(e.id for e in approved), screen, use_screen=use_screen
+    )
     return Outcome(kind, guide, why, pick, screen, response.input_tokens, response.output_tokens)
 
 
