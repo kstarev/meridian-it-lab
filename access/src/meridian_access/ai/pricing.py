@@ -4,6 +4,9 @@ HAIKU = "claude-haiku-5-5"
 SONNET = "claude-sonnet-5-5"
 OPUS = "claude-opus-5-5"
 ALIASES = {"haiku": HAIKU, "sonnet": SONNET, "opus": OPUS}
+# The model Access-as-Code uses, picked by the owner on 2026-11-15 after the comparison at k=3
+# (AAC-006): the three models tied within the 95% intervals, so the cheapest was chosen.
+CHOSEN_MODEL = HAIKU
 
 PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
     HAIKU: (0.10, 0.50),

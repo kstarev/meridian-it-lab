@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from meridian_access.ai.client import ClaudeClient
-from meridian_access.ai.pricing import HAIKU
+from meridian_access.ai.pricing import CHOSEN_MODEL
 
 SYSTEM = (
     "You map a messy job title to one role from a fixed list. Answer with the role id that "
@@ -47,7 +47,7 @@ def suggest_role(
     client: ClaudeClient | None = None,
 ) -> RoleSuggestion | None:
     """One suggestion, or None when the model refused, failed or gave an invalid answer."""
-    client = client or ClaudeClient(HAIKU)
+    client = client or ClaudeClient(CHOSEN_MODEL)
     data = client.complete_json(
         SYSTEM, title_prompt(title, department, team, roles), title_schema(roles)
     )

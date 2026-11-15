@@ -648,3 +648,17 @@ def test_the_cli_writes_suggestions_next_to_the_report(keyed_world_dir, monkeypa
     monkeypatch.setattr(compare, "live_run", fake_live)
     assert ai_main(["compare", "--world", str(keyed_world_dir), "--no-dry-run"]) == 0
     assert seen["suggestions_path"].parts[-2:] == ("out", "access-ai-suggestions.yaml")
+
+
+def test_the_chosen_model_is_haiku_and_every_job_defaults_to_it():
+    """The owner picked Haiku 5.5 on 2026-11-15 (AAC-006); no job names another model."""
+    import re
+    from pathlib import Path
+
+    from meridian_access.ai import pricing
+
+    assert pricing.CHOSEN_MODEL == "claude-haiku-5-5"
+    src = Path(__file__).resolve().parents[1] / "src"
+    other = re.compile(r"ClaudeClient\((HAIKU|SONNET|OPUS)\)|\"(sonnet|opus)\"\)")
+    found = [str(f) for f in src.rglob("*.py") if other.search(f.read_text(encoding="utf-8"))]
+    assert found == []
