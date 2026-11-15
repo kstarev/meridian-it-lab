@@ -1,4 +1,5 @@
-"""The plan workflow is manual, pinned and secret-free; no Slack token or webhook is in the repo."""
+"""The plan workflow: nightly, pinned, secrets only for the App token, skipped cleanly without
+the App; no Slack token or webhook is in the repo."""
 
 import re
 import subprocess
@@ -35,35 +36,56 @@ def uses(path: Path) -> dict[str, str]:
     return found
 
 
-def test_it_runs_only_when_dispatched_and_for_now_only():
+# Actions the plan pull-request job adds, pinned here by full SHA (checked against the tags
+# when they were added: download-artifact v8.0.2, create-github-app-token v3.3.0).
+NEW_PINS = {
+    "actions/download-artifact": "9000827ccba6bdab643e8b6fd33ac0654aef8333",
+    "actions/create-github-app-token": "64ab729a6294000f5aa4a4bc0b73d1f32bc45510",
+}
+
+
+def code_of(text: str) -> str:
+    return "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+
+
+def jobs():
+    data, _ = load()
+    return data["jobs"]
+
+
+def test_it_runs_nightly_and_by_hand_and_never_on_pull_requests():
     _, triggers = load()
-    assert set(triggers) == {"workflow_dispatch"}
-    comment = WORKFLOW.read_text(encoding="utf-8").replace("\n# ", " ")
-    assert "owner's GitHub App, ruleset and secrets" in comment
+    assert set(triggers) == {"schedule", "workflow_dispatch"}
+    (cron,) = triggers["schedule"]
+    assert re.fullmatch(r"\d+ \d+ \* \* \*", cron["cron"])  # once a day
 
 
-def test_permissions_are_empty_at_the_top_and_read_only_in_the_job():
+def test_permissions_are_empty_at_the_top_and_read_only_in_every_job():
     data, _ = load()
     assert data["permissions"] == {}
-    (job,) = data["jobs"].values()
-    assert job["permissions"] == {"contents": "read"}
+    assert set(data["jobs"]) == {"plan", "bot", "pull-requests"}
+    assert data["jobs"]["plan"]["permissions"] == {"contents": "read"}
+    assert data["jobs"]["bot"]["permissions"] == {}
+    # The App token does the writing; GITHUB_TOKEN never gets a write grant.
+    assert data["jobs"]["pull-requests"]["permissions"] == {"contents": "read"}
+    assert data["concurrency"]["cancel-in-progress"] is False
 
 
-def test_every_action_is_pinned_to_a_full_sha_the_other_workflows_use():
+def test_every_action_is_pinned_to_a_full_sha():
     mine = uses(WORKFLOW)
     assert mine
-    known = {**uses(CI), **uses(COMPARE)}
+    known = {**uses(CI), **uses(COMPARE), **NEW_PINS}
     for action, ref in mine.items():
         assert re.fullmatch(r"[0-9a-f]{40}", ref), action
-        assert known.get(action) == ref, f"{action} is not pinned to a SHA that ci.yml uses"
+        assert known.get(action) == ref, f"{action} is not pinned to a known SHA"
 
 
-def test_checkout_keeps_no_credentials_and_the_steps_are_the_documented_ones():
-    data, _ = load()
-    (job,) = data["jobs"].values()
-    steps = job["steps"]
-    checkout = next(s for s in steps if "checkout" in s.get("uses", ""))
-    assert checkout["with"]["persist-credentials"] is False
+def test_checkout_keeps_no_credentials_and_the_plan_steps_are_the_documented_ones():
+    for job in jobs().values():
+        for step in job["steps"]:
+            if "checkout" in step.get("uses", ""):
+                assert step["with"]["persist-credentials"] is False
+    steps = jobs()["plan"]["steps"]
     runs = "\n".join(s.get("run", "") for s in steps)
     assert "uv sync --locked" in runs
     assert "make access-data" in runs
@@ -74,13 +96,82 @@ def test_checkout_keeps_no_credentials_and_the_steps_are_the_documented_ones():
     assert "out/access/plan/held/" in upload["with"]["path"]  # the held plan, if there is one
 
 
-def test_no_secrets_and_the_model_summary_is_never_switched_on():
+def test_the_plan_job_has_no_secrets_and_the_model_summary_is_never_switched_on():
     text = WORKFLOW.read_text(encoding="utf-8")
-    code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
-    assert "secrets." not in code
-    assert "ANTHROPIC" not in code
-    assert "ACCESS_AI_LIVE" not in code  # only the comment mentions it
-    assert "environment:" not in code
+    plan = yaml.safe_dump(jobs()["plan"])
+    assert "secrets." not in plan and "vars." not in plan
+    assert "ANTHROPIC" not in code_of(text)
+    assert "ACCESS_AI_LIVE" not in code_of(text)  # only the comment mentions it
+    assert "environment:" not in code_of(text)
+
+
+def test_a_missing_app_id_or_key_skips_the_pull_request_job_cleanly():
+    bot = jobs()["bot"]
+    (check,) = bot["steps"]
+    assert "uses" not in check  # no checkout, no code: only the two comparisons
+    assert check["env"] == {
+        "HAS_APP_ID": "${{ vars.ACCESS_APP_ID != '' }}",
+        "HAS_KEY": "${{ secrets.ACCESS_APP_PRIVATE_KEY != '' }}",
+    }
+    assert bot["outputs"]["ready"] == "${{ steps.check.outputs.ready }}"
+    prs = jobs()["pull-requests"]
+    assert prs["needs"] == ["plan", "bot"]
+    assert prs["if"] == "needs.bot.outputs.ready == 'yes'"
+    # The check itself never fails the run: both branches write an output and exit 0.
+    script = check["run"]
+    assert "exit 1" not in script and 'echo "ready=yes"' in script and 'echo "ready=no"' in script
+
+
+def test_the_check_script_says_yes_only_when_both_are_set(tmp_path):
+    script = jobs()["bot"]["steps"][0]["run"]
+    for has_id, has_key, want in (
+        ("true", "true", "yes"),
+        ("false", "true", "no"),
+        ("true", "false", "no"),
+        ("false", "false", "no"),
+    ):
+        out = tmp_path / f"out-{has_id}-{has_key}"
+        done = subprocess.run(  # noqa: S603 - fixed script from the workflow under test
+            ["bash", "-c", script],  # noqa: S607
+            env={
+                "HAS_APP_ID": has_id,
+                "HAS_KEY": has_key,
+                "GITHUB_OUTPUT": str(out),
+                "PATH": "/usr/bin:/bin",
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert done.returncode == 0
+        assert out.read_text() == f"ready={want}\n"
+
+
+def test_secrets_appear_only_in_the_check_and_the_token_step():
+    text = code_of(WORKFLOW.read_text(encoding="utf-8"))
+    assert text.count("secrets.ACCESS_APP_PRIVATE_KEY") == 2
+    assert len(re.findall(r"secrets\.", text)) == 2
+    steps = jobs()["pull-requests"]["steps"]
+    token = next(s for s in steps if "create-github-app-token" in s.get("uses", ""))
+    assert token["with"] == {
+        "app-id": "${{ vars.ACCESS_APP_ID }}",
+        "private-key": "${{ secrets.ACCESS_APP_PRIVATE_KEY }}",
+        "permission-contents": "write",
+        "permission-pull-requests": "write",
+    }
+    # The token goes to the bot step only, and nothing runs after it.
+    assert steps[-1]["env"]["GH_TOKEN"] == "${{ steps.app.outputs.token }}"  # noqa: S105
+    assert "meridian_access.plan_pr --plan-dir out/access/plan" in steps[-1]["run"]
+    assert steps.index(token) == len(steps) - 2
+    assert sum("steps.app.outputs.token" in yaml.safe_dump(s) for s in steps) == 1
+
+
+def test_the_pull_request_job_uses_the_plan_the_plan_job_built():
+    steps = jobs()["pull-requests"]["steps"]
+    fetch = next(s for s in steps if "download-artifact" in s.get("uses", ""))
+    assert fetch["with"] == {"name": "access-plan", "path": "out/access/plan"}
+    runs = "\n".join(s.get("run", "") for s in steps)
+    assert "meridian_access.plan " not in runs and "make access-data" not in runs
 
 
 def test_make_access_plan_writes_into_out_access_plan():
