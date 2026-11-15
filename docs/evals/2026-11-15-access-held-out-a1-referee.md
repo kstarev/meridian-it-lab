@@ -91,3 +91,7 @@ The referee's run on the practice world, which it was never fitted to, had 7 dis
 | D171 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
 | D238 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
 | D270 | (b) | key right | the referee gave the username to a namesake; the row's name columns point to the person the key used |
+
+### Other owner records
+
+- 2026-11-15: the owner merged plan PRs #27 and #28 with the admin bypass by mistake. Nothing was applied. The held plan was removed from main and reopened by the bot.
