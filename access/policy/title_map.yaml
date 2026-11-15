@@ -1,0 +1,305 @@
+# The reviewed map from HRIS job title to role. Titles not listed are "unmapped":
+# birthright apps only, until someone decides. Fake data.
+# Seeded by `python -m meridian_access.policy seed-titles` from the tuning (practice) world,
+# which models the IT team reviewing those titles. Changes need a code-owner review.
+titles:
+- title: AE (DACH)
+  role: sales-ae
+  source: tuning-review
+  reviewed_by: owner
+- title: Account Exec II
+  role: sales-ae
+  source: tuning-review
+  reviewed_by: owner
+- title: Accountant
+  role: fin-accountant
+  source: tuning-review
+  reviewed_by: owner
+- title: BDR - Americas
+  role: sales-sdr
+  source: tuning-review
+  reviewed_by: owner
+- title: Backend Engineer
+  role: eng-backend
+  source: tuning-review
+  reviewed_by: owner
+- title: Brand Designer
+  role: des-brand
+  source: tuning-review
+  reviewed_by: owner
+- title: CSM - Enterprise
+  role: cs-csm
+  source: tuning-review
+  reviewed_by: owner
+- title: Client Success Mgr
+  role: cs-csm
+  source: tuning-review
+  reviewed_by: owner
+- title: Content Lead
+  role: mkt-content
+  source: tuning-review
+  reviewed_by: owner
+- title: Content Marketing Mgr
+  role: mkt-content
+  source: tuning-review
+  reviewed_by: owner
+- title: Customer Onboarding Lead
+  role: cs-onboarding
+  source: tuning-review
+  reviewed_by: owner
+- title: Customer Success Manager
+  role: cs-csm
+  source: tuning-review
+  reviewed_by: owner
+- title: Customer Support Rep
+  role: cs-support
+  source: tuning-review
+  reviewed_by: owner
+- title: Data Engineer
+  role: eng-data
+  source: tuning-review
+  reviewed_by: owner
+- title: Data Platform Eng II
+  role: eng-data
+  source: tuning-review
+  reviewed_by: owner
+- title: Demand Gen Manager
+  role: mkt-growth
+  source: tuning-review
+  reviewed_by: owner
+- title: DevOps Eng
+  role: eng-sre
+  source: tuning-review
+  reviewed_by: owner
+- title: Editorial Lead
+  role: mkt-content
+  source: tuning-review
+  reviewed_by: owner
+- title: FP&A Analyst
+  role: fin-analyst
+  source: tuning-review
+  reviewed_by: owner
+- title: Financial Analyst
+  role: fin-analyst
+  source: tuning-review
+  reviewed_by: owner
+- title: Front-End Dev
+  role: eng-frontend
+  source: tuning-review
+  reviewed_by: owner
+- title: Frontend Engineer
+  role: eng-frontend
+  source: tuning-review
+  reviewed_by: owner
+- title: Group Product Mgr
+  role: prod-pm
+  source: tuning-review
+  reviewed_by: owner
+- title: Growth Marketer
+  role: mkt-growth
+  source: tuning-review
+  reviewed_by: owner
+- title: Helpdesk Agent
+  role: cs-support
+  source: tuning-review
+  reviewed_by: owner
+- title: IT Engineer
+  role: it-engineer
+  source: tuning-review
+  reviewed_by: owner
+- title: IT Lead
+  role: it-lead
+  source: tuning-review
+  reviewed_by: owner
+- title: Implementation Consultant
+  role: cs-onboarding
+  source: tuning-review
+  reviewed_by: owner
+- title: Interaction Designer
+  role: des-product
+  source: tuning-review
+  reviewed_by: owner
+- title: Onboarding Specialist
+  role: cs-onboarding
+  source: tuning-review
+  reviewed_by: owner
+- title: PMM
+  role: mkt-pmm
+  source: tuning-review
+  reviewed_by: owner
+- title: People Partner
+  role: ppl-partner
+  source: tuning-review
+  reviewed_by: owner
+- title: Performance Marketing Specialist
+  role: mkt-growth
+  source: tuning-review
+  reviewed_by: owner
+- title: Product Analyst
+  role: prod-analyst
+  source: tuning-review
+  reviewed_by: owner
+- title: Product Data Analyst
+  role: prod-analyst
+  source: tuning-review
+  reviewed_by: owner
+- title: Product Designer
+  role: des-product
+  source: tuning-review
+  reviewed_by: owner
+- title: Product Manager
+  role: prod-pm
+  source: tuning-review
+  reviewed_by: owner
+- title: Product Marketing Manager
+  role: mkt-pmm
+  source: tuning-review
+  reviewed_by: owner
+- title: Recruiter
+  role: ppl-recruiter
+  source: tuning-review
+  reviewed_by: owner
+- title: RevOps Specialist
+  role: sales-ops
+  source: tuning-review
+  reviewed_by: owner
+- title: SDR
+  role: sales-sdr
+  source: tuning-review
+  reviewed_by: owner
+- title: SRE
+  role: eng-sre
+  source: tuning-review
+  reviewed_by: owner
+- title: Sales Dev Rep
+  role: sales-sdr
+  source: tuning-review
+  reviewed_by: owner
+- title: Sales Development Rep (Inbound)
+  role: sales-sdr
+  source: tuning-review
+  reviewed_by: owner
+- title: Sales Operations Analyst II
+  role: sales-ops
+  source: tuning-review
+  reviewed_by: owner
+- title: Sales Ops Analyst
+  role: sales-ops
+  source: tuning-review
+  reviewed_by: owner
+- title: Senior Account Executive
+  role: sales-ae
+  source: tuning-review
+  reviewed_by: owner
+- title: Server-side Dev
+  role: eng-backend
+  source: tuning-review
+  reviewed_by: owner
+- title: Site Reliability Engineer
+  role: eng-sre
+  source: tuning-review
+  reviewed_by: owner
+- title: Software Eng II (Backend)
+  role: eng-backend
+  source: tuning-review
+  reviewed_by: owner
+- title: Software Engineer II, Web
+  role: eng-frontend
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr Acct (AP/AR)
+  role: fin-accountant
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr Analyst, Product
+  role: prod-analyst
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr Content Writer
+  role: mkt-content
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr SRE (on-call)
+  role: eng-sre
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Acct Exec, EMEA
+  role: sales-ae
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Backend Eng
+  role: eng-backend
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. CS Manager
+  role: cs-csm
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Data Eng
+  role: eng-data
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Financial Analyst
+  role: fin-analyst
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Graphic Designer
+  role: des-brand
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. HRBP
+  role: ppl-partner
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. PM
+  role: prod-pm
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Product Mktg Mgr
+  role: mkt-pmm
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. Recruiter (Tech)
+  role: ppl-recruiter
+  source: tuning-review
+  reviewed_by: owner
+- title: Sr. UX Designer
+  role: des-product
+  source: tuning-review
+  reviewed_by: owner
+- title: Staff Accountant
+  role: fin-accountant
+  source: tuning-review
+  reviewed_by: owner
+- title: Support Eng (Tier 2)
+  role: cs-support
+  source: tuning-review
+  reviewed_by: owner
+- title: Support Specialist
+  role: cs-support
+  source: tuning-review
+  reviewed_by: owner
+- title: Sys Admin / IT Eng
+  role: it-engineer
+  source: tuning-review
+  reviewed_by: owner
+- title: Talent Acquisition Partner
+  role: ppl-recruiter
+  source: tuning-review
+  reviewed_by: owner
+- title: Technical Product Manager
+  role: prod-pm
+  source: tuning-review
+  reviewed_by: owner
+- title: UI Engineer
+  role: eng-frontend
+  source: tuning-review
+  reviewed_by: owner
+- title: UX/UI Designer
+  role: des-product
+  source: tuning-review
+  reviewed_by: owner
+- title: Visual Designer
+  role: des-brand
+  source: tuning-review
+  reviewed_by: owner

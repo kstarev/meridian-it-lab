@@ -1,0 +1,8 @@
+# Break-glass accounts: never changed by any plan (AAC-007). Fake data.
+# An account is protected if it is listed or matches a pattern.
+accounts:
+  - breakglass-01@meridian.example
+  - breakglass-02@meridian.example
+  - breakglass-03@meridian.example
+patterns:
+  - "^breakglass-[0-9]+@meridian\\.example$"

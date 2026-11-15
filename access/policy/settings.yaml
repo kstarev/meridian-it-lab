@@ -1,0 +1,8 @@
+# Safety-rail settings (AAC-007). Fake data. Changing a number here is a reviewed change.
+# A plan that removes or suspends more than blast_radius_n accesses needs approvals_over_n
+# code-owner approvals; otherwise approvals_default.
+blast_radius_n: 25
+approvals_over_n: 2
+approvals_default: 1
+reference_date: "2026-12-01"
+month_start: "2026-11-01"

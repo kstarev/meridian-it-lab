@@ -1,0 +1,4 @@
+# Time-limited access granted outside the role, one item per grant. Fake data.
+# Each item: {employee_id, app, reason, approval (e.g. "PR #123"), expires (ISO date)}.
+# An exception stops granting access after its expiry date. Changes need a code-owner review.
+exceptions: []
