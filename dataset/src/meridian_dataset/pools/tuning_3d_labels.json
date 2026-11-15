@@ -1,0 +1,56 @@
+{
+  "normal": [
+    "plain",
+    "plain",
+    "plain",
+    "plain",
+    "plain",
+    "plain",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected"
+  ],
+  "self_described": [
+    "self",
+    "self",
+    "self",
+    "self",
+    "self",
+    "self"
+  ],
+  "colleague": [
+    "relayed",
+    "relayed",
+    "relayed",
+    "relayed",
+    "relayed",
+    "relayed",
+    "relayed",
+    "relayed",
+    "forwarded",
+    "forwarded",
+    "forwarded",
+    "forwarded",
+    "forwarded",
+    "forwarded",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected",
+    "injected"
+  ],
+  "unauthenticated": [
+    "plain",
+    "plain",
+    "injected",
+    "injected"
+  ]
+}

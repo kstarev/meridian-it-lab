@@ -166,13 +166,19 @@ def provider_of(name: str) -> str:
 
 
 def score(
-    model_name: str, version: str, *, k: int = K, model: ModelAdapter | None = None
+    model_name: str,
+    version: str,
+    *,
+    k: int = K,
+    model: ModelAdapter | None = None,
+    cases: Sequence[Instance] | None = None,
 ) -> dict[str, Any]:
-    """Score one prompt version (T* for triage, C* for the check) on one model."""
+    """Score one prompt version (T* for triage, C* for the check) on one model. `cases`
+    replaces the tuning messages (milestone 3d scores its own tuning messages this way)."""
     task = task_of(version)
     text = (M3_TRIAGE_VERSIONS if task == "triage" else M3_CHECK_VERSIONS)[version]
     model = model if model is not None else make_model(model_name)
-    cases = instances()
+    cases = list(cases) if cases is not None else instances()
     correct = dict.fromkeys(GROUPS, 0)
     total = dict.fromkeys(GROUPS, 0)
     # Misses that were off-format replies rather than wrong answers (ADR-031).

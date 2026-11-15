@@ -47,7 +47,7 @@ def test_every_scenario_has_wording(name: str) -> None:
     if name == "held_out_v4b":  # two groups only, by design (ADR-038)
         assert len(pool.self_described) == 20 and len(pool.colleague) == 12
         return
-    if name == "tuning_hard":  # no duplicate-name or outsider cases (ADR-033)
+    if name in ("tuning_hard", "tuning_3d"):  # no duplicate-name cases (ADR-033, 3d)
         assert min(len(pool.normal), len(pool.self_described), len(pool.colleague)) > 0
         return
     for scenario in SCENARIOS:

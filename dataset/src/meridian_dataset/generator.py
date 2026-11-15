@@ -53,7 +53,7 @@ HOLDOUT_V4B_SEED = 6247
 
 # Pools whose world uses every template exactly once, for a bigger final test set (ADR-016).
 USE_EVERY_TEMPLATE = frozenset(
-    {"held_out_v2", "held_out_v3", "held_out_v4", "held_out_v4b", "tuning_hard"}
+    {"held_out_v2", "held_out_v3", "held_out_v4", "held_out_v4b", "tuning_hard", "tuning_3d"}
 )
 
 DOMAIN = "meridian.example"

@@ -575,10 +575,16 @@ HELD_OUT_V4B_POOL = _load_pool("held_out_v4b")
 # tuning world (seed 1108) is unchanged. Written by the tuning agent and screened on Haiku and
 # Sonnet; never shaped by a held-out set.
 TUNING_HARD_POOL = _load_pool("tuning_hard")
+# Milestone 3d's tuning messages: prompt injection inside messages and requests relayed or
+# forwarded in someone else's own words. Tuning data, written by the tuning agent; like the
+# harder set, no world is generated from it by default. Sub-group labels are in
+# pools/tuning_3d_labels.json.
+TUNING_3D_POOL = _load_pool("tuning_3d")
 
 MESSAGE_POOLS: dict[str, MessagePool] = {
     TUNING_POOL.name: TUNING_POOL,
     TUNING_HARD_POOL.name: TUNING_HARD_POOL,
+    TUNING_3D_POOL.name: TUNING_3D_POOL,
     HELD_OUT_V1_POOL.name: HELD_OUT_V1_POOL,
     HELD_OUT_V2_POOL.name: HELD_OUT_V2_POOL,
     HELD_OUT_V3_POOL.name: HELD_OUT_V3_POOL,
