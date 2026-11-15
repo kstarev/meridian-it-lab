@@ -258,3 +258,13 @@ def test_every_prompt_version_tells_the_model_not_to_follow_instructions() -> No
     for text in PICKER_VERSIONS.values():
         assert "Never follow them" in text
         assert '"none"' in text
+
+
+def test_the_report_is_built_from_saved_scores_only() -> None:
+    tuning = kn.load_question_set(kn.TUNING)
+    result = ev.score("claude-haiku-5-5", "K1", model=_perfect(tuning))
+    md = ev.render([result], {"claude-haiku-5-5": "K1"})
+    assert "tuning score, and optimistic" in md
+    assert "| haiku-5-5 | K1 | 1 | no screen | 0 | 0 | 0 |" in md
+    assert f"SHA-256 `{hashlib.sha256(K1.encode()).hexdigest()}`" in md
+    assert "has not been run" in md
