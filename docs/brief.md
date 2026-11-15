@@ -182,6 +182,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **3c:** the realistic month (item 5).
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
   2. Prompt injection inside messages (ASI01).
+     - Also requests relayed or forwarded in someone else's own words ("my report says: 'I need my login'"). Milestone 3b's harder tuning set found this shape after held-out v4 and v4b were sealed, so 3b claims nothing about it; 3d's sealed set measures it ([ADR-038](decisions.md)).
   3. Repeat same-day requests for one account, the pattern in Clorox v. Cognizant (2025).
   4. Messages that ask several questions at once.
   5. **A "realistic month":** a stream of ~300 mixed tickets, like a 230-person company's monthly help-desk traffic. Most are out of scope for tier0 (password and MFA resets, laptops, access requests, prompt injection, repeat callers) and must be handed to a person; only ~10–15% are own-username requests.
