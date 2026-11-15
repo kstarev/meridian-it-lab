@@ -523,6 +523,75 @@ def test_a_live_run_stops_cleanly_at_the_cap(keyed_world_dir, monkeypatch, tmp_p
     assert sdk.calls == 0 and "spend cap" in report["models"][OPUS]["stopped"]
 
 
+def test_a_live_run_at_k_2_repeats_every_model_and_keeps_each_run(
+    keyed_world_dir, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("ACCESS_AI_LIVE", "1")
+    monkeypatch.setattr(compare, "REPORT_PATH", tmp_path / "report.json")
+    ledger = SpendLedger(tmp_path / "l.jsonl", cap_usd=3.0, run_limit_usd=2.5)
+    order = []
+    sdks = {HAIKU: FakeSDK(model=HAIKU), SONNET: FakeSDK(model=SONNET)}
+
+    def factory(m, led):
+        order.append(m)
+        return ClaudeClient(m, client=sdks[m], ledger=led)
+
+    report = compare.live_run(
+        [HAIKU, SONNET],
+        keyed_world_dir,
+        k=2,
+        client_factory=factory,
+        ledger=ledger,
+        suggestions_path=tmp_path / "s.yaml",
+    )
+    assert report["k"] == 2
+    assert order == [HAIKU, SONNET, HAIKU, SONNET]  # the repeats are the outer loop
+    for m in (HAIKU, SONNET):
+        r = report["models"][m]
+        assert [run["repeat"] for run in r["runs"]] == [1, 2]
+        assert r["repeats_finished"] == 2 and r["stopped"] == ""
+        assert r["calls"] == sdks[m].calls == sum(run["calls"] for run in r["runs"])
+        assert r["cost_usd"] == pytest.approx(sum(run["cost_usd"] for run in r["runs"]))
+        one = r["runs"][0]["title_accuracy"]
+        assert r["title_accuracy"] == [2 * one[0], 2 * one[1]]  # pooled over the repeats
+    report1 = compare.live_run(
+        [HAIKU, SONNET],
+        keyed_world_dir,
+        client_factory=factory,
+        ledger=ledger,
+        suggestions_path=tmp_path / "s1.yaml",
+    )
+    assert report1["k"] == 1 and len(report1["models"][HAIKU]["runs"]) == 1
+    # The suggestions are the first repeat's only: the same as one k=1 run.
+    assert maps.load_entries(tmp_path / "s.yaml") == maps.load_entries(tmp_path / "s1.yaml")
+
+
+def test_a_model_stopped_by_a_limit_is_not_run_again(keyed_world_dir, monkeypatch, tmp_path):
+    monkeypatch.setenv("ACCESS_AI_LIVE", "1")
+    monkeypatch.setattr(compare, "REPORT_PATH", tmp_path / "report.json")
+    ledger = SpendLedger(tmp_path / "l.jsonl", cap_usd=3.0, run_limit_usd=0.0001)
+    sdk = FakeSDK(model=OPUS)
+    report = compare.live_run(
+        [OPUS],
+        keyed_world_dir,
+        k=3,
+        client_factory=lambda m, led: ClaudeClient(m, client=sdk, ledger=led),
+        ledger=ledger,
+    )
+    r = report["models"][OPUS]
+    assert sdk.calls == 0 and len(r["runs"]) == 1 and r["repeats_finished"] == 0
+    assert "per-run limit" in r["stopped"]
+    with pytest.raises(ValueError):
+        compare.live_run([OPUS], keyed_world_dir, k=0, ledger=ledger)
+
+
+def test_the_dry_run_prices_k_repeats(world_dir, capsys):
+    assert ai_main(["compare", "--world", str(world_dir), "--k", "3"]) == 0
+    out = capsys.readouterr().out
+    one = compare.dry_run([HAIKU, SONNET, OPUS], world_dir)["worst_case_total_usd"]
+    assert "k=3" in out and f"total worst case ${one * 3:.4f}" in out
+
+
 def test_a_live_run_refuses_a_world_that_is_not_the_tuning_seed(tmp_path, monkeypatch):
     monkeypatch.setenv("ACCESS_AI_LIVE", "1")
     other = tmp_path / "w"
