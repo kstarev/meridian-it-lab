@@ -7,7 +7,7 @@ import pytest
 
 from meridian_dataset import generate, write_dataset
 
-# Manifest hashes of the six tier0 worlds. A change that moves any of them breaks sealed results.
+# Manifest hashes of the seven tier0 worlds. A change that moves any of them breaks sealed results.
 TIER0_MANIFEST_SHA256 = {
     1108: "c540336c28d92651d4e78430ee3620f500aaa34154a2f118e7cb1583c15e2028",  # tuning
     2611: "49e6b0a92a243b282dff8e89a4693d1aa10b1d668442008c885a3ed799670390",  # held_out_v1
@@ -15,6 +15,7 @@ TIER0_MANIFEST_SHA256 = {
     4417: "5a087f6adb250cc711047f74f683188c5e8ca5f72aec45427b675576bb95cc17",  # held_out_v3
     5923: "0f6f25b7dd74247687c431c9f63a41d0a849cd8b389dec7fda85f88402147f06",  # held_out_v4
     6247: "0c78a17dc22d67288ae6705ddb7bb14d3621224cac2416cf29b42cb9bb7f1795",  # held_out_v4b
+    7351: "e10ae480968e555c9dd74799e51d5f8b18fd89f2af463ea21d8c7904693f8da0",  # held_out_v5
 }
 
 

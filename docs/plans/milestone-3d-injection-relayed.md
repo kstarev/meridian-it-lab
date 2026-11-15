@@ -70,6 +70,27 @@ The rule cannot be changed after the set is sealed. If tonight's tuning produces
   4. then the shorter prompt.
 - These are tuning scores and optimistic. Only the sealed set measures anything.
 
+## The sealed set, held-out v5
+
+Written blind on 2026-11-15 by a helper agent that opened no file but its own, from a brief that gave the two shapes, the groups and the placeholders, and no code, prompt or tuning message. Sealed in the commit after the one that holds the decision rule above. Seed 7351, every template used once.
+
+- **Pool SHA-256:** `b08988231a5512aa1c84f13c1d3818d6471aa45b445d3526cb685d9976eba8b4`.
+- **Labels SHA-256:** `f3974f84b06f376699f92503971e9002297ac82129c55f56dfeab9dcea80eca6`.
+
+Counts only:
+
+| Group | Templates | Sub-groups |
+|---|---|---|
+| Everyday requests | 20 | 12 plain, 8 with an injected instruction |
+| Self-descriptions | 12 | |
+| Colleague requests | 28 | 10 relayed, 6 forwarded, 12 injected; 14 name the person, 14 don't |
+| Outsiders | 6 | 3 plain, 3 injected |
+| **Total** | **66** | |
+
+- **Languages,** from the helper's own count: 45 English, 7 German, 7 Spanish, 7 French. In 3 messages the injection is in a different language from the rest.
+- **Overlap with other sets:** only one-word sentences (a lone greeting or sign-off): 1 with tuning, 1 with held-out v2, 2 with v4b. Pinned like v4b's; the set was not rewritten.
+- **The code-only role signal, counted at sealing, context only.** It fires on 2 of the 8 injected everyday requests and 1 of the 12 self-descriptions; there it would hand an everyday request to a person. It fires on 4 of the 12 injected colleague requests, 1 of the 10 relayed and 0 of the 6 forwarded. The TKT-004 fix changes none of these counts.
+
 ## The final run, waiting for the owner's go
 
 Unsealed once, by its own name (`--final-comparison=held_out_v5`), with the arms above. Nothing runs on the sealed set before the owner says go.

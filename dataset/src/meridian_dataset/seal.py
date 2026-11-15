@@ -30,3 +30,10 @@ HELD_OUT_V4_SHA256 = "1cceb610dbda48a63eafd546b08eb32b11916db5357d8832a4e54b1f42
 
 HELD_OUT_V4B_SHA256 = "bf86a6957278f014ae36a0b6288eca6b84414794bdd6e6ce1c63a9df5f6ea2c1"
 """Held-out v4b's seal (ADR-038); set on 2026-11-15, before the TKT-004 fix existed."""
+
+HELD_OUT_V5_SHA256 = "b08988231a5512aa1c84f13c1d3818d6471aa45b445d3526cb685d9976eba8b4"
+"""Held-out v5's seal (milestone 3d part 1); set on 2026-11-15, after the plan's decision rule
+for Haiku's triage prompt was committed and before any model ran on the set."""
+
+HELD_OUT_V5_LABELS_SHA256 = "f3974f84b06f376699f92503971e9002297ac82129c55f56dfeab9dcea80eca6"
+"""The seal on v5's sub-group labels (pools/held_out_v5_labels.json), in canonical JSON."""

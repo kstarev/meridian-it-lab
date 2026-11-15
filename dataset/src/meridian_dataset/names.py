@@ -569,6 +569,11 @@ HELD_OUT_V4_POOL = _load_pool("held_out_v4")
 # blind by a second helper and sealed before the fix. Reported apart from v4, never pooled.
 # Spent in the same paired run, a dev set since (ADR-039).
 HELD_OUT_V4B_POOL = _load_pool("held_out_v4b")
+# Held-out v5 (milestone 3d part 1): prompt injection inside messages and requests relayed or
+# forwarded in someone else's own words. Written blind by a helper agent that opened no file but
+# its own, and sealed on 2026-11-15 after the plan's decision rule was committed. The agent
+# that tunes tier0 never opens pools/held_out_v5.json or its labels file.
+HELD_OUT_V5_POOL = _load_pool("held_out_v5")
 
 # The harder tuning set (milestone 3b, ADR-033): tuning data, readable like TUNING_POOL. It is
 # used to score prompts and to test the role signal; no world is generated from it, so the
@@ -590,4 +595,5 @@ MESSAGE_POOLS: dict[str, MessagePool] = {
     HELD_OUT_V3_POOL.name: HELD_OUT_V3_POOL,
     HELD_OUT_V4_POOL.name: HELD_OUT_V4_POOL,
     HELD_OUT_V4B_POOL.name: HELD_OUT_V4B_POOL,
+    HELD_OUT_V5_POOL.name: HELD_OUT_V5_POOL,
 }

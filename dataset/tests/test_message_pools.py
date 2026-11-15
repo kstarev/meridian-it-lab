@@ -17,6 +17,15 @@ SCENARIOS = ("normal", "duplicate", "colleague", "unauthenticated")
 # Every field that holds wording, including self-descriptions (ADR-029).
 TEMPLATE_FIELDS = (*SCENARIOS, "self_described")
 V4B_ONE_WORD_SHARED = {("held_out_v2", "held_out_v4b"): 1, ("held_out_v4b", "tuning"): 1}
+# Held-out v5 (3d part 1) was sealed as its blind helper wrote it. It shares only one-word
+# "sentences" (a lone greeting or sign-off) with older sets, pinned here like v4b's.
+V5_ONE_WORD_SHARED = {
+    ("held_out_v2", "held_out_v5"): 1,
+    ("held_out_v4b", "held_out_v5"): 2,
+    ("held_out_v5", "tuning"): 1,
+}
+ONE_WORD_SHARED = {**V4B_ONE_WORD_SHARED, **V5_ONE_WORD_SHARED}
+SHORT_SETS = ("held_out_v4b", "held_out_v5")
 PAIRS = list(itertools.combinations(sorted(MESSAGE_POOLS), 2))
 HELD_OUT_NAMES = sorted(name for name in MESSAGE_POOLS if name != TUNING_POOL.name)
 
@@ -47,7 +56,7 @@ def test_every_scenario_has_wording(name: str) -> None:
     if name == "held_out_v4b":  # two groups only, by design (ADR-038)
         assert len(pool.self_described) == 20 and len(pool.colleague) == 12
         return
-    if name in ("tuning_hard", "tuning_3d"):  # no duplicate-name cases (ADR-033, 3d)
+    if name in ("tuning_hard", "tuning_3d", "held_out_v5"):  # no duplicate-name cases
         assert min(len(pool.normal), len(pool.self_described), len(pool.colleague)) > 0
         return
     for scenario in SCENARIOS:
@@ -66,13 +75,13 @@ def test_no_sentence_is_shared(a: str, b: str) -> None:
     sentences_b = _pool_sentences(MESSAGE_POOLS[b])
     assert len(sentences_a) > 0 and len(sentences_b) > 0
     both = sentences_a & sentences_b
-    if "held_out_v4b" in (a, b):
+    if any(name in (a, b) for name in SHORT_SETS):
         # v4b was sealed as its helper wrote it (ADR-038). Its short messages share two
         # one-word "sentences" (a lone greeting or sign-off) with older sets: one with tuning
         # and one with held-out v2. One-word sentences are not counted for v4b, and the
         # number of them is pinned so it can't grow.
         one_word = {s for s in both if " " not in s}
-        assert len(one_word) == V4B_ONE_WORD_SHARED.get(tuple(sorted((a, b))), 0)
+        assert len(one_word) == ONE_WORD_SHARED.get(tuple(sorted((a, b))), 0)
         both -= one_word
     shared = len(both)
     assert shared == 0, f"{shared} sentence(s) shared between {a} and {b}"

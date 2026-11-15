@@ -10,6 +10,7 @@ from meridian_dataset import (
     HOLDOUT_V3_SEED,
     HOLDOUT_V4_SEED,
     HOLDOUT_V4B_SEED,
+    HOLDOUT_V5_SEED,
 )
 from meridian_dataset.generator import split_for_seed
 from tier0 import messages
@@ -29,6 +30,8 @@ def _seed_label(seed: int) -> str:
         return f"seed {seed} (held-out v2, spent in milestone 2, now a dev set: ADR-029)"
     if seed == HOLDOUT_V3_SEED:
         return f"seed {seed} (held-out v3, spent in milestone 3, now a dev set: ADR-030)"
+    if seed == HOLDOUT_V5_SEED:
+        return f"seed {seed} (held-out v5, sealed until its final run: milestone 3d part 1)"
     if seed in _SPENT_IN_3B:
         return (
             f"seed {seed} (held-out {_SPENT_IN_3B[seed]}, spent in milestone 3b, "
@@ -245,6 +248,11 @@ def render_markdown(r: EvalReport) -> str:
                 "These results come from a real model on held-out v3 (seed 4417). It was "
                 "spent in milestone 3's final comparison, so it now counts as a dev set, not "
                 "a held-out score (ADR-030)."
+            )
+        elif r.seed == HOLDOUT_V5_SEED:
+            which = (
+                "These results come from a real model on held-out v5 (seed 7351), written blind "
+                "and sealed before milestone 3d's tuning, and unsealed only for this final run."
             )
         elif r.seed in _SPENT_IN_3B:
             which = (
