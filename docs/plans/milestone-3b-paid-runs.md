@@ -87,6 +87,8 @@ v4 is sealed first, before any line of the fix exists, so the fix can't be shape
 
 **Checkpoint D:** the v4 report and the item's final spend, in a pull request.
 
+**Done on 2026-11-15:** [the report](../evals/2026-11-15-m3b-held-out-v4-v4b.md). The item spent $8.48 of its $15 cap.
+
 ## Cost against the item
 
 | Step | Estimate |
