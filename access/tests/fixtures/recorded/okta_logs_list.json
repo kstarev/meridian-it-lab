@@ -1,0 +1,36 @@
+{
+  "_note": "fake example in the shape of Okta System Log API docs: GET /api/v1/logs; hand-written from the public API docs (field names and types as documented), not recorded from the mock",
+  "link_rels": [
+    "self"
+  ],
+  "link_example": [
+    "<https://example.okta.example/api/v1/logs?limit=200>; rel=\"self\""
+  ],
+  "example": [
+    {
+      "uuid": "9c3b0f6f-c7db-4fc9-ae18-f54d4584d75d",
+      "published": "2026-11-05T09:00:00.000Z",
+      "eventType": "application.user_membership.add",
+      "actor": {
+        "alternateId": "aac-provisioner@meridian.example",
+        "type": "SystemPrincipal"
+      },
+      "transaction": {
+        "detail": {
+          "via": "provisioner"
+        }
+      },
+      "target": [
+        {
+          "type": "AppInstance",
+          "id": "0oafxqCAJWWGELFTYASJ"
+        },
+        {
+          "type": "User",
+          "id": "00ub0oNGTSWTBKOLGLNR",
+          "alternateId": "isaac.brock@meridian.example"
+        }
+      ]
+    }
+  ]
+}

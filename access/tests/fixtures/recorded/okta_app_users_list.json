@@ -1,0 +1,20 @@
+{
+  "_note": "fake example in the shape of Okta Management API docs: GET /api/v1/apps/{id}/users; hand-written from the public API docs (field names and types as documented), not recorded from the mock",
+  "link_rels": [
+    "self"
+  ],
+  "link_example": [
+    "<https://example.okta.example/api/v1/apps/0oafxqCAJWWGELFTYASJ/users?limit=200>; rel=\"self\""
+  ],
+  "example": [
+    {
+      "id": "00ub0oNGTSWTBKOLGLNR",
+      "scope": "GROUP",
+      "status": "ACTIVE",
+      "created": "2025-09-09T09:00:00.000Z",
+      "profile": {
+        "role": "member"
+      }
+    }
+  ]
+}

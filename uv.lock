@@ -334,6 +334,7 @@ name = "meridian-access"
 version = "0.1.0"
 source = { editable = "access" }
 dependencies = [
+    { name = "anthropic" },
     { name = "jsonschema" },
     { name = "meridian-dataset" },
     { name = "pyyaml" },
@@ -341,6 +342,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", specifier = "==2.6.0" },
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "meridian-dataset", editable = "dataset" },
     { name = "pyyaml", specifier = "==6.0.3" },
