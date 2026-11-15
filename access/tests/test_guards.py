@@ -84,6 +84,10 @@ def test_the_key_comes_from_a_secret_and_the_compare_is_a_real_run():
     assert item.project == "access"
     assert "ACCESS_CLAUDE_SPEND_CAP_USD" not in run["env"]
     assert float(run["env"]["ACCESS_CLAUDE_RUN_LIMIT_USD"]) <= item.cap_usd
+    # ADR-037 item 1: the comparison at k=3, with room under the run limit for the three
+    # repeats at the measured $0.677 each.
+    assert "--k 3" in run["run"]
+    assert float(run["env"]["ACCESS_CLAUDE_RUN_LIMIT_USD"]) > 3 * 0.677
 
 
 def test_the_cap_holds_across_runs_through_the_ledger_artifact():

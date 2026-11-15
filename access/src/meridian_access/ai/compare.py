@@ -127,14 +127,24 @@ def live_run(
     world_dir: Path,
     policy: Policy | None = None,
     *,
+    k: int = 1,
     client_factory: Callable[[str, SpendLedger], ClaudeClient] | None = None,
     ledger: SpendLedger | None = None,
     suggestions_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Runs every model over the workload and scores it against the tuning key. Stops a
-    model (and records why) when the spend cap or run limit would be crossed."""
+    """Runs every model over the workload `k` times and scores each run against the tuning
+    key. The repeats are the outer loop (all models in repeat 1, then repeat 2, ...), so if a
+    cap or the run limit stops the run, every model has the same number of finished repeats.
+    A model whose repeat is stopped records why and is not run again.
+
+    Per model, the report keeps one entry per repeat in `runs`, and on top: calls, cost and
+    failures added up over the repeats, the first stop reason, title accuracy pooled over the
+    repeats, rules-only matching (the same in every repeat) and rules + AI matching averaged
+    over the repeats. The suggested map entries are the first repeat's."""
     if os.environ.get("ACCESS_AI_LIVE") != "1":
         raise RuntimeError("a live run needs ACCESS_AI_LIVE=1")
+    if k < 1:
+        raise ValueError(f"k must be at least 1, got {k}")
     seed = json.loads((world_dir / "hris.json").read_text(encoding="utf-8")).get("seed")
     if seed != TUNING_SEED:
         raise RuntimeError(f"a live run is for the tuning world (seed {TUNING_SEED}), not {seed!r}")
@@ -145,59 +155,99 @@ def live_run(
     key = load_key(world_dir)
     owners = [AccountOwner(**o) for o in key["owners"]]
     dept = {r.employee_id: r for r in work.records}
-    report: dict[str, Any] = {"world": world_dir.name, "models": {}}
+    runs: dict[str, list[dict[str, Any]]] = {m: [] for m in models}
     entries: list[dict[str, Any]] = []
-    for model in models:
-        client = factory(model, ledger)
-        before = ledger.total_usd()
-        titles: dict[str, str] = {}
-        failed = 0
-        stopped = ""
-        owner_of: dict[tuple[str, str, str], MatchSuggestion] = {}
-        try:
-            for title, department, team in work.titles:
-                s = suggest_role(title, department, team, work.roles, client)
-                if s is None:
-                    failed += 1
-                else:
-                    titles[title] = s.role
-                    if e := maps.title_entry(title, s):
-                        entries.append(e)
-            for a in work.leftovers:
-                m = suggest_owner(a, shortlist(a, work.records), client)
-                if m is None:
-                    failed += 1
-                else:
-                    owner_of[a.key] = m
-                    if e := maps.account_entry(a.system, a.app_id, a.account, m):
-                        entries.append(e)
-        except SpendCapReached as exc:
-            stopped = str(exc)
-        combined = dict(work.result.matches)
-        for k, m in owner_of.items():
-            if m.employee_id != "none" and m.employee_id in dept:
-                combined[k] = Match(m.employee_id, "ai", 0.5)
-        rules_only = score_matching(work.result, owners)
-        with_ai = score_matching(
-            MatchResult(
-                combined,
-                [k for k in work.result.unmatched if k not in combined],
-                [k for k in work.result.ambiguous if k not in combined],
-            ),
-            owners,
-        )
-        title_rate = score_titles(titles, work.records, key["true_roles"])
+    for repeat in range(1, k + 1):
+        for model in models:
+            if any(r["stopped"] for r in runs[model]):
+                continue
+            run, found = _one_run(model, factory(model, ledger), ledger, work, key, owners, dept)
+            run["repeat"] = repeat
+            runs[model].append(run)
+            if repeat == 1:
+                entries.extend(found)
+    report: dict[str, Any] = {"world": world_dir.name, "k": k, "models": {}}
+    for model, done in runs.items():
+        finished = [r for r in done if not r["stopped"]] or done
         report["models"][model] = {
-            "calls": client.calls,
-            "failed_or_refused": failed,
-            "cost_usd": round(ledger.total_usd() - before, 6),
-            "stopped": stopped,
-            "title_accuracy": [title_rate.successes, title_rate.total],
-            "matching_rules_only": [rules_only.precision.value, rules_only.recall.value],
-            "matching_rules_plus_ai": [with_ai.precision.value, with_ai.recall.value],
+            "calls": sum(r["calls"] for r in done),
+            "failed_or_refused": sum(r["failed_or_refused"] for r in done),
+            "cost_usd": round(sum(r["cost_usd"] for r in done), 6),
+            "stopped": next((r["stopped"] for r in done if r["stopped"]), ""),
+            "repeats_finished": sum(not r["stopped"] for r in done),
+            "title_accuracy": [
+                sum(r["title_accuracy"][0] for r in done),
+                sum(r["title_accuracy"][1] for r in done),
+            ],
+            "matching_rules_only": done[0]["matching_rules_only"],
+            "matching_rules_plus_ai": [
+                sum(r["matching_rules_plus_ai"][i] for r in finished) / len(finished)
+                for i in (0, 1)
+            ],
+            "runs": done,
         }
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if suggestions_path is not None:
         maps.write_entries(entries, suggestions_path)
     return report
+
+
+def _one_run(
+    model: str,
+    client: ClaudeClient,
+    ledger: SpendLedger,
+    work: Workload,
+    key: dict[str, Any],
+    owners: list[AccountOwner],
+    dept: dict[str, HrisRecord],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """One model over the whole workload once: its scores, and the map entries it suggests."""
+    before = ledger.total_usd()
+    entries: list[dict[str, Any]] = []
+    titles: dict[str, str] = {}
+    failed = 0
+    stopped = ""
+    owner_of: dict[tuple[str, str, str], MatchSuggestion] = {}
+    try:
+        for title, department, team in work.titles:
+            s = suggest_role(title, department, team, work.roles, client)
+            if s is None:
+                failed += 1
+            else:
+                titles[title] = s.role
+                if e := maps.title_entry(title, s):
+                    entries.append(e)
+        for a in work.leftovers:
+            m = suggest_owner(a, shortlist(a, work.records), client)
+            if m is None:
+                failed += 1
+            else:
+                owner_of[a.key] = m
+                if e := maps.account_entry(a.system, a.app_id, a.account, m):
+                    entries.append(e)
+    except SpendCapReached as exc:
+        stopped = str(exc)
+    combined = dict(work.result.matches)
+    for k, m in owner_of.items():
+        if m.employee_id != "none" and m.employee_id in dept:
+            combined[k] = Match(m.employee_id, "ai", 0.5)
+    rules_only = score_matching(work.result, owners)
+    with_ai = score_matching(
+        MatchResult(
+            combined,
+            [k for k in work.result.unmatched if k not in combined],
+            [k for k in work.result.ambiguous if k not in combined],
+        ),
+        owners,
+    )
+    title_rate = score_titles(titles, work.records, key["true_roles"])
+    return {
+        "calls": client.calls,
+        "failed_or_refused": failed,
+        "cost_usd": round(ledger.total_usd() - before, 6),
+        "stopped": stopped,
+        "title_accuracy": [title_rate.successes, title_rate.total],
+        "matching_rules_only": [rules_only.precision.value, rules_only.recall.value],
+        "matching_rules_plus_ai": [with_ai.precision.value, with_ai.recall.value],
+    }, entries

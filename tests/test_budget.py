@@ -18,6 +18,8 @@ from tier0.models import spend as tier0_spend
 ROOT = Path(__file__).resolve().parents[1]
 FILE = ROOT / "budget" / "claude-credit-2026-12.json"
 IN_WINDOW = datetime(2026, 12, 17, 23, 59, tzinfo=UTC)
+# The items the owner has approved in the real file (ADR-037: one pull request per approval).
+APPROVED = {"aac-model-comparison"}  # 2026-11-15, schedule item 1
 AFTER = datetime(2026, 12, 18, 0, 0, tzinfo=UTC)
 
 LEDGERS = {
@@ -49,6 +51,11 @@ def test_the_budget_file_splits_the_credit_as_the_owner_decided():
         "aac-m7-final-score",
         "aac-red-team",
     }
+
+
+def test_only_the_items_the_owner_approved_are_approved():
+    real = tier0_budget.load_budget()
+    assert {i.id for i in real.items.values() if i.approved} == APPROVED
 
 
 def test_the_two_readers_agree():
@@ -121,9 +128,10 @@ def test_nothing_is_paid_without_an_item_or_before_the_owner_approves_it(
         ledger(name, tmp_path, None, unapproved).check(0.01)
     with pytest.raises(refused, match="not approved"):
         ledger(name, tmp_path, item, unapproved).check(0.01)
-    # This pull request approves nothing: the real file refuses every one of the project's items.
+    # Items not approved in the real file are refused. Which items are approved is pinned
+    # below, so each approval is a deliberate, reviewed change.
     real = module.load_budget()
-    for item_id in real.project_items(name):
+    for item_id in real.project_items(name) - APPROVED:
         with pytest.raises(refused, match="not approved"):
             ledger(name, tmp_path, item_id, real).check(0.0)
 
