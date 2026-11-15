@@ -186,10 +186,10 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   3. Repeat same-day requests for one account, the pattern in Clorox v. Cognizant (2025).
   4. Messages that ask several questions at once.
   5. **A "realistic month":** a stream of ~300 mixed tickets, like a 230-person company's monthly help-desk traffic. Most are out of scope for tier0 (password and MFA resets, laptops, access requests, prompt injection, repeat callers) and must be handed to a person; only ~10–15% are own-username requests.
+     - **Built** ([plan](plans/milestone-3c-realistic-month.md)): the seeded generator with planted same-day repeats, the tuning templates, the sealed blind templates (`held_out_month1`), template-level intervals, the three new metrics, and `python -m tier0.evals.month` (routing level: no mocks, tokens or MCP server). Not run on a model yet.
      - Generated as template × persona × language × Slack noise, from at least 100 distinct templates written blind.
      - Intervals bootstrap over templates, not tickets, because tickets from the same template aren't independent.
      - New metrics: correct-handoff rate, out-of-scope tickets wrongly answered, and estimated IT hours saved per month.
-     - **Built** ([plan](plans/milestone-3c-realistic-month.md)): the seeded generator with planted same-day repeats, the tuning templates, the sealed blind templates (`held_out_month1`), template-level intervals, the three new metrics, and `python -m tier0.evals.month` (routing level: no mocks, tokens or MCP server). Not run on a model yet.
   6. **A verification ladder:** how much proof each tier needs before tier0 acts.
      - **Rung 0 (built):** a signed Slack user ID, bound to the directory. Slack guests (`is_restricted` / `is_ultra_restricted`) and leavers or suspended accounts never get self-service; the identity binder has refused both since milestone 1.
      - **Rung 1, context checks in code:** an out-of-office requester is denied; same-day repeat requests for one account, managed-device status and recent security changes are checked.
