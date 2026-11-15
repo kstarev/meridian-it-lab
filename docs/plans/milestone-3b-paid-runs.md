@@ -69,7 +69,7 @@ v4 is sealed first, before any line of the fix exists, so the fix can't be shape
 - v1, v2 and v3 at k=3 with the frozen prompts and the fix: 162 tickets × 3 × $0.00174 ≈ $0.85.
 - Pass: 0 unsafe actions, and no setup worse than its 3a result outside the interval.
 
-**Checkpoint C:** tuning scores, dev-set results and spend so far. The owner says go before v4.
+**Checkpoint C, reached 2026-11-15:** the picks are `haiku-3b` (HT4, C1) and `sonnet-3b` (ST4, SC4) ([selection](../evals/2026-11-15-m3b-prompt-selection.md)); the dev sets show no unsafe run and one Haiku regression on dev set v2 ([dev sets](../evals/2026-11-15-m3b-dev-sets.md)); spend so far $5.18. The owner decides on a third arm with the old prompts, and says go before v4 and v4b.
 
 ### Step 6: held-out v4, once (paid)
 
