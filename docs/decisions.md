@@ -929,7 +929,7 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 
 ## ADR-038: Held-out v4 stays sealed as written; a second sealed set, v4b, measures the TKT-004 fix
 
-**Date:** 2026-11-15 · **Status:** Accepted (the owner's decision, 2026-11-15). Adds to ADR-033. The bar below was committed before v4b was written.
+**Date:** 2026-11-15 · **Status:** Accepted (the owner's decision, 2026-11-15). Adds to ADR-033. The bar below was committed before v4b was written (commit `312a6a6`). v4b missed the bar by one and the owner accepted it as written; see "What happened" below.
 
 **Context:** Held-out v4 was written blind and sealed on 2026-11-15, before any TKT-004 fix existed (ADR-033): 72 tickets, seed 5923. A count-only check after sealing showed that today's role signal fires on 0 of its 20 self-descriptions and 0 of its 12 unnamed colleague requests. In v3 it fired on 1 of 6 and 3 of 6.
 
@@ -954,4 +954,12 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 - The fix's benefit is measured on 20 short self-descriptions, so its interval is wide. The report must say so.
 - v4b was asked for after v4's counts were known. What keeps it honest: it was written blind, the bar was fixed first, and a miss stops the work.
 - v4b at k=5 adds about $0.28 (32 × 5 × $0.00174) to `tier0-3b`, well inside its $15 cap.
-- Short messages are more likely to share a sentence with another set. If the no-shared-wording tests find one, the helper is told only which position to rewrite, never the text.
+- Short messages are more likely to share a sentence with another set; see the last point below.
+
+**What happened (2026-11-15):**
+
+- **The bar was missed by one.** The bar was at least 3; today's role signal fires on **2 of the 20** self-descriptions in v4b. It fires on 4 of the 12 unnamed colleague requests. The messages are about half as long as v4's (median 15 words per self-description against 30.5).
+- **The owner accepted the first draw** rather than redrawing until one passed. v4b is sealed exactly as the helper wrote it: seed 6247, SHA-256 `bf86a6957278f014ae36a0b6288eca6b84414794bdd6e6ce1c63a9df5f6ea2c1`.
+- **What the report may claim:** the fix's benefit rests on those 2 self-descriptions, and the check that it does no harm on short messages rests on the 4 unnamed colleague requests the signal catches today. The report shows the interval and claims no more than that.
+- **The brief differed from v4's in one more way than the owner asked for.** Besides dropping "add specific context" and adding "lengths like real Slack, many one-liners", the tuning agent trimmed the description of Slack noise to emoji, typos, missing punctuation and greetings, to be used in some messages, and dropped "irrelevant context around the actual request", because it works against short messages.
+- **Two one-word overlaps are allowed, and pinned.** The no-shared-wording test splits messages into sentences. One v4b self-description shares a one-word sentence (a lone greeting or sign-off) with held-out v2, and one unnamed colleague request shares one with tuning. Neither message fires the signal. The set was not rewritten. For pairs with v4b the test ignores one-word sentences and pins their number at these two; every longer sentence is still checked, and no other set gets the exemption.

@@ -35,7 +35,7 @@ v4 is sealed first, before any line of the fix exists, so the fix can't be shape
 - **Sealing, as for v3 (ADR-029):** a new seed, every template used once, the pool's SHA-256 recorded, `held_out_v4` added to `SEALED_POOLS`, unsealed only by `--final-comparison=held_out_v4`, count-only tests, and pairwise overlap tests against tuning, v1, v2 and v3.
 - **One count-only check after sealing:** how many of the 20 self-descriptions and the 12 unnamed colleague requests fire today's role signal. These are counts from code, no model and no wording. They are the "before" numbers for the fix.
 
-**Checkpoint A:** v4 is sealed; the owner sees the counts and may review the wording with `make review-pool POOL=held_out_v4`.
+**Checkpoint A, done 2026-11-15:** v4 is sealed (seed 5923). Today's role signal fires on 0 of its 20 self-descriptions and 0 of its 12 unnamed colleague requests, so the owner added a second sealed set, **v4b** (seed 6247): 20 short self-descriptions, of which 2 fire the signal, and 12 unnamed colleague requests, of which 4 fire it ([ADR-038](../decisions.md)). Step 6 runs v4 and v4b once each at k=5 and reports them separately, never pooled. v4b adds about $0.28, for a plan total of about $4.37.
 
 ### Step 2: the harder tuning set (first paid calls)
 

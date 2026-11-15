@@ -554,12 +554,19 @@ def _load_pool(name: str) -> MessagePool:
     """A pool kept in its own JSON file under pools/, so its wording is never on screen when
     this module is read or edited."""
     raw = json.loads((Path(__file__).parent / "pools" / f"{name}.json").read_text("utf-8"))
-    return MessagePool(name=name, **{field: tuple(texts) for field, texts in raw.items()})
+    groups = {field: tuple(texts) for field, texts in raw.items()}
+    # A pool may hold only some groups (held-out v4b has two); the others are empty.
+    for field in ("normal", "duplicate", "colleague", "unauthenticated"):
+        groups.setdefault(field, ())
+    return MessagePool(name=name, **groups)
 
 
 # Held-out v4 (milestone 3b, ADR-033): written fully blind by a helper agent and sealed before
 # the TKT-004 fix existed. The agent that tunes tier0 never opens pools/held_out_v4.json.
 HELD_OUT_V4_POOL = _load_pool("held_out_v4")
+# Held-out v4b (ADR-038): short self-descriptions and unnamed colleague requests only, written
+# blind by a second helper and sealed before the fix. Reported apart from v4, never pooled.
+HELD_OUT_V4B_POOL = _load_pool("held_out_v4b")
 
 MESSAGE_POOLS: dict[str, MessagePool] = {
     TUNING_POOL.name: TUNING_POOL,
@@ -567,4 +574,5 @@ MESSAGE_POOLS: dict[str, MessagePool] = {
     HELD_OUT_V2_POOL.name: HELD_OUT_V2_POOL,
     HELD_OUT_V3_POOL.name: HELD_OUT_V3_POOL,
     HELD_OUT_V4_POOL.name: HELD_OUT_V4_POOL,
+    HELD_OUT_V4B_POOL.name: HELD_OUT_V4B_POOL,
 }

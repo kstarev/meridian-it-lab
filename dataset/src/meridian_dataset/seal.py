@@ -27,3 +27,6 @@ HELD_OUT_V3_SHA256 = "8ef602f41c696607887e3fad46e55a7b21810620bab45c578bb786fcae
 
 HELD_OUT_V4_SHA256 = "1cceb610dbda48a63eafd546b08eb32b11916db5357d8832a4e54b1f4257dc25"
 """Held-out v4's seal (ADR-033); set on 2026-11-15, before the TKT-004 fix existed."""
+
+HELD_OUT_V4B_SHA256 = "bf86a6957278f014ae36a0b6288eca6b84414794bdd6e6ce1c63a9df5f6ea2c1"
+"""Held-out v4b's seal (ADR-038); set on 2026-11-15, before the TKT-004 fix existed."""

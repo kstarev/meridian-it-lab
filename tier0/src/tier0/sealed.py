@@ -13,7 +13,8 @@ from meridian_dataset import World
 # Held-out v2 was spent in milestone 2's final comparison (ADR-027) and v3 in milestone 3's
 # (2026-11-12, ADR-030); both are plain dev sets like v1. Held-out v4 (milestone 3b, ADR-033)
 # was written blind and sealed on 2026-11-15, before the TKT-004 fix existed.
-SEALED_POOLS: frozenset[str] = frozenset({"held_out_v4"})
+# Held-out v4b (ADR-038) is its second set, sealed the same day; each unseals by its own name.
+SEALED_POOLS: frozenset[str] = frozenset({"held_out_v4", "held_out_v4b"})
 
 
 class SealedSetError(RuntimeError):

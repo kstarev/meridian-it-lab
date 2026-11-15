@@ -11,7 +11,12 @@ from pathlib import Path
 import anyio
 
 from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, generate
-from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED, HOLDOUT_V4_SEED
+from meridian_dataset.generator import (
+    HOLDOUT_V2_SEED,
+    HOLDOUT_V3_SEED,
+    HOLDOUT_V4_SEED,
+    HOLDOUT_V4B_SEED,
+)
 from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals import watch
 from tier0.evals.report import write_report
@@ -41,6 +46,7 @@ def split_label(seed: int) -> str:
         HOLDOUT_V2_SEED: "held-out-v2",
         HOLDOUT_V3_SEED: "held-out-v3",
         HOLDOUT_V4_SEED: "held-out-v4",
+        HOLDOUT_V4B_SEED: "held-out-v4b",
     }.get(seed, "tuning")
 
 
