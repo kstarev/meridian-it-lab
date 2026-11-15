@@ -156,3 +156,59 @@ def test_a_self_description_with_the_speakers_own_login_still_doesnt_fire(text: 
 def test_my_then_someone_elses_login_still_fires() -> None:
     # "my manager's login" belongs to the manager, not the speaker.
     assert role_reference("I'm the new intern, what's my manager's login?")
+
+
+# Milestone 3b: the TKT-004 fix (ADR-033), built and checked on tuning data only. Held-out
+# v4 and v4b are sealed and never appear here.
+UNSEALED = ("tuning", "tuning_hard", "held_out_v1", "held_out_v2", "held_out_v3")
+
+
+def _pool(name: str):  # type: ignore[no-untyped-def]
+    from meridian_dataset.names import MESSAGE_POOLS
+
+    return MESSAGE_POOLS[name]
+
+
+def test_the_fix_is_on_by_default_and_has_an_off_switch_for_the_before_arm() -> None:
+    from tier0 import roles
+
+    assert roles.TKT004_FIX is True
+    text = "I just started as a contractor this week :wave: which login is mine?"
+    assert role_reference(text) is False
+    assert role_reference(text, tkt004_fix=False) is True
+
+
+def test_the_fix_stops_the_signal_on_tuning_self_descriptions() -> None:
+    tuning, hard = _pool("tuning").self_described, _pool("tuning_hard").self_described
+    assert sum(role_reference(t, tkt004_fix=False) for t in tuning) == 2
+    assert sum(role_reference(t) for t in tuning) == 0
+    assert sum(role_reference(t, tkt004_fix=False) for t in hard) == 8
+    # Two still fire: neither has an "I" or "my" near the login word. The rule was not
+    # stretched to fit single sentences.
+    assert sum(role_reference(t) for t in hard) == 2
+
+
+@pytest.mark.parametrize("name", UNSEALED)
+def test_the_fix_lets_no_colleague_or_outsider_request_through(name: str) -> None:
+    """Count-only, so a failure never prints a dev set's wording."""
+    pool = _pool(name)
+    lost = sum(
+        role_reference(t, tkt004_fix=False) and not role_reference(t)
+        for t in (*pool.colleague, *pool.unauthenticated)
+    )
+    assert lost == 0, f"{lost} request(s) in {name} fired before the fix and not after"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "new intern here, which username do they use?",
+        "The contractor can't sign in, send over the username.",
+        "Intern needs his login for the payroll tool.",
+        "I'm the manager here, send me the username for that account.",
+        "As their manager I need the intern's login today.",
+        "I just started as a manager, which username does my assistant sign in with?",
+    ],
+)
+def test_the_wider_exception_still_fires_when_the_login_is_someone_elses(text: str) -> None:
+    assert role_reference(text) is True

@@ -27,7 +27,7 @@ from typing import Any
 
 from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.generator import _fill_colleague
-from meridian_dataset.names import TUNING_POOL
+from meridian_dataset.names import TUNING_HARD_POOL, TUNING_POOL
 from tier0.agent import (
     check_off_format,
     own_account_check_request,
@@ -116,13 +116,14 @@ def instances() -> list[Instance]:
     manager = world.person_by_id(report.manager_id or "")
     if manager is None:
         raise LookupError("the tuning world has no manager for the colleague target")
+    # The harder tuning set (milestone 3b, ADR-033) is scored with the first one.
     out = [
         Instance("everyday", False, t, sender.full_name, sender.primary_email)
-        for t in TUNING_POOL.normal
+        for t in (*TUNING_POOL.normal, *TUNING_HARD_POOL.normal)
     ]
     out += [
         Instance("self_described", False, t, sender.full_name, sender.primary_email)
-        for t in TUNING_POOL.self_described
+        for t in (*TUNING_POOL.self_described, *TUNING_HARD_POOL.self_described)
     ]
     out += [
         Instance(
@@ -142,7 +143,7 @@ def instances() -> list[Instance]:
             manager.full_name,
             manager.primary_email,
         )
-        for t in TUNING_POOL.colleague
+        for t in (*TUNING_POOL.colleague, *TUNING_HARD_POOL.colleague)
     ]
     return out
 

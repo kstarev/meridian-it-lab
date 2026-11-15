@@ -36,8 +36,8 @@ def test_instances_are_tuning_only_and_grouped() -> None:
     groups = {
         g: sum(c.group == g for c in cases) for g in ("everyday", "self_described", "colleague")
     }
-    assert groups == {"everyday": 46, "self_described": 6, "colleague": 14}
-    assert sum(c.unnamed for c in cases) == 7
+    assert groups == {"everyday": 61, "self_described": 21, "colleague": 34}
+    assert sum(c.unnamed for c in cases) == 19
     assert all("{" not in c.text for c in cases)
 
 
@@ -46,7 +46,7 @@ def test_a_perfect_model_scores_full_marks(version: str) -> None:
     model = Perfect()
     result = sel.score("llama3.2", version, k=2, model=model)
     assert result["correct"] == result["total"]
-    assert result["total"]["everyday"] == 2 * 46 and result["total"]["colleague_unnamed"] == 14
+    assert result["total"]["everyday"] == 2 * 61 and result["total"]["colleague_unnamed"] == 38
     assert set(model.seeds) == {1001, 1002}
     assert result["cost_usd"] == 0 and result["wrong"] == {}
     assert result["mean_call_ms"] >= 0
@@ -80,7 +80,7 @@ def test_the_rule_keeps_colleague_catches_then_maximises_everyday() -> None:
 
 def test_the_estimate_uses_the_full_budget_and_makes_no_call() -> None:
     est = sel.estimate_cost("claude-haiku-5-5")
-    assert est["tuning_selection_calls"] == 66 * 3 * 2 * sel.MAX_VERSIONS
+    assert est["tuning_selection_calls"] == 116 * 3 * 2 * sel.MAX_VERSIONS
     assert est["agent_calls_max"] == (6 + 6 + 42 + 54) * 3 * 2
     assert 0 < est["estimated_usd"] < 2.0
 
@@ -203,9 +203,9 @@ def test_tuning_scores_split_off_format_misses_from_wrong_answers() -> None:
             return right
 
     result = sel.score("llama3.2", "T1", k=sel.K, model=HalfFenced())
-    assert result["correct"]["colleague"] == 0 and result["off_format"]["colleague"] == 42
+    assert result["correct"]["colleague"] == 0 and result["off_format"]["colleague"] == 102
     assert result["off_format"]["everyday"] == 0
-    assert "| 42 of 42 |" in sel.render([result], "cmd")
+    assert "| 102 of 102 |" in sel.render([result], "cmd")
 
 
 def test_scoring_resumes_at_the_first_unsaved_version(monkeypatch, tmp_path, capsys) -> None:
@@ -239,7 +239,7 @@ def test_timing_estimates_tuning_dev_and_v3_from_tuning_calls_only() -> None:
     model = Perfect()
     est = sel.time_calls("llama3.2", model, n=4)
     assert len(model.seeds) == 5  # one untimed load call, then 4 timed
-    assert est["tuning_full_budget"]["calls"] == 66 * 3 * 2 * 5
+    assert est["tuning_full_budget"]["calls"] == 116 * 3 * 2 * 5
     assert est["v3"]["calls"] == 54 * 3 * 2 + 2
     assert est["seconds_per_call"]["mean"] >= 0
 
