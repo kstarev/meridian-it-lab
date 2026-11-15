@@ -469,9 +469,9 @@ def write_outputs(
     client = None
     if live:
         from meridian_access.ai.client import ClaudeClient
-        from meridian_access.ai.pricing import model_id
+        from meridian_access.ai.pricing import CHOSEN_MODEL, model_id
 
-        client = ClaudeClient(model_id(os.environ.get("ACCESS_SUMMARY_MODEL", "sonnet")))
+        client = ClaudeClient(model_id(os.environ.get("ACCESS_SUMMARY_MODEL", CHOSEN_MODEL)))
     with tempfile.TemporaryDirectory(prefix=".plan-", dir=out) as tmp_name:
         tmp = Path(tmp_name)
         (tmp / "plan.json").write_text(plan.json(), encoding="utf-8")

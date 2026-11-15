@@ -12,7 +12,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from meridian_access.ai.client import ClaudeClient
-from meridian_access.ai.pricing import HAIKU
+from meridian_access.ai.pricing import CHOSEN_MODEL
 from meridian_access.models import Account
 from meridian_dataset.access.model import DOMAIN, HrisRecord
 
@@ -130,7 +130,7 @@ def suggest_owner(
     candidates = list(candidates)[:MAX_CANDIDATES]
     if not candidates:
         return None
-    client = client or ClaudeClient(HAIKU)
+    client = client or ClaudeClient(CHOSEN_MODEL)
     data = client.complete_json(
         SYSTEM,
         match_prompt(account, candidates),
