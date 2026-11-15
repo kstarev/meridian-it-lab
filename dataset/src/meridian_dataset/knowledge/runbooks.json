@@ -1,0 +1,607 @@
+{
+  "version": "2026-11-15",
+  "repo": "meridian-memory",
+  "runbooks": [
+    {
+      "id": "KB-001",
+      "slug": "office-wifi",
+      "title": "Connect to the office Wi-Fi",
+      "summary": "Join the staff Wi-Fi network Meridian-Staff on a work laptop or phone in any Meridian office.",
+      "steps": [
+        "Open your Wi-Fi settings and choose the network Meridian-Staff.",
+        "When asked to sign in, use your work email address and your normal work sign-in.",
+        "Accept the certificate named meridian-radius if your device asks about it.",
+        "If the network does not appear, turn Wi-Fi off and on again and move closer to the centre of the floor.",
+        "Still stuck after two tries? Post in #it-help and say which office and floor you are on."
+      ],
+      "tags": [
+        "wifi",
+        "network",
+        "office"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-01"
+    },
+    {
+      "id": "KB-002",
+      "slug": "guest-wifi",
+      "title": "Get a visitor onto the guest Wi-Fi",
+      "summary": "Give a visitor internet access with a one-day code for the Meridian-Guest network.",
+      "steps": [
+        "Ask the visitor to choose the network Meridian-Guest on their device.",
+        "Open the Front Desk page on the intranet and select Guest Wi-Fi code.",
+        "Enter the visitor's name and the date of the visit. The page shows a code that lasts until midnight.",
+        "The visitor types the code on the sign-in page that opens when they join the network.",
+        "Guest Wi-Fi reaches the internet only. It cannot reach printers, file shares or internal sites."
+      ],
+      "tags": [
+        "wifi",
+        "guest",
+        "visitor"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-04"
+    },
+    {
+      "id": "KB-003",
+      "slug": "vpn-first-setup",
+      "title": "Set up the VPN app for the first time",
+      "summary": "Install and sign in to the Meridian VPN app so you can reach internal sites from outside the office.",
+      "steps": [
+        "Open Self Service on a Mac, or Company Portal on Windows, and install Meridian VPN.",
+        "Start the app. The portal address is already filled in; do not change it.",
+        "Select Connect and sign in with your work account in the browser window that opens.",
+        "Wait for the shield icon to turn green. That means the VPN is on.",
+        "The VPN turns itself off after 12 hours. Select Connect again when you need it."
+      ],
+      "tags": [
+        "vpn",
+        "remote",
+        "install"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-07"
+    },
+    {
+      "id": "KB-004",
+      "slug": "vpn-no-internal-sites",
+      "title": "VPN is connected but internal sites don't load",
+      "summary": "What to check when the VPN shows connected and the intranet or other internal sites still time out.",
+      "steps": [
+        "Check that the shield icon is green and not grey or amber.",
+        "Select Disconnect, wait ten seconds, then select Connect again.",
+        "Turn off any personal VPN or ad-blocking app on the laptop; two VPNs cannot run together.",
+        "On hotel or cafe Wi-Fi, open any normal website first and accept the network's sign-in page, then reconnect the VPN.",
+        "Restart the laptop if internal sites still fail.",
+        "If it still fails after a restart, post in #it-help with the name of the site you cannot open."
+      ],
+      "tags": [
+        "vpn",
+        "remote",
+        "troubleshooting"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-10"
+    },
+    {
+      "id": "KB-005",
+      "slug": "printer-mac",
+      "title": "Add an office printer on a Mac",
+      "summary": "Add the office follow-me printer queue to a work Mac.",
+      "steps": [
+        "Connect to Meridian-Staff Wi-Fi or the VPN.",
+        "Open Self Service and select Printers, then Install next to Meridian-Print.",
+        "Open any document, choose Print, and pick Meridian-Print.",
+        "Walk to any office printer and tap your badge to release the job.",
+        "Jobs that are not released are deleted after 24 hours."
+      ],
+      "tags": [
+        "printer",
+        "mac",
+        "office"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-13"
+    },
+    {
+      "id": "KB-006",
+      "slug": "printer-windows",
+      "title": "Add an office printer on Windows",
+      "summary": "Add the office follow-me printer queue to a work Windows laptop.",
+      "steps": [
+        "Connect to Meridian-Staff Wi-Fi or the VPN.",
+        "Open Company Portal, search for Meridian-Print and select Install.",
+        "Restart any app that was open, then choose Print and pick Meridian-Print.",
+        "Walk to any office printer and tap your badge to release the job.",
+        "Jobs that are not released are deleted after 24 hours."
+      ],
+      "tags": [
+        "printer",
+        "windows",
+        "office"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-16"
+    },
+    {
+      "id": "KB-007",
+      "slug": "scan-to-email",
+      "title": "Scan a document to your email",
+      "summary": "Scan paper on an office printer and receive it as a PDF in your work mailbox.",
+      "steps": [
+        "Tap your badge on the printer.",
+        "Choose Scan, then Scan to my email.",
+        "Put the pages face up in the top feeder, or one page face down on the glass.",
+        "Press Start. The PDF arrives in your work mailbox within a few minutes.",
+        "Scans go only to your own work address. To send one to somebody else, forward the email."
+      ],
+      "tags": [
+        "printer",
+        "scan",
+        "office"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-19"
+    },
+    {
+      "id": "KB-008",
+      "slug": "book-meeting-room",
+      "title": "Book a meeting room",
+      "summary": "Reserve a meeting room from Google Calendar and check in at the room's panel.",
+      "steps": [
+        "Create the event in Google Calendar.",
+        "Select Rooms, pick your office, and choose a room that shows as free.",
+        "Save the event. The room accepts by itself if it is free.",
+        "When the meeting starts, tap Check in on the panel beside the door.",
+        "A room that nobody checks in to within 10 minutes is released for others."
+      ],
+      "tags": [
+        "meeting-room",
+        "calendar",
+        "office"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-22"
+    },
+    {
+      "id": "KB-009",
+      "slug": "meeting-room-video",
+      "title": "Start a video call in a meeting room",
+      "summary": "Use the room's screen, camera and microphone for a Google Meet call.",
+      "steps": [
+        "Book the room in the calendar event; the call then appears on the room's touch panel.",
+        "Tap the meeting name on the touch panel to join.",
+        "To show your laptop, join the same call on the laptop and select Present now. Mute the laptop's microphone and speakers first.",
+        "Use the touch panel to change the volume or turn the room camera off.",
+        "Tap Leave on the panel when you finish so the room is free for the next group."
+      ],
+      "tags": [
+        "meeting-room",
+        "video",
+        "meet"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-25"
+    },
+    {
+      "id": "KB-010",
+      "slug": "gmail-on-phone",
+      "title": "Set up work email on your phone",
+      "summary": "Add your work Google account to a phone inside the managed work profile.",
+      "steps": [
+        "On Android, install Intune Company Portal; on an iPhone, install Self Service from the App Store.",
+        "Open it and follow the steps to enrol the phone. This creates a separate work profile.",
+        "Install Gmail and Google Calendar from the work profile's app list.",
+        "Open Gmail and sign in with your work account.",
+        "Work data stays in the work profile. IT cannot see your personal apps, photos or messages."
+      ],
+      "tags": [
+        "email",
+        "phone",
+        "mobile"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-28"
+    },
+    {
+      "id": "KB-011",
+      "slug": "out-of-office-reply",
+      "title": "Turn on an out-of-office reply",
+      "summary": "Set an automatic reply in Gmail for days when you are away.",
+      "steps": [
+        "Open Gmail in a browser and select the gear icon, then See all settings.",
+        "Scroll to Vacation responder and select Vacation responder on.",
+        "Set the first and last day, and write a short message that says who covers for you.",
+        "Tick Only send a response to people in Meridian if outside senders should not get it.",
+        "Select Save changes. The reply stops by itself after the last day."
+      ],
+      "tags": [
+        "email",
+        "gmail",
+        "absence"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-03"
+    },
+    {
+      "id": "KB-012",
+      "slug": "email-signature",
+      "title": "Use the standard email signature",
+      "summary": "Create a Gmail signature that follows Meridian's template.",
+      "steps": [
+        "Open the Brand page on the intranet and copy the signature template.",
+        "In Gmail, open Settings, See all settings, and scroll to Signature.",
+        "Select Create new, paste the template, and replace the sample name, title and office with your own.",
+        "Under Signature defaults, choose the signature for new emails and for replies.",
+        "Select Save changes. Do not add images, quotes or extra colours."
+      ],
+      "tags": [
+        "email",
+        "gmail",
+        "signature"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-06"
+    },
+    {
+      "id": "KB-013",
+      "slug": "share-drive-file-externally",
+      "title": "Share a Google Drive file with someone outside Meridian",
+      "summary": "The rules and steps for sharing a file or folder with a customer or partner.",
+      "steps": [
+        "Check the file's label first. Files labelled Confidential or Restricted cannot be shared outside the company.",
+        "Open the file, select Share, and type the outside person's email address.",
+        "Choose Viewer unless they really need to edit, and add an expiry date.",
+        "Never use Anyone with the link for work files.",
+        "Remove the person from the file when the work is finished."
+      ],
+      "tags": [
+        "drive",
+        "sharing",
+        "external"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-09"
+    },
+    {
+      "id": "KB-014",
+      "slug": "restore-drive-file",
+      "title": "Get back a deleted Google Drive file",
+      "summary": "Restore a file you deleted from My Drive within the last 30 days.",
+      "steps": [
+        "Open Google Drive in a browser and select Trash in the left menu.",
+        "Find the file. You can sort the list by the date it was put in the trash.",
+        "Right-click the file and select Restore. It goes back to the folder it came from.",
+        "Files stay in Trash for 30 days and are then removed for good.",
+        "For a file deleted more than 30 days ago, or one deleted from a shared drive, post in #it-help; IT may be able to recover it."
+      ],
+      "tags": [
+        "drive",
+        "restore",
+        "files"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-12"
+    },
+    {
+      "id": "KB-015",
+      "slug": "install-approved-software",
+      "title": "Install approved software",
+      "summary": "Install apps that IT has already approved, without admin rights.",
+      "steps": [
+        "On a Mac, open Self Service. On Windows, open Company Portal.",
+        "Search for the app by name, or browse the categories.",
+        "Select Install and wait until the status says Installed. Large apps can take 15 minutes.",
+        "If the app is not in the list, it is not approved yet. Asking for a new app is a separate request to IT.",
+        "Never install work software from a download site or with a personal licence."
+      ],
+      "tags": [
+        "software",
+        "install",
+        "self-service"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-15"
+    },
+    {
+      "id": "KB-016",
+      "slug": "run-system-updates",
+      "title": "Install operating system updates",
+      "summary": "Run macOS or Windows updates when your laptop asks for them.",
+      "steps": [
+        "Save your work and plug the laptop into power.",
+        "On a Mac, open System Settings, General, Software Update. On Windows, open Settings, Windows Update.",
+        "Select Update now, or Restart now if the update has already downloaded.",
+        "Leave the lid open until the laptop is back at the sign-in screen. This can take 45 minutes.",
+        "Updates must be installed within 7 days of the first reminder. After that the laptop restarts by itself outside working hours."
+      ],
+      "tags": [
+        "updates",
+        "laptop",
+        "macos",
+        "windows"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-18"
+    },
+    {
+      "id": "KB-017",
+      "slug": "slow-laptop-checks",
+      "title": "Laptop is slow: first checks",
+      "summary": "Simple checks to try when a work laptop feels slow or the fan runs all the time.",
+      "steps": [
+        "Restart the laptop. A restart clears most slowdowns.",
+        "Close browser tabs you are not using; many open tabs use a lot of memory.",
+        "Check free disk space. Below 10 GB free, move large files to Google Drive and empty the trash.",
+        "Check that system updates are not waiting to be installed.",
+        "If it is still slow after a restart, post in #it-help and say what you were doing when it slowed down."
+      ],
+      "tags": [
+        "laptop",
+        "performance",
+        "troubleshooting"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-21"
+    },
+    {
+      "id": "KB-018",
+      "slug": "new-laptop-day-one",
+      "title": "Set up your new laptop on day one",
+      "summary": "What happens the first time you switch on a new work laptop, and what you need to do.",
+      "steps": [
+        "Connect the laptop to power and switch it on.",
+        "Choose your language and join a Wi-Fi network. At home, use your own Wi-Fi.",
+        "Sign in with your work account when the Meridian screen appears. Your manager gave you these details before your first day.",
+        "Wait while the laptop installs the standard apps. This takes about 30 minutes; you can keep the lid open and walk away.",
+        "When the desktop appears, open Self Service or Company Portal to add any extra approved apps."
+      ],
+      "tags": [
+        "laptop",
+        "onboarding",
+        "setup"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-24"
+    },
+    {
+      "id": "KB-019",
+      "slug": "return-equipment",
+      "title": "Return or swap equipment",
+      "summary": "How to hand back a laptop, phone or accessory you no longer need.",
+      "steps": [
+        "Back up nothing by hand: work files are already in Google Drive. Move any personal files off the device.",
+        "Put the device, its charger and any accessories in one bag or box.",
+        "In an office, bring it to the IT desk during desk hours. Working remotely, ask in #it-help for a prepaid shipping label.",
+        "IT confirms in the ticket when the device has arrived.",
+        "Do not pass equipment directly to a colleague; IT has to wipe and re-assign it first."
+      ],
+      "tags": [
+        "hardware",
+        "return",
+        "equipment"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-27"
+    },
+    {
+      "id": "KB-020",
+      "slug": "team-password-manager",
+      "title": "Save and share team logins in the password manager",
+      "summary": "Use Meridian Vault to store logins for shared tools and share them with your team safely.",
+      "steps": [
+        "Open the Meridian Vault browser extension and sign in with your work account.",
+        "Select New item, choose Login, and fill in the site, the account name and the secret.",
+        "To share it, move the item into your team's shared vault. Everyone in that vault can then use it.",
+        "Never send a login in Slack, email or a document.",
+        "When someone leaves the team, their access to the shared vault ends by itself."
+      ],
+      "tags": [
+        "vault",
+        "sharing",
+        "security"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-02"
+    },
+    {
+      "id": "KB-021",
+      "slug": "slack-channels",
+      "title": "Join, create and name Slack channels",
+      "summary": "Find and join channels, and the naming rules for creating a new one.",
+      "steps": [
+        "Select Add channels, then Browse channels, and search by topic or team name.",
+        "Select Join on any public channel. Private channels need an invite from a member.",
+        "To create a channel, select Add channels, then Create a new channel.",
+        "Start the name with a prefix: team- for a team, proj- for a project, help- for a help channel.",
+        "Add a one-line description so others can tell what the channel is for."
+      ],
+      "tags": [
+        "slack",
+        "channels"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-05"
+    },
+    {
+      "id": "KB-022",
+      "slug": "slack-notifications",
+      "title": "Set Slack notifications and quiet hours",
+      "summary": "Choose what Slack notifies you about and pause notifications outside working hours.",
+      "steps": [
+        "Select your picture in Slack, then Preferences, then Notifications.",
+        "Under Notify me about, choose Direct messages, mentions and keywords.",
+        "Under Notification schedule, set the days and hours when you want to be notified.",
+        "For a single channel, open the channel name and choose the bell to mute it or get every message.",
+        "To pause everything for a while, select your picture and choose Pause notifications."
+      ],
+      "tags": [
+        "slack",
+        "notifications"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-08"
+    },
+    {
+      "id": "KB-023",
+      "slug": "call-audio-checks",
+      "title": "Fix microphone or sound in a video call",
+      "summary": "Checks for when people can't hear you, or you can't hear them, in Google Meet or a Slack huddle.",
+      "steps": [
+        "In the call, open the settings and check which microphone and speaker are selected.",
+        "Unplug the headset and plug it in again, or turn a Bluetooth headset off and on.",
+        "Check that the browser is allowed to use the microphone: select the lock icon beside the address bar.",
+        "Close other call apps; only one app can use the microphone at a time.",
+        "Leave the call and join again. If it still fails, restart the laptop."
+      ],
+      "tags": [
+        "audio",
+        "headset",
+        "meet",
+        "slack"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-11"
+    },
+    {
+      "id": "KB-024",
+      "slug": "second-monitor-dock",
+      "title": "Connect a second monitor or a dock",
+      "summary": "Plug a work laptop into a desk monitor or docking station and arrange the screens.",
+      "steps": [
+        "Plug the dock's cable into a USB-C port on the laptop. On desks without a dock, plug the monitor cable straight into the laptop.",
+        "Wait ten seconds for the monitor to wake up.",
+        "On a Mac, open System Settings, Displays. On Windows, open Settings, System, Display.",
+        "Drag the screens into the order they have on your desk, and choose which one is the main screen.",
+        "If the monitor stays black, unplug the dock's power cable for ten seconds and try again."
+      ],
+      "tags": [
+        "monitor",
+        "dock",
+        "hardware"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-14"
+    },
+    {
+      "id": "KB-025",
+      "slug": "order-peripherals",
+      "title": "Order a keyboard, mouse or headset",
+      "summary": "Order standard accessories from the IT catalogue.",
+      "steps": [
+        "Open the IT catalogue on the intranet.",
+        "Choose from the standard list: keyboard, mouse, headset, webcam, laptop stand or charger.",
+        "Add your office or home delivery address and submit the order.",
+        "Standard items need no approval and arrive within 5 working days.",
+        "Items that are not on the standard list need your manager's approval in the same form."
+      ],
+      "tags": [
+        "hardware",
+        "order",
+        "accessories"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-17"
+    },
+    {
+      "id": "KB-026",
+      "slug": "working-abroad-checklist",
+      "title": "Work from another country for a short time",
+      "summary": "The IT checklist before you travel and work from abroad for up to four weeks.",
+      "steps": [
+        "Tell your manager and record the trip in the People portal at least a week before you leave.",
+        "Install any waiting system updates before you travel.",
+        "Abroad, always turn on the VPN before you open work tools.",
+        "Use hotel or cafe Wi-Fi only with the VPN on, and never use a shared or public computer for work.",
+        "Some countries are not allowed for work travel. The People portal shows the list when you record the trip."
+      ],
+      "tags": [
+        "travel",
+        "remote",
+        "vpn"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-20"
+    },
+    {
+      "id": "KB-027",
+      "slug": "report-phishing",
+      "title": "Report a suspicious email",
+      "summary": "Report an email that looks like phishing with the Report button in Gmail.",
+      "steps": [
+        "Do not click links or open attachments in the email.",
+        "Open the email in Gmail and select the Report phishing button on the right-hand side.",
+        "The email moves out of your inbox and goes to the security team for checking.",
+        "You get a reply within one working day that says whether it was safe.",
+        "If you already clicked a link or typed anything into a page it opened, say so in #it-help straight away."
+      ],
+      "tags": [
+        "security",
+        "phishing",
+        "email"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-23"
+    },
+    {
+      "id": "KB-028",
+      "slug": "usb-drive-rules",
+      "title": "Use a USB drive for work files",
+      "summary": "The rules for removable storage, and how to get an encrypted drive.",
+      "steps": [
+        "Personal USB drives are blocked on work laptops. They charge but do not open.",
+        "Order an encrypted Meridian drive from the IT catalogue if you need one.",
+        "Plug it in and set a passphrase when the laptop asks. The drive is encrypted from then on.",
+        "Never store files labelled Restricted on a removable drive.",
+        "Hand the drive back to IT when you no longer need it."
+      ],
+      "tags": [
+        "usb",
+        "storage",
+        "security"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-26"
+    },
+    {
+      "id": "KB-029",
+      "slug": "chrome-work-profile",
+      "title": "Sign in to Chrome with your work profile",
+      "summary": "Keep work and personal browsing apart by using a work profile in Chrome.",
+      "steps": [
+        "Open Chrome and select the profile picture at the top right.",
+        "Select Add, then Sign in, and use your work account.",
+        "Choose Keep work and personal browsing separate when Chrome asks.",
+        "Work bookmarks, extensions and saved sites now appear only in the work profile.",
+        "Use the profile picture to switch between the two profiles."
+      ],
+      "tags": [
+        "chrome",
+        "browser",
+        "profile"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-01"
+    },
+    {
+      "id": "KB-030",
+      "slug": "how-to-ask-it",
+      "title": "Ask IT for help the right way",
+      "summary": "Where to ask, the IT desk hours, and what to include so a request is solved the first time.",
+      "steps": [
+        "Post in #it-help in Slack. One message per problem.",
+        "Say what you were trying to do, what happened instead, and when it started.",
+        "Add a screenshot of any error message, and say whether you are in an office or remote.",
+        "IT desk hours are 08:00 to 18:00 Berlin time on working days. The IT desk in each office is staffed 10:00 to 15:00.",
+        "For anything urgent outside those hours that stops many people working, call the on-call number on the intranet's IT page."
+      ],
+      "tags": [
+        "support",
+        "it-help",
+        "hours"
+      ],
+      "approved": true,
+      "last_reviewed": "2026-10-04"
+    }
+  ]
+}
