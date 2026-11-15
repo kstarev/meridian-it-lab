@@ -1,0 +1,109 @@
+# Access-as-Code: the final held-out score, milestone 7 (AAC-005, AAC-006, AAC-010).
+# Manual only (workflow_dispatch), from main only, and the `access-ai` environment needs the
+# owner's approval before the job starts and the key is released. It makes paid API calls to
+# the chosen model (Haiku 5.5) with the prompts frozen by hash (meridian_access.ai.frozen),
+# charged by code to the budget item aac-m7-final-score (ADR-037: an $8 sub-cap inside
+# Access-as-Code's $30). The ledger refuses every call until the owner approves that item in
+# budget/claude-credit-2026-12.json, and after 2026-12-17. The command refuses unless it is
+# given --final-score held_out_a1, the dataset's only way to unseal the held-out world. Before
+# the first call it rehearses the whole run with a fake client and checks the worst case of
+# every repeat against the item's cap, the project's cap and this run's $4.00 limit.
+# The log shows counts only. The results hold held-out numbers and content: they are written
+# outside the checkout and uploaded as the `access-final-score` artifact, and they are not for
+# publishing until every disagreement has the owner's ruling (AAC-010).
+# The cap holds across runs through the ledger artifact (`access-ai-ledger`): the run first
+# downloads the newest one from this workflow or the compare workflow.
+# The owner's steps and rulings: access/docs/m7-prep.md.
+name: Access final score
+
+on:
+  workflow_dispatch:
+    inputs:
+      k:
+        description: "Repeats of the whole run (ruling M7-R4 in access/docs/m7-prep.md)"
+        type: choice
+        options:
+          - "3"
+          - "1"
+        default: "3"
+
+permissions: {}
+
+concurrency:
+  group: access-final-score
+  cancel-in-progress: false
+
+jobs:
+  final:
+    name: Score the held-out world once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: access-ai
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: make setup
+
+      - name: Check the prompts are still frozen (tuning world, fake client, no calls)
+        run: |
+          make access-data
+          uv run --locked python -m meridian_access.ai final-check --world out/access/seed-6108 --k 3
+
+      - name: Fetch the newest spend ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          runs=$(
+            for wf in access-ai-final.yml access-ai-compare.yml; do
+              gh run list --workflow "$wf" --status completed --limit 5 \
+                --json databaseId,createdAt --jq '.[] | "\(.createdAt) \(.databaseId)"'
+            done | sort -r | cut -d' ' -f2
+          )
+          for id in $runs; do
+            if gh run download "$id" -n access-ai-ledger -D out/; then
+              echo "ledger from run $id"
+              exit 0
+            fi
+          done
+          echo "no previous ledger: starting with an empty one"
+
+      - name: Score the held-out world (paid calls, behind the spend cap)
+        env:
+          ACCESS_CLAUDE_SPEND_LEDGER: out/access-claude-spend.jsonl
+          ACCESS_AI_LIVE: "1"
+          ACCESS_CLAUDE_RUN_LIMIT_USD: "4.0"
+          FINAL_K: ${{ inputs.k }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >
+          uv run --locked python -m meridian_access.ai final --final-score held_out_a1
+          --out "$RUNNER_TEMP/access-final" --k "$FINAL_K"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: access-ai-ledger
+          path: out/access-claude-spend.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: access-final-score
+          path: ${{ runner.temp }}/access-final
+          retention-days: 30
+          if-no-files-found: ignore

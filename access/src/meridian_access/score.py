@@ -288,22 +288,166 @@ def load_key(world_dir: Path) -> dict:
     return json.loads((world_dir / "answer_key.json").read_text(encoding="utf-8"))
 
 
-def score_titles(
-    suggestions: dict[str, str], records: Iterable, true_roles: Iterable[tuple[str, str]]
-) -> Rate:
-    """Title -> role accuracy: a suggestion is right when it is the role most people with
-    that title really hold. `suggestions` maps a title to a role id ("none" is a miss)."""
+def title_roles(records: Iterable, true_roles: Iterable[tuple[str, str]]) -> dict[str, str]:
+    """Per job title, the role most people with that title really hold (the key's answer)."""
     role_of = dict(true_roles)
     holders: dict[str, collections.Counter[str]] = collections.defaultdict(collections.Counter)
     for r in records:
         if r.employee_id in role_of:
             holders[r.job_title][role_of[r.employee_id]] += 1
-    right = sum(
-        1
-        for title, role in suggestions.items()
-        if holders.get(title) and holders[title].most_common(1)[0][0] == role
-    )
+    return {title: counts.most_common(1)[0][0] for title, counts in holders.items()}
+
+
+def score_titles(
+    suggestions: dict[str, str], records: Iterable, true_roles: Iterable[tuple[str, str]]
+) -> Rate:
+    """Title -> role accuracy: a suggestion is right when it is the role most people with
+    that title really hold. `suggestions` maps a title to a role id ("none" is a miss)."""
+    right_role = title_roles(records, true_roles)
+    right = sum(1 for title, role in suggestions.items() if right_role.get(title) == role)
     return Rate(right, len(suggestions))
+
+
+# ------------------------------------------------------------- disagreements (AAC-010)
+
+
+def _dump(item: object) -> str:
+    return json.dumps(item, sort_keys=True, ensure_ascii=False, default=str)
+
+
+def _target_of(item: dict) -> tuple[str, ...]:
+    return _plan_target(item["system"], item["app_id"], item["account"], item["employee_id"])
+
+
+_TOOL_FIELDS = (
+    "type",
+    "employee_id",
+    "account",
+    "system",
+    "app_id",
+    "app_name",
+    "action",
+    "reason",
+    "cause_date",
+)
+_PLAN_KIND_ORDER = {"missed": 0, "extra": 1, "differ": 2}
+
+
+def plan_disagreements(plan: "Plan | dict", answer_key: dict) -> list[dict]:
+    """Every difference between the plan and the key, the three kinds AAC-010 names:
+
+    - `missed`: a finding in the key that the plan doesn't have;
+    - `extra`: a change in the plan that the key doesn't have;
+    - `differ`: the same target (system, app, account; or the HR record) with a different
+      type, action or owner.
+
+    It matches exactly as `score_plan` does, so each item costs the plan one false negative
+    (`missed`), one false positive (`extra`) or one of each (`differ`), and nothing else does.
+    Ids are `F001`, `F002`, ... in a fixed order. Holds held-out content when run on it."""
+    changes = plan.changes if hasattr(plan, "changes") else plan["changes"]
+    left_pred: list[dict] = []
+    left_true: list[dict] = []
+    for type_ in FINDING_TYPES:
+        pred: dict[tuple, list[dict]] = collections.defaultdict(list)
+        true: dict[tuple, list[dict]] = collections.defaultdict(list)
+        for c in changes:
+            if c["type"] == type_:
+                pred[_plan_exact(c)].append(c)
+        for f in answer_key["findings"]:
+            if f["type"] == type_:
+                true[_plan_exact(f)].append(f)
+        for exact in {*pred, *true}:
+            p = sorted(pred.get(exact, []), key=_dump)
+            t = sorted(true.get(exact, []), key=_dump)
+            n = min(len(p), len(t))
+            left_pred += p[n:]
+            left_true += t[n:]
+    by_target: dict[tuple[str, ...], list[dict]] = collections.defaultdict(list)
+    for c in sorted(left_pred, key=_dump):
+        by_target[_target_of(c)].append(c)
+    found: list[tuple[str, dict | None, dict | None]] = []
+    for f in sorted(left_true, key=_dump):
+        slot = by_target.get(_target_of(f))
+        found.append(("differ", slot.pop(0), f) if slot else ("missed", None, f))
+    found += [("extra", c, None) for slot in by_target.values() for c in slot]
+
+    def order(item: tuple[str, dict | None, dict | None]) -> tuple:
+        kind, tool, key = item
+        side = key or tool or {}
+        return (_PLAN_KIND_ORDER[kind], _target_of(side), side["type"], _dump(tool), _dump(key))
+
+    return [
+        {
+            "id": f"F{n:03d}",
+            "kind": kind,
+            "tool": None if tool is None else {k: tool.get(k, "") for k in _TOOL_FIELDS},
+            "key": key,
+        }
+        for n, (kind, tool, key) in enumerate(sorted(found, key=order), start=1)
+    ]
+
+
+def _matched(result: MatchResult) -> dict[tuple[str, str], str]:
+    """Account (normalised as `score_matching` does) -> the person the result gave it."""
+    out: dict[tuple[str, str], str] = {}
+    for (system, app_id, account), m in result.matches.items():
+        if not (system == "okta" and app_id):
+            out[_norm(system, account)] = m.employee_id
+    return out
+
+
+def match_kind(key_owner: str, got: str) -> str:
+    if got == key_owner:
+        return "agree"
+    if not got:
+        return "left unmatched"
+    return "false match" if not key_owner else "wrong person"
+
+
+def matching_disagreements(
+    results: "dict[str, MatchResult]", owners: Iterable[AccountOwner]
+) -> list[dict]:
+    """Every account in the key whose owner differs from what any of `results` gave it
+    (`results` maps a label, such as "rules only" or "rules + AI, repeat 1", to a result).
+    Scored as `score_matching` scores: Okta app assignments are left out, and an account the
+    key doesn't list is not counted. Ids are `M001`, ... Holds held-out content on it."""
+    truth: dict[tuple[str, str], AccountOwner] = {}
+    for o in owners:
+        truth[_norm(o.system, o.account)] = o
+    given = {label: _matched(r) for label, r in results.items()}
+    out: list[dict] = []
+    for k in sorted(truth):
+        o = truth[k]
+        got = {label: g.get(k, "") for label, g in given.items()}
+        kinds = {label: match_kind(o.owner_employee_id, v) for label, v in got.items()}
+        if any(kind != "agree" for kind in kinds.values()):
+            out.append(
+                {
+                    "system": o.system,
+                    "account": o.account,
+                    "key_owner": o.owner_employee_id,
+                    "tool": got,
+                    "kind": kinds,
+                }
+            )
+    return [{"id": f"M{n:03d}", **d} for n, d in enumerate(out, start=1)]
+
+
+def title_disagreements(
+    answers: "dict[str, dict[str, str]]", records: Iterable, true_roles: Iterable[tuple[str, str]]
+) -> list[dict]:
+    """Every job title where any of `answers` (label -> title -> role id, "none" for no
+    suggestion) differs from the role most people with that title really hold. Scored as
+    `score_titles` scores. Ids are `T001`, ... Holds held-out content when run on it."""
+    right_role = title_roles(records, true_roles)
+    every = sorted({t for a in answers.values() for t in a})
+    out: list[dict] = []
+    for title in every:
+        got = {label: a.get(title, "none") for label, a in answers.items()}
+        want = right_role.get(title, "")
+        if any(v != want for v in got.values()):
+            out.append({"title": title, "key_role": want, "tool": got})
+    return [{"id": f"T{n:03d}", **d} for n, d in enumerate(out, start=1)]
 
 
 def replace_block(doc: str, body: str) -> str:

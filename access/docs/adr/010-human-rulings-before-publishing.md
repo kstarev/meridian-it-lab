@@ -1,6 +1,6 @@
 # AAC-010: Every disagreement on the held-out score gets the owner's ruling, logged, before anything is published
 
-**Date:** 2026-11-14 · **Status:** Accepted; applies at the final score in milestone 7. The user's decision (2026-11-14).
+**Date:** 2026-11-14 · **Status:** Accepted; applies at the final score in milestone 7. The user's decision (2026-11-14). The rulings it needs, and the open questions around them, are listed as M7-R10 to M7-R15 in [m7-prep](../m7-prep.md) (2026-11-15).
 
 **Context:** The held-out answer key was written blind ([AAC-009](009-held-out-recipe-can-bring-new-mess.md)) and checked by code and a second blind reviewer, but a key can still be wrong. If a key error counted against the tool, the published score would be wrong, and nobody could tell a tool mistake from a key mistake.
 

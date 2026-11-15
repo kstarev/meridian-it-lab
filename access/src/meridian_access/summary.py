@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 MAX_LINES = 30
 MAX_CHARS = 1200
+MAX_TOKENS = 500  # the summary call's output limit (frozen for the final score)
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {"paragraph": {"type": "string"}},
@@ -226,7 +227,7 @@ def model_prompt(plan: "Plan") -> str:
 def model_summary(plan: "Plan", client: "ClaudeClient") -> str | None:
     """The model's paragraph with placeholders, or None (refusal or a bad answer). It may
     raise (spend cap, API error); `choose_summary` falls back to the template."""
-    data = client.complete_json(SYSTEM, model_prompt(plan), SCHEMA, max_tokens=500)
+    data = client.complete_json(SYSTEM, model_prompt(plan), SCHEMA, max_tokens=MAX_TOKENS)
     if data is None:
         return None
     paragraph = data.get("paragraph")
