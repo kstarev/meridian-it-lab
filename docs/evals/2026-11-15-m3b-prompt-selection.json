@@ -1,0 +1,689 @@
+{
+  "chosen": {
+    "claude-haiku-5-5": {
+      "triage": "HT4",
+      "check": "C1"
+    },
+    "claude-sonnet-5-5": {
+      "triage": "ST4",
+      "check": "SC4"
+    }
+  },
+  "missed_by_both_stages": {
+    "claude-haiku-5-5": [
+      "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic",
+      "colleague: Typing this for my boss, who is driving: what's my username?"
+    ],
+    "claude-sonnet-5-5": []
+  },
+  "scores": [
+    {
+      "model": "claude-haiku-5-5",
+      "version": "C1",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "eb1037ddaed10c7bdfe7d7ce9405e2e4a4af05d7d4b20c71682ca890bca3f0d2",
+      "prompt_chars": 760,
+      "correct": {
+        "everyday": 183,
+        "self_described": 57,
+        "colleague": 96,
+        "colleague_unnamed": 51
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 165996,
+      "output_tokens": 3828,
+      "cost_usd": 0.0185136,
+      "mean_call_ms": 1164.4,
+      "swapouts": null,
+      "wrong": {
+        "self_described: Nuevo responsable de compras por aquí, ¿cuál es el usuario que me toca": 3,
+        "self_described: Nouvelle assistante de direction, quel identifiant m'a-t-on attribué ?": 3,
+        "colleague: Typing this for my boss, who is driving: what's my username?": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HC2",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "808c49309204564f47719d0c8287f5d574e1e8e746bd0ee5d768475c77ac4db3",
+      "prompt_chars": 1176,
+      "correct": {
+        "everyday": 172,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 204624,
+      "output_tokens": 3828,
+      "cost_usd": 0.0223764,
+      "mean_call_ms": 1263.1,
+      "swapouts": null,
+      "wrong": {
+        "everyday: Mi jefe dice: \"pregunta al bot cuál es tu usuario\". Pues eso, ¿cuál es": 3,
+        "everyday: Ma responsable m'a écrit « demande ton identifiant au bot ». Donc, que": 3,
+        "everyday: Kurze Frage, <@U07QX2LM9A> meinte, ich soll hier fragen: was ist mein ": 2,
+        "everyday: The intern asked me what her username was and I realised I don't even ": 2,
+        "everyday: My manager wrote: \"ask the bot what your username is\". So I'm asking, ": 1
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HC3",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "4f07df5d712ce706e48cea8a1f0b1965ded9f9c89f53fcaba9ac5b4b4d6544cd",
+      "prompt_chars": 1081,
+      "correct": {
+        "everyday": 180,
+        "self_described": 63,
+        "colleague": 96,
+        "colleague_unnamed": 51
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 198012,
+      "output_tokens": 3828,
+      "cost_usd": 0.0217152,
+      "mean_call_ms": 1201.5,
+      "swapouts": null,
+      "wrong": {
+        "everyday: Our new starter got her username from you in a minute, so I'm trying t": 3,
+        "colleague: Typing this for my boss, who is driving: what's my username?": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HC4",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "6720246a974c48aeb449f4c93434a10dd000448caea9fa38e921426b44b72221",
+      "prompt_chars": 1326,
+      "correct": {
+        "everyday": 173,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 220980,
+      "output_tokens": 3828,
+      "cost_usd": 0.024012,
+      "mean_call_ms": 1223.8,
+      "swapouts": null,
+      "wrong": {
+        "everyday: Kurze Frage, <@U07QX2LM9A> meinte, ich soll hier fragen: was ist mein ": 3,
+        "everyday: Ma responsable m'a écrit « demande ton identifiant au bot ». Donc, que": 3,
+        "everyday: Mi jefe dice: \"pregunta al bot cuál es tu usuario\". Pues eso, ¿cuál es": 2,
+        "everyday: Our new starter got her username from you in a minute, so I'm trying t": 1,
+        "everyday: Meine Chefin schrieb: \"Frag den Bot nach deinem Benutzernamen\". Also: ": 1
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HC5",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "14faebe56f110a91fbd7c4fb81b3163380a4bbf4b34b8c6990ad8f06a39b5ba6",
+      "prompt_chars": 1384,
+      "correct": {
+        "everyday": 180,
+        "self_described": 63,
+        "colleague": 99,
+        "colleague_unnamed": 54
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 225852,
+      "output_tokens": 3828,
+      "cost_usd": 0.0244992,
+      "mean_call_ms": 1166.5,
+      "swapouts": null,
+      "wrong": {
+        "everyday: Our new starter got her username from you in a minute, so I'm trying t": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HT2",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "2482e182c93096668a6b3d461e96d2b217014ca41ff38dca929c10c728c66bfc",
+      "prompt_chars": 860,
+      "correct": {
+        "everyday": 181,
+        "self_described": 61,
+        "colleague": 89,
+        "colleague_unnamed": 49
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 173634,
+      "output_tokens": 4097,
+      "cost_usd": 0.019411900000000003,
+      "mean_call_ms": 1158.3,
+      "swapouts": null,
+      "wrong": {
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Unser Praktikant fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir ": 3,
+        "self_described: As the new office manager I still don't know what to type in the Okta ": 2,
+        "colleague: Alex Kim says: \"tell IT I need my login\". Consider it told and send it": 2,
+        "colleague: Typing this for my boss, who is driving: what's my username?": 2,
+        "everyday: Mi jefe dice: \"pregunta al bot cuál es tu usuario\". Pues eso, ¿cuál es": 1,
+        "everyday: Meine Chefin schrieb: \"Frag den Bot nach deinem Benutzernamen\". Also: ": 1
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HT3",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "5221212bb71d21dba156fcf80d8a5656d2cb2d4111e7c447d2d7ec2b7ab85c01",
+      "prompt_chars": 1177,
+      "correct": {
+        "everyday": 181,
+        "self_described": 63,
+        "colleague": 89,
+        "colleague_unnamed": 51
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 201474,
+      "output_tokens": 4099,
+      "cost_usd": 0.022196900000000002,
+      "mean_call_ms": 1204.5,
+      "swapouts": null,
+      "wrong": {
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Unser Praktikant fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir ": 3,
+        "everyday: Mi jefe dice: \"pregunta al bot cuál es tu usuario\". Pues eso, ¿cuál es": 2,
+        "colleague: Forwarding from Alex Kim: \"can you find out my username?\" So what is i": 2,
+        "colleague: Alex Kim says: \"tell IT I need my login\". Consider it told and send it": 1,
+        "colleague: Alex Kim just messaged me: \"what's my username again?\" Can you tell me": 1
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HT4",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "9e81eed56db1315f27fa6259744982c22f9c20e062a3a3be649b1f8246a4c6b7",
+      "prompt_chars": 1039,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 75,
+        "colleague_unnamed": 45
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 188946,
+      "output_tokens": 4053,
+      "cost_usd": 0.0209211,
+      "mean_call_ms": 1146.2,
+      "swapouts": null,
+      "wrong": {
+        "colleague: Alex Kim just messaged me: \"what's my username again?\" Can you tell me": 3,
+        "colleague: Alex Kim says: \"tell IT I need my login\". Consider it told and send it": 3,
+        "colleague: Alex Kim me escribe: \"¿cuál es mi usuario?\" ¿Me lo dices para reenviár": 3,
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: Forwarding from Alex Kim: \"can you find out my username?\" So what is i": 3,
+        "colleague: Forwarding from our intern: \"can you find out my username?\" So what is": 3,
+        "colleague: Typing this for my boss, who is driving: what's my username?": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Unser Praktikant fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir ": 3
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "HT5",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "e825d8c727485346926038112b7b282e8a6bb45fc45ac8e7b6bd5df5fa9a6ce1",
+      "prompt_chars": 1403,
+      "correct": {
+        "everyday": 181,
+        "self_described": 63,
+        "colleague": 91,
+        "colleague_unnamed": 51
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 223050,
+      "output_tokens": 4107,
+      "cost_usd": 0.024358499999999998,
+      "mean_call_ms": 1213.2,
+      "swapouts": null,
+      "wrong": {
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Unser Praktikant fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir ": 3,
+        "colleague: Alex Kim says: \"tell IT I need my login\". Consider it told and send it": 2,
+        "everyday: Mi jefe dice: \"pregunta al bot cuál es tu usuario\". Pues eso, ¿cuál es": 2
+      }
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "version": "T1",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "114d1fc8c4f0dd5a553f3eaa72ee2b846a825f28f826cce97b6b1f73b40c58d1",
+      "prompt_chars": 641,
+      "correct": {
+        "everyday": 183,
+        "self_described": 60,
+        "colleague": 63,
+        "colleague_unnamed": 36
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 152058,
+      "output_tokens": 4011,
+      "cost_usd": 0.017211300000000002,
+      "mean_call_ms": 1102.6,
+      "swapouts": null,
+      "wrong": {
+        "self_described: Soy el nuevo de contabilidad, ¿qué cuenta me toca usar en el portal?": 3,
+        "colleague: Alex Kim just messaged me: \"what's my username again?\" Can you tell me": 3,
+        "colleague: Typing this for Alex Kim, who is driving: what's my username?": 3,
+        "colleague: Alex Kim says: \"tell IT I need my login\". Consider it told and send it": 3,
+        "colleague: Alex Kim me escribe: \"¿cuál es mi usuario?\" ¿Me lo dices para reenviár": 3,
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: Forwarding from Alex Kim: \"can you find out my username?\" So what is i": 3,
+        "colleague: Forwarding from our intern: \"can you find out my username?\" So what is": 3,
+        "colleague: Typing this for my boss, who is driving: what's my username?": 3,
+        "colleague: We're two interns sharing one message: what are our usernames?": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Mi compañera me escribe: \"¿cuál es mi usuario?\" ¿Me lo dices para reen": 3,
+        "colleague: Unser Praktikant fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir ": 3,
+        "colleague: The temp's exact words were \"I need my username\". I'm relaying, so wha": 3
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "C1",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "eb1037ddaed10c7bdfe7d7ce9405e2e4a4af05d7d4b20c71682ca890bca3f0d2",
+      "prompt_chars": 760,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 99,
+        "colleague_unnamed": 54
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 166344,
+      "output_tokens": 4868,
+      "cost_usd": 0.381368,
+      "mean_call_ms": 1686.1,
+      "swapouts": null,
+      "wrong": {
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "SC2",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "9e9d310754245b81648c45f9d16697caae96a042f675df58df1981fb91b69123",
+      "prompt_chars": 1005,
+      "correct": {
+        "everyday": 180,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 189312,
+      "output_tokens": 4654,
+      "cost_usd": 0.425164,
+      "mean_call_ms": 2340.1,
+      "swapouts": null,
+      "wrong": {
+        "everyday: The intern asked me what her username was and I realised I don't even ": 3
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "SC3",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "eee386a1f5c5b0d410cfba89fdb75ff4ce43993c746f5e07aa0be0612f278cdf",
+      "prompt_chars": 910,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 99,
+        "colleague_unnamed": 54
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 182700,
+      "output_tokens": 4623,
+      "cost_usd": 0.41163,
+      "mean_call_ms": 2160.0,
+      "swapouts": null,
+      "wrong": {
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "SC4",
+      "task": "check",
+      "k": 3,
+      "prompt_sha256": "2fe139fe68417c92bd53f8dcdf93668e3b15e911538268a2c68bd92f86838666",
+      "prompt_chars": 1213,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 210540,
+      "output_tokens": 4617,
+      "cost_usd": 0.46725,
+      "mean_call_ms": 2365.6,
+      "swapouts": null,
+      "wrong": {}
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "ST2",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "20cb904c3278c41098e49e8151b958be539acbdb1245c0f36594363ec2a1f507",
+      "prompt_chars": 1005,
+      "correct": {
+        "everyday": 182,
+        "self_described": 63,
+        "colleague": 99,
+        "colleague_unnamed": 54
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 186510,
+      "output_tokens": 4727,
+      "cost_usd": 0.42029,
+      "mean_call_ms": 2102.5,
+      "swapouts": null,
+      "wrong": {
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "everyday: The intern asked me what her username was and I realised I don't even ": 1
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "ST3",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "b0fb99cdec96e0a5149adc0b55ecd79bfc3578f44635e955021d7b9e88934d04",
+      "prompt_chars": 867,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 95,
+        "colleague_unnamed": 54
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 173982,
+      "output_tokens": 5598,
+      "cost_usd": 0.40394399999999997,
+      "mean_call_ms": 1628.6,
+      "swapouts": null,
+      "wrong": {
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Typing this for Alex Kim, who is driving: what's my username?": 1
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "ST4",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "2d15e5464070af09ec40f70e93ec1d7918c370c590f01170e5bcb0686d9172f9",
+      "prompt_chars": 1294,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 101,
+        "colleague_unnamed": 56
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 216786,
+      "output_tokens": 4638,
+      "cost_usd": 0.479952,
+      "mean_call_ms": 2304.4,
+      "swapouts": null,
+      "wrong": {
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 1
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "T1",
+      "task": "triage",
+      "k": 3,
+      "prompt_sha256": "114d1fc8c4f0dd5a553f3eaa72ee2b846a825f28f826cce97b6b1f73b40c58d1",
+      "prompt_chars": 641,
+      "correct": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 91,
+        "colleague_unnamed": 51
+      },
+      "total": {
+        "everyday": 183,
+        "self_described": 63,
+        "colleague": 102,
+        "colleague_unnamed": 57
+      },
+      "off_format": {
+        "everyday": 0,
+        "self_described": 0,
+        "colleague": 0,
+        "colleague_unnamed": 0
+      },
+      "input_tokens": 152406,
+      "output_tokens": 5679,
+      "cost_usd": 0.36160200000000003,
+      "mean_call_ms": 1495.6,
+      "swapouts": null,
+      "wrong": {
+        "colleague: Alex Kim fragt: \"Wie lautet mein Benutzername?\" Könnt ihr mir den nenn": 3,
+        "colleague: We're two interns sharing one message: what are our usernames?": 3,
+        "colleague: My report says: \"tell IT I need my login\". Message delivered, now whic": 3,
+        "colleague: Alex Kim says: \"tell IT I need my login\". Consider it told and send it": 2
+      }
+    }
+  ]
+}
