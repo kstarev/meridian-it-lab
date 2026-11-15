@@ -1,15 +1,31 @@
-# Access-as-Code: build the plan for the tuning world (AAC-002, AAC-008).
-# Manual only (workflow_dispatch) for now. Scheduling it and opening the rolling plan pull
-# request need the owner's GitHub App, ruleset and secrets: those are milestone 5's owner
-# steps and are not set up here. This workflow uses no secrets: the summary is the template
-# (the model summary runs only when ACCESS_AI_LIVE=1, which this workflow never sets), and
-# the Slack message is a JSON file, never sent. The tuning world is generated on the runner.
+# Access-as-Code: build the plan for the tuning world and keep the two rolling plan pull
+# requests in line with it (AAC-002, AAC-008). Nightly, and by hand.
+#
+# Three jobs:
+# - plan: builds the plan with no token beyond read access and no secrets, and uploads it. The
+#   summary is the template (the model summary runs only when ACCESS_AI_LIVE=1, which this
+#   workflow never sets), and the Slack message is a JSON file, never sent. The tuning world is
+#   generated on the runner; this is the tuning world's simulated month, never a real system.
+# - bot: says whether the owner's GitHub App is set up (variable ACCESS_APP_ID and secret
+#   ACCESS_APP_PRIVATE_KEY, see access/docs/SETUP.md). It only compares them with empty; the
+#   key is never put in its environment.
+# - pull-requests: runs only when the bot is set up, so a fork or a repo without the App skips
+#   it cleanly. It makes a short-lived App token limited to contents and pull requests, and
+#   opens, updates or closes the main plan pull request (bot branch access/plan) and the held
+#   plan pull request (bot branch access/plan-held). The App's token is used, not GITHUB_TOKEN,
+#   so CI and the approvals check run on those pull requests. GITHUB_TOKEN gets read access only.
 name: Access plan
 
 on:
+  schedule:
+    - cron: "23 3 * * *" # nightly, roughly: scheduled runs can start late
   workflow_dispatch:
 
 permissions: {}
+
+concurrency:
+  group: access-plan-pull-requests
+  cancel-in-progress: false
 
 jobs:
   plan:
@@ -51,3 +67,68 @@ jobs:
             out/access/plan/held/
           if-no-files-found: error
           retention-days: 30
+
+  bot:
+    name: Check the plan bot is set up
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Look for the App ID variable and the private key secret
+        id: check
+        env:
+          HAS_APP_ID: ${{ vars.ACCESS_APP_ID != '' }}
+          HAS_KEY: ${{ secrets.ACCESS_APP_PRIVATE_KEY != '' }}
+        run: |
+          if [ "${HAS_APP_ID}" = true ] && [ "${HAS_KEY}" = true ]; then
+            echo "ready=yes" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ready=no" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=Plan pull requests skipped::ACCESS_APP_ID or ACCESS_APP_PRIVATE_KEY is not set (access/docs/SETUP.md). The plan was built and uploaded; no pull request was touched."
+          fi
+
+  pull-requests:
+    name: Open, update or close the plan pull requests
+    needs: [plan, bot]
+    if: needs.bot.outputs.ready == 'yes'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: uv sync --locked
+
+      - name: Fetch the plan the plan job built
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: access-plan
+          path: out/access/plan
+
+      - name: Make a short-lived App token for this repository only
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.ACCESS_APP_ID }}
+          private-key: ${{ secrets.ACCESS_APP_PRIVATE_KEY }}
+          # No owner or repositories: the action then scopes the token to this repository.
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open, update or close the main and held plan pull requests
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+        run: uv run --locked python -m meridian_access.plan_pr --plan-dir out/access/plan --repo "${REPO}"
