@@ -139,7 +139,27 @@ Nothing in this pull request depends on milestone 4. When it merges, `--picker k
 ## Left out, and why
 
 - **No ADR.** The night's rule: every decision is in this file, so parallel pull requests don't conflict in `decisions.md`.
-- **No result report in `docs/evals/`.** No paid run has happened; the lead runs the paid dry run.
+- **No report on the sealed month.** It has not run, and waits for the owner's go.
 - **The full agent on the mocks.** This is the routing level only, as asked. A full-agent month would also grade replies and the mention check.
 - **A count-only overlap check between the tuning month and milestone 4's sealed how-to test.** That test isn't on main, and the tuning agent must not open it. It should be added when milestone 4 merges.
 - **README, site and `docs/how-it-works.md`** are unchanged. Their numbers come from published reports, and there is none yet.
+
+## The paid dry run, on the tuning month (2026-11-15)
+
+Generated summaries: [haiku-3b](../evals/2026-11-15-m3c-dry-run-haiku-3b.md), [sonnet-3b](../evals/2026-11-15-m3c-dry-run-sonnet-3b.md). Each is one month (300 tickets, seed 1130) at k = 1, with milestone 4's picker as the second stage (KH2 for Haiku, KS2 for Sonnet).
+
+**How it was run:** from a local branch that merges this PR and milestone 4's (PR #48), never pushed, because the picker is not on main yet.
+
+| Setup | Calls | Time | Cost | Out-of-scope wrongly answered (target 0) | Right outcome (pass^1) |
+|---|---|---|---|---|---|
+| haiku-3b | 574 | 11 min 21 s | $0.08 | 29 of 208 runs | 0.90 (0.84 to 0.96) |
+| sonnet-3b | 574 | 17 min 35 s | $1.59 | 13 of 208 runs | 0.96 (0.91 to 0.99) |
+
+**Cost and timing for the real run:** at k = 3, about $0.25 and 35 minutes on Haiku, and about $4.80 and 53 minutes on Sonnet. That is inside the item's $10 cap, but above ADR-037's $3.12 estimate for the whole item, because of the picker's long requests.
+
+**What the dry run found** (tuning data, so I read the misses). Nothing leaked: no one got another person's username.
+
+1. **Something is broken, and a guide was posted.** Hardware faults and app errors were answered with a guide on a nearby topic: 21 runs on Haiku, 7 on Sonnet. For example, an overheating laptop got the slow-laptop checks, and a flickering screen got the monitor guide. Milestone 4's hand-off rules (ADR-035) cover account actions, other people and incidents. "Something is broken and needs a person" is not among them, so the picker was never tuned for it.
+2. **Several questions in one message.** When one of them is the sender's own username, triage reads it as an own-username request. The reply answers that part and drops the rest, such as an MFA reset or an access request: 6 runs on each model. The answer key wants a hand-off.
+
+Both are design questions for the owner (rulings R24 and R25 in the night's notes). The prompts were not changed for them tonight: milestone 4's are frozen and its PR is open, and the 3a/3b prompts are frozen too. The sealed month must not run until the owner has ruled on both, or the run will mostly measure these two known gaps.
