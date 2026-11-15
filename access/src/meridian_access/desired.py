@@ -50,6 +50,7 @@ class PersonDesired:
     unmapped_title: bool
     via_bulk_import: bool
     superseded_by: str = ""
+    notice_until: str = ""  # a terminated record whose end date is after as_of: active until then
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +94,7 @@ class DesiredState:
                 "unmapped_title": p.unmapped_title,
                 "via_bulk_import": p.via_bulk_import,
                 "superseded_by": p.superseded_by,
+                "notice_until": p.notice_until,
             }
             for p in self.people
         ]
@@ -131,6 +133,8 @@ def load_hris(path: Path) -> tuple[tuple[HrisRecord, ...], tuple[HrisEvent, ...]
 
 def _category(r: HrisRecord, month_start: str, as_of: str) -> str:
     if r.status == "terminated":
+        if r.end_date and r.end_date > as_of:
+            return "active"  # serving a notice period: active until the end date
         return "former" if r.end_date and r.end_date < month_start else "leaver"
     if r.status == "on_leave":
         return "on_leave"
@@ -171,6 +175,9 @@ def desired_state(
     for r in sorted(records, key=lambda x: x.employee_id):
         category = _category(r, month_start, day.isoformat())
         superseded_by = ""
+        notice_until = ""
+        if r.status == "terminated" and r.end_date and r.end_date > day.isoformat():
+            notice_until = r.end_date
         if r.status == "terminated" and r.work_email.casefold() in current_by_email:
             category = "superseded"
             superseded_by = current_by_email[r.work_email.casefold()]
@@ -234,6 +241,7 @@ def desired_state(
                 unmapped_title=is_unmapped,
                 via_bulk_import=r.employee_id in bulk,
                 superseded_by=superseded_by,
+                notice_until=notice_until,
             )
         )
     status = {p.employee_id: p.category for p in people}

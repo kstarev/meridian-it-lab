@@ -14,6 +14,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from meridian_access.match import MatchResult
 from meridian_access.policy.load import Policy, load_policy
@@ -22,6 +23,9 @@ from meridian_dataset.access.model import AccountOwner
 START = "<!-- access-matching:start -->"
 END = "<!-- access-matching:end -->"
 DIRECTORY = ("okta", "google", "slack")
+
+if TYPE_CHECKING:
+    from meridian_access.plan import Plan
 
 
 def wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
@@ -163,6 +167,122 @@ def score_world(world_dir: Path, policy: Policy | None = None) -> MatchScore:
     return score_matching(result, owners)
 
 
+PLAN_START = "<!-- access-plan-score:start -->"
+PLAN_END = "<!-- access-plan-score:end -->"
+FINDING_TYPES = (
+    "leaver_access_left",
+    "orphaned_account",
+    "contractor_past_end",
+    "leave_of_absence",
+    "mover_stale_access",
+    "rehire",
+    "drift",
+    "break_glass",
+    "hris_mass_termination",
+    "hr_data_error",
+)
+
+
+def _plan_target(system: str, app_id: str, account: str, employee_id: str) -> tuple[str, ...]:
+    if system.strip().casefold() == "hris":
+        return ("hris", employee_id.strip())
+    return (system.strip().casefold(), app_id.strip().casefold(), account.strip().casefold())
+
+
+def _plan_exact(item: dict) -> tuple:
+    """(target, type, action, owner): the referee comparison's notion of the same finding."""
+    hris = item["system"].strip().casefold() == "hris"
+    return (
+        _plan_target(item["system"], item["app_id"], item["account"], item["employee_id"]),
+        item["type"],
+        (item.get("action") or item.get("expected_action", "")) if not hris else "",
+        "" if hris else item["employee_id"].strip(),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PlanTypeScore:
+    precision: Rate
+    recall: Rate
+    predicted: int
+    expected: int
+
+
+def score_plan(plan: "Plan | dict", answer_key: dict) -> dict[str, PlanTypeScore]:
+    """Per finding type: precision and recall of the plan's changes against the key's
+    findings. A change matches a finding on target (system, app_id, normalised account), type,
+    action and employee id; `hris` findings match on (type, employee id) only. Multiset
+    matching: each finding is used once. The key is read here and in tests, never by the planner."""
+    changes = plan.changes if hasattr(plan, "changes") else plan["changes"]
+    findings = answer_key["findings"]
+    out: dict[str, PlanTypeScore] = {}
+    for type_ in FINDING_TYPES:
+        pred = collections.Counter(_plan_exact(c) for c in changes if c["type"] == type_)
+        true = collections.Counter(_plan_exact(f) for f in findings if f["type"] == type_)
+        ok = sum((pred & true).values())
+        n_pred, n_true = sum(pred.values()), sum(true.values())
+        out[type_] = PlanTypeScore(Rate(ok, n_pred), Rate(ok, n_true), n_pred, n_true)
+    total_ok = sum(s.precision.successes for s in out.values())
+    n_pred = sum(s.predicted for s in out.values())
+    n_true = sum(s.expected for s in out.values())
+    out["all"] = PlanTypeScore(Rate(total_ok, n_pred), Rate(total_ok, n_true), n_pred, n_true)
+    return out
+
+
+def render_plan_score(scores: dict[str, PlanTypeScore]) -> str:
+    lines = [
+        "| Finding type | Predicted | In the key | Precision | Recall |",
+        "|---|---|---|---|---|",
+    ]
+    for type_, s in scores.items():
+        precision = s.precision.cell() if s.predicted else "n/a (none predicted)"
+        recall = s.recall.cell() if s.expected else "n/a (none in the key)"
+        lines.append(f"| {type_} | {s.predicted} | {s.expected} | {precision} | {recall} |")
+    return "\n".join(lines) + "\n"
+
+
+def plan_misses(plan: "Plan | dict", answer_key: dict, type_: str, limit: int = 15) -> dict:
+    """The first few false positives and false negatives of one type (for tuning the rules)."""
+    changes = plan.changes if hasattr(plan, "changes") else plan["changes"]
+    pred = collections.Counter(_plan_exact(c) for c in changes if c["type"] == type_)
+    true = collections.Counter(_plan_exact(f) for f in answer_key["findings"] if f["type"] == type_)
+    return {
+        "false_positive": sorted((pred - true).elements(), key=str)[:limit],
+        "false_negative": sorted((true - pred).elements(), key=str)[:limit],
+    }
+
+
+def replace_plan_block(doc: str, body: str) -> str:
+    if PLAN_START not in doc or PLAN_END not in doc:
+        raise ValueError(f"the document needs {PLAN_START} and {PLAN_END}")
+    head, rest = doc.split(PLAN_START, 1)
+    _, tail = rest.split(PLAN_END, 1)
+    return f"{head}{PLAN_START}\n{body}{PLAN_END}{tail}"
+
+
+def read_plan_block(doc: str) -> str:
+    m = re.search(re.escape(PLAN_START) + r"\n(.*?)" + re.escape(PLAN_END), doc, re.S)
+    if not m:
+        raise ValueError("no access-plan-score block")
+    return m.group(1)
+
+
+def score_plan_world(world_dir: Path, policy: Policy | None = None) -> dict[str, PlanTypeScore]:
+    """Build the plan for a world directory (without its key), then score it."""
+    import shutil
+    import tempfile
+
+    from meridian_access.plan import build_plan
+
+    policy = policy or load_policy()
+    key = load_key(world_dir)
+    with tempfile.TemporaryDirectory() as tmp:  # the planner sees a copy without the key
+        clean = Path(tmp) / "world"
+        shutil.copytree(world_dir, clean, ignore=shutil.ignore_patterns("answer_key.json"))
+        plan = build_plan(clean, policy)
+    return score_plan(plan, key)
+
+
 def load_key(world_dir: Path) -> dict:
     """The answer key of a world directory (scoring only)."""
     return json.loads((world_dir / "answer_key.json").read_text(encoding="utf-8"))
@@ -208,7 +328,29 @@ def main(argv: list[str] | None = None) -> int:
     m = sub.add_parser("matching", help="score identity matching on a tuning world directory")
     m.add_argument("--world", type=Path, required=True)
     m.add_argument("--write-doc", type=Path, help="refresh the marked block in this file")
+    p = sub.add_parser("plan", help="score the plan on a tuning world directory")
+    p.add_argument("--world", type=Path, required=True)
+    p.add_argument("--write-doc", type=Path, help="refresh the marked block in this file")
+    p.add_argument("--misses", help="print the misses of one finding type")
     args = parser.parse_args(argv)
+    if args.what == "plan":
+        scores = score_plan_world(args.world)
+        body = render_plan_score(scores)
+        print(body, end="")
+        if args.misses:
+            from meridian_access.plan import build_plan
+
+            print(
+                plan_misses(
+                    build_plan(args.world, load_policy()), load_key(args.world), args.misses
+                )
+            )
+        if args.write_doc:
+            args.write_doc.write_text(
+                replace_plan_block(args.write_doc.read_text(encoding="utf-8"), body),
+                encoding="utf-8",
+            )
+        return 0
     body = render_matching(score_world(args.world))
     print(body, end="")
     if args.write_doc:

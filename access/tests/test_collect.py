@@ -195,6 +195,17 @@ def test_the_digest_changes_when_an_account_changes(world, policy):
     assert actual_state(mocks, policy).digest() == before
 
 
+def test_the_digest_covers_the_okta_log(world_dir, policy) -> None:
+    import dataclasses
+
+    state = actual_state(world_dir, policy)
+    assert state.log
+    first = dataclasses.replace(state.log[0], event_type="user.account.update_password")
+    changed = dataclasses.replace(state, log=(first, *state.log[1:]))
+    assert changed.digest() != state.digest()
+    assert dataclasses.replace(state, log=tuple(reversed(state.log))).digest() == state.digest()
+
+
 # -------------------------------------------------------------------------- paging
 
 

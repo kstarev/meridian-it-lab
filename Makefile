@@ -11,7 +11,7 @@ POOL ?= tuning
 COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data access-data lint format test eval demo holidays-preview review-pool images
+.PHONY: help setup data access-data access-plan lint format test eval demo holidays-preview review-pool images
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -24,6 +24,9 @@ data: ## Generate the fake Meridian dataset into out/dataset (SEED=1108)
 
 access-data: ## Generate the Access-as-Code tuning world into out/access
 	$(UV_RUN) python -m meridian_dataset.access --seed 6108 --out out/access
+
+access-plan: ## Build the Access-as-Code plan for the tuning world into out/access/plan
+	$(UV_RUN) python -m meridian_access.plan --world out/access/seed-6108 --out out/access/plan
 
 lint: ## Check style and common bugs with ruff
 	$(UV_RUN) ruff check .

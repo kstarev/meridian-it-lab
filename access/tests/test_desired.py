@@ -16,7 +16,7 @@ from meridian_dataset.access import AccessWorld
 from meridian_dataset.access.export import write_access
 from meridian_dataset.access.model import HrisEvent, HrisRecord
 
-GOLDEN_DIGEST = "e96fccc18744dab7ac214a0f2e08412504078e84f73066368a1c51e7eb185b17"
+GOLDEN_DIGEST = "e98c86f9370fda49920e1d27c16920e71bc592b44e6334ebc9c6e7cd5165f101"
 
 
 def by_id(state: DesiredState) -> dict:
@@ -199,6 +199,17 @@ def test_leaver_month_boundary(world: AccessWorld, policy: Policy) -> None:
                  end_date="2026-10-31")  # fmt: skip
     first, second = desired_state([on, before], [], policy).people
     assert (first.category, second.category) == ("leaver", "former")
+
+
+def test_a_termination_dated_after_the_plan_date_is_a_notice_period(
+    world: AccessWorld, policy: Policy
+) -> None:
+    on_notice = rec(world, status="terminated", end_date="2026-12-02")
+    ends_today = rec(world, employee_id="E9002", work_email="b@x.example",
+                     status="terminated", end_date="2026-12-01")  # fmt: skip
+    first, second = desired_state([on_notice, ends_today], [], policy).people
+    assert (first.category, first.notice_until) == ("active", "2026-12-02")
+    assert (second.category, second.notice_until) == ("leaver", "")
 
 
 def test_contractor_end_date_boundary(world: AccessWorld, policy: Policy) -> None:
