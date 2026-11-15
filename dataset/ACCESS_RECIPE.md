@@ -124,6 +124,45 @@ Every layout must be used by at least one export. If you list more layouts than 
 - `encodings`: Python codec names and how many exports get each. The rest are `utf-8`. An export can only get a codec that can write all its text. If too few exports can, the check fails and names the codec. Legacy codecs such as `cp1252` go to exports that really need them when possible.
 - `noise`: `blank_rows_max` blank rows per export (0 up to the number); the three shares are the chance per row (0 to 1). Mixed-case and trailing-space apply to the email cell, and together cannot pass 1. A duplicate row repeats the row right after it.
 
+## Access policy (role → apps)
+
+The policy every worker's standard access follows. It's an input, as a real IT team's access policy is, and the same for every recipe: no recipe field changes it. The answer key and any tool reviewing the world read the same table. `recipe_tools catalog` prints it too, and a test keeps this copy in step with the code.
+
+<!-- access-policy:start -->
+Every current worker has an Okta user, a Google user and a Slack user.
+
+Birthright SSO apps, for every employee: amber-ledger, birch-vault, cobalt-notes, dune-hub, ember-atlas, fjord-docs, garnet-desk, harbor-pulse.
+Contractors get the first 6 of them: amber-ledger, birch-vault, cobalt-notes, dune-hub, ember-atlas, fjord-docs.
+
+SSO access is a group assignment with the `member` role. Non-SSO apps are rows in that app's export.
+
+| Role | SSO apps beyond birthright | Non-SSO apps (export rows) |
+|---|---|---|
+| eng-backend | indigo-track, maple-forms, quartz-ledger | umber-relay, sable-track, quartz-vault, onyx-canvas, maple-hub, indigo-sheets |
+| eng-frontend | nimbus-studio, raven-vault, vale-docs, amber-board | vale-ledger, tundra-signal, raven-notes, pebble-board, nimbus-atlas, pebble-docs |
+| eng-sre | sable-notes, willow-desk, birch-forms, fjord-ledger, juniper-atlas | willow-vault, umber-canvas, sable-hub, quartz-forms, onyx-docs, willow-forms |
+| eng-data | yarrow-pulse, cobalt-studio, garnet-vault, kestrel-docs, onyx-signal, sable-studio | yarrow-notes, vale-board, tundra-atlas, raven-studio, ember-docs |
+| sales-ae | dune-sheets, harbor-notes, lumen-desk, pebble-canvas, tundra-sheets, lumen-board, pebble-relay | zephyr-hub, willow-forms, umber-docs, sable-sheets, lumen-forms |
+| sales-sdr | indigo-hub, maple-pulse, quartz-board, indigo-track, maple-forms, quartz-ledger, umber-atlas, zephyr-track | amber-desk, yarrow-studio, vale-desk, tundra-relay, sable-hub |
+| sales-ops | nimbus-track, raven-forms, juniper-signal | birch-pulse, zephyr-sheets, willow-pulse, umber-ledger, amber-forms |
+| cs-csm | sable-studio, kestrel-canvas, onyx-sheets, sable-notes | cobalt-track, amber-vault, yarrow-track, vale-vault, harbor-hub |
+| cs-support | lumen-board, pebble-relay, tundra-hub, yarrow-pulse, cobalt-studio | dune-signal, birch-notes, zephyr-signal, willow-notes, onyx-canvas |
+| cs-onboarding | quartz-ledger, umber-atlas, zephyr-track, dune-sheets, harbor-notes, lumen-desk | ember-canvas, cobalt-hub, amber-forms, yarrow-hub, vale-vault |
+| mkt-pmm | vale-docs, amber-board, ember-relay, indigo-hub, maple-pulse, quartz-board, indigo-track | fjord-board, dune-atlas, birch-studio, zephyr-atlas, dune-canvas |
+| mkt-content | birch-forms, fjord-ledger, juniper-atlas, nimbus-track, raven-forms, juniper-signal, nimbus-studio, raven-vault | garnet-forms, ember-docs, cobalt-sheets, amber-pulse, kestrel-vault |
+| mkt-growth | garnet-vault, kestrel-docs, onyx-signal | harbor-studio, fjord-desk, dune-relay, birch-track, willow-vault |
+| fin-analyst | lumen-desk, pebble-canvas, tundra-sheets, lumen-board | indigo-sheets, garnet-pulse, ember-ledger, cobalt-signal, ember-canvas |
+| fin-accountant | quartz-board, indigo-track, maple-forms, quartz-ledger, umber-atlas | juniper-relay, harbor-track, fjord-vault, dune-canvas, lumen-vault |
+| ppl-partner | juniper-signal, nimbus-studio, raven-vault, vale-docs, amber-board, ember-relay | kestrel-ledger, indigo-signal, garnet-notes, ember-board, sable-track |
+| ppl-recruiter | onyx-sheets, sable-notes, willow-desk, birch-forms, fjord-ledger, juniper-atlas, nimbus-track | lumen-vault, juniper-canvas, harbor-hub, fjord-forms, amber-vault |
+| it-lead | tundra-hub, yarrow-pulse, cobalt-studio, garnet-vault, kestrel-docs, onyx-signal, sable-studio, kestrel-canvas | maple-notes, kestrel-board, indigo-atlas, garnet-studio, harbor-track |
+| it-engineer | zephyr-track, dune-sheets, harbor-notes | nimbus-hub, lumen-forms, juniper-docs, harbor-sheets, onyx-relay |
+| prod-pm | ember-relay, indigo-hub, maple-pulse, quartz-board | onyx-atlas, maple-studio, kestrel-desk, indigo-relay, vale-desk |
+| prod-analyst | juniper-atlas, nimbus-track, raven-forms, juniper-signal, nimbus-studio | pebble-docs, nimbus-sheets, lumen-pulse, juniper-ledger, dune-relay |
+| des-product | onyx-signal, sable-studio, kestrel-canvas, onyx-sheets, sable-notes, willow-desk | quartz-desk, onyx-relay, maple-track, kestrel-vault, kestrel-desk |
+| des-brand | tundra-sheets, lumen-board, pebble-relay, tundra-hub, yarrow-pulse, cobalt-studio, garnet-vault | raven-pulse, pebble-ledger, nimbus-signal, lumen-notes, raven-studio |
+<!-- access-policy:end -->
+
 ## Public expected-action rules
 
 The answer key follows these rules. Your custom cases should follow them too, so the key stays unambiguous.

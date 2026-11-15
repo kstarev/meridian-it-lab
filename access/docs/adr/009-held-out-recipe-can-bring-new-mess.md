@@ -23,9 +23,10 @@
   - The builder never decompresses or reads it.
   - Tests on it are count-only, and the novelty checks report only yes or no, never contents.
   - The world is built only with `--final-score=held_out_a1`.
-- **The key is checked twice before it counts:**
+- **The key is checked three ways before it counts:**
   - **Code checks** (`meridian_dataset.access.key_checks`, run by `recipe_tools check` and `seal` and by the tests) look at references, duplicates and contradictions, per-type counts against the recipe and its cases, and completeness from the world's own data. They report counts only, so they can run on the sealed world.
   - **A second blind reviewer**, which has seen neither the Access-as-Code code nor the author's notes, reads the recipe and the world it builds. It judges whether the key is right and reports only its problem counts per type and PASS or FAIL. Its detailed notes go to the author, never to the builder. If it fails, the author fixes the recipe and seals it again, and the review is repeated.
+  - **A blind referee** ([AAC-011](011-blind-referee-against-shared-mistakes.md)) builds its own key from the raw files, and every disagreement with the generator's key goes to the owner for a ruling. It is the check against mistakes the generator and the tool share.
 - **Novelty is checked, not hoped for.** Tests require, beyond the tuning recipe:
 
 - at least 2 layouts with new headers;

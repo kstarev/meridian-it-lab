@@ -28,8 +28,37 @@ SEAL_PREFIX = "held_out_"
 _DEFAULT_DIR = Path(__file__).resolve().parent / "recipes"
 
 
+POLICY_START, POLICY_END = "<!-- access-policy:start -->", "<!-- access-policy:end -->"
+
+
+def access_policy_markdown() -> str:
+    """The access policy (role -> apps) the generator gives every worker. An input, not an answer.
+
+    It's the same for every recipe: no recipe field changes it. Milestone 3's policy YAML is built
+    from this table too.
+    """
+    birthright = cat.BIRTHRIGHT_IDS
+    lines = [
+        "Every current worker has an Okta user, a Google user and a Slack user.",
+        "",
+        f"Birthright SSO apps, for every employee: {', '.join(birthright)}.",
+        f"Contractors get the first {len(birthright) - 2} of them: {', '.join(birthright[:-2])}.",
+        "",
+        "SSO access is a group assignment with the `member` role. Non-SSO apps are rows in that "
+        "app's export.",
+        "",
+        "| Role | SSO apps beyond birthright | Non-SSO apps (export rows) |",
+        "|---|---|---|",
+    ]
+    for role in cat.ROLES:
+        lines.append(
+            f"| {role.role_id} | {', '.join(role.sso_apps)} | {', '.join(role.other_apps)} |"
+        )
+    return "\n".join(lines)
+
+
 def catalog_text() -> str:
-    """Everything a recipe author needs: public vocabulary only, no generator internals."""
+    """Everything a recipe author needs: the public vocabulary and access policy, nothing else."""
     lines = [
         "Access-as-Code recipe catalog (recipe format 2)",
         "",
@@ -63,6 +92,9 @@ def catalog_text() -> str:
         f"Person statuses: {', '.join(cat.STATUSES)}",
         f"Account states: {', '.join(cat.ACCOUNT_STATES)}",
         f"Account roles: {', '.join(cat.ACCOUNT_ROLES)}",
+        "",
+        "Access policy (role -> apps)",
+        access_policy_markdown(),
         "",
     ]
     return "\n".join(lines)

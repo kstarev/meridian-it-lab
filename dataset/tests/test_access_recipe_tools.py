@@ -9,7 +9,13 @@ import pytest
 
 from meridian_dataset.access import catalog as cat
 from meridian_dataset.access.recipe import available_recipes, canonical_json, load_recipe
-from meridian_dataset.access.recipe_tools import main
+from meridian_dataset.access.recipe_tools import (
+    POLICY_END,
+    POLICY_START,
+    access_policy_markdown,
+    catalog_text,
+    main,
+)
 
 EXTRA_A = "Zyxwvut"
 EXTRA_B = "Qponmlk"
@@ -103,3 +109,12 @@ def test_seal_refuses_an_invalid_recipe(
     assert main(["seal", str(path), "--name", "held_out_test_z"], tmp_path) == 1
     assert not (tmp_path / "held_out_test_z.json.gz").exists()
     assert "headcount" in capsys.readouterr().err
+
+
+def test_the_guide_holds_the_access_policy_the_generator_uses() -> None:
+    guide = (Path(__file__).resolve().parents[1] / "ACCESS_RECIPE.md").read_text(encoding="utf-8")
+    block = guide[guide.index(POLICY_START) + len(POLICY_START) : guide.index(POLICY_END)]
+    assert block.strip() == access_policy_markdown()
+    assert access_policy_markdown() in catalog_text()
+    for role in cat.ROLES:
+        assert f"| {role.role_id} | {', '.join(role.sso_apps)} |" in block
