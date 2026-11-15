@@ -1,0 +1,1039 @@
+# Held access plan: needs two approvers
+
+This is the held part of the access plan for 2026-12-01, in its own pull request: the part of the plan that needs two code-owner approvals before it is applied. It holds every bulk-import change and every change of a day (or the no-date bucket) over the limit.
+
+Buckets over the limit:
+
+- 2026-11-29: 30 people, 475 removals and suspensions
+- no date: 18 people, 96 removals and suspensions
+
+767 changes in this plan, 2 approval(s) required, 0 held for bad HR data and never applied, 15 warnings, 193 manual tasks.
+
+| Type | Changes |
+|---|---|
+| Blocked: bulk HR change | 1 |
+| HR data errors | 0 |
+| Leavers who still have access | 625 |
+| Orphaned accounts | 37 |
+| Contractors past their end date | 94 |
+| People on leave | 0 |
+| Movers | 0 |
+| Rehired people | 4 |
+| Drift (changed outside the process) | 6 |
+| Break-glass accounts (never touched) | 0 |
+
+| Action | Changes |
+|---|---|
+| block_two_approvers | 1 |
+| flag | 195 |
+| remove | 502 |
+| suspend | 69 |
+
+Plan built from actual state `eea597b50957`.
+
+## Blocked: bulk HR change
+
+- Block the bulk HR change until two approvers have reviewed it (one bulk import ended 30 people at once; 475 removals or suspensions held (every bulk import is held))
+
+## Leavers who still have access
+
+- Flag yuki.mensah@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.mensah@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.mensah in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of yuki.mensah@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of yuki.mensah@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.mensah@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of yuki.mensah (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.m in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.mensah@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.nasser@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.nasser@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of hannah.nasser@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of hannah.nasser@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.nasser@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.nasser@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of hannah.nasser (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.nasser@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.nasser@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.dlamini@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.dlamini@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of leila.dlamini@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.dlamini@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of leila.dlamini@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.dlamini@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of leila.dlamini (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.d in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.dlamini@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag fatima.sato@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag fatima.sato@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of fatima.sato@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag fatima.sato@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of fatima.sato@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove fatima.sato@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of fatima.sato (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag fatima.s in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag fatima.sato@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.rossi@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.rossi@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.rossi in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of ravi.rossi@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of ravi.rossi@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.rossi@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of ravi.rossi (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.r in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.rossi@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.nasser@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.nasser@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of jordan.nasser@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.nasser@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of jordan.nasser@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.nasser@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of jordan.nasser (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.n in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.nasser@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.lopez@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.lopez@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of hannah.lopez@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.lopez@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of hannah.lopez@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove hannah.lopez@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of hannah.lopez (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.l in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag hannah.lopez@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.murphy@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.murphy@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of pablo.murphy@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.murphy@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of pablo.murphy@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.murphy@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of pablo.murphy (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.m in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.murphy@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag tomasz.walsh@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag tomasz.walsh@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of tomasz.walsh@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag tomasz.walsh@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of tomasz.walsh@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove tomasz.walsh@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of tomasz.walsh (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag tomasz.w in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag tomasz.walsh@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag aisha.rossi@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag aisha.rossi@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of aisha.rossi@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of aisha.rossi@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove aisha.rossi@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag aisha.rossi@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of aisha.rossi (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag aisha.rossi@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag aisha.rossi@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Pablo.Rahman@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.rahman@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of pablo.rahman@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of pablo.rahman@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove pablo.rahman@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.rahman@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of pablo.rahman (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.rahman@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag pablo.rahman@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag oliver.murphy@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Oliver.Murphy@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of oliver.murphy@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag oliver.murphy@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of oliver.murphy@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove oliver.murphy@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of oliver.murphy (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag oliver.m in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag oliver.murphy@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.silva@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.silva@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of kwame.silva@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.silva@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of kwame.silva@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.silva@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of kwame.silva (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.s in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.silva@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.nasser@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.nasser@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.nasser in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of kwame.nasser@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of kwame.nasser@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove kwame.nasser@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of kwame.nasser (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag kwame.n in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Kwame.Nasser@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mei.santos@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mei.santos@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mei.santos in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of mei.santos@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of mei.santos@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mei.santos@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of mei.santos (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mei.s in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mei.santos@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jonas.jansen@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jonas.jansen@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jonas.jansen in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of jonas.jansen@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of jonas.jansen@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jonas.jansen@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of jonas.jansen (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jonas.j in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jonas.jansen@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.haddad@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.haddad@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of yuki.haddad@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.haddad@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of yuki.haddad@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.haddad@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of yuki.haddad (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.h in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.haddad@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag rahul.okafor@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag rahul.okafor@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of rahul.okafor@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag rahul.okafor@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of rahul.okafor@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove rahul.okafor@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of rahul.okafor (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag rahul.o in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag rahul.okafor@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.novak@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.novak@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of leila.novak@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.novak@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of leila.novak@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.novak@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of leila.novak (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.n in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.novak@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.novak@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Ravi.Novak@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of ravi.novak@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of ravi.novak@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ravi.novak@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.novak@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of ravi.novak (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.novak@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ravi.novak@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag camila.lee@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Camila.Lee@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag camila.lee in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of camila.lee@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of camila.lee@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove camila.lee@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of camila.lee (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag camila.l in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag camila.lee@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.chen@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Jordan.Chen@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of jordan.chen@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of jordan.chen@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove jordan.chen@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.chen@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of jordan.chen (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Jordan.Chen@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag jordan.chen@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag elena.lee@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag elena.lee@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of elena.lee@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag elena.lee@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of elena.lee@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove elena.lee@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of elena.lee (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag elena.l in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag elena.lee@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.shah@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.shah@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.shah in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of amara.shah@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of amara.shah@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.shah@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of amara.shah (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.s in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.shah@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag liam.gupta@meridian.example in Amber Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag liam.gupta@meridian.example in Cobalt Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of liam.gupta@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag liam.gupta@meridian.example in Harbor Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of liam.gupta@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Kestrel Canvas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Onyx Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Sable Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove liam.gupta@meridian.example from Sable Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of liam.gupta (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag liam.g in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag liam.gupta@meridian.example in Yarrow Track (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ingrid.larsen@meridian.example in Amber Forms (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ingrid.larsen@meridian.example in Cobalt Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ingrid.larsen in Ember Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of ingrid.larsen@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of ingrid.larsen@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Dune Sheets (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Harbor Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Lumen Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Quartz Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Umber Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove ingrid.larsen@meridian.example from Zephyr Track (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of ingrid.larsen (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ingrid.l in Vale Vault (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag ingrid.larsen@meridian.example in Yarrow Hub (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.murphy@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.murphy@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of yuki.murphy@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of yuki.murphy@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove yuki.murphy@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.murphy@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of yuki.murphy (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag yuki.murphy@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Yuki.Murphy@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mateus.novak@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mateus.novak@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of mateus.novak@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of mateus.novak@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove mateus.novak@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mateus.novak@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of mateus.novak (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mateus.novak@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag mateus.novak@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.tanaka@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.tanaka@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of leila.tanaka@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of leila.tanaka@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove leila.tanaka@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.tanaka@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of leila.tanaka (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag Leila.Tanaka@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag leila.tanaka@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.sato@meridian.example in Birch Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.sato@meridian.example in Dune Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Google account of amara.sato@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Suspend the Okta account of amara.sato@meridian.example (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Amber Ledger (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Birch Vault (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Cobalt Notes (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Cobalt Studio (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Dune Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Ember Atlas (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Fjord Docs (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Garnet Desk (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Harbor Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Lumen Board (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Pebble Relay (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Tundra Hub (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove amara.sato@meridian.example from Yarrow Pulse (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.sato@meridian.example in Onyx Canvas (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Remove the Slack account of amara.sato (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.sato@meridian.example in Willow Notes (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+- Flag amara.sato@meridian.example in Zephyr Signal (remove by hand, no API) (left on 2026-11-29; held: bulk HR change awaiting two approvers)
+
+## Orphaned accounts
+
+- Flag anika.s in Dune Atlas (remove by hand, no API) (no matching person in HRIS)
+- Remove the Google account of temp-contractor-04@meridian.example (no matching person in HRIS)
+- Flag fwalsh in Maple Studio (remove by hand, no API) (no matching person in HRIS)
+- Flag ikowalski in Maple Studio (remove by hand, no API) (no matching person in HRIS)
+- Remove the Okta account of jo.marlowe@meridian.example (no matching person in HRIS)
+- Remove the Okta account of old.sales.shared@meridian.example (no matching person in HRIS)
+- Remove old.sales.shared@meridian.example from Garnet Desk (no matching person in HRIS)
+- Remove jo.marlowe@meridian.example from Maple Forms (no matching person in HRIS)
+- Remove the Slack account of dana.whitfield (no matching person in HRIS)
+- Flag svc.reporting@meridian.example in Vale Board (remove by hand, no API) (no matching person in HRIS)
+- Flag intern.summer2@meridian.example in Willow Vault (remove by hand, no API) (no matching person in HRIS)
+- Suspend the Okta account of elena.larsen@meridian.example (left on 2026-07-12)
+- Remove elena.larsen@meridian.example from Garnet Desk (left on 2026-07-12)
+- Suspend the Okta account of kenji.rossi@meridian.example (left on 2026-07-05)
+- Remove kenji.rossi@meridian.example from Sable Notes (left on 2026-07-05)
+- Flag mateus.weber in Ember Canvas (remove by hand, no API) (left on 2026-06-14)
+- Suspend the Okta account of kwame.becker@meridian.example (left on 2026-06-25)
+- Remove kwame.becker@meridian.example from Fjord Docs (left on 2026-06-25)
+- Flag aisha.walsh@meridian.example in Quartz Vault (remove by hand, no API) (left on 2026-03-06)
+- Flag priya.g in Garnet Notes (remove by hand, no API) (left on 2026-09-24)
+- Flag rahul.nunez@meridian.example in Garnet Pulse (remove by hand, no API) (left on 2026-07-28)
+- Suspend the Okta account of amara.murphy@meridian.example (left on 2026-04-17)
+- Remove amara.murphy@meridian.example from Harbor Pulse (left on 2026-04-17)
+- Suspend the Okta account of camila.rossi@meridian.example (left on 2026-02-17)
+- Remove camila.rossi@meridian.example from Harbor Pulse (left on 2026-02-17)
+- Flag diego.novak in Sable Track (remove by hand, no API) (left on 2026-09-15)
+- Suspend the Okta account of oliver.ostergaard@meridian.example (left on 2026-06-26)
+- Remove oliver.ostergaard@meridian.example from Ember Atlas (left on 2026-06-26)
+- Flag hannah.santos@meridian.example in Indigo Sheets (remove by hand, no API) (left on 2026-07-23)
+- Flag chloe.sato@meridian.example in Willow Vault (remove by hand, no API) (left on 2026-08-15)
+- Suspend the Okta account of diego.santos@meridian.example (left on 2026-04-06)
+- Remove diego.santos@meridian.example from Lumen Board (left on 2026-04-06)
+- Flag tomasz.k in Zephyr Hub (remove by hand, no API) (left on 2026-06-28)
+- Suspend the Okta account of oliver.lopez@meridian.example (left on 2026-07-27)
+- Remove oliver.lopez@meridian.example from Ember Atlas (left on 2026-07-27)
+- Suspend the Okta account of pablo.larsen@meridian.example (left on 2026-08-22)
+- Remove pablo.larsen@meridian.example from Raven Vault (left on 2026-08-22)
+
+## Contractors past their end date
+
+- Remove the Google account of elena.rahman@meridian.example (contract ended on 2026-09-01)
+- Flag elena.rahman@meridian.example in Lumen Forms (remove by hand, no API) (contract ended on 2026-09-01)
+- Remove the Okta account of elena.rahman@meridian.example (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Amber Ledger (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Birch Vault (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Cobalt Notes (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Dune Hub (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Dune Sheets (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Ember Atlas (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Fjord Docs (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Harbor Notes (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Lumen Board (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Lumen Desk (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Pebble Canvas (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Pebble Relay (contract ended on 2026-09-01)
+- Remove elena.rahman@meridian.example from Tundra Sheets (contract ended on 2026-09-01)
+- Flag elena.rahman@meridian.example in Sable Sheets (remove by hand, no API) (contract ended on 2026-09-01)
+- Remove the Slack account of elena.rahman (contract ended on 2026-09-01)
+- Flag elena.rahman@meridian.example in Umber Docs (remove by hand, no API) (contract ended on 2026-09-01)
+- Flag elena.rahman@meridian.example in Willow Forms (remove by hand, no API) (contract ended on 2026-09-01)
+- Flag elena.r in Zephyr Hub (remove by hand, no API) (contract ended on 2026-09-01)
+- Remove the Google account of hannah.weber@meridian.example (contract ended on 2026-09-28)
+- Flag hannah.weber@meridian.example in Lumen Notes (remove by hand, no API) (contract ended on 2026-09-28)
+- Flag hannah.weber@meridian.example in Nimbus Signal (remove by hand, no API) (contract ended on 2026-09-28)
+- Remove the Okta account of hannah.weber@meridian.example (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Amber Ledger (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Birch Vault (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Cobalt Notes (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Cobalt Studio (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Dune Hub (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Ember Atlas (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Fjord Docs (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Garnet Vault (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Lumen Board (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Pebble Relay (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Tundra Hub (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Tundra Sheets (contract ended on 2026-09-28)
+- Remove hannah.weber@meridian.example from Yarrow Pulse (contract ended on 2026-09-28)
+- Flag hannah.weber@meridian.example in Pebble Ledger (remove by hand, no API) (contract ended on 2026-09-28)
+- Flag hannah.weber@meridian.example in Raven Pulse (remove by hand, no API) (contract ended on 2026-09-28)
+- Flag hannah.weber@meridian.example in Raven Studio (remove by hand, no API) (contract ended on 2026-09-28)
+- Remove the Slack account of hannah.weber (contract ended on 2026-09-28)
+- Flag ravi.clarke@meridian.example in Amber Forms (remove by hand, no API) (contract ended on 2026-10-06)
+- Flag Ravi.Clarke@meridian.example in Birch Pulse (remove by hand, no API) (contract ended on 2026-10-06)
+- Remove the Google account of ravi.clarke@meridian.example (contract ended on 2026-10-06)
+- Remove the Okta account of ravi.clarke@meridian.example (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Amber Ledger (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Birch Vault (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Cobalt Notes (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Dune Hub (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Ember Atlas (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Fjord Docs (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Juniper Signal (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Nimbus Track (contract ended on 2026-10-06)
+- Remove ravi.clarke@meridian.example from Raven Forms (contract ended on 2026-10-06)
+- Remove the Slack account of ravi.clarke (contract ended on 2026-10-06)
+- Flag ravi.clarke@meridian.example in Umber Ledger (remove by hand, no API) (contract ended on 2026-10-06)
+- Flag ravi.clarke in Willow Pulse (remove by hand, no API) (contract ended on 2026-10-06)
+- Flag ravi.clarke@meridian.example in Zephyr Sheets (remove by hand, no API) (contract ended on 2026-10-06)
+- Remove the Google account of ravi.okafor@meridian.example (contract ended on 2026-10-31)
+- Flag ravi.okafor@meridian.example in Indigo Sheets (remove by hand, no API) (contract ended on 2026-10-31)
+- Flag ravi.okafor@meridian.example in Maple Hub (remove by hand, no API) (contract ended on 2026-10-31)
+- Remove the Okta account of ravi.okafor@meridian.example (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Amber Ledger (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Birch Vault (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Cobalt Notes (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Dune Hub (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Ember Atlas (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Fjord Docs (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Indigo Track (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Maple Forms (contract ended on 2026-10-31)
+- Remove ravi.okafor@meridian.example from Quartz Ledger (contract ended on 2026-10-31)
+- Flag ravi.okafor@meridian.example in Onyx Canvas (remove by hand, no API) (contract ended on 2026-10-31)
+- Flag ravi.okafor@meridian.example in Quartz Vault (remove by hand, no API) (contract ended on 2026-10-31)
+- Flag ravi.okafor in Sable Track (remove by hand, no API) (contract ended on 2026-10-31)
+- Remove the Slack account of ravi.okafor (contract ended on 2026-10-31)
+- Flag rokafor in Umber Relay (remove by hand, no API) (contract ended on 2026-10-31)
+- Flag jordan.gupta@meridian.example in Birch Track (remove by hand, no API) (contract ended on 2026-10-12)
+- Flag jordan.gupta@meridian.example in Dune Relay (remove by hand, no API) (contract ended on 2026-10-12)
+- Flag jordan.gupta@meridian.example in Fjord Desk (remove by hand, no API) (contract ended on 2026-10-12)
+- Remove the Google account of jordan.gupta@meridian.example (contract ended on 2026-10-12)
+- Flag jordan.gupta@meridian.example in Harbor Studio (remove by hand, no API) (contract ended on 2026-10-12)
+- Remove the Okta account of jordan.gupta@meridian.example (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Amber Ledger (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Birch Vault (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Cobalt Notes (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Dune Hub (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Ember Atlas (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Fjord Docs (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Garnet Vault (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Kestrel Docs (contract ended on 2026-10-12)
+- Remove jordan.gupta@meridian.example from Onyx Signal (contract ended on 2026-10-12)
+- Remove the Slack account of jordan.gupta (contract ended on 2026-10-12)
+- Flag jordan.gupta@meridian.example in Willow Vault (remove by hand, no API) (contract ended on 2026-10-12)
+
+## Rehired people
+
+- Flag leila.okafor@meridian.example in Yarrow Track (remove by hand, no API) (rehired on 2026-11-12; row left from the old role)
+- Flag camila.santos@meridian.example in Nimbus Signal (remove by hand, no API) (rehired on 2026-11-24; row left from the old role)
+- Flag hannah.haddad@meridian.example in Birch Notes (remove by hand, no API) (rehired on 2026-11-20; row left from the old role)
+- Flag hannah.haddad@meridian.example in Zephyr Signal (remove by hand, no API) (rehired on 2026-11-20; row left from the old role)
+
+## Drift (changed outside the process)
+
+- Remove mei.martin@meridian.example from Fjord Ledger (granted by hand in the admin console)
+- Remove liam.chen@meridian.example from Juniper Atlas (granted by hand in the admin console)
+- Review noah.rossi@meridian.example in Amber Ledger (changed by hand) (admin role raised by hand in the admin console)
+- Remove elena.shah@meridian.example from Raven Forms (granted by hand in the admin console)
+- Remove ethan.tanaka@meridian.example from Birch Forms (granted by hand in the admin console)
+- Review chloe.kowalski@meridian.example in Sable Notes (changed by hand) (admin role raised by hand in the admin console)
+
+## Warnings
+
+- anika.iyer@meridian.example has no row in the Dune Atlas export, a birthright or role app
+- chloe.okafor (sable-track/sable-track): ambiguous owner, needs a map entry
+- chloe.okafor2 (sable-track/sable-track): ambiguous owner, needs a map entry
+- chloe.okafor2@meridian.example has no row in the Sable Track export, a birthright or role app
+- chloe.okafor2@meridian.example has no row in the Umber Relay export, a birthright or role app
+- chloe.okafor@meridian.example has no row in the Sable Track export, a birthright or role app
+- chloe.okafor@meridian.example has no row in the Umber Relay export, a birthright or role app
+- cokafor (umber-relay/umber-relay): ambiguous owner, needs a map entry
+- cokafor2 (umber-relay/umber-relay): ambiguous owner, needs a map entry
+- fatima.tanaka@meridian.example has no row in the Maple Studio export, a birthright or role app
+- ingrid.nasser@meridian.example has no row in the Maple Studio export, a birthright or role app
+- kenji.iyer (lumen-pulse/lumen-pulse): ambiguous owner, needs a map entry
+- kenji.iyer2 (lumen-pulse/lumen-pulse): ambiguous owner, needs a map entry
+- kenji.iyer2@meridian.example has no row in the Lumen Pulse export, a birthright or role app
+- kenji.iyer@meridian.example has no row in the Lumen Pulse export, a birthright or role app
+
+## Held for bad HR data (never applied)
+
+None.
+
+## Manual tasks
+
+- Remove amara.shah@meridian.example from Amber Forms, confirm in next export
+- Remove camila.lee@meridian.example from Amber Forms, confirm in next export
+- Remove ingrid.larsen@meridian.example from Amber Forms, confirm in next export
+- Remove jonas.jansen@meridian.example from Amber Forms, confirm in next export
+- Remove kwame.nasser@meridian.example from Amber Forms, confirm in next export
+- Remove mei.santos@meridian.example from Amber Forms, confirm in next export
+- Remove ravi.clarke@meridian.example from Amber Forms, confirm in next export
+- Remove ravi.rossi@meridian.example from Amber Forms, confirm in next export
+- Remove yuki.mensah@meridian.example from Amber Forms, confirm in next export
+- Remove elena.lee@meridian.example from Amber Vault, confirm in next export
+- Remove fatima.sato@meridian.example from Amber Vault, confirm in next export
+- Remove hannah.lopez@meridian.example from Amber Vault, confirm in next export
+- Remove jordan.nasser@meridian.example from Amber Vault, confirm in next export
+- Remove kwame.silva@meridian.example from Amber Vault, confirm in next export
+- Remove leila.dlamini@meridian.example from Amber Vault, confirm in next export
+- Remove leila.novak@meridian.example from Amber Vault, confirm in next export
+- Remove liam.gupta@meridian.example from Amber Vault, confirm in next export
+- Remove oliver.murphy@meridian.example from Amber Vault, confirm in next export
+- Remove pablo.murphy@meridian.example from Amber Vault, confirm in next export
+- Remove rahul.okafor@meridian.example from Amber Vault, confirm in next export
+- Remove tomasz.walsh@meridian.example from Amber Vault, confirm in next export
+- Remove yuki.haddad@meridian.example from Amber Vault, confirm in next export
+- Remove aisha.rossi@meridian.example from Birch Notes, confirm in next export
+- Remove amara.sato@meridian.example from Birch Notes, confirm in next export
+- Remove hannah.haddad@meridian.example from Birch Notes, confirm in next export
+- Remove hannah.nasser@meridian.example from Birch Notes, confirm in next export
+- Remove jordan.chen@meridian.example from Birch Notes, confirm in next export
+- Remove leila.tanaka@meridian.example from Birch Notes, confirm in next export
+- Remove mateus.novak@meridian.example from Birch Notes, confirm in next export
+- Remove Pablo.Rahman@meridian.example from Birch Notes, confirm in next export
+- Remove ravi.novak@meridian.example from Birch Notes, confirm in next export
+- Remove yuki.murphy@meridian.example from Birch Notes, confirm in next export
+- Remove Ravi.Clarke@meridian.example from Birch Pulse, confirm in next export
+- Remove jordan.gupta@meridian.example from Birch Track, confirm in next export
+- Remove amara.shah@meridian.example from Cobalt Hub, confirm in next export
+- Remove Camila.Lee@meridian.example from Cobalt Hub, confirm in next export
+- Remove ingrid.larsen@meridian.example from Cobalt Hub, confirm in next export
+- Remove jonas.jansen@meridian.example from Cobalt Hub, confirm in next export
+- Remove kwame.nasser@meridian.example from Cobalt Hub, confirm in next export
+- Remove mei.santos@meridian.example from Cobalt Hub, confirm in next export
+- Remove ravi.rossi@meridian.example from Cobalt Hub, confirm in next export
+- Remove yuki.mensah@meridian.example from Cobalt Hub, confirm in next export
+- Remove elena.lee@meridian.example from Cobalt Track, confirm in next export
+- Remove fatima.sato@meridian.example from Cobalt Track, confirm in next export
+- Remove hannah.lopez@meridian.example from Cobalt Track, confirm in next export
+- Remove jordan.nasser@meridian.example from Cobalt Track, confirm in next export
+- Remove kwame.silva@meridian.example from Cobalt Track, confirm in next export
+- Remove leila.dlamini@meridian.example from Cobalt Track, confirm in next export
+- Remove leila.novak@meridian.example from Cobalt Track, confirm in next export
+- Remove liam.gupta@meridian.example from Cobalt Track, confirm in next export
+- Remove Oliver.Murphy@meridian.example from Cobalt Track, confirm in next export
+- Remove pablo.murphy@meridian.example from Cobalt Track, confirm in next export
+- Remove rahul.okafor@meridian.example from Cobalt Track, confirm in next export
+- Remove tomasz.walsh@meridian.example from Cobalt Track, confirm in next export
+- Remove yuki.haddad@meridian.example from Cobalt Track, confirm in next export
+- Remove anika.s from Dune Atlas, confirm in next export
+- Remove jordan.gupta@meridian.example from Dune Relay, confirm in next export
+- Remove aisha.rossi@meridian.example from Dune Signal, confirm in next export
+- Remove amara.sato@meridian.example from Dune Signal, confirm in next export
+- Remove hannah.nasser@meridian.example from Dune Signal, confirm in next export
+- Remove Jordan.Chen@meridian.example from Dune Signal, confirm in next export
+- Remove leila.tanaka@meridian.example from Dune Signal, confirm in next export
+- Remove mateus.novak@meridian.example from Dune Signal, confirm in next export
+- Remove pablo.rahman@meridian.example from Dune Signal, confirm in next export
+- Remove Ravi.Novak@meridian.example from Dune Signal, confirm in next export
+- Remove yuki.murphy@meridian.example from Dune Signal, confirm in next export
+- Remove amara.shah from Ember Canvas, confirm in next export
+- Remove camila.lee from Ember Canvas, confirm in next export
+- Remove ingrid.larsen from Ember Canvas, confirm in next export
+- Remove jonas.jansen from Ember Canvas, confirm in next export
+- Remove kwame.nasser from Ember Canvas, confirm in next export
+- Remove mateus.weber from Ember Canvas, confirm in next export
+- Remove mei.santos from Ember Canvas, confirm in next export
+- Remove ravi.rossi from Ember Canvas, confirm in next export
+- Remove yuki.mensah from Ember Canvas, confirm in next export
+- Remove jordan.gupta@meridian.example from Fjord Desk, confirm in next export
+- Remove priya.g from Garnet Notes, confirm in next export
+- Remove rahul.nunez@meridian.example from Garnet Pulse, confirm in next export
+- Remove elena.lee@meridian.example from Harbor Hub, confirm in next export
+- Remove fatima.sato@meridian.example from Harbor Hub, confirm in next export
+- Remove hannah.lopez@meridian.example from Harbor Hub, confirm in next export
+- Remove jordan.nasser@meridian.example from Harbor Hub, confirm in next export
+- Remove kwame.silva@meridian.example from Harbor Hub, confirm in next export
+- Remove leila.dlamini@meridian.example from Harbor Hub, confirm in next export
+- Remove leila.novak@meridian.example from Harbor Hub, confirm in next export
+- Remove liam.gupta@meridian.example from Harbor Hub, confirm in next export
+- Remove oliver.murphy@meridian.example from Harbor Hub, confirm in next export
+- Remove pablo.murphy@meridian.example from Harbor Hub, confirm in next export
+- Remove rahul.okafor@meridian.example from Harbor Hub, confirm in next export
+- Remove tomasz.walsh@meridian.example from Harbor Hub, confirm in next export
+- Remove yuki.haddad@meridian.example from Harbor Hub, confirm in next export
+- Remove jordan.gupta@meridian.example from Harbor Studio, confirm in next export
+- Remove hannah.santos@meridian.example from Indigo Sheets, confirm in next export
+- Remove ravi.okafor@meridian.example from Indigo Sheets, confirm in next export
+- Remove elena.rahman@meridian.example from Lumen Forms, confirm in next export
+- Remove hannah.weber@meridian.example from Lumen Notes, confirm in next export
+- Remove ravi.okafor@meridian.example from Maple Hub, confirm in next export
+- Remove fwalsh from Maple Studio, confirm in next export
+- Remove ikowalski from Maple Studio, confirm in next export
+- Remove camila.santos@meridian.example from Nimbus Signal, confirm in next export
+- Remove hannah.weber@meridian.example from Nimbus Signal, confirm in next export
+- Remove aisha.rossi@meridian.example from Onyx Canvas, confirm in next export
+- Remove amara.sato@meridian.example from Onyx Canvas, confirm in next export
+- Remove hannah.nasser@meridian.example from Onyx Canvas, confirm in next export
+- Remove jordan.chen@meridian.example from Onyx Canvas, confirm in next export
+- Remove leila.tanaka@meridian.example from Onyx Canvas, confirm in next export
+- Remove mateus.novak@meridian.example from Onyx Canvas, confirm in next export
+- Remove pablo.rahman@meridian.example from Onyx Canvas, confirm in next export
+- Remove ravi.novak@meridian.example from Onyx Canvas, confirm in next export
+- Remove ravi.okafor@meridian.example from Onyx Canvas, confirm in next export
+- Remove yuki.murphy@meridian.example from Onyx Canvas, confirm in next export
+- Remove hannah.weber@meridian.example from Pebble Ledger, confirm in next export
+- Remove aisha.walsh@meridian.example from Quartz Vault, confirm in next export
+- Remove ravi.okafor@meridian.example from Quartz Vault, confirm in next export
+- Remove hannah.weber@meridian.example from Raven Pulse, confirm in next export
+- Remove hannah.weber@meridian.example from Raven Studio, confirm in next export
+- Remove elena.rahman@meridian.example from Sable Sheets, confirm in next export
+- Remove diego.novak from Sable Track, confirm in next export
+- Remove ravi.okafor from Sable Track, confirm in next export
+- Remove elena.rahman@meridian.example from Umber Docs, confirm in next export
+- Remove ravi.clarke@meridian.example from Umber Ledger, confirm in next export
+- Remove rokafor from Umber Relay, confirm in next export
+- Remove svc.reporting@meridian.example from Vale Board, confirm in next export
+- Remove amara.s from Vale Vault, confirm in next export
+- Remove camila.l from Vale Vault, confirm in next export
+- Remove elena.l from Vale Vault, confirm in next export
+- Remove fatima.s from Vale Vault, confirm in next export
+- Remove hannah.l from Vale Vault, confirm in next export
+- Remove ingrid.l from Vale Vault, confirm in next export
+- Remove jonas.j from Vale Vault, confirm in next export
+- Remove jordan.n from Vale Vault, confirm in next export
+- Remove kwame.n from Vale Vault, confirm in next export
+- Remove kwame.s from Vale Vault, confirm in next export
+- Remove leila.d from Vale Vault, confirm in next export
+- Remove leila.n from Vale Vault, confirm in next export
+- Remove liam.g from Vale Vault, confirm in next export
+- Remove mei.s from Vale Vault, confirm in next export
+- Remove oliver.m from Vale Vault, confirm in next export
+- Remove pablo.m from Vale Vault, confirm in next export
+- Remove rahul.o from Vale Vault, confirm in next export
+- Remove ravi.r from Vale Vault, confirm in next export
+- Remove tomasz.w from Vale Vault, confirm in next export
+- Remove yuki.h from Vale Vault, confirm in next export
+- Remove yuki.m from Vale Vault, confirm in next export
+- Remove elena.rahman@meridian.example from Willow Forms, confirm in next export
+- Remove aisha.rossi@meridian.example from Willow Notes, confirm in next export
+- Remove amara.sato@meridian.example from Willow Notes, confirm in next export
+- Remove hannah.nasser@meridian.example from Willow Notes, confirm in next export
+- Remove Jordan.Chen@meridian.example from Willow Notes, confirm in next export
+- Remove Leila.Tanaka@meridian.example from Willow Notes, confirm in next export
+- Remove mateus.novak@meridian.example from Willow Notes, confirm in next export
+- Remove pablo.rahman@meridian.example from Willow Notes, confirm in next export
+- Remove ravi.novak@meridian.example from Willow Notes, confirm in next export
+- Remove yuki.murphy@meridian.example from Willow Notes, confirm in next export
+- Remove ravi.clarke from Willow Pulse, confirm in next export
+- Remove chloe.sato@meridian.example from Willow Vault, confirm in next export
+- Remove intern.summer2@meridian.example from Willow Vault, confirm in next export
+- Remove jordan.gupta@meridian.example from Willow Vault, confirm in next export
+- Remove amara.shah@meridian.example from Yarrow Hub, confirm in next export
+- Remove camila.lee@meridian.example from Yarrow Hub, confirm in next export
+- Remove ingrid.larsen@meridian.example from Yarrow Hub, confirm in next export
+- Remove jonas.jansen@meridian.example from Yarrow Hub, confirm in next export
+- Remove Kwame.Nasser@meridian.example from Yarrow Hub, confirm in next export
+- Remove mei.santos@meridian.example from Yarrow Hub, confirm in next export
+- Remove ravi.rossi@meridian.example from Yarrow Hub, confirm in next export
+- Remove yuki.mensah@meridian.example from Yarrow Hub, confirm in next export
+- Remove elena.lee@meridian.example from Yarrow Track, confirm in next export
+- Remove fatima.sato@meridian.example from Yarrow Track, confirm in next export
+- Remove hannah.lopez@meridian.example from Yarrow Track, confirm in next export
+- Remove jordan.nasser@meridian.example from Yarrow Track, confirm in next export
+- Remove kwame.silva@meridian.example from Yarrow Track, confirm in next export
+- Remove leila.dlamini@meridian.example from Yarrow Track, confirm in next export
+- Remove leila.novak@meridian.example from Yarrow Track, confirm in next export
+- Remove leila.okafor@meridian.example from Yarrow Track, confirm in next export
+- Remove liam.gupta@meridian.example from Yarrow Track, confirm in next export
+- Remove oliver.murphy@meridian.example from Yarrow Track, confirm in next export
+- Remove pablo.murphy@meridian.example from Yarrow Track, confirm in next export
+- Remove rahul.okafor@meridian.example from Yarrow Track, confirm in next export
+- Remove tomasz.walsh@meridian.example from Yarrow Track, confirm in next export
+- Remove yuki.haddad@meridian.example from Yarrow Track, confirm in next export
+- Remove elena.r from Zephyr Hub, confirm in next export
+- Remove tomasz.k from Zephyr Hub, confirm in next export
+- Remove ravi.clarke@meridian.example from Zephyr Sheets, confirm in next export
+- Remove aisha.rossi@meridian.example from Zephyr Signal, confirm in next export
+- Remove amara.sato@meridian.example from Zephyr Signal, confirm in next export
+- Remove hannah.haddad@meridian.example from Zephyr Signal, confirm in next export
+- Remove hannah.nasser@meridian.example from Zephyr Signal, confirm in next export
+- Remove jordan.chen@meridian.example from Zephyr Signal, confirm in next export
+- Remove leila.tanaka@meridian.example from Zephyr Signal, confirm in next export
+- Remove mateus.novak@meridian.example from Zephyr Signal, confirm in next export
+- Remove pablo.rahman@meridian.example from Zephyr Signal, confirm in next export
+- Remove ravi.novak@meridian.example from Zephyr Signal, confirm in next export
+- Remove Yuki.Murphy@meridian.example from Zephyr Signal, confirm in next export
+
+## Suggested map entries (need review before anything uses them)
+
+None.
