@@ -55,3 +55,11 @@ def test_screening_counts_by_label(tmp_path, monkeypatch) -> None:
     # Scores are never overwritten: a second screen returns the saved files.
     assert sc.screen("haiku-3b", model_factory=None) == paths
     assert "colleague/forwarded: 0/" in sc.show()
+
+
+def test_the_report_is_built_from_saved_scores(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(sc, "RESULTS", tmp_path)
+    sc.screen("haiku-3b", model_factory=lambda name: AlwaysOwn())
+    md = sc.render()
+    assert "tuning score, and optimistic" in md
+    assert "| haiku-5-5 | HT4 |" in md and "| haiku-5-5 | C1 |" in md
