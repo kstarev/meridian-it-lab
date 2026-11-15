@@ -21,7 +21,9 @@ IN_WINDOW = datetime(2026, 12, 17, 23, 59, tzinfo=UTC)
 # The items the owner has approved in the real file (ADR-037: one pull request per approval).
 # aac-model-comparison (schedule item 1) was approved on 2026-11-15, ran once at k=3 for $2.02,
 # and was set back to unapproved the same day so the rest of its cap can't be spent.
-APPROVED = {"tier0-3b"}  # 2026-11-15, schedule item 2
+# tier0-3b (schedule item 2) was approved on 2026-11-15, spent $8.48 of its $15 on milestone
+# 3b's tuning and paired run, and was set back to unapproved the same day (ADR-039).
+APPROVED: set[str] = set()
 AFTER = datetime(2026, 12, 18, 0, 0, tzinfo=UTC)
 
 LEDGERS = {

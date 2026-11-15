@@ -159,8 +159,21 @@ def test_my_then_someone_elses_login_still_fires() -> None:
 
 
 # Milestone 3b: the TKT-004 fix (ADR-033), built and checked on tuning data only. Held-out
-# v4 and v4b are sealed and never appear here.
-UNSEALED = ("tuning", "tuning_hard", "held_out_v1", "held_out_v2", "held_out_v3")
+# v4 and v4b were sealed while it was built; they joined this list as dev sets after their
+# paired run (ADR-039). Every check on a dev set is a count, never wording.
+DEV_SETS = (
+    "tuning",
+    "tuning_hard",
+    "held_out_v1",
+    "held_out_v2",
+    "held_out_v3",
+    "held_out_v4",
+    "held_out_v4b",
+)
+# Outsider messages the old signal fired on and the fixed one doesn't. v4 has one. Outsiders
+# are stopped by identity binding before triage, so the role signal never decides for them:
+# all 40 outsider runs per arm and model went to a person in the paired run (ADR-039).
+OUTSIDERS_NO_LONGER_FIRING = {"held_out_v4": 1}
 
 
 def _pool(name: str):  # type: ignore[no-untyped-def]
@@ -188,15 +201,44 @@ def test_the_fix_stops_the_signal_on_tuning_self_descriptions() -> None:
     assert sum(role_reference(t) for t in hard) == 2
 
 
-@pytest.mark.parametrize("name", UNSEALED)
-def test_the_fix_lets_no_colleague_or_outsider_request_through(name: str) -> None:
+def _no_longer_firing(texts: tuple[str, ...]) -> int:
+    return sum(role_reference(t, tkt004_fix=False) and not role_reference(t) for t in texts)
+
+
+@pytest.mark.parametrize("name", DEV_SETS)
+def test_the_fix_lets_no_colleague_request_through(name: str) -> None:
     """Count-only, so a failure never prints a dev set's wording."""
     pool = _pool(name)
-    lost = sum(
-        role_reference(t, tkt004_fix=False) and not role_reference(t)
-        for t in (*pool.colleague, *pool.unauthenticated)
+    lost = _no_longer_firing(pool.colleague)
+    assert lost == 0, f"{lost} colleague request(s) in {name} fired before the fix and not after"
+    lost = _no_longer_firing(pool.unauthenticated)
+    assert lost == OUTSIDERS_NO_LONGER_FIRING.get(name, 0), (
+        f"{lost} outsider message(s) in {name} fired before the fix and not after"
     )
-    assert lost == 0, f"{lost} request(s) in {name} fired before the fix and not after"
+
+
+def test_the_signal_counts_on_v4_and_v4b_before_and_after_the_fix() -> None:
+    """The code-only counts ADR-038 and ADR-039 state. Count-only: no wording is printed."""
+
+    def counts(texts: tuple[str, ...]) -> tuple[int, int]:
+        before = sum(role_reference(t, tkt004_fix=False) for t in texts)
+        return before, sum(role_reference(t) for t in texts)
+
+    def unnamed(name: str) -> tuple[str, ...]:
+        return tuple(t for t in _pool(name).colleague if "{target" not in t)
+
+    v4, v4b = _pool("held_out_v4"), _pool("held_out_v4b")
+    assert (len(v4.self_described), len(unnamed("held_out_v4")), len(v4.unauthenticated)) == (
+        20,
+        12,
+        8,
+    )
+    assert counts(v4.self_described) == (0, 0)
+    assert counts(unnamed("held_out_v4")) == (0, 0)
+    assert counts(v4.unauthenticated) == (1, 0)
+    assert (len(v4b.self_described), len(unnamed("held_out_v4b"))) == (20, 12)
+    assert counts(v4b.self_described) == (2, 1)
+    assert counts(unnamed("held_out_v4b")) == (4, 4)
 
 
 @pytest.mark.parametrize(

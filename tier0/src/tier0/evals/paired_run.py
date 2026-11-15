@@ -13,6 +13,9 @@ harness (`tier0.evals`), in one process:
 unsealed once: a marker file is written when the run starts, and a second start is refused.
 `--resume` finishes a run that was cut short (the arms already written are kept, never
 re-scored) and is recorded in the marker.
+
+Both sets had their run on 2026-11-15 and are dev sets now (ADR-039). The driver refuses a
+set that is no longer sealed, so the paired run can't be repeated on a spent set.
 """
 
 import argparse
@@ -23,7 +26,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from meridian_dataset.generator import HOLDOUT_V4_SEED, HOLDOUT_V4B_SEED
-from tier0 import roles
+from tier0 import roles, sealed
 from tier0.evals import __main__ as cli
 
 SETS = {"held_out_v4": HOLDOUT_V4_SEED, "held_out_v4b": HOLDOUT_V4B_SEED}
@@ -45,6 +48,13 @@ def main(
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args(argv)
     run = run or cli.main
+    if args.set not in sealed.SEALED_POOLS:
+        print(
+            f"refused: {args.set} is not sealed. It was spent in its paired run and is a "
+            "dev set now (ADR-039)",
+            file=sys.stderr,
+        )
+        return 2
     base = args.out / args.set
     marker = base / "UNSEALED.json"
     if marker.exists() and not args.resume:

@@ -3,13 +3,23 @@
 import json
 from pathlib import Path
 
-from meridian_dataset import DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
+from meridian_dataset import (
+    DEFAULT_SEED,
+    HOLDOUT_SEED,
+    HOLDOUT_V2_SEED,
+    HOLDOUT_V3_SEED,
+    HOLDOUT_V4_SEED,
+    HOLDOUT_V4B_SEED,
+)
 from meridian_dataset.generator import split_for_seed
 from tier0 import messages
 from tier0.evals.runner import COMPARISON_K, PIPELINE_CHECK_LABEL, EvalReport
 from tier0.evals.setups import NO_SCHEMA_ENFORCEMENT
 from tier0.models import StubModel, memory
 from tier0.sealed import SEALED_POOLS
+
+# Spent in milestone 3b's paired run on 2026-11-15 (ADR-038), dev sets since (ADR-039).
+_SPENT_IN_3B = {HOLDOUT_V4_SEED: "v4", HOLDOUT_V4B_SEED: "v4b"}
 
 
 def _seed_label(seed: int) -> str:
@@ -19,6 +29,11 @@ def _seed_label(seed: int) -> str:
         return f"seed {seed} (held-out v2, spent in milestone 2, now a dev set: ADR-029)"
     if seed == HOLDOUT_V3_SEED:
         return f"seed {seed} (held-out v3, spent in milestone 3, now a dev set: ADR-030)"
+    if seed in _SPENT_IN_3B:
+        return (
+            f"seed {seed} (held-out {_SPENT_IN_3B[seed]}, spent in milestone 3b, "
+            "now a dev set: ADR-039)"
+        )
     if seed == DEFAULT_SEED:
         return f"seed {seed} (tuning)"
     return f"seed {seed}"
@@ -230,6 +245,12 @@ def render_markdown(r: EvalReport) -> str:
                 "These results come from a real model on held-out v3 (seed 4417). It was "
                 "spent in milestone 3's final comparison, so it now counts as a dev set, not "
                 "a held-out score (ADR-030)."
+            )
+        elif r.seed in _SPENT_IN_3B:
+            which = (
+                f"These results come from a real model on held-out {_SPENT_IN_3B[r.seed]} "
+                f"(seed {r.seed}). It was spent in milestone 3b's paired run, so it now counts "
+                "as a dev set, not a held-out score (ADR-038, ADR-039)."
             )
         elif r.seed == HOLDOUT_V2_SEED:
             which = (

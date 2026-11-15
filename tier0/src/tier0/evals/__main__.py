@@ -111,8 +111,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         choices=sorted(SEALED_POOLS),
         default=None,
         metavar="SET",
-        help="unseal exactly this held-out set for its final comparison, e.g. "
-        "--final-comparison=held_out_v4 (ADR-015, ADR-029, ADR-033)",
+        help="unseal exactly this held-out set for its final comparison, by its pool name "
+        "(ADR-015, ADR-029). No set is sealed right now: v4 and v4b were spent in milestone "
+        "3b (ADR-039)",
     )
     parser.add_argument(
         "--tkt004-fix",

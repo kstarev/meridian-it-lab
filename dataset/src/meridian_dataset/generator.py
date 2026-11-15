@@ -46,9 +46,9 @@ HOLDOUT_SEED = 2611
 HOLDOUT_V2_SEED = 3107
 # Held-out v3: sealed, for milestone 3's final comparison only (ADR-029).
 HOLDOUT_V3_SEED = 4417
-# Held-out v4: sealed, for milestone 3b's final comparison only (ADR-033).
+# Held-out v4: sealed until milestone 3b's paired run (ADR-033); a dev set since (ADR-039).
 HOLDOUT_V4_SEED = 5923
-# Held-out v4b: sealed, the second set for milestone 3b's final comparison (ADR-038).
+# Held-out v4b: the second set for that run (ADR-038); a dev set since (ADR-039).
 HOLDOUT_V4B_SEED = 6247
 
 # Pools whose world uses every template exactly once, for a bigger final test set (ADR-016).

@@ -1,6 +1,6 @@
 # Plan: milestone 3b's paid part (budget item `tier0-3b`)
 
-**Date:** 2026-11-15 · **Status:** Proposed; nothing here is built or run yet · **Decisions:** [ADR-033](../decisions.md), [ADR-029](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Done on 2026-11-15, checkpoints A to D ([report](../evals/2026-11-15-m3b-held-out-v4-v4b.md), [ADR-039](../decisions.md)) · **Decisions:** [ADR-033](../decisions.md), [ADR-029](../decisions.md), [ADR-037](../decisions.md)
 
 This plan covers the three parts of 3b that need paid Claude calls: the TKT-004 fix, the harder tuning set, and the new sealed held-out v4. The code-only parts of 3b (verification ladder, kill switch, rate limit) come after 2026-12-17, as ADR-037 orders.
 
@@ -87,7 +87,7 @@ v4 is sealed first, before any line of the fix exists, so the fix can't be shape
 
 **Checkpoint D:** the v4 report and the item's final spend, in a pull request.
 
-**Done on 2026-11-15:** [the report](../evals/2026-11-15-m3b-held-out-v4-v4b.md). The item spent $8.48 of its $15 cap.
+**Done on 2026-11-15:** [the report](../evals/2026-11-15-m3b-held-out-v4-v4b.md). The item spent $8.48 of its $15 cap. After the report the owner decided ([ADR-039](../decisions.md)): v4 and v4b are dev sets, Haiku keeps its 3b triage prompt until 3d's sealed set decides, and `tier0-3b` is set back to unapproved.
 
 ## Cost against the item
 

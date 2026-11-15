@@ -4,17 +4,18 @@ Running any model on a sealed set, the stub included, before the fixes it is mea
 judge are done would let its results leak into those fixes. Every agent run goes through
 offline_runtime(), which calls require_unsealed() first, so the seal is enforced in code.
 
-Each set is unsealed by name (--final-comparison=held_out_v4), so a run that unseals one
+Each set is unsealed by name (--final-comparison=<its pool name>), so a run that unseals one
 set can never unseal another by accident.
 """
 
 from meridian_dataset import World
 
 # Held-out v2 was spent in milestone 2's final comparison (ADR-027) and v3 in milestone 3's
-# (2026-11-12, ADR-030); both are plain dev sets like v1. Held-out v4 (milestone 3b, ADR-033)
-# was written blind and sealed on 2026-11-15, before the TKT-004 fix existed.
-# Held-out v4b (ADR-038) is its second set, sealed the same day; each unseals by its own name.
-SEALED_POOLS: frozenset[str] = frozenset({"held_out_v4", "held_out_v4b"})
+# (2026-11-12, ADR-030); both are plain dev sets like v1. Held-out v4 and v4b (milestone 3b,
+# ADR-033, ADR-038) were written blind, sealed before the TKT-004 fix existed, and spent in
+# their one paired run on 2026-11-15; they are dev sets too (ADR-039). Nothing is sealed until
+# the next held-out set is written and added here.
+SEALED_POOLS: frozenset[str] = frozenset()
 
 
 class SealedSetError(RuntimeError):
