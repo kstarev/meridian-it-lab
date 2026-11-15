@@ -95,3 +95,4 @@ The referee's run on the practice world, which it was never fitted to, had 7 dis
 ### Other owner records
 
 - 2026-11-15: the owner merged plan PRs #27 and #28 with the admin bypass by mistake. Nothing was applied. The held plan was removed from main and reopened by the bot.
+- 2026-11-15: the owner merged PR #30 with the admin bypass on purpose. Its Plan approvals check failed only because the check cannot read a plan that the PR deletes. PR #30 applies nothing.
