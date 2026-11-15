@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 FILE = ROOT / "budget" / "claude-credit-2026-12.json"
 IN_WINDOW = datetime(2026, 12, 17, 23, 59, tzinfo=UTC)
 # The items the owner has approved in the real file (ADR-037: one pull request per approval).
-APPROVED = {"aac-model-comparison"}  # 2026-11-15, schedule item 1
+APPROVED = {
+    "aac-model-comparison",  # 2026-11-15, schedule item 1
+    "tier0-3b",  # 2026-11-15, schedule item 2
+}
 AFTER = datetime(2026, 12, 18, 0, 0, tzinfo=UTC)
 
 LEDGERS = {
