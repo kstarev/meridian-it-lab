@@ -5,6 +5,8 @@
   comes from a bootstrap that resamples whole tickets.
 - Two models ran on the same tickets, so their pass^k difference gets a paired bootstrap:
   each resample draws the same tickets for both.
+- The realistic month (milestone 3c) makes many tickets from one template, and those tickets
+  are not independent either, so its intervals resample whole templates.
 """
 
 import math
@@ -82,3 +84,33 @@ def paired_bootstrap_difference(
     means = _resampled_means(diffs, samples=samples, seed=seed)
     tail = (1 - level) / 2
     return sum(diffs) / len(diffs), _percentile(means, tail), _percentile(means, 1 - tail)
+
+
+def template_bootstrap(
+    clusters: Sequence[tuple[float, float]],
+    *,
+    total: bool = False,
+    samples: int = BOOTSTRAP_SAMPLES,
+    seed: int = BOOTSTRAP_SEED,
+) -> tuple[float, float]:
+    """95% interval for a share, resampling whole templates with replacement (milestone 3c).
+
+    Each cluster is one template: (successes, tickets), where successes may be fractional
+    (passed runs / k summed over its tickets). The statistic is sum(successes) / sum(tickets)
+    over the resampled templates, or with total=True the sum of successes alone (for a
+    monthly total such as hours saved)."""
+    if not clusters:
+        return (0.0, 0.0) if total else (0.0, 1.0)
+    if any(den <= 0 for _, den in clusters):
+        raise ValueError("every template needs at least one ticket")
+    rng = random.Random(seed)  # noqa: S311 - a seeded bootstrap, not a secret
+    nums = [float(num) for num, _ in clusters]
+    dens = [float(den) for _, den in clusters]
+    n = len(clusters)
+    values: list[float] = []
+    for _ in range(samples):
+        picks = [rng.randrange(n) for _ in range(n)]
+        num = sum(nums[i] for i in picks)
+        values.append(num if total else num / sum(dens[i] for i in picks))
+    values.sort()
+    return _percentile(values, 0.025), _percentile(values, 0.975)
