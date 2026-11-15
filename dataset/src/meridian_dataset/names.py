@@ -562,10 +562,12 @@ def _load_pool(name: str) -> MessagePool:
 
 
 # Held-out v4 (milestone 3b, ADR-033): written fully blind by a helper agent and sealed before
-# the TKT-004 fix existed. The agent that tunes tier0 never opens pools/held_out_v4.json.
+# the TKT-004 fix existed. Spent in 3b's paired run, a dev set since (ADR-039). The agent that
+# tunes tier0 still never reads a dev set's wording (pools/held_out_v4.json included).
 HELD_OUT_V4_POOL = _load_pool("held_out_v4")
 # Held-out v4b (ADR-038): short self-descriptions and unnamed colleague requests only, written
 # blind by a second helper and sealed before the fix. Reported apart from v4, never pooled.
+# Spent in the same paired run, a dev set since (ADR-039).
 HELD_OUT_V4B_POOL = _load_pool("held_out_v4b")
 
 # The harder tuning set (milestone 3b, ADR-033): tuning data, readable like TUNING_POOL. It is

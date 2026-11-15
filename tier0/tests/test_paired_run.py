@@ -1,11 +1,27 @@
-"""The paired run's driver (ADR-038). The harness is faked: no test runs anything on a
-sealed set."""
+"""The paired run's driver (ADR-038). The harness is faked: no test runs anything on v4 or
+v4b. Both sets are spent (ADR-039), so the tests seal them again for the driver only."""
 
 import json
 from pathlib import Path
 
-from tier0 import roles
+import pytest
+
+from tier0 import roles, sealed
 from tier0.evals import paired_run
+
+
+@pytest.fixture
+def sealed_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sealed, "SEALED_POOLS", frozenset(paired_run.SETS))
+
+
+def test_a_spent_set_is_refused(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    calls: list[list[str]] = []
+    for name in paired_run.SETS:
+        assert paired_run.main([name, "--out", str(tmp_path)], run=_fake(calls)) == 2
+        assert "is not sealed" in capsys.readouterr().err
+    assert calls == []
+    assert not any(tmp_path.iterdir())
 
 
 def _fake(calls: list[list[str]], fail_on: int | None = None):  # type: ignore[no-untyped-def]
@@ -25,6 +41,7 @@ def _arg(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
 
 
+@pytest.mark.usefixtures("sealed_again")
 def test_three_arms_two_models_one_unsealing(tmp_path: Path) -> None:
     calls: list[list[str]] = []
     assert paired_run.main(["held_out_v4b", "--out", str(tmp_path)], run=_fake(calls)) == 0
@@ -46,6 +63,7 @@ def test_three_arms_two_models_one_unsealing(tmp_path: Path) -> None:
     assert paired_run.main(["held_out_v4", "--out", str(tmp_path)], run=_fake([])) == 0
 
 
+@pytest.mark.usefixtures("sealed_again")
 def test_a_cut_short_run_resumes_without_rescoring(tmp_path: Path) -> None:
     calls: list[list[str]] = []
     args = ["held_out_v4", "--out", str(tmp_path)]

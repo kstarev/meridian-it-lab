@@ -15,7 +15,7 @@
       "cap_usd": 15,
       "estimate_usd": 3.31,
       "what": "3b: harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, then the new sealed blind held-out v4 at k=5",
-      "approved": true
+      "approved": false
     },
     {
       "id": "tier0-m4-knowledge",

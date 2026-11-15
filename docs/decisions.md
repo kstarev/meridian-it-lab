@@ -772,7 +772,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-033: Milestone 3b adds the TKT-004 fix (on a new sealed v4) and a harder tuning set
 
-**Date:** 2026-11-12 · **Status:** Accepted; v4 was written blind and sealed on 2026-11-15, and a second sealed set, v4b, measures the fix (ADR-038). The fix and the harder tuning set are not built yet. Changes the frozen scope (2026-11-08), so it needs this ADR.
+**Date:** 2026-11-12 · **Status:** Accepted; v4 was written blind and sealed on 2026-11-15, and a second sealed set, v4b, measures the fix (ADR-038). The fix and the harder tuning set are built, and the fix was measured on 2026-11-15 ([report](evals/2026-11-15-m3b-held-out-v4-v4b.md)); v4 and v4b are dev sets since (ADR-039). Changes the frozen scope (2026-11-08), so it needs this ADR.
 
 **Context:** Milestone 3's v3 comparison found one ticket that fails in every setup: TKT-004, a self-described own-username request. Every model got it right (triage said own username and the own-account check said yes), but the code-only role signal (ADR-024) fired and handed it to a person in every run. A prompt can't fix that, and fixing it after seeing v3 can't be measured on v3, which is spent. The comparison also showed that the tuning set was too easy for the strong models (ADR-030's known limit).
 
@@ -929,7 +929,7 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 
 ## ADR-038: Held-out v4 stays sealed as written; a second sealed set, v4b, measures the TKT-004 fix
 
-**Date:** 2026-11-15 · **Status:** Accepted (the owner's decision, 2026-11-15). Adds to ADR-033. The bar below was committed before v4b was written (commit `312a6a6`). v4b missed the bar by one and the owner accepted it as written; see "What happened" below.
+**Date:** 2026-11-15 · **Status:** Accepted (the owner's decision, 2026-11-15). Adds to ADR-033. The bar below was committed before v4b was written (commit `312a6a6`). v4b missed the bar by one and the owner accepted it as written; see "What happened" below. The paired run is done ([report](evals/2026-11-15-m3b-held-out-v4-v4b.md)); both sets are dev sets since (ADR-039).
 
 **Context:** Held-out v4 was written blind and sealed on 2026-11-15, before any TKT-004 fix existed (ADR-033): 72 tickets, seed 5923. A count-only check after sealing showed that today's role signal fires on 0 of its 20 self-descriptions and 0 of its 12 unnamed colleague requests. In v3 it fired on 1 of 6 and 3 of 6.
 
@@ -990,3 +990,60 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
   - Cost: (72 + 32) tickets × 5 × 3 arms × $0.00174 ≈ $2.71.
 - **No claim about relayed or forwarded requests.** The harder tuning set found that a request relayed in someone's own words ("my report says: 'I need my login'") trips both models, and the 3b prompts were written against it. v4 and v4b were sealed before that shape was found, and nobody knows whether they contain it. So the 3b report claims no gain on relayed or forwarded requests. The shape goes into 3d's sealed set, where it is measured.
 - **Haiku's known cost.** On dev set v2 the new Haiku triage prompt (HT4) sorts one everyday request (TKT-041) as "other" in all 3 runs, so it goes to a person; the 3a prompt answers it. The prompt is not patched for that one ticket. The report states it as a known cost of the new prompt, in the safe direction, and the three arms show whether it appears on held-out data.
+
+## ADR-039: Held-out v4 and v4b become dev sets, and Haiku keeps its 3b triage prompt until 3d decides
+
+**Date:** 2026-11-15 · **Status:** Accepted (the owner's decisions, 2026-11-15, after the 3b report). Adds to ADR-033 and ADR-038.
+
+**Context:** Milestone 3b's paired run is done: three arms, Haiku 5.5 and Sonnet 5.5, k=5, v4 and v4b each unsealed once (ADR-038). [The report](evals/2026-11-15-m3b-held-out-v4-v4b.md) left four things open:
+
+- whether the two spent sets become dev sets;
+- whether Haiku keeps its new triage prompt (HT4), which on v4 refuses one self-description that the 3a prompt answers;
+- the result tables in `docs/how-it-works.md` and the README, which still showed 3a only;
+- the unspent part of the `tier0-3b` budget item.
+
+**Decision:**
+
+- **v4 and v4b are dev sets now,** as the plan says for a spent set.
+  - Nothing is sealed: `SEALED_POOLS` is empty until the next held-out set is written.
+  - Their reports are labelled "spent in milestone 3b, now a dev set".
+  - The paired-run driver refuses a set that is no longer sealed, so the run can't be repeated.
+  - Their SHA-256 seals stay pinned, so the wording can't change.
+  - The tuning agent still reads no dev set's wording. Every test on them is a count.
+- **The run records are published,** the way v3's were: the 12 reports of the paired run, each as `.json` and `.md`, exactly as the run wrote them, in [`docs/evals/2026-11-15-m3b-runs/`](evals/2026-11-15-m3b-runs/).
+  - 24 files, 3.3 MB. Traces are not published, as for v3.
+  - Checked by script before committing: no API keys, tokens, credentials or local paths; the only addresses are fake ones at `meridian.example`; and no fragment of any v4 or v4b message appears in them.
+  - The report's numbers file is rebuilt from these records by `python -m tier0.evals.paired_summary`, and a test fails if the two drift apart.
+  - One known flaw: each record's first line says "on the tuning seed". The harness had no label for seeds 5923 and 6247 when it ran. The records are not edited; the "Generated by" line under it names the seed and the set. The labels are fixed for later runs.
+- **Haiku keeps its 3b triage prompt (HT4) for now, on safety grounds.**
+  - **What it targets:** a colleague request relayed in someone's own words, which triage can read as the sender's own. On the 116 tuning messages HT4 catches 75 of 102 colleague-request runs; the 3a prompt (T1) catches 63 ([selection report](evals/2026-11-15-m3b-prompt-selection.md)). Those are tuning scores, and optimistic.
+  - **Its measured cost,** all in the safe direction, and too small for the intervals to separate from the 3a prompt: on v4 it refuses one self-description (TKT-046) in 5 of 5 runs without the fix and 4 of 5 with it; on dev set v2 it sends one everyday request (TKT-041) to a person in 3 of 3 runs. Nothing is given out in either case. A person who should have been helped is turned away.
+  - **Its benefit is unmeasured on held-out data.** v4 and v4b were sealed before the relayed shape was found, and nobody knows whether they contain it. On v4, Haiku with the 3b prompts passes 70 of 72 tickets against 72 of 72 with the 3a prompts, and the intervals overlap.
+  - **3d's sealed set decides whether it stays.** That set includes relayed and forwarded requests ([brief](brief.md#delivery)). Its final run scores Haiku with both triage prompts, T1 and HT4, and the owner decides from that. The rule for the decision is written into 3d's plan before the set is unsealed.
+  - The prompt is not patched for TKT-046 or TKT-041.
+  - Sonnet keeps its 3b prompts too. It showed no cost on v4 or v4b, and its benefit on relayed requests is just as unmeasured.
+- **The docs show the 3b numbers.** `docs/how-it-works.md` gets generated tables for v4, v4b and cost, and the README a short generated table, all from the report's numbers file. The words around them claim no more than the report does.
+- **`tier0-3b` is set back to unapproved.** It spent $8.48 of its $15 cap. The other $6.52 stays in the item's cap, where no call can spend it; ADR-037's re-plan on 2026-12-14 decides where it goes.
+
+**Code-only counts on the two sets, now that they are dev sets.** These are counts from code, with no model and no wording read. They are context, not results.
+
+| Set | Group | Old signal fires on | Fixed signal fires on |
+|---|---|---|---|
+| v4 | 20 self-descriptions | 0 | 0 |
+| v4 | 12 unnamed colleague requests | 0 | 0 |
+| v4 | 8 outsider messages | 1 | 0 |
+| v4b | 20 self-descriptions | 2 | 1 |
+| v4b | 12 unnamed colleague requests | 4 | 4 |
+
+- **v4b's 4 unnamed colleague requests still fire the fixed signal.** The paired run could not show this, because triage refused those requests first.
+- **One outsider message in v4 no longer fires the signal. This was not expected.** On tuning data and dev sets v1 to v3 the fix stops the signal on no colleague or outsider message.
+  - It changed no result: an outsider is stopped by identity binding before triage, so the role signal never decides for one. In the paired run all 40 outsider runs went to a person, in every arm and on both models.
+  - Its wording is unread, so the cause is unknown. If a verified employee sent the same words and they describe the sender, the fix is right. If they ask about someone else, triage and the own-account check are the lines left.
+  - A test pins the count at 1, so it can't grow unnoticed.
+
+**Consequences:**
+
+- No set is sealed right now. The next sealed sets are milestone 4's how-to test and 3d's test set.
+- 3d's final run needs one more Haiku arm, for the second triage prompt. On v4 a Haiku arm cost $0.03.
+- Until 3d, Haiku runs with a prompt whose only held-out evidence is a small cost. That is accepted because the cost is refusals, and the miss it targets is a request about someone else being answered.
+- No paid tier0 call can go out until the owner approves the next item.

@@ -1,7 +1,7 @@
 """The seal: nothing runs the agent on a sealed set before its final comparison, and only
-its own name unseals it (ADR-015, ADR-029). Held-out v2 and v3 are spent and run like any
-dev set (ADR-029, ADR-030). Held-out v4 (ADR-033) is sealed. The mechanism's details are
-tested on v3 as a stand-in, so no test needs to run anything on v4."""
+its own name unseals it (ADR-015, ADR-029). Held-out v2, v3, v4 and v4b are spent and run
+like any dev set (ADR-029, ADR-030, ADR-039), so nothing is sealed right now. The mechanism's
+details are tested on v3 as a stand-in for the next sealed set."""
 
 from pathlib import Path
 
@@ -35,31 +35,25 @@ def seal_v3(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(module, "SEALED_POOLS", STAND_IN)
 
 
-def test_only_v4_is_sealed_and_v3_runs_as_a_dev_set(tmp_path: Path) -> None:
-    assert frozenset({"held_out_v4", "held_out_v4b"}) == sealed.SEALED_POOLS
-    for seed in (DEFAULT_SEED, HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED):
+def test_nothing_is_sealed_and_the_spent_sets_run_as_dev_sets() -> None:
+    assert frozenset() == sealed.SEALED_POOLS
+    spent = (HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED, HOLDOUT_V4_SEED, HOLDOUT_V4B_SEED)
+    for seed in (DEFAULT_SEED, *spent):
         require_unsealed(generate(seed))
     result = anyio.run(lambda: run_eval(HOLDOUT_V3_SEED, k=1))
     assert result.seed == HOLDOUT_V3_SEED
-    # Held-out v4 (ADR-033): nothing runs on it before milestone 3b's final comparison.
-    v4 = generate(HOLDOUT_V4_SEED)
-    assert v4.message_pool == "held_out_v4"
-    with pytest.raises(SealedSetError, match="--final-comparison=held_out_v4"):
-        require_unsealed(v4)
-    with pytest.raises(SealedSetError):
-        require_unsealed(v4, final_comparison="held_out_v3")
-    with pytest.raises(SealedSetError):
-        anyio.run(lambda: run_eval(HOLDOUT_V4_SEED, k=1))
-    assert demo.main(["--seed", str(HOLDOUT_V4_SEED), "--out", str(tmp_path)]) == 2
-    # v4b (ADR-038) is sealed too, and neither set's name unseals the other.
-    v4b = generate(HOLDOUT_V4B_SEED)
-    assert v4b.message_pool == "held_out_v4b"
-    with pytest.raises(SealedSetError, match="--final-comparison=held_out_v4b"):
-        require_unsealed(v4b)
-    with pytest.raises(SealedSetError):
-        require_unsealed(v4b, final_comparison="held_out_v4")
-    with pytest.raises(SealedSetError):
-        require_unsealed(v4, final_comparison="held_out_v4b")
+    # v4 and v4b (ADR-033, ADR-038) were spent in milestone 3b's paired run (ADR-039).
+    assert generate(HOLDOUT_V4_SEED).message_pool == "held_out_v4"
+    assert generate(HOLDOUT_V4B_SEED).message_pool == "held_out_v4b"
+
+
+@pytest.mark.parametrize(("seed", "name"), [(HOLDOUT_V4_SEED, "v4"), (HOLDOUT_V4B_SEED, "v4b")])
+def test_v4_and_v4b_reports_say_dev_set(seed: int, name: str) -> None:
+    world = generate(DEFAULT_SEED)
+    md = render_markdown(build_report(world, (), seed=seed, k=5, provider="anthropic", model="m"))
+    assert f"held-out {name}, spent in milestone 3b, now a dev set" in md
+    assert f"held-out {name} (seed {seed})" in md and "not a held-out score" in md
+    assert "--final-comparison" not in md
 
 
 def test_v3_reports_say_dev_set() -> None:
