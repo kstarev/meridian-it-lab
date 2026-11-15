@@ -4,6 +4,10 @@ Every safety rule is enforced here in code, never left to the model: the
 signature check, event dedupe, identity binding, the policy table, the
 self-only tool call and the output guard. Every failure path fails closed:
 the ticket goes to a person and nothing unsafe is posted.
+
+The kill switch and the rate limit (ADR-008) are read here too, so the agent can
+stop before it does anything: no model call, no token, no tool call. The MCP
+server enforces both again on every tool call and does not rely on this code.
 """
 
 import contextlib
@@ -16,6 +20,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tier0 import messages, replies
 from tier0.clock import Clock, parse_time
+from tier0.controls import ACTIONS_STOPPED, KIND_REQUEST, RATE_LIMITED, Controls
 from tier0.guard import check_reply
 from tier0.identity.binding import BoundIdentity, IdentityBinder, Unbound
 from tier0.identity.slack_signature import SignatureError, verify_slack_request
@@ -56,10 +61,17 @@ from tier0.tickets.adapter import (
     TicketRecord,
 )
 from tier0.tracing import Session, Tracer
+from tier0.verification.ladder import RUNG_NAMES, VerificationLadder, required_rung
 
 # Bot echoes (including tier0's own replies) must never open tickets, or the bot would loop.
 IGNORED_REASONS = frozenset({"wrong_installation", "not_a_user_message", "bot_user"})
 TOKEN_URL = "https://auth.tier0.meridian.example/tokens/{jti}"  # noqa: S105 - a URL, not a secret
+AGENT_PRINCIPAL = "tier0-agent"
+# Hand-off codes for the safety controls (ADR-008).
+KILL_SWITCH_ON = "kill_switch_on"
+RATE_LIMITED_CODE = "rate_limited"
+# How the MCP server's refusals map to hand-off codes.
+_TOOL_REFUSALS = {ACTIONS_STOPPED: KILL_SWITCH_ON, RATE_LIMITED: RATE_LIMITED_CODE}
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +233,8 @@ class ServiceDeskAgent:
         close_after: timedelta = timedelta(days=3),
         mention_check: MentionCheck | None = None,
         prompts: Prompts | None = None,
+        controls: Controls | None = None,
+        ladder: VerificationLadder | None = None,
     ) -> None:
         self._slack = slack
         self._secret = signing_secret
@@ -237,8 +251,12 @@ class ServiceDeskAgent:
         self._close_after = close_after
         self._mention_check = mention_check
         self._prompts = prompts if prompts is not None else Prompts()
+        self._controls = controls
+        self._ladder = ladder
         self._seen_event_ids: set[str] = set()
         self._disclosed: set[str] = set()
+        # Tickets a handler is working on right now; stand_down leaves them to it.
+        self._in_flight: set[str] = set()
 
     # --- intake ---------------------------------------------------------------
 
@@ -265,6 +283,12 @@ class ServiceDeskAgent:
             if event_id in self._seen_event_ids:
                 return Outcome("duplicate")
             self._seen_event_ids.add(event_id)
+
+        if self._stopped():
+            # The switch is on: first hand over whatever is still open with tier0. A
+            # failure here must not keep the new ticket from reaching a person.
+            with contextlib.suppress(Exception):
+                self.stand_down()
 
         bound = self._binder.bind(payload)
         if isinstance(bound, Unbound) and bound.reason in IGNORED_REASONS:
@@ -349,10 +373,16 @@ class ServiceDeskAgent:
             requester=sender,
         )
         identifier = ticket.identifier
+        self._in_flight.add(identifier)
         try:
             with self._tracer.session(
                 ticket_id=identifier, kind="intake", requester_id=bound.directory_id
             ) as s:
+                # Before anything else: is tier0 allowed to act at all (ADR-008)?
+                stopped = self._gate(bound)
+                if stopped is not None:
+                    action, state = self._escalate(s, identifier, channel, bound, stopped)
+                    return Outcome("handled", stopped, identifier, action, None, state, s.trace_id)
                 self._tickets.set_state(identifier, IN_PROGRESS)
                 category = self._triage(s, text)
                 rule = decide(category, self._policy)
@@ -367,7 +397,10 @@ class ServiceDeskAgent:
                     f"tier0: triaged as {category}; policy: Tier {rule.tier}, "
                     f"action {rule.action}.",
                 )
-                if rule.action == "refuse":
+                if self._stopped():
+                    # The switch flipped while triage ran: nothing more is done.
+                    action, state = self._escalate(s, identifier, channel, bound, KILL_SWITCH_ON)
+                elif rule.action == "refuse":
                     action, state = self._refuse(s, identifier, channel, bound)
                 elif rule.action == "answer":
                     action, state = await self._answer(s, identifier, channel, bound, rule, text)
@@ -377,6 +410,60 @@ class ServiceDeskAgent:
         except Exception:
             self._best_effort_triage(identifier)
             raise
+        finally:
+            self._in_flight.discard(identifier)
+
+    # --- safety controls (ADR-008) --------------------------------------------
+
+    def _stopped(self) -> bool:
+        return self._controls is not None and self._controls.kill_switch.is_on
+
+    def _gate(self, bound: BoundIdentity) -> str | None:
+        """A hand-off code when tier0 must not act on this request, else None.
+
+        With the kill switch on, nothing is done. Otherwise the request is counted
+        against the rate limit, for the requester and for everyone, before any model
+        call, so a flood of requests can't run up model calls or directory lookups."""
+        if self._controls is None:
+            return None
+        if self._controls.kill_switch.is_on:
+            return KILL_SWITCH_ON
+        decision = self._controls.rate_limiter.acquire(
+            bound.directory_id, kind=KIND_REQUEST, source=AGENT_PRINCIPAL
+        )
+        return None if decision.allowed else RATE_LIMITED_CODE
+
+    def stand_down(self) -> tuple[Outcome, ...]:
+        """With the kill switch on, hand every ticket that is still open with tier0 to
+        a person. Nothing is closed and nothing is sent. Does nothing with the switch
+        off, and is safe to call again: a ticket is only moved once."""
+        if not self._stopped():
+            return ()
+        outcomes: list[Outcome] = []
+        for state in (IN_PROGRESS, AWAITING_REPLY):
+            for ticket in self._tickets.find_tickets(state=state):
+                if ticket.identifier in self._in_flight:
+                    continue  # its own handler hands it over at its next step
+                with self._tracer.session(ticket_id=ticket.identifier, kind="sweep") as s:
+                    s.event("tier0.escalated", reason=KILL_SWITCH_ON)
+                    self._tickets.add_comment(
+                        ticket.identifier,
+                        "tier0: the kill switch is on; handed to a person. tier0 does "
+                        "nothing more on this ticket.",
+                    )
+                    self._tickets.set_state(ticket.identifier, TRIAGE)
+                    outcomes.append(
+                        Outcome(
+                            "handled",
+                            KILL_SWITCH_ON,
+                            ticket.identifier,
+                            "escalate",
+                            None,
+                            TRIAGE,
+                            s.trace_id,
+                        )
+                    )
+        return tuple(outcomes)
 
     # --- steps ----------------------------------------------------------------
 
@@ -502,6 +589,9 @@ class ServiceDeskAgent:
             "tier0.own_account_check",
             result="failed" if own_only is None else ("yes" if own_only else "no"),
         )
+        if self._stopped():
+            # The switch flipped during the model call: no directory lookups either.
+            return own_only, 0, False
         others = 0
         if self._mention_check is not None:
             mention = self._mention_check.check(text, bound, domain=self._domain)
@@ -526,9 +616,35 @@ class ServiceDeskAgent:
         rule: PolicyRule,
         text: str,
     ) -> tuple[str, str]:
+        # The verification ladder first: code only, no model, no directory read. The
+        # sender is already bound (rung 0); the context checks (rung 1) decide whether
+        # tier0 may act for them right now.
+        if self._ladder is not None:
+            decision = self._ladder.evaluate(rule.tier, bound, action=rule.category)
+            rung = (
+                decision.stopped_at if decision.stopped_at is not None else required_rung(rule.tier)
+            )
+            s.event(
+                "tier0.ladder",
+                tier=rule.tier,
+                allowed=decision.allowed,
+                rung=int(rung),
+                reason=decision.reason,
+            )
+            if not decision.allowed:
+                found = ", ".join(decision.findings) or decision.reason
+                self._tickets.add_comment(
+                    identifier,
+                    f"tier0: verification ladder stopped at rung {int(rung)} "
+                    f"({RUNG_NAMES[rung]}): {found}.",
+                )
+                return self._escalate(s, identifier, channel, bound, f"ladder_{decision.reason}")
+
         # Checks before any token: a separate model question, a code-only directory lookup
         # and a code-only role signal (ADR-017, ADR-024).
         own_only, others, role = self._second_checks(s, bound, text)
+        if self._stopped():
+            return self._escalate(s, identifier, channel, bound, KILL_SWITCH_ON)
         if own_only is None:
             return self._escalate(s, identifier, channel, bound, "own_account_check_failed")
         if not own_only:
@@ -571,11 +687,18 @@ class ServiceDeskAgent:
             with s.tool(TOOL_GET_MY_USERNAME, call_id=f"{identifier}-1"):
                 async with open_session(self._mcp_app, issued.token) as mcp:
                     result = await mcp.call_tool(TOOL_GET_MY_USERNAME)
-        except (McpAuthError, McpToolError):
+        except McpAuthError:
             return self._escalate(s, identifier, channel, bound, "tool_failed")
+        except McpToolError as error:
+            # The server's kill switch or rate limit said no, or the tool failed.
+            code = _TOOL_REFUSALS.get(error.code or 0, "tool_failed")
+            return self._escalate(s, identifier, channel, bound, code)
         username = result.get("username") if isinstance(result, dict) else None
         if not isinstance(username, str) or not username:
             return self._escalate(s, identifier, channel, bound, "tool_failed")
+        if self._stopped():
+            # The switch flipped after the lookup: the answer is not sent.
+            return self._escalate(s, identifier, channel, bound, KILL_SWITCH_ON)
 
         # The model classifies; code speaks (ADR-028): the answer comes from a template.
         try:
@@ -636,7 +759,10 @@ class ServiceDeskAgent:
     # --- sweep ----------------------------------------------------------------
 
     def sweep(self) -> tuple[Outcome, ...]:
-        """Close tickets that have waited for a reply for `close_after`."""
+        """Close tickets that have waited for a reply for `close_after`. With the kill
+        switch on, close nothing and hand tier0's open tickets to people instead."""
+        if self._stopped():
+            return self.stand_down()
         outcomes: list[Outcome] = []
         for ticket in self._tickets.find_tickets(state=AWAITING_REPLY):
             if self._should_close(ticket):

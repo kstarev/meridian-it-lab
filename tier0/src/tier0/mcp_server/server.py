@@ -1,4 +1,8 @@
-"""The MCP server: token check, argument check, then one self-only tool."""
+"""The MCP server: token check, safety controls, argument check, then one self-only tool.
+
+The kill switch and the rate limit (ADR-008) are enforced here, before any tool
+runs, so they hold whatever the agent or the model does.
+"""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -12,6 +16,14 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.shared.exceptions import MCPError
 from mcp_types import INVALID_PARAMS, ToolAnnotations
 
+from tier0.controls import (
+    ACTIONS_STOPPED,
+    ACTIONS_STOPPED_MESSAGE,
+    KIND_TOOL_CALL,
+    RATE_LIMITED,
+    RATE_LIMITED_MESSAGE,
+    Controls,
+)
 from tier0.directory_api import DirectoryApi, DirectoryError
 from tier0.identity.tokens import (
     ISSUER,
@@ -85,6 +97,45 @@ def reject_undeclared_arguments(
     return middleware
 
 
+def enforce_controls(
+    server: MCPServer, controls: Controls
+) -> Callable[[Any, Callable[[Any], Awaitable[Any]]], Awaitable[Any]]:
+    """Middleware: the kill switch and the rate limit, checked before any tool runs.
+
+    - Kill switch on: every tool call is refused.
+    - Rate limit: each tool call is counted against the token's subject and against
+      everyone together. The call over a limit is refused and not counted.
+
+    Both refusals are short fixed phrases with no user data, and both are written to
+    the audit log. A call with no usable subject is refused too (fail closed). Listing
+    the tools is not an action and is left alone.
+    """
+
+    async def middleware(ctx: Any, call_next: Callable[[Any], Awaitable[Any]]) -> Any:
+        if ctx.method != "tools/call":
+            return await call_next(ctx)
+        if controls.kill_switch.is_on:
+            # Only a registered name is logged: the name comes from the caller.
+            name = (ctx.params or {}).get("name")
+            known = {tool.name for tool in await server.list_tools()}
+            controls.audit.record(
+                "kill_switch.refused_call",
+                actor=MCP_PRINCIPAL,
+                tool=name if isinstance(name, str) and name in known else "unknown",
+            )
+            raise MCPError(ACTIONS_STOPPED, ACTIONS_STOPPED_MESSAGE)
+        token = get_access_token()
+        subject = token.subject if token is not None else None
+        if not subject:
+            raise MCPError(RATE_LIMITED, RATE_LIMITED_MESSAGE)
+        decision = controls.rate_limiter.acquire(subject, kind=KIND_TOOL_CALL, source=MCP_PRINCIPAL)
+        if not decision.allowed:
+            raise MCPError(RATE_LIMITED, RATE_LIMITED_MESSAGE)
+        return await call_next(ctx)
+
+    return middleware
+
+
 class ToolRefused(ToolError):
     """Raised inside a tool; the SDK turns it into an is_error result.
 
@@ -101,7 +152,12 @@ class McpServerHandle:
     verifier: SdkTokenVerifier
 
 
-def build_mcp_server(*, directory: DirectoryApi, verifier: JwtVerifier) -> McpServerHandle:
+def build_mcp_server(
+    *, directory: DirectoryApi, verifier: JwtVerifier, controls: Controls | None = None
+) -> McpServerHandle:
+    """Build the server. `controls` turns on the kill switch and the rate limit
+    (ADR-008). The runtime always passes them; a bare server without them exists only
+    so the token and argument checks can be tested alone."""
     sdk_verifier = SdkTokenVerifier(verifier)
     server = MCPServer(
         name="tier0-mcp",
@@ -116,6 +172,9 @@ def build_mcp_server(*, directory: DirectoryApi, verifier: JwtVerifier) -> McpSe
             validate_token_resource=True,
         ),
     )
+    if controls is not None:
+        # Outermost of our middleware: a stopped or over-limit call goes no further.
+        server.middleware.append(enforce_controls(server, controls))
     server.middleware.append(reject_undeclared_arguments(server))
 
     @server.tool(
