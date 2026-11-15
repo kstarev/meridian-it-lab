@@ -15,6 +15,7 @@ Short records of the choices that shape Access-as-Code, one file each, numbered 
 | [AAC-009](009-held-out-recipe-can-bring-new-mess.md) | The held-out recipe can bring new kinds of mess, written blind and sealed out of the builder's reach | Accepted |
 | [AAC-010](010-human-rulings-before-publishing.md) | Every disagreement on the held-out score gets the owner's ruling, logged, before anything is published | Accepted; applies in milestone 7 |
 | [AAC-011](011-blind-referee-against-shared-mistakes.md) | A blind referee builds its own key from the raw held-out files, as the check against shared mistakes | Accepted |
+| [AAC-012](012-title-map-seeded-from-the-practice-world.md) | The reviewed job-title map is seeded from the practice world; new titles stay unmapped | Accepted |
 
 ## Template
 

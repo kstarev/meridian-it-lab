@@ -1,0 +1,3 @@
+# Protect the access policy: every change needs a review from the code owner (AAC-007).
+/access/policy/ @kstarev
+/access/src/meridian_access/policy/ @kstarev

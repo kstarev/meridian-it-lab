@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["titles"],
+  "properties": {
+    "titles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "role", "source", "reviewed_by"],
+        "properties": {
+          "title": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "minLength": 1},
+          "source": {"type": "string", "minLength": 1},
+          "reviewed_by": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}
