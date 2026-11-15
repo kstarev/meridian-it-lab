@@ -23,7 +23,7 @@
       "cap_usd": 20,
       "estimate_usd": 8.23,
       "what": "Milestone 4, Knowledge: tuning the guide picker on the resolved tickets, then the sealed blind how-to test at k=5",
-      "approved": false
+      "approved": true
     },
     {
       "id": "tier0-3d",
@@ -31,7 +31,7 @@
       "cap_usd": 10,
       "estimate_usd": 2.86,
       "what": "3d: the new ticket types (password and MFA resets, prompt injection, same-day repeats, several questions at once), tuning then the test set at k=5",
-      "approved": false
+      "approved": true
     },
     {
       "id": "tier0-3c",
@@ -39,7 +39,7 @@
       "cap_usd": 10,
       "estimate_usd": 3.12,
       "what": "3c: the realistic month (~300 tickets from at least 100 blind templates) at k=3",
-      "approved": false
+      "approved": true
     },
     {
       "id": "aac-model-comparison",
