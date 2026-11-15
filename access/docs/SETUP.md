@@ -101,6 +101,8 @@ Step 50 lets you, as repository admin, merge your own pull requests by ticking *
 
 The cost: on a plan pull request you could tick the same box. Don't. The bot opens the plan pull requests, so you can approve the main plan normally. The held plan stays blocked, and apply checks the approvals again by itself ([AAC-007](adr/007-safety-rails.md)). If you would rather have no bypass at all, skip steps 50 and 51; then every pull request you author stays blocked until a second person is a code owner.
 
+Known limit: Plan approvals fails closed on a PR that only deletes plan files. The owner merges such a PR with the bypass on purpose and records it in the rulings log.
+
 ## C. One more setting
 
 64. Open `https://github.com/kstarev/meridian-it-lab/settings`.
