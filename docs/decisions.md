@@ -974,3 +974,19 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 - **The report shows before and after side by side, with intervals,** for v4 and for v4b separately, never pooled. The code-only signal counts (v4: 0 of 20 self-descriptions and 0 of 12 unnamed colleague requests fire; v4b: 2 of 20 and 4 of 12) are given as context only. They decide nothing.
 - This replaces the plan's earlier rule, which compared the paid "after" run with a code-only "before" count.
 - **Cost:** two arms double the final run: (72 + 32) tickets × 5 × 2 arms × $0.00174 ≈ $1.81, against $0.91 for one arm.
+
+**Three arms, and two limits on what the report may say (the owner's decisions at checkpoint C, 2026-11-15, recorded before the run):**
+
+- **A third arm is added,** so the report shows the fix alone and the prompts plus the fix separately. On v4 and on v4b, with Haiku 5.5 and Sonnet 5.5 at k=5, in one paired run per set:
+
+  | Arm | Prompts | Role signal | Setups |
+  |---|---|---|---|
+  | 1, 3a as it was | 3a's (T1, C1) | before the fix | `haiku`, `sonnet` with `--tkt004-fix off` |
+  | 2, new prompts only | 3b's, frozen at checkpoint C | before the fix | `haiku-3b`, `sonnet-3b` with `--tkt004-fix off` |
+  | 3, 3b | 3b's, frozen at checkpoint C | with the fix | `haiku-3b`, `sonnet-3b` |
+
+  - **Fix only** is arm 2 against arm 3. **Prompts plus fix** is arm 1 against arm 3.
+  - Each set is still unsealed once: one process scores all three arms.
+  - Cost: (72 + 32) tickets × 5 × 3 arms × $0.00174 ≈ $2.71.
+- **No claim about relayed or forwarded requests.** The harder tuning set found that a request relayed in someone's own words ("my report says: 'I need my login'") trips both models, and the 3b prompts were written against it. v4 and v4b were sealed before that shape was found, and nobody knows whether they contain it. So the 3b report claims no gain on relayed or forwarded requests. The shape goes into 3d's sealed set, where it is measured.
+- **Haiku's known cost.** On dev set v2 the new Haiku triage prompt (HT4) sorts one everyday request (TKT-041) as "other" in all 3 runs, so it goes to a person; the 3a prompt answers it. The prompt is not patched for that one ticket. The report states it as a known cost of the new prompt, in the safe direction, and the three arms show whether it appears on held-out data.
