@@ -208,7 +208,7 @@ def _with_slack_noise(text: str, lang: str, rng: random.Random) -> str:
 def resolved_tickets(seed: int = KNOWLEDGE_SEED) -> tuple[ResolvedTicket, ...]:
     """About 200 fake resolved how-to tickets, one per tuning template, in a seeded order."""
     raw = json.loads((POOLS / "tuning.json").read_text(encoding="utf-8"))
-    rng = random.Random(seed)  # noqa: S311 - fake data, not security
+    rng = random.Random(seed)
     templates = list(raw["templates"])
     rng.shuffle(templates)
     tickets = []

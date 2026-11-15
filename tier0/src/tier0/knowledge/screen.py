@@ -18,17 +18,20 @@ ACCOUNT_ACTION = "account_action"
 SOMEONE_ELSE = "someone_else"
 INCIDENT = "incident"
 
-_SECRET = r"(password|passwort|kennwort|contrasena|mot de passe|mfa|2fa|two factor|authenticator|okta verify|double authentification|zwei faktor)"
+_SIGN_IN_WORDS = (
+    r"(password|passwort|kennwort|contrasena|mot de passe|mfa|2fa|two factor|authenticator"
+    r"|okta verify|double authentification|zwei faktor)"
+)
+_RESET_BEFORE = r"\b(reset|zurucksetzen|restablecer|reinitialiser|re enrol|re enroll)\b"
+_RESET_AFTER = (
+    r"\b(reset|zurucksetzen|zuruckgesetzt|restablecer|reinitialiser|re enrol|re enroll"
+    r"|vergessen|olvide|oublie)\b"
+)
+_DEVICE = r"\b(laptop|phone|handy|ordinateur|portable|telefono|portatil|badge|macbook)\b"
 _PATTERNS: tuple[tuple[str, str], ...] = (
     # Resets, unlocks and re-enrolment.
-    (
-        ACCOUNT_ACTION,
-        rf"\b(reset|zurucksetzen|restablecer|reinitialiser|re enrol|re enroll)\b.{{0,40}}{_SECRET}",
-    ),
-    (
-        ACCOUNT_ACTION,
-        rf"{_SECRET}.{{0,40}}\b(reset|zurucksetzen|zuruckgesetzt|restablecer|reinitialiser|re enrol|re enroll|vergessen|olvide|oublie)\b",
-    ),
+    (ACCOUNT_ACTION, rf"{_RESET_BEFORE}.{{0,40}}{_SIGN_IN_WORDS}"),
+    (ACCOUNT_ACTION, rf"{_SIGN_IN_WORDS}.{{0,40}}{_RESET_AFTER}"),
     (ACCOUNT_ACTION, r"\b(forgot|forgotten)\b.{0,20}\b(password|passcode)\b"),
     (
         ACCOUNT_ACTION,
@@ -39,21 +42,24 @@ _PATTERNS: tuple[tuple[str, str], ...] = (
     (ACCOUNT_ACTION, r"\b(access|zugriff|acceso|acces) (to|auf|a|au|aux|a la|al)\b"),
     (
         ACCOUNT_ACTION,
-        r"\b(admin rights|adminrechte|derechos de administrador|droits admin\w*)\b.{0,30}\b(need|give|brauche|necesito|besoin)\b",
+        r"\b(admin rights|adminrechte|derechos de administrador|droits admin\w*)\b.{0,30}"
+        r"\b(need|give|brauche|necesito|besoin)\b",
     ),
     (
         ACCOUNT_ACTION,
-        r"\b(need|give|brauche|necesito|besoin)\b.{0,30}\b(admin rights|adminrechte|a licen[cs]e|a seat|lizenz|licencia)\b",
+        r"\b(need|give|brauche|necesito|besoin)\b.{0,30}"
+        r"\b(admin rights|adminrechte|a licen[cs]e|a seat|lizenz|licencia)\b",
     ),
     (ACCOUNT_ACTION, r"\badd me to\b"),
     # Incidents.
     (
         INCIDENT,
-        r"\b(lost|stolen|verloren|gestohlen|perdu|vole|perdi|robaron|robado)\b.{0,40}\b(laptop|phone|handy|ordinateur|portable|telefono|portatil|badge|macbook)\b",
+        r"\b(lost|stolen|verloren|gestohlen|perdu|vole|perdi|robaron|robado)\b.{0,40}" + _DEVICE,
     ),
     (
         INCIDENT,
-        r"\b(laptop|phone|handy|ordinateur|telefono|portatil|macbook)\b.{0,40}\b(lost|stolen|verloren|gestohlen|perdu|vole|robado)\b",
+        r"\b(laptop|phone|handy|ordinateur|telefono|portatil|macbook)\b.{0,40}"
+        r"\b(lost|stolen|verloren|gestohlen|perdu|vole|robado)\b",
     ),
     (INCIDENT, r"\bclicked\b.{0,40}\b(link|attachment)\b"),
     (INCIDENT, r"\b(ransom|files are encrypted|signed in to my account from)\b"),
