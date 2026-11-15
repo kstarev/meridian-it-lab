@@ -1,0 +1,240 @@
+{
+  "k": 3,
+  "models": {
+    "claude-haiku-5-5": {
+      "calls": 273,
+      "cost_usd": 0.032659,
+      "failed_or_refused": 0,
+      "matching_rules_only": [
+        1.0,
+        0.9955423476968797
+      ],
+      "matching_rules_plus_ai": [
+        0.9995037220843672,
+        0.9975235264982665
+      ],
+      "repeats_finished": 3,
+      "runs": [
+        {
+          "calls": 91,
+          "cost_usd": 0.010868,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            0.9995037220843672,
+            0.9975235264982665
+          ],
+          "repeat": 1,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        },
+        {
+          "calls": 91,
+          "cost_usd": 0.010899,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            0.9995037220843672,
+            0.9975235264982665
+          ],
+          "repeat": 2,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        },
+        {
+          "calls": 91,
+          "cost_usd": 0.010892,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            0.9995037220843672,
+            0.9975235264982665
+          ],
+          "repeat": 3,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        }
+      ],
+      "stopped": "",
+      "title_accuracy": [
+        225,
+        228
+      ]
+    },
+    "claude-opus-5-5": {
+      "calls": 273,
+      "cost_usd": 1.34206,
+      "failed_or_refused": 0,
+      "matching_rules_only": [
+        1.0,
+        0.9955423476968797
+      ],
+      "matching_rules_plus_ai": [
+        1.0,
+        0.9980188211986132
+      ],
+      "repeats_finished": 3,
+      "runs": [
+        {
+          "calls": 91,
+          "cost_usd": 0.44734,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            1.0,
+            0.9980188211986132
+          ],
+          "repeat": 1,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        },
+        {
+          "calls": 91,
+          "cost_usd": 0.4466,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            1.0,
+            0.9980188211986132
+          ],
+          "repeat": 2,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        },
+        {
+          "calls": 91,
+          "cost_usd": 0.44812,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            1.0,
+            0.9980188211986132
+          ],
+          "repeat": 3,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        }
+      ],
+      "stopped": "",
+      "title_accuracy": [
+        225,
+        228
+      ]
+    },
+    "claude-sonnet-5-5": {
+      "calls": 273,
+      "cost_usd": 0.64817,
+      "failed_or_refused": 0,
+      "matching_rules_only": [
+        1.0,
+        0.9955423476968797
+      ],
+      "matching_rules_plus_ai": [
+        1.0,
+        0.9980188211986132
+      ],
+      "repeats_finished": 3,
+      "runs": [
+        {
+          "calls": 91,
+          "cost_usd": 0.21549,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            1.0,
+            0.9980188211986132
+          ],
+          "repeat": 1,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        },
+        {
+          "calls": 91,
+          "cost_usd": 0.21595,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            1.0,
+            0.9980188211986132
+          ],
+          "repeat": 2,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        },
+        {
+          "calls": 91,
+          "cost_usd": 0.21673,
+          "failed_or_refused": 0,
+          "matching_rules_only": [
+            1.0,
+            0.9955423476968797
+          ],
+          "matching_rules_plus_ai": [
+            1.0,
+            0.9980188211986132
+          ],
+          "repeat": 3,
+          "stopped": "",
+          "title_accuracy": [
+            75,
+            76
+          ]
+        }
+      ],
+      "stopped": "",
+      "title_accuracy": [
+        225,
+        228
+      ]
+    }
+  },
+  "world": "seed-6108"
+}
