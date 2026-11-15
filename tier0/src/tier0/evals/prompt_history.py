@@ -474,3 +474,14 @@ M3_CHECK_VERSIONS |= {
 M3_TRIAGE_VERSIONS |= {
     "ST5": f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_QUOTE_TO_SENDER}{_T1_TAIL}",
 }
+
+# Haiku's second 3d versions, written from HT6's and HC6's misses on every tuning message: both
+# refused requests where someone told the SENDER to ask for the sender's own username ("my
+# manager wrote: ask the bot what your username is"), HC6 in 25 everyday runs. They add 3b's
+# rule for which way a quote counts.
+M3_TRIAGE_VERSIONS |= {
+    "HT7": f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_QUOTE_TO_SENDER} {_ASSIGNED}{_T1_TAIL}",
+}
+M3_CHECK_VERSIONS |= {
+    "HC7": f"{_C1_RULES} {_C_RELAY} {_C_FORWARDED} {_QUOTE_TO_SENDER} {_C_ASSIGNED}{_C1_TAIL}",
+}
