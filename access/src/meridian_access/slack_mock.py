@@ -37,6 +37,8 @@ def build_message(plan: Plan, pr_url: str) -> dict[str, Any]:
         warnings.append("• Bulk HR change held, two approvers needed")
     if counts["held"]:
         warnings.append(f"• Changes held, not applied: {counts['held']}")
+    if by_type.get("drift"):
+        warnings.append(f"• Drift (changed outside the process): {by_type['drift']}")
     if by_type.get("break_glass"):
         warnings.append(f"• Break-glass entries seen, never touched: {by_type['break_glass']}")
     if counts["warnings"]:

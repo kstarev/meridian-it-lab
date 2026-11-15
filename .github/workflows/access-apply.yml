@@ -1,0 +1,62 @@
+# Access-as-Code: apply the plan to the in-process mocks (AAC-007).
+# Manual only (workflow_dispatch). Applying on merge needs the owner's GitHub App and
+# ruleset, which are owner steps and are not set up here. There is no mode for real
+# systems: apply only talks to the in-process mocks. It is a dry run unless the repository
+# variable ACCESS_APPLY_MODE is mock-live. The approvals input stands in for the approvals
+# on the pull request; at 0 a plan that needs approvals is refused. No secrets are used.
+name: Access apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      approvals:
+        description: Code-owner approvals the plan has (0 is refused when the plan needs any)
+        required: false
+        default: "0"
+
+permissions: {}
+
+jobs:
+  apply:
+    name: Apply the tuning-world plan to the mocks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      ACCESS_APPLY_MODE: ${{ vars.ACCESS_APPLY_MODE || 'dry-run' }}
+      APPROVALS: ${{ inputs.approvals }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: uv sync --locked
+
+      - name: Generate the tuning world
+        run: make access-data
+
+      - name: Build the plan
+        run: uv run --locked python -m meridian_access.plan --world out/access/seed-6108 --out out/access/plan
+
+      - name: Apply the plan to the mocks
+        run: >
+          uv run --locked python -m meridian_access.apply
+          --plan out/access/plan/plan.json --world out/access/seed-6108
+          --approvals "${APPROVALS}" --log out/access/apply/apply-log.json
+
+      - name: Keep the apply log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: access-apply-log
+          path: out/access/apply/apply-log.json
+          if-no-files-found: warn
+          retention-days: 30

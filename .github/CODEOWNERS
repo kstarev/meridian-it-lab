@@ -1,3 +1,7 @@
 # Protect the access policy: every change needs a review from the code owner (AAC-007).
 /access/policy/ @kstarev
 /access/src/meridian_access/policy/ @kstarev
+# The workflows and the plan pull request: the approvals check runs from the pull request's
+# merge ref, so the ruleset (required code-owner review on these paths) is what protects it.
+/.github/workflows/ @kstarev
+/access/plan/ @kstarev
