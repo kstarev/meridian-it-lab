@@ -1,0 +1,69 @@
+{
+  "adr": "ADR-037",
+  "credit_usd": 100,
+  "credit_expires": "2026-12-18T00:00:00Z",
+  "paid_until": "2026-12-17",
+  "buffer_usd": 15,
+  "projects": {
+    "tier0": 55,
+    "access": 30
+  },
+  "items": [
+    {
+      "id": "tier0-3b",
+      "project": "tier0",
+      "cap_usd": 15,
+      "estimate_usd": 3.31,
+      "what": "3b: harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, then the new sealed blind held-out v4 at k=5",
+      "approved": false
+    },
+    {
+      "id": "tier0-m4-knowledge",
+      "project": "tier0",
+      "cap_usd": 20,
+      "estimate_usd": 8.23,
+      "what": "Milestone 4, Knowledge: tuning the guide picker on the resolved tickets, then the sealed blind how-to test at k=5",
+      "approved": false
+    },
+    {
+      "id": "tier0-3d",
+      "project": "tier0",
+      "cap_usd": 10,
+      "estimate_usd": 2.86,
+      "what": "3d: the new ticket types (password and MFA resets, prompt injection, same-day repeats, several questions at once), tuning then the test set at k=5",
+      "approved": false
+    },
+    {
+      "id": "tier0-3c",
+      "project": "tier0",
+      "cap_usd": 10,
+      "estimate_usd": 3.12,
+      "what": "3c: the realistic month (~300 tickets from at least 100 blind templates) at k=3",
+      "approved": false
+    },
+    {
+      "id": "aac-model-comparison",
+      "project": "access",
+      "cap_usd": 12,
+      "estimate_usd": 2.03,
+      "what": "Haiku, Sonnet and Opus 5.5 compared on the tuning world at k=3 (AAC-006)",
+      "approved": false
+    },
+    {
+      "id": "aac-m7-final-score",
+      "project": "access",
+      "cap_usd": 8,
+      "estimate_usd": 1.37,
+      "what": "Milestone 7: the final held-out score, once, with the chosen model and frozen prompts, in an owner-approved run (AAC-010)",
+      "approved": false
+    },
+    {
+      "id": "aac-red-team",
+      "project": "access",
+      "cap_usd": 10,
+      "estimate_usd": 1.34,
+      "what": "A red-team set that reuses 3d's prompt-injection cases inside titles, names and exports, all three models at k=3",
+      "approved": false
+    }
+  ]
+}

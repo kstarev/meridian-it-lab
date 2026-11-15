@@ -752,7 +752,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-032: Claude Sonnet 5.5 as a seventh setup, k = 5 for Claude on v3, a $4 cap
 
-**Date:** 2026-11-11 · **Status:** Accepted; no Sonnet call yet (waiting for the user's go on the estimate). Amends ADR-030 and ADR-031.
+**Date:** 2026-11-11 · **Status:** Accepted; no Sonnet call yet (waiting for the user's go on the estimate). Amends ADR-030 and ADR-031. Its $4 cap is replaced by ADR-037's per-item budget (2026-11-15).
 
 **Context:** The user raised the Claude budget to $4 of a $5 credit, before anything ran on v3, to add Sonnet and to give the Claude setups more runs per ticket. Claude has no seed, so more runs per ticket are the only way to tighten its numbers.
 
@@ -849,3 +849,80 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 - The demo shows real behaviour (every line comes from a logged run) without a workspace or credentials, and it can't drift from the code: regenerating it from a new run log updates it.
 - Nothing shows tier0 talking to real Slack or Linear, so real HTTP, rate limits and Slack's own rendering stay untested; ADR-012's note that the demo workspaces would cover that gap no longer holds, and the brief's honest limits say so.
 - The brief's scope lists drop the demo workspaces, and the 90-second video becomes the replay page (with an optional recording).
+
+## ADR-037: A $100 Claude credit, split per project with per-item sub-caps the ledgers enforce, all paid runs by 2026-12-17
+
+**Date:** 2026-11-15 · **Status:** Proposed; accepted when the owner merges it. Nothing is paid under it until the owner approves each item (see "Approval" below). The owner set the split, the buffer and the deadline. Replaces the single caps of ADR-032 (tier0, $4) and AAC-006 (Access-as-Code, $3).
+
+**Context:** The owner has about $100 of Anthropic API credit, which expires on 2026-12-18 at 00:00 UTC. Until now each project had one overall cap: $4 for tier0 and $3 for Access-as-Code. Neither said what the money was for, so one item could use up the budget meant for the next. Spend so far is small and measured: tier0's local ledger holds $1.14 over 2,050 calls (2026-11-11 to 11-12), and the Access model comparison of 2026-11-15 ([run 43703011539](https://github.com/kstarev/meridian-it-lab/actions/runs/43703011539)) logged $0.68. Both were spent before this budget and count against none of its items.
+
+**What a run really costs, from the ledgers.** Each ledger line is the API's own token counts for one call, priced from the table in `pricing.py`. The table matches Anthropic's first-party rates (Haiku 5.5 $0.10 / $0.50, Sonnet 5.5 $2 / $10, Opus 5.5 $4 / $20 per million input / output tokens), and the per-model totals recompute exactly from the tokens. It is still the computed cost, not the invoice; the Console's billing page is the check.
+
+| Run | Calls | Tokens in / out per call | Cost |
+|---|---|---|---|
+| Access compare, k=1, Haiku 5.5 | 91 | 890 / 63 | $0.0109 |
+| Access compare, k=1, Sonnet 5.5 | 91 | 891 / 59 | $0.2158 |
+| Access compare, k=1, Opus 5.5 | 91 | 891 / 69 | $0.4506 |
+| **One full Access comparison (k=1, three models)** | 273 | | **$0.677** |
+| tier0, one Sonnet 5.5 call | | 460 / 12 | $0.00106 |
+| tier0, one Haiku 5.5 call | | 460 / 11 | $0.00005 |
+| tier0 held-out v3, Sonnet 5.5, 54 tickets × k=5 | 422 | 468 / 12 | $0.449 (1.56 calls per ticket-run) |
+
+So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0.00174 for both.
+
+**Decision:**
+
+- **The split.**
+  - tier0: $55.
+  - Access-as-Code: $30.
+  - A shared buffer for re-runs: $15.
+  - Shadow AI Radar (oauth-radar) gets nothing from this credit.
+- **One budget file,** `budget/claude-credit-2026-12.json`, holds the projects, the buffer, the paid window and every item's sub-cap and estimate. Both projects read it: `tier0.models.budget`, and a copy in `meridian_access.ai.budget`. A test checks that the two readers agree, that item caps add up to their project's cap, and that the projects plus the buffer add up to $100.
+- **The items.** tier0's are in ADR-035's order. Each cap is the estimate plus headroom for:
+  - adding Opus 5.5 as a setup (about 3× the Sonnet share);
+  - thinking tokens;
+  - prompts not yet written, whose token counts are guesses;
+  - re-running after a bug.
+
+| Item | What it pays for | Estimate | Cap | How the estimate is built |
+|---|---|---|---|---|
+| `tier0-3b` | Harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, the new sealed blind held-out v4 (ADR-033) | $3.31 | $15 | 2 tuning rounds × $0.99 (3a's tuning cost × 1.5 for a larger, harder set) + v1–v3 dev sets at 54 × k=3 × $0.00174 = $0.85 + v4 at 54 × k=5 × $0.00174 = $0.47 |
+| `tier0-m4-knowledge` | Milestone 4: tuning the guide picker, then the sealed blind how-to test (ADR-035) | $8.23 | $20 | Picker call ~2,500 in / 60 out: Sonnet $0.0056, Haiku $0.00028. Tuning 200 tickets × 5 versions = $5.88; test 80 questions × k=5 = $2.35 |
+| `tier0-3d` | 3d's new ticket types, prompt injection included, tuning then the test set | $2.86 | $10 | Messages 1.5× longer, $0.0026 per ticket-run. Tuning 120 × 5 = $1.56; test 100 × k=5 = $1.30 |
+| `tier0-3c` | 3c, the realistic month, ~300 tickets | $3.12 | $10 | $0.0026 per ticket-run. Month 300 × k=3 = $2.34; tuning 100 templates × 3 = $0.78 |
+| `aac-model-comparison` | Haiku, Sonnet and Opus 5.5 on the tuning world at k=3 (AAC-006) | $2.03 | $12 | 3 × the measured $0.677 |
+| `aac-m7-final-score` | The final held-out score, once, with the chosen model and frozen prompts (AAC-010) | $1.37 | $8 | Up to 3× the tuning world's 91 calls on the dearest model (Opus, $0.00495 each) = $1.35, + the two plan summaries |
+| `aac-red-team` | A red-team set reusing 3d's prompt-injection cases inside titles, names and exports | $1.34 | $10 | 60 cases × k=3 × all three models at $0.00744 per case-run |
+
+- **The estimates add up to $22.26 of the $85 in items.** The measured costs are small, so most of each cap is headroom. That headroom, with the buffer, is what the 2026-12-14 re-plan below spends.
+- **The ledgers enforce it.** Every paid call names an item: `TIER0_CLAUDE_BUDGET_ITEM` or `ACCESS_CLAUDE_BUDGET_ITEM`. Before sending, the ledger refuses the call when:
+  - no item is named;
+  - the item is unknown, or belongs to the other project;
+  - the owner hasn't approved it;
+  - the date in UTC is after `paid_until` (2026-12-17);
+  - the call's worst case would cross the item's sub-cap or the project's cap.
+  
+  Each ledger line records its item. Lines from before the budget have no item and count against none. The old environment caps (`TIER0_CLAUDE_SPEND_CAP_USD`, `ACCESS_CLAUDE_SPEND_CAP_USD`) are removed. Access's per-run limit stays. Only tests may build a ledger with one fixed cap, and a test checks that no code does.
+- **Approval.** Every item starts with `"approved": false`. The owner approves an item by changing it to `true` in a pull request. CODEOWNERS covers `budget/`. Until then the ledger refuses every paid call for that item, and the Access workflow still needs the `access-ai` environment's approval as well.
+- **The buffer** belongs to no item, so no call can draw on it directly. A re-run that needs it is paid by a pull request that moves money from the buffer to that item's cap. The test keeps the totals at $100.
+- **2026-12-14, the leftover goes to repeats.** On 2026-12-14, a pull request re-plans what is unspent: the buffer, plus each item's unused headroom. It goes to extra repeats (higher k) for tighter intervals, item by item, in the order below. An item whose paid run can't finish by 2026-12-17 gives its money back to that plan.
+- **Order: paid runs first, code-only work after.** Each item's paid run goes as early as its inputs allow. Work that needs no paid call is moved after 2026-12-17: tier0's kill switch, rate limit and verification ladder (3b), the weekly drafting job (milestone 4, which runs on the stub until a later budget), and the Access results page (M7).
+
+| Dates (2026) | Paid run | Needs first |
+|---|---|---|
+| 11-16 to 11-20 | `aac-model-comparison`: the comparison at k=3 | The owner's approval; a `k` input on the compare workflow |
+| 11-17 to 11-30 | `tier0-3b`: tuning on the harder set with the TKT-004 fix, then sealed v4 | The harder tuning set; v4 written blind and sealed |
+| 11-21 to 11-28 | `aac-m7-final-score`: the held-out score, once | The owner's model choice; prompts frozen by hash; then the owner's rulings before publishing |
+| 12-01 to 12-08 | `tier0-m4-knowledge`: picker tuning, then the sealed how-to test | ~30 runbooks and ~200 resolved tickets; the picker; the sealed test |
+| 12-08 to 12-12 | `tier0-3d`: the new ticket types | 3d's tuning and test sets, prompt injection included |
+| 12-12 to 12-13 | `aac-red-team` | 3d's prompt-injection cases |
+| 12-12 to 12-16 | `tier0-3c`: the realistic month | At least 100 blind templates. If they aren't ready by 12-14, the 12-14 plan takes 3c's money and 3c runs on local models only |
+| 12-14 | The re-plan: leftover to higher k | |
+| 12-15 to 12-17 | The repeats | Ends 2026-12-17, 23:59 UTC |
+
+**Consequences:**
+
+- Each item can spend only its own sub-cap, so an early item can't eat a later one's money. tier0 and Access-as-Code can't spend each other's money either.
+- Nothing is paid by accident: no item is approved by this decision, and after 2026-12-17 no paid call goes out at all, even with an approved item.
+- The ledgers are still two separate files: tier0's is local and gitignored, and Access's is a CI artifact that each run downloads first. So the lab-wide $100 total is held by the budget file's arithmetic, not by one shared counter.
+- Estimates for unbuilt milestones are guesses from today's per-call costs. Each item's own pull request re-estimates from its first measured run before the full run.

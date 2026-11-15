@@ -5,3 +5,5 @@
 # merge ref, so the ruleset (required code-owner review on these paths) is what protects it.
 /.github/workflows/ @kstarev
 /access/plan/ @kstarev
+# The Claude budget: approving an item or moving buffer money needs the owner's review (ADR-037).
+/budget/ @kstarev

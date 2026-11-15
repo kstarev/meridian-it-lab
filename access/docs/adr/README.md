@@ -9,7 +9,7 @@ Short records of the choices that shape Access-as-Code, one file each, numbered 
 | [AAC-003](003-mock-api-shape.md) | Mocks shaped like Okta, the Google Admin SDK and Slack SCIM, plus messy CSV exports | Accepted; planned |
 | [AAC-004](004-extend-the-shared-dataset.md) | The shared Meridian dataset is extended, never changed | Accepted; planned |
 | [AAC-005](005-sealed-answer-key.md) | Planted problems with a sealed held-out answer key, scored by precision and recall | Accepted; planned |
-| [AAC-006](006-model-choice-and-spend-cap.md) | The model interprets, code enforces; Haiku, Sonnet and Opus 5.5 compared on tuning data; a $3 cap | Accepted; planned |
+| [AAC-006](006-model-choice-and-spend-cap.md) | The model interprets, code enforces; Haiku, Sonnet and Opus 5.5 compared on tuning data; a $3 cap (replaced by lab ADR-037) | Accepted; planned |
 | [AAC-007](007-safety-rails.md) | Dry-run by default, a blast-radius limit, a break-glass allowlist, no stale plans | Accepted; planned |
 | [AAC-008](008-runs-on-github-only.md) | Runs on GitHub only; the summary lives in the plan pull request; Slack is a mock adapter | Accepted; planned |
 | [AAC-009](009-held-out-recipe-can-bring-new-mess.md) | The held-out recipe can bring new kinds of mess, written blind and sealed out of the builder's reach | Accepted |
