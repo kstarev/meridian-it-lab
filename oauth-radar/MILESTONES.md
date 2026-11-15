@@ -10,7 +10,7 @@ Each milestone is one branch and one pull request, merged by the repo owner. "Do
 - No AI call, paid or local, and nothing in `budget/` changes, until milestone 4 has its approved budget item ([OAR-007](docs/adr/007-rules-decide-ai-explainer-later.md)).
 - Every published number comes from a report and is checked by a test.
 
-## 0. Brief, decisions and scaffold (this pull request)
+## 0. Brief, decisions and scaffold ([#46](https://github.com/kstarev/meridian-it-lab/pull/46))
 
 The brief, decisions OAR-001 to OAR-007, this plan, and a small package: the data model, a loader for one export shape, two rules and a command line. No generated data, no AI.
 
