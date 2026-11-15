@@ -23,7 +23,7 @@ from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals import watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.evals.setups import ALL_SETUPS, BIG_MODELS, FROZEN, SETUPS, SETUPS_3B
+from tier0.evals.setups import ALL_SETUPS, BIG_MODELS, FROZEN, SETUPS, SETUPS_3B, SETUPS_3D
 from tier0.models import ModelAdapter, ModelError, build_model, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
@@ -159,7 +159,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if (
         setup is not None
-        and setup.name not in FROZEN | set(SETUPS_3B)
+        and setup.name not in FROZEN | set(SETUPS_3B) | set(SETUPS_3D)
         and args.seed != DEFAULT_SEED
     ):
         print(

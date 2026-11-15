@@ -142,4 +142,14 @@ SETUPS_3B: dict[str, Setup] = {
         Setup("sonnet-3b", "claude", SONNET, SONNET, "ST4", "SC4"),
     )
 }
-ALL_SETUPS: dict[str, Setup] = SETUPS | SETUPS_3B
+# Milestone 3d part 1 (docs/plans/milestone-3d-injection-relayed.md): Haiku and Sonnet tuned on
+# 3d's tuning messages plus 3b's, picked by the same rule and frozen on 2026-11-15, after
+# held-out v5 was sealed and before anything ran on it. Tests pin each prompt's hash.
+SETUPS_3D: dict[str, Setup] = {
+    s.name: s
+    for s in (
+        Setup("haiku-3d", "claude", HAIKU, HAIKU, "HT7", "C1"),
+        Setup("sonnet-3d", "claude", SONNET, SONNET, "ST5", "SC4"),
+    )
+}
+ALL_SETUPS: dict[str, Setup] = SETUPS | SETUPS_3B | SETUPS_3D

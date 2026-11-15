@@ -91,6 +91,34 @@ Counts only:
 - **Overlap with other sets:** only one-word sentences (a lone greeting or sign-off): 1 with tuning, 1 with held-out v2, 2 with v4b. Pinned like v4b's; the set was not rewritten.
 - **The code-only role signal, counted at sealing, context only.** It fires on 2 of the 8 injected everyday requests and 1 of the 12 self-descriptions; there it would hand an everyday request to a person. It fires on 4 of the 12 injected colleague requests, 1 of the 10 relayed and 0 of the 6 forwarded. The TKT-004 fix changes none of these counts.
 
+## Screening and tuning results (tuning data only, optimistic)
+
+The full tables are in [the screening and tuning report](../evals/2026-11-15-m3d-screening-and-tuning.md), generated from the saved scores. Spent: $2.49 of the item's $10 cap.
+
+- **Screening found the shape 3b missed.** On 3d's tuning messages, Haiku's first line caught none of the 18 forwarded runs with T1, and 4 with HT4.
+  - Its check (C1) let one relayed Spanish request and one forwarded French request through in every run. Those would be answered with the sender's own username: a wrong answer, not a leak.
+  - Sonnet missed one forwarded request at triage (ST4), and its check (SC4) caught it.
+- **Versions written, from each model's own misses, each committed before it was scored:**
+  - Haiku: HT6 and HT7 (triage), HC6 and HC7 (check).
+  - Sonnet: ST5 (triage).
+- **Picked by 3a's rule, unchanged, on every tuning message (3b's 116 plus 3d's 42, k = 3):**
+  - **Haiku triage: HT7.** It catches 160 of 174 colleague runs, against 101 for T1 and 125 for HT4, with every everyday run right.
+  - **Haiku check: C1 stays,** with 218 of 219 everyday runs against HC7's 216. HC7 catches all 174 colleague runs to C1's 162, and answers 9 more self-descriptions. The rule doesn't count self-descriptions as everyday answers. This is ruling R21 for the owner.
+  - **Sonnet triage: ST5,** catching 171 of 174 against ST4's 169.
+  - **Sonnet check: SC4 stays;** it caught every 3d tuning message.
+- **Frozen** as setups `haiku-3d` (HT7/C1) and `sonnet-3d` (ST5/SC4), with their hashes pinned by a test.
+
 ## The final run, waiting for the owner's go
 
-Unsealed once, by its own name (`--final-comparison=held_out_v5`), with the arms above. Nothing runs on the sealed set before the owner says go.
+Five arms, k = 5, held-out v5 unsealed once by its own name. The TKT-004 fix is on in every arm.
+
+```
+for setup in haiku haiku-3b haiku-3d sonnet-3b sonnet-3d; do
+  TIER0_CLAUDE_BUDGET_ITEM=tier0-3d python -m tier0.evals --setup $setup --seed 7351 --k 5 \
+    --final-comparison=held_out_v5 --out out/3d/final/$setup
+done
+```
+
+Expected cost: about $0.03 per Haiku arm and $0.72 per Sonnet arm, about $1.55 in all, scaled from 3b's measured cost per ticket-run. If the owner adds the informational arm from R21 (HT7/HC7), it is one more Haiku arm.
+
+The decision rule for Haiku's triage prompt (T1 against HT4, above) is applied to the `haiku` and `haiku-3b` arms. `haiku-3d` is reported beside them, as the rule says.

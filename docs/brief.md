@@ -178,7 +178,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
     - **A harder tuning set:** the big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality. Add cases that strong models get wrong. **Done** ([selection report](evals/2026-11-15-m3b-prompt-selection.md)).
     - **Global kill switch on agent actions:** today a kill switch exists for proactive posts only (ADR-020). Build ADR-008's global switch: it stops all agent actions at once and routes open tickets to people, enforced by the MCP server outside the model, with every toggle in the audit log. Eval target: 0 actions after the switch is on.
     - **Rate limit on agent actions:** there is none yet. Build ADR-008's limit, globally and per requester, also enforced by the MCP server, with every limit hit and override in the audit log. Eval target: 0 actions over the limit. It also bounds the name-existence probe ADR-017 accepts as residual risk.
-  - **3d:** new ticket types and message shapes (items 1 to 4).
+  - **3d:** new ticket types and message shapes (items 1 to 4). Part 1 (prompt injection and relayed or forwarded requests) is built and tuned, and its sealed set, held-out v5, waits for the owner's go ([plan](plans/milestone-3d-injection-relayed.md)). Part 2 (password and MFA resets, same-day repeats, several questions at once) is not started.
   - **3c:** the realistic month (item 5).
   1. Password and MFA reset requests (Tier C: human approval, then a just-in-time credential).
   2. Prompt injection inside messages (ASI01).

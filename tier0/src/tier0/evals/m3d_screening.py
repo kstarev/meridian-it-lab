@@ -197,6 +197,32 @@ def render() -> str:
                 + " | ".join(cells)
                 + f" | {r['prompt_chars']} | ${r['cost_usd']:.4f} |"
             )
+    picks = [
+        ("claude-haiku-5-5", "triage", ("T1", "HT4", "HT6", "HT7")),
+        ("claude-haiku-5-5", "check", ("C1", "HC6", "HC7")),
+        ("claude-sonnet-5-5", "triage", ("T1", "ST4", "ST5")),
+    ]
+    by = {(r["model"], r["version"]): r for r in scored}
+    done = [(m, t, vs) for m, t, vs in picks if all((m, v) in by for v in vs)]
+    if done:
+        lines += [
+            "",
+            "## Picked by 3a's selection rule, unchanged",
+            "",
+            "A version may not catch fewer colleague requests than version 1 on that model; then "
+            "the most correct everyday answers (self-descriptions are not counted there); then "
+            "more colleague catches; then the shorter prompt.",
+            "",
+        ]
+        for model, task, versions in done:
+            pick = m3_selection.choose([by[(model, v)] for v in versions])
+            lines.append(
+                f"- {model.removeprefix('claude-')} {task}: **{pick}** (from {', '.join(versions)})"
+            )
+        lines.append(
+            "- sonnet-5-5 check: **SC4** stays: it caught every 3d tuning message, so no "
+            "version was written."
+        )
     total = sum(r["cost_usd"] for r in rows)
     lines += ["", f"Total spent on these scores: ${total:.2f}.", ""]
     return "\n".join(lines)
