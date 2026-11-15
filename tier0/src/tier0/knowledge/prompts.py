@@ -69,11 +69,25 @@ those details.
     + _TRUST
 )
 
-PICKER_VERSIONS: dict[str, str] = {"K1": K1, "KH2": KH2, "KS2": KS2}
+# Proposal for the owner's ruling R24 (not frozen, not picked): versions 3 add one rule, written
+# from the realistic month's tuning dry run, where broken hardware and app errors got a guide
+# on a nearby topic. The frozen picks stay KH2 and KS2 unless the owner rules otherwise.
+_BROKEN = """\
+- A report that something is broken or failing is not a how-to question when a person must \
+look at it: physical damage or a spill, a part that is loose or dead, a device that overheats \
+or shuts down, a battery that fails, a screen that flickers or stays black after the obvious \
+checks, or an app that crashes or shows an error. Choose request_type "other" and guide "none". \
+Everyday slowness, sound, Wi-Fi or VPN trouble that a guide's simple checks cover is still a \
+how-to question."""
+KH3 = KH2.replace("\n\n" + _TRUST, "\n" + _BROKEN + "\n\n" + _TRUST)
+KS3 = KS2.replace("\n\n" + _TRUST, "\n" + _BROKEN + "\n\n" + _TRUST)
+assert KH3 != KH2 and KS3 != KS2  # noqa: S101
+
+PICKER_VERSIONS: dict[str, str] = {"K1": K1, "KH2": KH2, "KS2": KS2, "KH3": KH3, "KS3": KS3}
 # Which versions each model may try: version 1 and its own later versions, at most 5.
 CANDIDATES: dict[str, tuple[str, ...]] = {
-    "claude-haiku-5-5": ("K1", "KH2"),
-    "claude-sonnet-5-5": ("K1", "KS2"),
+    "claude-haiku-5-5": ("K1", "KH2", "KH3"),
+    "claude-sonnet-5-5": ("K1", "KS2", "KS3"),
 }
 
 
