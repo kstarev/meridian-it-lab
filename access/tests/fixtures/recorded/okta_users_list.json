@@ -1,0 +1,25 @@
+{
+  "_note": "fake example in the shape of Okta Management API docs: GET /api/v1/users; hand-written from the public API docs (field names and types as documented), not recorded from the mock",
+  "link_rels": [
+    "self",
+    "next"
+  ],
+  "link_example": [
+    "<https://example.okta.example/api/v1/users?limit=200>; rel=\"self\"",
+    "<https://example.okta.example/api/v1/users?after=00ubfjQEMYBLRUWIEDKK&limit=200>; rel=\"next\""
+  ],
+  "example": [
+    {
+      "id": "00ub0oNGTSWTBKOLGLNR",
+      "status": "ACTIVE",
+      "created": "2025-09-09T09:00:00.000Z",
+      "lastLogin": "2026-11-18T16:58:18.000Z",
+      "profile": {
+        "login": "isaac.brock@meridian.example",
+        "email": "isaac.brock@meridian.example",
+        "firstName": "Isaac",
+        "lastName": "Brock"
+      }
+    }
+  ]
+}

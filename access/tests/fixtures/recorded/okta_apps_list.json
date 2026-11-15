@@ -1,0 +1,17 @@
+{
+  "_note": "fake example in the shape of Okta Management API docs: GET /api/v1/apps; hand-written from the public API docs (field names and types as documented), not recorded from the mock",
+  "link_rels": [
+    "self"
+  ],
+  "link_example": [
+    "<https://example.okta.example/api/v1/apps?limit=200>; rel=\"self\""
+  ],
+  "example": [
+    {
+      "id": "0oafxqCAJWWGELFTYASJ",
+      "label": "Amber Ledger",
+      "name": "amber-ledger",
+      "status": "ACTIVE"
+    }
+  ]
+}

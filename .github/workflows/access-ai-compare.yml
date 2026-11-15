@@ -1,0 +1,86 @@
+# Access-as-Code: compare Haiku, Sonnet and Opus 5.5 on the tuning world (AAC-006).
+# Manual only (workflow_dispatch), and the `access-ai` environment needs the owner's
+# approval before the job starts and the secret is released. It makes paid API calls,
+# behind the spend cap ($3 in total, a $2.50 limit for this run). The tuning world is
+# generated on the runner; nothing is read from or written to a real tenant.
+# The cap holds across runs through the ledger artifact (`access-ai-ledger`, 90-day
+# retention): each run downloads the last run's ledger first. This stands in until the
+# `access-state` branch exists (AAC-006). Only main's code ever gets the key.
+name: Access AI compare
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  compare:
+    name: Compare models on the tuning world
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: access-ai
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: make setup
+
+      - name: Generate the tuning world
+        run: make access-data
+
+      - name: Fetch the spend ledger of the previous run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          id=$(gh run list --workflow access-ai-compare.yml --status completed --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$id" ]; then
+            gh run download "$id" -n access-ai-ledger -D out/
+          else
+            echo "no previous run: starting with an empty ledger"
+          fi
+
+      - name: Compare the models (paid calls, behind the spend cap)
+        env:
+          ACCESS_CLAUDE_SPEND_LEDGER: out/access-claude-spend.jsonl
+          ACCESS_AI_LIVE: "1"
+          ACCESS_CLAUDE_SPEND_CAP_USD: "3.0"
+          ACCESS_CLAUDE_RUN_LIMIT_USD: "2.5"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >
+          uv run --locked python -m meridian_access.ai compare
+          --models haiku,sonnet,opus --world out/access/seed-6108 --no-dry-run
+
+      - name: Stage the report and suggestions
+        if: always()
+        run: |
+          mkdir -p out/report
+          cp -f out/access-ai-compare.json out/access-ai-suggestions.yaml out/report/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: access-ai-ledger
+          path: out/access-claude-spend.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: access-ai-compare
+          path: out/report
+          retention-days: 90
+          if-no-files-found: ignore

@@ -1,0 +1,28 @@
+{
+  "_note": "fake example in the shape of Slack SCIM API docs: GET /Users; hand-written from the public API docs (field names and types as documented), not recorded from the mock",
+  "example": {
+    "schemas": [
+      "urn:scim:schemas:core:1.0"
+    ],
+    "totalResults": 249,
+    "startIndex": 1,
+    "itemsPerPage": 50,
+    "Resources": [
+      {
+        "schemas": [
+          "urn:scim:schemas:core:1.0"
+        ],
+        "id": "USX8MKE84J6",
+        "userName": "isaac.brock",
+        "displayName": "Isaac Brock",
+        "emails": [
+          {
+            "value": "isaac.brock@meridian.example",
+            "primary": true
+          }
+        ],
+        "active": true
+      }
+    ]
+  }
+}

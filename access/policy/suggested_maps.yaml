@@ -1,0 +1,3 @@
+# AI suggestions waiting for review (AAC-006). Fake data. An entry has no effect until a
+# person has reviewed it in a pull request and set reviewed: true.
+entries: []
