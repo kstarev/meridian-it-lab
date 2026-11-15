@@ -25,7 +25,7 @@ _DATE_COLUMN = {"A": 3, "B": 3, "C": 3, "D": 4}
 def test_layouts_formats_and_username_only(access_world: AccessWorld) -> None:
     exports = access_world.exports
     assert {e.layout for e in exports} == {"A", "B", "C", "D"}
-    assert {e.date_format for e in exports} == set(cat.DATE_FORMATS)
+    assert {e.date_format for e in exports} == set(_STRPTIME)
     assert sum(e.layout == "D" for e in exports) == 20
     for e in exports:
         if e.layout == "D":
@@ -96,7 +96,7 @@ def test_cli_writes_the_files(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     assert (out / "hris.json").is_file() and (out / "manifest.json").is_file()
     assert len(list((out / "exports").glob("*.csv"))) == 95
     printed = capsys.readouterr().out
-    assert "orphaned_account: 23" in printed and "manifest sha256" in printed
+    assert "orphaned_account: 34" in printed and "manifest sha256" in printed
 
 
 def test_cli_refuses_a_sealed_recipe_without_the_flag(
@@ -111,8 +111,8 @@ def test_cli_flag_without_such_recipe_is_an_error(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert (
-        main(["--recipe", "held_out_a1", "--final-score", "held_out_a1", "--out", str(tmp_path)])
+        main(["--recipe", "held_out_zz", "--final-score", "held_out_zz", "--out", str(tmp_path)])
         == 2
     )
     assert "unknown recipe" in capsys.readouterr().err
-    assert main(["--recipe", "other", "--final-score", "held_out_a1", "--out", str(tmp_path)]) == 2
+    assert main(["--recipe", "other", "--final-score", "held_out_zz", "--out", str(tmp_path)]) == 2

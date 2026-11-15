@@ -9,11 +9,13 @@ the same bytes. The order is the order of the phases in `_Builder.build`:
 4. names and emails, then titles, dates and statuses
 5. access: what each person has in Okta and in the non-SSO exports
 6. accounts: Okta, Google, Slack, the Okta log, break-glass and unowned accounts
-7. exports: the 95 messy CSV files
+7. cases: the recipe's custom HR edge cases, applied after the normal plants
+8. exports: the 95 messy CSV files, written the way the recipe's layouts say
 
 The answer key (true roles, account owners, findings) is built alongside and kept apart.
 """
 
+import dataclasses
 import random
 import string
 import uuid
@@ -21,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from meridian_dataset.access import catalog as cat
+from meridian_dataset.access.export import csv_text
 from meridian_dataset.access.model import (
     ACCESS_GENERATOR_VERSION,
     ACCESS_TUNING_SEED,
@@ -44,7 +47,20 @@ from meridian_dataset.access.model import (
     OktaUser,
     SlackScimUser,
 )
-from meridian_dataset.access.recipe import Recipe, load_recipe, recipe_digest, validate_recipe
+from meridian_dataset.access.recipe import (
+    Case,
+    CaseAccount,
+    CaseFinding,
+    CasePerson,
+    DateFormat,
+    Layout,
+    Recipe,
+    finding_key,
+    format_date,
+    load_recipe,
+    render_username,
+    validate_recipe,
+)
 from meridian_dataset.names import FAMILY_NAMES, GIVEN_NAMES
 
 _MONTH = date.fromisoformat(MONTH_START)
@@ -81,14 +97,19 @@ def _local(email: str) -> str:
     return email.split("@", 1)[0]
 
 
-def _fmt_date(d: date, style: str) -> str:
-    if style == "iso":
-        return d.isoformat()
-    if style == "dmy_slash":
-        return f"{d.day:02d}/{d.month:02d}/{d.year}"
-    if style == "mdy_slash":
-        return f"{d.month:02d}/{d.day:02d}/{d.year}"
-    return f"{d.day} {cat.MONTH_ABBR[d.month - 1]} {d.year}"
+def _display(style: str, given: str, family: str, preferred: str) -> str:
+    """A display name in one of the recipe's display styles."""
+    if style == "first_last":
+        text = f"{given} {family}"
+    elif style == "last_comma_first":
+        text = f"{family}, {given}" if family else given
+    elif style == "upper_first_last":
+        text = f"{given} {family}".upper()
+    elif style == "first_initial_last":
+        text = f"{given[:1]}. {family}"
+    else:
+        text = f"{preferred or given} {family}"
+    return text.strip()
 
 
 @dataclass(eq=False)
@@ -104,7 +125,6 @@ class _P:
     is_manager: bool = False
     manager_id: str = ""
     kind: str = "regular"
-    accent: bool = False
     twin: "_P | None" = None
     old_role: str = ""
     day: int = 0
@@ -115,6 +135,10 @@ class _P:
     personal: str = ""
     old_email: str = ""
     old_family: str = ""
+    num: str = ""  # the duplicate number in the email ("" for the first of a name)
+    old_num: str = ""
+    current: bool = True  # case people: counts as a current worker
+    true_role: str = ""
     title: str = ""
     status: str = "active"
     start: date = _MONTH
@@ -139,7 +163,7 @@ class _P:
 
     @property
     def display(self) -> str:
-        return f"{self.preferred or self.given} {self.family}"
+        return f"{self.preferred or self.given} {self.family}".strip()
 
 
 @dataclass(eq=False)
@@ -150,37 +174,30 @@ class _Entry:
     owner: str
     given: str
     family: str
-    display: str
+    preferred: str
     email: str
     dept: str
-    when: date
+    title: str
+    when: date | None  # last login; None means never
+    created: date
     order: int
-    username: str = ""  # for accounts that match nobody
+    num: str = ""  # duplicate number, for username patterns
+    username: str = ""  # a fixed username (accounts that match nobody, case accounts)
+    explicit: bool = False  # the account name is fixed: no mess, no derived username
+    state: str = "active"
+    role: str = "member"
+    case_key: tuple[int, int] | None = None
     templates: list[Template] = field(default_factory=list)
 
-
-def _dept_sizes(headcount: int) -> dict[str, int]:
-    rest = headcount - cat.IT_SIZE
-    sizes = {d: rest * w // 100 for d, w in cat.DEPT_WEIGHTS.items()}
-    sizes["Engineering"] += rest - sum(sizes.values())
-    return {d: sizes.get(d, cat.IT_SIZE) for d in cat.DEPT_NAMES}
+    @property
+    def display(self) -> str:
+        return f"{self.preferred or self.given} {self.family}".strip()
 
 
 def _role_apps(role_id: str, contractor: bool) -> tuple[list[str], list[str]]:
     role = cat.ROLE_BY_ID[role_id]
-    birthright = cat.BIRTHRIGHT_IDS[:-2] if contractor else cat.BIRTHRIGHT_IDS
+    birthright = cat.CONTRACTOR_BIRTHRIGHT_IDS if contractor else cat.BIRTHRIGHT_IDS
     return [*birthright, *role.sso_apps], list(role.other_apps)
-
-
-def _username(scheme: str, given: str, family: str, email: str) -> str:
-    local = _local(email)
-    if scheme == "local":
-        return local
-    first = cat.ascii_fold(given).lower()
-    last = cat.ascii_fold(family).lower().replace(" ", "")
-    digits = local[len(local.rstrip(string.digits)) :]
-    base = first[0] + last if scheme == "initial_last" else f"{first}.{last[0]}"
-    return base + digits
 
 
 class _Builder:
@@ -203,7 +220,17 @@ class _Builder:
         self.google_users: list[GoogleUser] = []
         self.slack_users: list[SlackScimUser] = []
         self.break_glass: list[str] = []
+        # Movers' missing apps that are non-SSO exports: (person, app, day, detail).
+        self.pending_adds: list[tuple[_P, str, int, str]] = []
         self.okta_app_ids: dict[str, str] = {}
+        self.okta_uid: dict[str, str] = {}  # login -> Okta user id
+        self.email_counts: dict[str, int] = {}
+        self.it_emails: list[str] = []
+        self.case_people: list[dict[str, _P]] = []  # per case: ref -> person
+        self.case_name: dict[tuple[int, int], str] = {}  # (case, account) -> account as written
+        self.person_final: dict[tuple[str, str], str] = {}  # (employee, app) -> row account
+        self.case_order = 20_000
+        self.case_events: list[HrisEvent] = []
 
     # ---- small helpers ----------------------------------------------------------------
 
@@ -241,6 +268,11 @@ class _Builder:
     def _owner(self, system: str, account: str, owner: str) -> None:
         self.owners.append(AccountOwner(system, account, owner))
 
+    def _claim(self, system: str, account: str) -> None:
+        """Case accounts must not reuse an Okta, Google or Slack account that already exists."""
+        if any(o.system == system and o.account == account for o in self.owners):
+            raise ValueError(f"case account {account!r} already exists in {system}")
+
     # ---- build ------------------------------------------------------------------------
 
     def build(self) -> AccessWorld:
@@ -252,15 +284,21 @@ class _Builder:
         self._access()
         self._accounts()
         self._ghosts()
+        self._cases()
         exports = self._exports()
+        self._case_findings()
         records, events = self._hris()
         key = AccessAnswerKey(
             seed=self.seed,
             generator_version=ACCESS_GENERATOR_VERSION,
             recipe_name=self.rc.name,
-            recipe_sha256=recipe_digest(self.rc),
+            recipe_sha256=self.rc.digest,
             true_roles=tuple(
-                sorted((p.eid, p.role) for p in self.people if p.kind not in _FORMER_KINDS)
+                sorted(
+                    (p.eid, p.true_role or p.role)
+                    for p in self.people
+                    if p.kind not in _FORMER_KINDS and p.current
+                )
             ),
             owners=tuple(sorted(self.owners, key=lambda o: (o.system, o.account))),
             findings=tuple(
@@ -313,7 +351,11 @@ class _Builder:
 
     def _slots(self) -> None:
         r = self.rng
-        sizes = _dept_sizes(self.rc.headcount)
+        sizes = cat.dept_sizes(self.rc.headcount)
+        for case in self.rc.custom_cases:  # case people who are current workers take a slot
+            for cp in case.people:
+                if cp.current_worker:
+                    sizes[cat.ROLE_BY_ID[cp.role_id].department] -= 1
         for dept in cat.DEPT_NAMES:
             n = sizes[dept]
             if dept == "IT":
@@ -387,6 +429,8 @@ class _Builder:
             return got
 
         d_roles = self._roles_with_username_export()
+        if not rc.exports.username_only:
+            d_roles = {x.role_id for x in cat.ROLES}  # no username-only export: any role will do
         for _ in range(rc.duplicate_name_pairs):
             by_role: dict[str, list[_P]] = {}
             for p in pool:
@@ -425,40 +469,30 @@ class _Builder:
             p.old_role = r.choice(options)
         for p in take(cat.HIRES_IN_MONTH, "hire"):
             p.day = r.randint(2, 27)
-        seen: set[str] = set()
-        for p in pool:
-            if len(seen) == cat.ACCENTED_PEOPLE:
-                break
-            if p.role not in seen:
-                seen.add(p.role)
-                p.accent = True
 
-    def _layout_plan(self) -> dict[str, dict[str, str]]:
-        """Per non-SSO app: layout, date format, username scheme. Pure function of the index."""
+    def _layout_plan(self) -> dict[str, tuple[Layout, DateFormat, str]]:
+        """Per non-SSO app: layout, date format, username pattern. A pure function of the index."""
         rc = self.rc
-        n = cat.NON_SSO_COUNT
-        d_idx = {i * n // rc.username_only_exports for i in range(rc.username_only_exports)}
-        letters = "ABC"[: min(3, rc.export_layouts)]
-        plan: dict[str, dict[str, str]] = {}
-        plain = d_count = 0
+        n, k = cat.NON_SSO_COUNT, rc.exports.username_only
+        d_idx = {i * n // k for i in range(k)} if k else set()
+        named = [x for x in rc.export_layouts if x.username_only]
+        plain = [x for x in rc.export_layouts if not x.username_only]
+        plan: dict[str, tuple[Layout, DateFormat, str]] = {}
+        n_plain = n_named = 0
         for j, app in enumerate(cat.NON_SSO_IDS):
             if j in d_idx:
-                layout = "D"
-                scheme = ("initial_last", "first_l", "local")[d_count % 3]
-                d_count += 1
+                layout = named[n_named % len(named)]
+                pattern = rc.username_patterns[n_named % len(rc.username_patterns)]
+                n_named += 1
             else:
-                layout, scheme = letters[plain % len(letters)], ""
-                plain += 1
-            plan[app] = {
-                "layout": layout,
-                "scheme": scheme,
-                "format": rc.date_formats[j % len(rc.date_formats)],
-            }
+                layout, pattern = plain[n_plain % len(plain)], ""
+                n_plain += 1
+            plan[app] = (layout, rc.date_formats[j % len(rc.date_formats)], pattern)
         return plan
 
     def _roles_with_username_export(self) -> set[str]:
         plan = self._layout_plan()
-        return {x.role_id for x in cat.ROLES if any(plan[a]["layout"] == "D" for a in x.other_apps)}
+        return {x.role_id for x in cat.ROLES if any(plan[a][0].username_only for a in x.other_apps)}
 
     # ---- 3. extras --------------------------------------------------------------------
 
@@ -490,43 +524,68 @@ class _Builder:
 
     # ---- 4. names, emails, titles, dates ----------------------------------------------
 
+    def _extra_names(self) -> dict[int, tuple[str, str]]:
+        """Names drawn from the recipe's extra lists, for a share of the generated people."""
+        r, names = self.rng, self.rc.names
+        eligible = [p for p in self.people if p.twin is None and p.kind not in _NO_ACCESS_KINDS]
+        wanted = min(round(names.extra_share * len(self.people)), len(eligible))
+        chosen = sorted(r.sample(eligible, wanted), key=lambda p: p.order)
+        out: dict[int, tuple[str, str]] = {}
+        taken: set[tuple[str, str]] = set()
+        for p in chosen:
+            for _ in range(1000):
+                mode = r.choice(["given", "family", "both"])
+                if not names.extra_given:
+                    mode = "family"
+                elif not names.extra_family:
+                    mode = "given"
+                given = r.choice(names.extra_given) if mode != "family" else r.choice(GIVEN_NAMES)
+                family = r.choice(names.extra_family) if mode != "given" else r.choice(FAMILY_NAMES)
+                if (given, family) not in taken:
+                    break
+            taken.add((given, family))
+            out[id(p)] = (given, family)
+        return out
+
     def _names(self) -> None:
         r = self.rng
-        plain = [(g, f) for g in GIVEN_NAMES for f in FAMILY_NAMES]
-        accented = [(g, f) for g in GIVEN_NAMES for f in cat.EXTRA_FAMILY_NAMES]
+        extra = self._extra_names()
+        used: set[tuple[str, str]] = set(extra.values())
+        plain = [(g, f) for g in GIVEN_NAMES for f in FAMILY_NAMES if (g, f) not in used]
         r.shuffle(plain)
-        r.shuffle(accented)
-        used: set[tuple[str, str]] = set()
-        counts: dict[str, int] = {}
         for p in self.people:
             if p.twin is not None:
                 p.given, p.family = p.twin.given, p.twin.family
+            elif id(p) in extra:
+                p.given, p.family = extra[id(p)]
             else:
-                p.given, p.family = (accented if p.accent else plain).pop()
+                p.given, p.family = plain.pop()
             used.add((p.given, p.family))
             if p.kind == "rehire_old":
-                p.email = _req_p(p.twin).email  # same address re-issued
+                p.email, p.num = _req_p(p.twin).email, _req_p(p.twin).num  # same address
             else:
-                p.email = self._email(p, counts)
+                p.email = self._email(p)
             if p.given in cat.PREFERRED_NAMES and r.random() < 0.5:
                 p.preferred = cat.PREFERRED_NAMES[p.given]
         for p in self.people:
             if p.kind == "namechg":
-                p.old_email, p.old_family = p.email, p.family
-                while True:
+                p.old_email, p.old_family, p.old_num = p.email, p.family, p.num
+                for _ in range(200):  # a given name with every family used is allowed to repeat
                     family = r.choice(FAMILY_NAMES)
                     if (p.given, family) not in used and family != p.family:
                         break
+                if family == p.family:
+                    family = next(f for f in FAMILY_NAMES if f != p.family)
                 p.family = family
                 used.add((p.given, family))
-                p.email = self._email(p, counts)
+                p.email = self._email(p)
 
-    @staticmethod
-    def _email(p: _P, counts: dict[str, int]) -> str:
+    def _email(self, p: _P) -> str:
         base = f"{cat.ascii_fold(p.given).lower()}.{cat.ascii_fold(p.family).lower()}"
-        n = counts.get(base, 0)
-        counts[base] = n + 1
-        return f"{base if n == 0 else f'{base}{n + 1}'}@{DOMAIN}"
+        n = self.email_counts.get(base, 0)
+        self.email_counts[base] = n + 1
+        p.num = "" if n == 0 else str(n + 1)
+        return f"{base}{p.num}@{DOMAIN}"
 
     def _profiles(self) -> None:
         r = self.rng
@@ -638,16 +697,17 @@ class _Builder:
         admins = min(len(drifters), max(2, len(drifters) // 3))
         for i, p in enumerate(drifters):
             wants_admin = i < admins
-            options = [
-                a
-                for a in cat.SSO_IDS[cat.BIRTHRIGHT_COUNT :]
-                if a not in p.sso and (cat.APP_BY_ID[a].has_admin_role or not wants_admin)
-            ]
+            if wants_admin:
+                # Privilege drift: only an app the person already has (role or birthright).
+                options = [a for a in p.sso if cat.APP_BY_ID[a].has_admin_role]
+            else:
+                options = [a for a in cat.SSO_IDS[cat.BIRTHRIGHT_COUNT :] if a not in p.sso]
             app = r.choice(options)
             day = r.randint(2, 27)
             p.drift.append((app, "admin" if wants_admin else "member", day))
             p.sso[app] = "admin" if wants_admin else "member"
-            p.sso_created[app] = _day(day)
+            if not wants_admin:
+                p.sso_created[app] = _day(day)
 
     def _mover_access(self, p: _P) -> tuple[list[str], list[str]]:
         r = self.rng
@@ -693,11 +753,10 @@ class _Builder:
         return _REF - timedelta(days=r.randint(1, 14))
 
     def _accounts(self) -> None:
-        r = self.rng
         for app in cat.APPS:
             if app.sso:
                 self.okta_app_ids[app.app_id] = self._oid("0oa")
-        it_emails = [p.email for p in self.by_dept["IT"]]
+        self.it_emails = [p.email for p in self.by_dept["IT"]]
         for p in self.people:
             if p.kind == "rehire_old":
                 continue
@@ -707,46 +766,51 @@ class _Builder:
                 p.okta = "ACTIVE" if p.orphan_where == "okta" else ""
             else:
                 p.okta, p.google, p.slack = "ACTIVE", "active", "active"
-            p.login = self._login_date(p)
-            p.login_ts = self._ts(p.login)
-            created = f"{p.start.isoformat()}T09:00:00.000Z"
-            local = _local(p.email)
-            if p.okta:
-                uid = self._oid("00u")
-                self.okta_users.append(
-                    OktaUser(uid, p.okta, created, p.login_ts, p.email, p.email, p.given, p.family)
+            self._person_accounts(p)
+
+    def _person_accounts(self, p: _P) -> None:
+        r = self.rng
+        p.login = self._login_date(p)
+        p.login_ts = self._ts(p.login)
+        created = f"{p.start.isoformat()}T09:00:00.000Z"
+        local = _local(p.email)
+        if p.okta:
+            uid = self._oid("00u")
+            self.okta_uid[p.email] = uid
+            self.okta_users.append(
+                OktaUser(uid, p.okta, created, p.login_ts, p.email, p.email, p.given, p.family)
+            )
+            self._owner("okta", p.email, p.eid)
+            for app, role in p.sso.items():
+                self._assign(p, uid, app, role, self.it_emails)
+        if p.google:
+            self.google_users.append(
+                GoogleUser(
+                    id=str(r.randrange(10**20, 10**21)),
+                    primary_email=p.email,
+                    given_name=p.given,
+                    family_name=p.family,
+                    full_name=f"{p.given} {p.family}",
+                    suspended=p.google == "suspended",
+                    org_unit_path=f"/Meridian/{p.dept}",
+                    aliases=(p.old_email,) if p.old_email else (),
+                    creation_time=f"{p.start.isoformat()}T09:05:00.000Z",
+                    last_login_time=p.login_ts,
                 )
-                self._owner("okta", p.email, p.eid)
-                for app, role in p.sso.items():
-                    self._assign(p, uid, app, role, it_emails)
-            if p.google:
-                self.google_users.append(
-                    GoogleUser(
-                        id=str(r.randrange(10**20, 10**21)),
-                        primary_email=p.email,
-                        given_name=p.given,
-                        family_name=p.family,
-                        full_name=f"{p.given} {p.family}",
-                        suspended=p.google == "suspended",
-                        org_unit_path=f"/Meridian/{p.dept}",
-                        aliases=(p.old_email,) if p.old_email else (),
-                        creation_time=f"{p.start.isoformat()}T09:05:00.000Z",
-                        last_login_time=p.login_ts,
-                    )
+            )
+            self._owner("google", p.email, p.eid)
+        if p.slack:
+            self.slack_users.append(
+                SlackScimUser(
+                    self._oid("U", 10, _ALNUM_UPPER),
+                    local,
+                    p.display,
+                    p.email,
+                    p.slack == "active",
                 )
-                self._owner("google", p.email, p.eid)
-            if p.slack:
-                self.slack_users.append(
-                    SlackScimUser(
-                        self._oid("U", 10, _ALNUM_UPPER),
-                        local,
-                        p.display,
-                        p.email,
-                        p.slack == "active",
-                    )
-                )
-                self._owner("slack", local, p.eid)
-            self._account_findings(p)
+            )
+            self._owner("slack", local, p.eid)
+        self._account_findings(p)
 
     def _assign(self, p: _P, uid: str, app: str, role: str, it_emails: list[str]) -> None:
         r = self.rng
@@ -757,7 +821,11 @@ class _Builder:
             created = self._ts(_day(day))
             actor, actor_type, via = r.choice(it_emails), "User", "admin console"
             kind = _PRIVILEGE if role == "admin" else _ADD
-            self.assign.append((okta_app, uid, created, "USER", role))
+            if role == "admin":  # the assignment already existed; only its role changed
+                original = f"{p.sso_created[app].isoformat()}T09:00:00.000Z"
+                self.assign.append((okta_app, uid, original, "GROUP", role))
+            else:
+                self.assign.append((okta_app, uid, created, "USER", role))
         else:
             created = f"{p.sso_created[app].isoformat()}T09:00:00.000Z"
             self.assign.append((okta_app, uid, created, "GROUP", role))
@@ -795,10 +863,21 @@ class _Builder:
                 em,
                 "okta",
                 "",
-                "remove",
+                "suspend",
                 0,
                 f"{name} left before November but still has an active Okta account.",
             )
+            for app in p.sso:
+                self._find(
+                    "orphaned_account",
+                    p.eid,
+                    em,
+                    "okta",
+                    app,
+                    "remove",
+                    0,
+                    f"{name} left before November; still assigned this app.",
+                )
         elif k in ("leaver", "past_end"):
             suspend = k == "leaver"
             ftype = "leaver_access_left" if suspend else "contractor_past_end"
@@ -825,9 +904,16 @@ class _Builder:
             for app in p.missing_sso:
                 self._find("mover_stale_access", p.eid, em, "okta", app, "add", p.day, old)
             for app in p.missing_other:
-                self._find("mover_stale_access", p.eid, em, app, app, "add", p.day, old)
+                self.pending_adds.append((p, app, p.day, old))
         elif k == "drift":
             for app, role, day in p.drift:
+                why = (
+                    f"An admin raised {name} to admin by hand on {_day(day)} in an app they "
+                    "already have."
+                    if role == "admin"
+                    else f"An admin granted {name} {role} access by hand on {_day(day)}; their "
+                    "role does not include this app."
+                )
                 self._find(
                     "drift",
                     p.eid,
@@ -836,8 +922,7 @@ class _Builder:
                     app,
                     "flag" if role == "admin" else "remove",
                     day,
-                    f"An admin granted {name} {role} access by hand on {_day(day)}; their role "
-                    "does not include this app.",
+                    why,
                 )
 
     # ---- unowned accounts: break-glass and nobody -------------------------------------
@@ -884,6 +969,16 @@ class _Builder:
                 0,
                 f"Break-glass account {email}: report only, never change.",
             )
+            self._find(
+                "break_glass",
+                "",
+                email,
+                "google",
+                "",
+                "never_touch",
+                0,
+                f"Break-glass account {email}: report only, never change.",
+            )
         nobody = rc.orphaned_accounts - rc.orphaned_former_employees
         places = ("okta", "google", "slack", "export", "export", "okta")
         for i in range(nobody):
@@ -907,6 +1002,7 @@ class _Builder:
                 self.assign.append((self.okta_app_ids[app], uid, created, "USER", "member"))
                 self._owner("okta", email, "")
                 self._find("orphaned_account", "", email, "okta", "", "remove", 0, why)
+                self._find("orphaned_account", "", email, "okta", app, "remove", 0, why)
             elif where == "google":
                 self.google_users.append(
                     GoogleUser(
@@ -937,9 +1033,11 @@ class _Builder:
                     "",
                     given,
                     family,
-                    display,
+                    "",
                     email,
                     "",
+                    "",
+                    when,
                     when,
                     10_000 + i,
                     username=local,
@@ -960,14 +1058,225 @@ class _Builder:
                 "at once; they are still logging in.",
             )
 
-    # ---- 7. exports -------------------------------------------------------------------
+    # ---- 7. custom cases --------------------------------------------------------------
+
+    def _cases(self) -> None:
+        for ci, case in enumerate(self.rc.custom_cases):
+            refs = {cp.ref: self._case_person(cp) for cp in case.people}
+            self.case_people.append(refs)
+            for ev in case.events:
+                p = refs[ev.ref]
+                self.case_events.append(
+                    HrisEvent(
+                        ev.day,
+                        _day(ev.day).isoformat(),
+                        p.eid,
+                        ev.kind,
+                        tuple(sorted(ev.fields.items())),
+                        ev.source,
+                    )
+                )
+            # users first, so an SSO assignment can find its Okta user
+            order = sorted(
+                range(len(case.accounts)), key=lambda i: case.accounts[i].system in cat.APP_BY_ID
+            )
+            for ai in order:
+                acct = case.accounts[ai]
+                self._case_account(ci, ai, case, acct, refs[acct.ref] if acct.ref else None)
+
+    def _case_person(self, cp: CasePerson) -> _P:
+        r = self.rng
+        role = cat.ROLE_BY_ID[cp.role_id]
+        p = _P(self._eid(), len(self.people), role.department, cp.role_id, cp.country, kind="case")
+        p.contractor = cp.employment_type == "contractor"
+        p.manager_id = r.choice(self.managers[p.dept]).eid
+        p.given, p.family, p.preferred = cp.given_name, cp.family_name, cp.preferred_name
+        p.email = cp.work_email or self._email(p)
+        p.personal = (
+            f"{cat.ascii_fold(p.given).lower()}.{cat.ascii_fold(p.family).lower()}"
+            f"{r.randrange(10, 100)}@{PERSONAL_DOMAIN}"
+        )
+        p.title = cp.job_title or r.choice(role.variants)
+        p.status = cp.status
+        p.start = date.fromisoformat(cp.start_date)
+        p.end = date.fromisoformat(cp.end_date) if cp.end_date else None
+        p.leave_start = date.fromisoformat(cp.leave_start) if cp.leave_start else None
+        p.leave_end = date.fromisoformat(cp.leave_end) if cp.leave_end else None
+        p.current = cp.current_worker
+        p.true_role = cp.true_role_id
+        self.people.append(p)
+        if cp.standard_access:
+            sso, other = _role_apps(p.role, p.contractor)
+            p.sso = {a: "member" for a in sso}
+            p.sso_created = {a: p.start for a in sso}
+            p.exports = other
+            p.okta, p.google, p.slack = "ACTIVE", "active", "active"
+            self._person_accounts(p)
+        return p
+
+    def _case_account(self, ci: int, ai: int, case: Case, a: CaseAccount, p: _P | None) -> None:
+        r = self.rng
+        app = cat.APP_BY_ID.get(a.system)
+        owner = p.eid if p else ""
+        start = p.start if p else _MONTH
+        last_ts = "" if a.last_login_day < 0 else self._ts(_day(a.last_login_day))
+        created = f"{start.isoformat()}T09:00:00.000Z"
+        if app is None:
+            local_default = _local(p.email) if p and a.system == "slack" else ""
+            account = a.account or local_default or (p.email if p else "")
+            self._claim(a.system, account)
+            given = p.given if p else _local(account)
+            family = p.family if p else ""
+            email = p.email if p else account
+            if a.system == "okta":
+                uid = self._oid("00u")
+                self.okta_uid[account] = uid
+                self.okta_users.append(
+                    OktaUser(uid, a.state.upper(), created, last_ts, account, email, given, family)
+                )
+            elif a.system == "google":
+                self.google_users.append(
+                    GoogleUser(
+                        id=str(r.randrange(10**20, 10**21)),
+                        primary_email=account,
+                        given_name=given,
+                        family_name=family,
+                        full_name=f"{given} {family}".strip(),
+                        suspended=a.state != "active",
+                        org_unit_path=f"/Meridian/{p.dept}" if p else "/Meridian",
+                        aliases=(),
+                        creation_time=f"{start.isoformat()}T09:05:00.000Z",
+                        last_login_time=last_ts,
+                    )
+                )
+            else:
+                self.slack_users.append(
+                    SlackScimUser(
+                        self._oid("U", 10, _ALNUM_UPPER),
+                        account,
+                        p.display if p else given,
+                        email,
+                        a.state == "active",
+                    )
+                )
+            self._owner(a.system, account, owner)
+            self.case_name[(ci, ai)] = account
+        elif app.sso:
+            login = a.account
+            if p is not None:
+                login = next(
+                    (
+                        self.case_name[(ci, j)]
+                        for j, x in enumerate(case.accounts)
+                        if x.system == "okta" and x.ref == a.ref and (ci, j) in self.case_name
+                    ),
+                    p.email,
+                )
+            uid = self.okta_uid.get(login)
+            if uid is None:
+                raise ValueError(
+                    f"case {case.id!r}: there is no Okta user {login!r} for {a.system}"
+                )
+            okta_app = self.okta_app_ids[a.system]
+            if any(t[0] == okta_app and t[1] == uid for t in self.assign):
+                raise ValueError(f"case {case.id!r}: {login!r} already has {a.system}")
+            if a.granted_by_hand_day is not None:
+                stamp = self._ts(_day(a.granted_by_hand_day))
+                self.assign.append((okta_app, uid, stamp, "USER", a.role))
+                self.log.append(
+                    OktaLogEvent(
+                        uuid=str(uuid.UUID(int=r.getrandbits(128), version=4)),
+                        published=stamp,
+                        event_type=_PRIVILEGE if a.role == "admin" else _ADD,
+                        actor_alternate_id=r.choice(self.it_emails),
+                        actor_type="User",
+                        via="admin console",
+                        target_app_id=okta_app,
+                        target_user_id=uid,
+                        target_user_login=login,
+                    )
+                )
+            else:
+                self.assign.append((okta_app, uid, created, "GROUP", a.role))
+            self.case_name[(ci, ai)] = login
+        else:
+            self.case_order += 1
+            explicit = bool(a.account)
+            self.entries.append(
+                _Entry(
+                    a.system,
+                    owner,
+                    p.given if p else _local(a.account),
+                    p.family if p else "",
+                    p.preferred if p else "",
+                    a.account if explicit else (p.email if p else ""),
+                    p.dept if p else "",
+                    p.title if p else "",
+                    None if a.last_login_day < 0 else _day(a.last_login_day),
+                    start,
+                    self.case_order,
+                    num=p.num if p else "",
+                    username=a.account,
+                    explicit=explicit,
+                    state=a.state,
+                    role=a.role,
+                    case_key=(ci, ai),
+                )
+            )
+
+    def _case_findings(self) -> None:
+        for ci, case in enumerate(self.rc.custom_cases):
+            refs = self.case_people[ci]
+            for f in case.findings:
+                p = refs[f.ref] if f.ref else None
+                app = cat.APP_BY_ID.get(f.system)
+                app_id = f.app_id or (f.system if app is not None else "")
+                account = self._case_account_name(ci, case, f, app_id, p)
+                self._find(
+                    f.type,
+                    p.eid if p else "",
+                    account,
+                    f.system,
+                    app_id,
+                    f.expected_action,
+                    f.day,
+                    f.detail,
+                )
+
+    def _case_account_name(
+        self, ci: int, case: Case, f: CaseFinding, app_id: str, p: _P | None
+    ) -> str:
+        """The account a case finding is about, written exactly as it appears in the world."""
+        key = (f.system, app_id)
+        if f.account:
+            for ai, a in enumerate(case.accounts):
+                if finding_key(a.system) == key and a.account == f.account:
+                    return self.case_name.get((ci, ai), f.account)
+            return f.account
+        if p is None or f.system == "hris":
+            return ""
+        wanted = [key, ("okta", "")] if f.system == "okta" else [key]
+        for want in wanted:
+            for ai, a in enumerate(case.accounts):
+                if finding_key(a.system) == want and a.ref == f.ref and (ci, ai) in self.case_name:
+                    return self.case_name[(ci, ai)]
+        if f.system == "slack":
+            return _local(p.email)
+        if f.system in ("okta", "google"):
+            return p.email
+        return self.person_final.get((p.eid, f.system), p.email)
+
+    # ---- 8. exports -------------------------------------------------------------------
 
     def _mess(self, email: str) -> str:
+        noise = self.rc.exports.noise
+        if not (noise.mixed_case_email_share or noise.trailing_space_share):
+            return email
         x = self.rng.random()
-        if x < 0.08:
+        if x < noise.mixed_case_email_share:
             local, _, domain = email.partition("@")
             return ".".join(part.capitalize() for part in local.split(".")) + "@" + domain
-        if x < 0.14:
+        if x < noise.mixed_case_email_share + noise.trailing_space_share:
             return email + " "
         return email
 
@@ -976,109 +1285,155 @@ class _Builder:
         for p in self.people:
             for app in p.exports:
                 old = app in p.old_email_apps
-                family = p.old_family if old else p.family
                 when = max(p.start, p.login - timedelta(days=r.randint(0, 20)))
-                entry = _Entry(
-                    app,
-                    p.eid,
-                    p.given,
-                    family,
-                    f"{p.preferred or p.given} {family}",
-                    p.old_email if old else p.email,
-                    p.dept,
-                    when,
-                    p.order,
+                self.entries.append(
+                    _Entry(
+                        app,
+                        p.eid,
+                        p.given,
+                        p.old_family if old else p.family,
+                        p.preferred,
+                        p.old_email if old else p.email,
+                        p.dept,
+                        p.title,
+                        when,
+                        when,
+                        p.order,
+                        num=p.old_num if old else p.num,
+                    )
                 )
                 if app in p.row_findings:
-                    entry.templates.append(p.row_findings[app])
-                self.entries.append(entry)
+                    self.entries[-1].templates.append(p.row_findings[app])
         by_app: dict[str, list[_Entry]] = {a: [] for a in cat.NON_SSO_IDS}
         for e in self.entries:
             by_app[e.app].append(e)
         plan = self._layout_plan()
-        headers = {
-            "A": ("Email", "Full Name", "Role", "Last Login"),
-            "B": ("user_email", "name", "permission", "last_active_at", "department"),
-            "C": ("Login", "Display Name", "Access Level", "Created"),
-            "D": ("Username", "First", "Last", "Status", "Added On"),
-        }
-        perms = {
-            "A": ("Member",) * 5 + ("Viewer", "Editor", "Admin"),
-            "B": ("read",) * 4 + ("write",) * 3 + ("admin",),
-            "C": ("Standard",) * 5 + ("Power User", "Power User", "Admin"),
-            "D": ("Active",) * 7 + ("Invited",),
-        }
-        rendered: list[tuple[str, dict[str, str], list[tuple[str, ...]]]] = []
-        for app in cat.NON_SSO_IDS:
-            info = plan[app]
-            layout = info["layout"]
-            entries = by_app[app]
-            names: dict[int, str] = {}
-            if layout == "D":
-                used: set[str] = set()
-                for e in sorted(entries, key=lambda e: (e.order, e.display)):
-                    base = e.username or _username(info["scheme"], e.given, e.family, e.email)
-                    name, n = base, 2
-                    while name in used:
-                        name, n = f"{base}{n}", n + 1
-                    used.add(name)
-                    names[id(e)] = name
-            rows: list[tuple[str, ...]] = []
-            for e in sorted(entries, key=lambda e: (e.display.lower(), e.email.lower(), e.order)):
-                when = _fmt_date(e.when, info["format"])
-                perm = r.choice(perms[layout])
-                if layout == "D":
-                    account = names[id(e)]
-                    rows.append((account, e.given, e.family, perm, when))
-                else:
-                    account = self._mess(e.email)
-                    if layout == "A":
-                        rows.append((account, e.display, perm, when))
-                    elif layout == "B":
-                        rows.append((account, e.display, perm, when, e.dept))
-                    else:
-                        rows.append((account, e.display, perm, when))
-                self._owner(app, account, e.owner)
-                for ftype, action, day, detail in e.templates:
-                    self._find(ftype, e.owner, account, app, app, action, day, detail)
-            width = len(headers[layout])
-            for _ in range(r.randint(0, 2)):
-                rows.insert(r.randint(0, len(rows)), ("",) * width)
-            rendered.append((app, info, rows))
-        return self._finish_exports(rendered, headers)
+        built = [self._render_export(app, by_app[app], *plan[app]) for app in cat.NON_SSO_IDS]
+        return self._assign_encodings(built)
 
-    def _finish_exports(
-        self,
-        rendered: list[tuple[str, dict[str, str], list[tuple[str, ...]]]],
-        headers: dict[str, tuple[str, ...]],
-    ) -> tuple[AppExport, ...]:
-        modulus, remainder = cat.BOM_MODULUS, cat.BOM_REMAINDER
-        candidates = [
-            j
-            for j, (_, _, rows) in enumerate(rendered)
-            if j % modulus != remainder and not "".join("".join(row) for row in rows).isascii()
-        ]
-        k = self.rc.cp1252_exports
-        if len(candidates) < k:
-            raise ValueError("not enough exports with a non-ASCII name for the cp1252 exports")
-        legacy = {candidates[i * len(candidates) // k] for i in range(k)} if k else set()
-        out = []
-        for j, (app, info, rows) in enumerate(rendered):
-            encoding = (
-                "cp1252" if j in legacy else "utf-8-sig" if j % modulus == remainder else "utf-8"
-            )
-            out.append(
-                AppExport(
-                    app,
-                    f"{app}.csv",
-                    encoding,
-                    info["layout"],
-                    info["format"],
-                    headers[info["layout"]],
-                    tuple(rows),
+    def _render_export(
+        self, app: str, entries: list[_Entry], layout: Layout, fmt: DateFormat, pattern: str
+    ) -> AppExport:
+        r, noise = self.rng, self.rc.exports.noise
+        style = r.choice(self.rc.names.display_styles)
+        names: dict[int, str] = {}
+        if "username" in layout.fields:
+            used: set[str] = set()
+            for e in sorted(entries, key=lambda e: (e.order, e.display)):
+                base = e.username or render_username(
+                    pattern or self.rc.username_patterns[0], e.given, e.family, e.num
                 )
-            )
-        return tuple(out)
+                name, n = base, 2
+                while name in used:
+                    name, n = f"{base}{n}", n + 1
+                used.add(name)
+                names[id(e)] = name
+        for p, add_app, day, detail in self.pending_adds:
+            if add_app != app:
+                continue
+            account = p.email
+            if "email" not in layout.fields:
+                base = render_username(
+                    pattern or self.rc.username_patterns[0], p.given, p.family, p.num
+                )
+                account, n = base, 2
+                while account in names.values():
+                    account, n = f"{base}{n}", n + 1
+            self._find("mover_stale_access", p.eid, account, app, app, "add", day, detail)
+        rows: list[tuple[str, ...]] = []
+        for e in sorted(entries, key=lambda e: (e.display.lower(), e.email.lower(), e.order)):
+            uname = names.get(id(e), "")
+            if "email" in layout.fields:
+                email_cell = e.email if e.explicit else self._mess(e.email)
+                account = email_cell
+            else:
+                email_cell, account = "", uname
+            values = {
+                "email": email_cell,
+                "username": uname,
+                "full_name": f"{e.given} {e.family}".strip(),
+                "display_name": _display(style, e.given, e.family, e.preferred),
+                "first_name": e.given,
+                "last_name": e.family,
+                "role_level": layout.role_labels[1 if e.role == "admin" else 0],
+                "last_login": format_date(e.when, fmt) if e.when else "",
+                "created": format_date(e.created, fmt),
+                "status": layout.status_labels[0 if e.state == "active" else 1],
+                "department": e.dept,
+                "title": e.title,
+            }
+            rows.append(tuple(values[c.field] for c in layout.columns))
+            self._owner(app, account, e.owner)
+            if e.owner:
+                self.person_final.setdefault((e.owner, app), account)
+            if e.case_key is not None:
+                self.case_name[e.case_key] = account
+            for ftype, action, day, detail in e.templates:
+                self._find(ftype, e.owner, account, app, app, action, day, detail)
+        if noise.duplicate_row_share > 0:
+            rows = [
+                x
+                for row in rows
+                for x in ((row, row) if r.random() < noise.duplicate_row_share else (row,))
+            ]
+        if noise.blank_rows_max > 0:
+            for _ in range(r.randint(0, noise.blank_rows_max)):
+                rows.insert(r.randint(0, len(rows)), ("",) * len(layout.columns))
+        return AppExport(
+            app,
+            f"{app}.csv",
+            "utf-8",
+            layout.name,
+            fmt.name,
+            tuple(c.header for c in layout.columns),
+            tuple(rows),
+            layout.delimiter,
+            layout.quote_all,
+            layout.preamble,
+            layout.footer,
+        )
+
+    def _assign_encodings(self, built: list[AppExport]) -> tuple[AppExport, ...]:
+        """Give the recipe's codecs to exports that can be written in them."""
+        texts = [csv_text(e) for e in built]
+
+        def unicode_codec(codec: str) -> bool:
+            try:
+                "\u4e2d\U0001f600".encode(codec)
+            except UnicodeEncodeError:
+                return False
+            return True
+
+        def writable(text: str, codec: str) -> bool:
+            try:
+                text.encode(codec)
+            except UnicodeEncodeError:
+                return False
+            return True
+
+        def spread(pool: list[int], k: int) -> list[int]:
+            return [pool[i * len(pool) // k] for i in range(k)]
+
+        assigned: dict[int, str] = {}
+        wanted = [(c, k) for c, k in self.rc.exports.encodings if k > 0]
+        for codec, k in sorted(wanted, key=lambda ck: (unicode_codec(ck[0]), ck[0])):
+            eligible = [j for j, t in enumerate(texts) if j not in assigned and writable(t, codec)]
+            if len(eligible) < k:
+                raise ValueError(
+                    f"recipe asks for {k} export(s) in {codec} but only {len(eligible)} of "
+                    f"{len(built)} exports can be written in it"
+                )
+            if unicode_codec(codec):
+                chosen = spread(eligible, k)
+            else:  # a legacy codec: prefer exports whose text really needs it
+                rich = [j for j in eligible if not texts[j].isascii()]
+                rest = [j for j in eligible if texts[j].isascii()]
+                chosen = spread(rich, k) if len(rich) >= k else rich + spread(rest, k - len(rich))
+            for j in chosen:
+                assigned[j] = codec
+        return tuple(
+            dataclasses.replace(e, encoding=assigned.get(j, "utf-8")) for j, e in enumerate(built)
+        )
 
     # ---- HRIS -------------------------------------------------------------------------
 
@@ -1138,6 +1493,7 @@ class _Builder:
                 )
             elif p.kind == "namechg":
                 event(p, p.day, "name_change", (("family_name", p.family), ("work_email", p.email)))
+        events += self.case_events
         return (
             tuple(sorted(records, key=lambda x: x.employee_id)),
             tuple(sorted(events, key=lambda x: (x.day, x.employee_id, x.kind))),

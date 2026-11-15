@@ -1,5 +1,7 @@
 {
+  "format": 2,
   "name": "tuning",
+  "seed": 6108,
   "headcount": 230,
   "contractors": 18,
   "orphaned_accounts": 23,
@@ -14,8 +16,75 @@
   "break_glass": 3,
   "name_changes": 4,
   "duplicate_name_pairs": 2,
-  "export_layouts": 4,
-  "date_formats": ["iso", "dmy_slash", "mdy_slash", "d_mon_y"],
-  "username_only_exports": 20,
-  "cp1252_exports": 3
+  "names": {
+    "extra_given": [],
+    "extra_family": ["Müller", "Çelik", "Gómez", "Núñez", "Østergaard"],
+    "extra_share": 0.03,
+    "display_styles": ["preferred_last"]
+  },
+  "username_patterns": ["{f}{last}{n}", "{first}.{l}{n}", "{first}.{last}{n}"],
+  "date_formats": [
+    {"name": "iso", "strftime": "%Y-%m-%d"},
+    {"name": "dmy_slash", "strftime": "%d/%m/%Y"},
+    {"name": "mdy_slash", "strftime": "%m/%d/%Y"},
+    {"name": "d_mon_y", "strftime": "%-d %b %Y"}
+  ],
+  "export_layouts": [
+    {
+      "name": "A",
+      "delimiter": ",",
+      "columns": [
+        {"header": "Email", "field": "email"},
+        {"header": "Full Name", "field": "display_name"},
+        {"header": "Role", "field": "role_level"},
+        {"header": "Last Login", "field": "last_login"}
+      ],
+      "role_labels": {"member": "Member", "admin": "Admin"}
+    },
+    {
+      "name": "B",
+      "delimiter": ",",
+      "columns": [
+        {"header": "user_email", "field": "email"},
+        {"header": "name", "field": "display_name"},
+        {"header": "permission", "field": "role_level"},
+        {"header": "last_active_at", "field": "last_login"},
+        {"header": "department", "field": "department"}
+      ],
+      "role_labels": {"member": "read", "admin": "admin"}
+    },
+    {
+      "name": "C",
+      "delimiter": ",",
+      "columns": [
+        {"header": "Login", "field": "email"},
+        {"header": "Display Name", "field": "display_name"},
+        {"header": "Access Level", "field": "role_level"},
+        {"header": "Created", "field": "created"}
+      ],
+      "role_labels": {"member": "Standard", "admin": "Admin"}
+    },
+    {
+      "name": "D",
+      "delimiter": ",",
+      "columns": [
+        {"header": "Username", "field": "username"},
+        {"header": "First", "field": "first_name"},
+        {"header": "Last", "field": "last_name"},
+        {"header": "Status", "field": "status"},
+        {"header": "Added On", "field": "created"}
+      ],
+      "status_labels": {"active": "Active", "inactive": "Disabled"}
+    }
+  ],
+  "exports": {
+    "username_only": 20,
+    "encodings": {"cp1252": 3, "utf-8-sig": 6},
+    "noise": {
+      "blank_rows_max": 2,
+      "mixed_case_email_share": 0.08,
+      "trailing_space_share": 0.06,
+      "duplicate_row_share": 0
+    }
+  }
 }

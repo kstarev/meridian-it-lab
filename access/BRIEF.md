@@ -82,10 +82,19 @@ Scored on a sealed held-out world, with the tuning world's numbers reported besi
 
 Every number on the results page is generated from published reports and checked by a test, as tier0's are (`test_site_numbers.py`).
 
+**Final scoring rule.** The held-out world is scored once, at the end ([AAC-010](docs/adr/010-human-rulings-before-publishing.md)).
+
+- **A human rules on every disagreement before anything is published.** Every disagreement between Access-as-Code and the answer key goes to the repo owner for a ruling. This covers a finding the tool missed, a finding the key doesn't have, and a different action for the same account.
+- **Each ruling is logged** in `docs/evals/<date>-access-held-out-a1-rulings.md`: the item, what the tool did, what the key says, the ruling and why.
+- **Key errors are reported as key errors.** A disagreement ruled a key error doesn't count against the tool, and the report lists key errors separately, with their count.
+- **Nothing is re-run.** The rulings don't change the tool or re-run it.
+
 ## Honest limits
 
 - **Mocks are not the real APIs.** They copy the shape of Okta, the Google Admin SDK and Slack SCIM, including pagination, rate limits and errors, but real tenants have quirks the mocks won't.
 - **We planted the problems ourselves.** The held-out recipe is written blind and sealed, but it comes from the same family of ideas, and real exports are messier than ours.
+- **What the sealed world can and can't test.** It can bring mess the practice world never had (new column names, date formats, name spellings, username patterns and HR edge cases), but only within the generator's fixed list of systems, fields and problem types, so a kind of problem nobody thought to describe can't appear in it.
+- **The answer key and the system share an author.** The same builder writes the generator that makes the answer key and Access-as-Code itself, so one misreading of the rules could end up in both and look like agreement. The blind referee, a script written by a helper who has seen neither and that builds its own key from the raw held-out files, is the check against those shared mistakes ([AAC-011](docs/adr/011-blind-referee-against-shared-mistakes.md)).
 - **Small numbers.** The tuning world has 23 orphaned accounts and 11 movers. Counts like that give wide intervals, and they're reported with them.
 - **One person stands in for the IT team.** The two-approver rule needs a second reviewer; in the lab that's a second GitHub account or a scripted stand-in, said plainly wherever it's used.
 - **Non-SSO apps can't be changed by API.** For those, the plan creates a manual task and can only check the next export.

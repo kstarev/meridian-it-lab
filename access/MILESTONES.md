@@ -29,6 +29,9 @@ The access world in the shared dataset ([AAC-004](docs/adr/004-extend-the-shared
 - [ ] The 95 exports use at least 4 column layouts and the 4 date formats, and some list usernames only, checked by a test.
 - [ ] The answer key is written apart from everything the code under test reads, and a test fails if any collector input contains an answer-key field.
 - [ ] A blind helper has written the held-out recipe; it's sealed by SHA-256 with count-only tests, and `--final-score=held_out_a1` is the only way to build it.
+- [ ] The held-out recipe brings mess the tuning recipe doesn't have (new headers, date formats, username patterns, name spellings, an encoding and custom HR cases), checked yes/no by tests ([AAC-009](docs/adr/009-held-out-recipe-can-bring-new-mess.md)).
+- [ ] The held-out answer key passes the code checks (references, duplicates and contradictions, counts against the recipe, completeness from the world), and a second blind reviewer reports PASS.
+- [ ] A blind referee, written from the raw held-out files and the public guide only, builds its own key. Its per-type comparison with the generator's key is logged, and every disagreement has the owner's ruling before any held-out number is published ([AAC-011](docs/adr/011-blind-referee-against-shared-mistakes.md)).
 - [ ] The package is a workspace member with its tests in CI.
 
 ## 3. Policy YAML and desired state
@@ -38,6 +41,7 @@ Policy as code and the code that turns HRIS records into what each person should
 **Done when:**
 
 - [ ] `access/policy/` holds roles, apps, birthright apps, exceptions (each with an expiry and an approval reference), the break-glass allowlist and settings (N = 25), validated against a schema in CI.
+- [ ] The roles, birthright and app lists in `access/policy/` are built from the public access policy table in `dataset/ACCESS_RECIPE.md` (the one the generator uses), and a test fails if the two drift apart.
 - [ ] Desired state for every tuning-world person is built from HRIS + policy + the reviewed title map, deterministically.
 - [ ] Contractors past their end date, leavers and people on leave get the expected desired state, checked against the tuning answer key.
 - [ ] An unmapped job title gets birthright apps only, and is listed for a decision.
@@ -97,7 +101,9 @@ The sealed final score and a page that explains it.
 
 **Done when:**
 
-- [ ] The held-out world is scored once, with the frozen prompts and the chosen model, in an owner-approved GitHub Actions run; the report is published in `docs/evals/`.
+- [ ] The held-out world is scored once, with the frozen prompts and the chosen model, in an owner-approved GitHub Actions run.
+- [ ] Every disagreement between the tool and the key has the owner's ruling in the rulings log before any number is published; key errors are reported separately and not counted against the tool ([AAC-010](docs/adr/010-human-rulings-before-publishing.md)).
+- [ ] The report is published in `docs/evals/`.
 - [ ] Precision and recall per problem type (target ≥ 0.90 each), identity matching rules only vs rules + AI, the safety counts (target 0) and cost, with intervals.
 - [ ] `site/access/` is live at kstarev.dev/meridian-it-lab/access/, deployed by the existing Pages workflow.
 - [ ] Every number on the page is checked against the published report by a test, as `test_site_numbers.py` does for tier0.

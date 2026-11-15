@@ -17,12 +17,26 @@ _SLACK_LIST = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 _SLACK_USER = "urn:ietf:params:scim:schemas:core:2.0:User"
 
 
-def _csv_bytes(export: AppExport) -> bytes:
+def csv_text(export: AppExport) -> str:
+    """The export as text: preamble lines, header, rows, footer lines, all ending in CRLF."""
     buffer = io.StringIO(newline="")
-    writer = csv.writer(buffer, lineterminator="\r\n")
+    for line in export.preamble:
+        buffer.write(line + "\r\n")
+    writer = csv.writer(
+        buffer,
+        delimiter=export.delimiter,
+        quoting=csv.QUOTE_ALL if export.quote_all else csv.QUOTE_MINIMAL,
+        lineterminator="\r\n",
+    )
     writer.writerow(export.header)
     writer.writerows(export.rows)
-    return buffer.getvalue().encode(export.encoding)
+    for line in export.footer:
+        buffer.write(line + "\r\n")
+    return buffer.getvalue()
+
+
+def _csv_bytes(export: AppExport) -> bytes:
+    return csv_text(export).encode(export.encoding)
 
 
 def _contents(world: AccessWorld) -> dict[str, bytes]:
