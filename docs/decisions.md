@@ -963,3 +963,14 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 - **What the report may claim:** the fix's benefit rests on those 2 self-descriptions, and the check that it does no harm on short messages rests on the 4 unnamed colleague requests the signal catches today. The report shows the interval and claims no more than that.
 - **The brief differed from v4's in one more way than the owner asked for.** Besides dropping "add specific context" and adding "lengths like real Slack, many one-liners", the tuning agent trimmed the description of Slack noise to emoji, typos, missing punctuation and greetings, to be used in some messages, and dropped "irrelevant context around the actual request", because it works against short messages.
 - **Two one-word overlaps are allowed, and pinned.** The no-shared-wording test splits messages into sentences. One v4b self-description shares a one-word sentence (a lone greeting or sign-off) with held-out v2, and one unnamed colleague request shares one with tuning. Neither message fires the signal. The set was not rewritten. For pairs with v4b the test ignores one-word sentences and pins their number at these two; every longer sentence is still checked, and no other set gets the exemption.
+
+**The final run is a paired, like-for-like comparison (the owner's decision, 2026-11-15, recorded before the run):**
+
+- **Two arms, scored the same way.** On v4 and on v4b, the same harness, the same models (Haiku 5.5 and Sonnet 5.5) and k=5 score:
+  - **(a) before:** the code as it was before the TKT-004 fix;
+  - **(b) after:** the code with the fix.
+- **The arms differ in the fix only.** Both use the prompts frozen at checkpoint C, so a difference between the arms is the fix and nothing else. If re-tuning on the harder set changes a prompt, the owner decides at checkpoint C whether a third arm with the old prompts is needed.
+- **Each set is unsealed once,** for that single paired run: one unsealing of v4 and one of v4b, each scoring both arms.
+- **The report shows before and after side by side, with intervals,** for v4 and for v4b separately, never pooled. The code-only signal counts (v4: 0 of 20 self-descriptions and 0 of 12 unnamed colleague requests fire; v4b: 2 of 20 and 4 of 12) are given as context only. They decide nothing.
+- This replaces the plan's earlier rule, which compared the paid "after" run with a code-only "before" count.
+- **Cost:** two arms double the final run: (72 + 32) tickets × 5 × 2 arms × $0.00174 ≈ $1.81, against $0.91 for one arm.
