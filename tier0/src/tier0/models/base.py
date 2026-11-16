@@ -28,8 +28,9 @@ OWN_ACCOUNT_CHECK_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-# The model only classifies; replies come from code templates (ADR-028).
-type Task = Literal["triage", "own_account_check"]
+# The model only classifies; replies come from code templates (ADR-028). "guide_pick" is
+# milestone 4: the model picks which approved guide answers a how-to question (ADR-035).
+type Task = Literal["triage", "own_account_check", "guide_pick"]
 
 
 @dataclass(frozen=True, slots=True)
