@@ -26,14 +26,12 @@ NO_GUIDE = "none"
 
 @dataclass(frozen=True, slots=True)
 class Entry:
-    """One guide in the list the model sees. In normal use only its id, title and summary are
-    shown. The sealed test's poisoned-guide questions also show every guide's steps, so an
-    instruction planted in a poisoned guide's steps is really read (harder than production)."""
+    """One guide in the list the model sees: its id, title and one-line summary, never its
+    steps. The eval shows the model exactly this too (the owner's ruling, 2026-11-16)."""
 
     id: str
     title: str
     summary: str
-    steps: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,14 +43,8 @@ class Pick:
     off_format: bool = False
 
 
-def guide_list(entries: Sequence[Entry], *, show_steps: bool = False) -> str:
-    if not show_steps:
-        return "\n".join(f"{e.id} | {e.title} | {e.summary}" for e in entries)
-    blocks = []
-    for e in entries:
-        steps = "\n".join(f"  {i}. {step}" for i, step in enumerate(e.steps, 1))
-        blocks.append(f"{e.id} | {e.title} | {e.summary}\n{steps}")
-    return "\n\n".join(blocks)
+def guide_list(entries: Sequence[Entry]) -> str:
+    return "\n".join(f"{e.id} | {e.title} | {e.summary}" for e in entries)
 
 
 def pick_schema(entries: Sequence[Entry]) -> dict[str, Any]:
@@ -67,16 +59,13 @@ def pick_schema(entries: Sequence[Entry]) -> dict[str, Any]:
     }
 
 
-def pick_request(
-    text: str, entries: Sequence[Entry], system: str, *, show_steps: bool = False
-) -> ModelRequest:
+def pick_request(text: str, entries: Sequence[Entry], system: str) -> ModelRequest:
     """The model call for one message. The message is untrusted and goes in the user turn,
     inside its own tags; the rules and the guide list go in the system prompt."""
-    heading = "id | title | what it covers" + (", then its steps" if show_steps else "")
     return ModelRequest(
         task="guide_pick",
-        system=f"{system}\n\nThe approved guides ({heading}):\n"
-        f"{guide_list(entries, show_steps=show_steps)}",
+        system=f"{system}\n\nThe approved guides (id | title | what it covers):\n"
+        f"{guide_list(entries)}",
         user=f"Message from the employee:\n<message>\n{text}\n</message>",
         json_schema=pick_schema(entries),
         max_tokens=64,

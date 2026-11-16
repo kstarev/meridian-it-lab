@@ -69,11 +69,44 @@ those details.
     + _TRUST
 )
 
-PICKER_VERSIONS: dict[str, str] = {"K1": K1, "KH2": KH2, "KS2": KS2}
+# Versions 3, for ruling R24 (the owner adopted it on 2026-11-16): one rule, written from the
+# realistic month's tuning dry run, where broken hardware and app errors got a guide on a nearby
+# topic. Written on 2026-11-16 as a measured proposal, before the ruling.
+_BROKEN = """\
+- A report that something is broken or failing is not a how-to question when a person must \
+look at it: physical damage or a spill, a part that is loose or dead, a device that overheats \
+or shuts down, a battery that fails, a screen that flickers or stays black after the obvious \
+checks, or an app that crashes or shows an error. Choose request_type "other" and guide "none". \
+Everyday slowness, sound, Wi-Fi or VPN trouble that a guide's simple checks cover is still a \
+how-to question."""
+KH3 = KH2.replace("\n\n" + _TRUST, "\n" + _BROKEN + "\n\n" + _TRUST)
+KS3 = KS2.replace("\n\n" + _TRUST, "\n" + _BROKEN + "\n\n" + _TRUST)
+
+# Versions 4, for ruling R25 (2026-11-16): versions 3 plus one rule. A message with several
+# requests goes to a person as a whole, even when a guide answers one part. Written from the
+# month's tuning dry run (several-question messages), before any score.
+_SEVERAL = """\
+- A message that asks for more than one thing (two questions, or a question and a request) is \
+not one how-to question, even when a guide answers one part. Choose request_type "other" and \
+guide "none", so that a person handles the whole message. The steps of one task, or one \
+question with its reason, are one thing."""
+KH4 = KH3.replace("\n\n" + _TRUST, "\n" + _SEVERAL + "\n\n" + _TRUST)
+KS4 = KS3.replace("\n\n" + _TRUST, "\n" + _SEVERAL + "\n\n" + _TRUST)
+assert KH2 != KH3 != KH4 and KS2 != KS3 != KS4  # noqa: S101
+
+PICKER_VERSIONS: dict[str, str] = {
+    "K1": K1,
+    "KH2": KH2,
+    "KS2": KS2,
+    "KH3": KH3,
+    "KS3": KS3,
+    "KH4": KH4,
+    "KS4": KS4,
+}
 # Which versions each model may try: version 1 and its own later versions, at most 5.
 CANDIDATES: dict[str, tuple[str, ...]] = {
-    "claude-haiku-5-5": ("K1", "KH2"),
-    "claude-sonnet-5-5": ("K1", "KS2"),
+    "claude-haiku-5-5": ("K1", "KH2", "KH3", "KH4"),
+    "claude-sonnet-5-5": ("K1", "KS2", "KS3", "KS4"),
 }
 
 
