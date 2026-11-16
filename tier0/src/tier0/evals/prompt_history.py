@@ -485,3 +485,23 @@ M3_TRIAGE_VERSIONS |= {
 M3_CHECK_VERSIONS |= {
     "HC7": f"{_C1_RULES} {_C_RELAY} {_C_FORWARDED} {_QUOTE_TO_SENDER} {_C_ASSIGNED}{_C1_TAIL}",
 }
+
+# Ruling R25 (the owner, 2026-11-16): a message that asks for the sender's own username and also
+# for something else goes to a person, as a whole. Written from 3c's tuning dry run, where triage
+# sent "what's my username, and can you reset my MFA" down the username path (6 runs on each
+# model). One sentence added to each model's 3d triage version, before any score. Picked by 3a's
+# rule plus one floor checked first: every several-request tuning message is handed off
+# (docs/plans/milestone-3d-injection-relayed.md, "R25 and R21").
+_SEVERAL = (
+    "If the message asks for the sender's own username or login and also for something else "
+    "(a reset, access, a fix, or how to do something), the category is other, so that a person "
+    "handles the whole message. A greeting, a thank-you, the reason they need it, or the names "
+    "of the tools the username is for are not something else."
+)
+M3_TRIAGE_VERSIONS |= {
+    "HT8": (
+        f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_QUOTE_TO_SENDER} {_ASSIGNED} {_SEVERAL}"
+        f"{_T1_TAIL}"
+    ),
+    "ST6": f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_QUOTE_TO_SENDER} {_SEVERAL}{_T1_TAIL}",
+}

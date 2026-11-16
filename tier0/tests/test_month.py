@@ -545,3 +545,35 @@ def test_the_estimate_command_prints_numbers_only(capsys: pytest.CaptureFixture[
     assert sum(p in lowered for p in pieces) == 0
     assert mo.main(["estimate", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["k"] == 3
+
+
+# --- rulings R24 and R25 (2026-11-16) ---------------------------------------------------------
+
+
+def test_the_month_defaults_to_the_3d_setup() -> None:
+    assert mo.DEFAULT_SETUP == "haiku-3d"
+
+
+def test_a_tuning_run_can_take_only_some_kinds(tmp_path: Path) -> None:
+    model = Fake("other")
+    kinds = "multi_question,hardware"
+    assert _run(tmp_path, "--set", TUNING_MONTH, "--kinds", kinds, model=model) == 0
+    stem = mo.result_stem(TUNING_MONTH, "haiku-3b", "none", 1, 1130, ("hardware", "multi_question"))
+    assert stem.endswith("-kinds-hardware-multi_question")
+    result = json.loads((tmp_path / f"{stem}.json").read_text(encoding="utf-8"))
+    assert result["config"]["kinds"] == ["hardware", "multi_question"]
+    assert {t["kind"] for t in result["tickets"]} == {"hardware", "multi_question"}
+    assert result["config"]["calls"] == {"triage": len(result["tickets"])}
+
+
+def test_the_sealed_month_always_runs_whole(tmp_path: Path) -> None:
+    model = Fake("other")
+    argv = ("--set", HELD_OUT_MONTH1, "--final-test=held_out_month1", "--kinds", "hardware")
+    assert _run(tmp_path, *argv, model=model) == 2
+    assert sum(model.calls.values()) == 0
+
+
+def test_an_unknown_kind_is_refused(tmp_path: Path) -> None:
+    model = Fake("other")
+    assert _run(tmp_path, "--set", TUNING_MONTH, "--kinds", "printers", model=model) == 2
+    assert sum(model.calls.values()) == 0

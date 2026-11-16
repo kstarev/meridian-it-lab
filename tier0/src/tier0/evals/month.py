@@ -30,7 +30,7 @@ import os
 import sys
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +66,8 @@ from tier0.models.spend import ITEM_ENV
 from tier0.netguard import guard_for_model
 from tier0.roles import role_reference
 
-DEFAULT_SETUP = "haiku-3b"
+# The 3d setups since rulings R24 and R25 (2026-11-16): R25 lives in their triage prompts.
+DEFAULT_SETUP = "haiku-3d"
 # The budget item that pays for the month (ADR-037). A Claude run charged to any other item
 # is refused before the first call.
 BUDGET_ITEM = "tier0-3c"
@@ -628,8 +629,18 @@ def check_unseal(set_name: str, final_test: str | None, seed: int) -> str | None
     return None
 
 
-def result_stem(set_name: str, setup: str, picker: str, k: int, seed: int) -> str:
-    return f"month-{set_name}-{setup}-picker-{picker}-k{k}-seed{seed}"
+def result_stem(
+    set_name: str, setup: str, picker: str, k: int, seed: int, kinds: Sequence[str] = ()
+) -> str:
+    stem = f"month-{set_name}-{setup}-picker-{picker}-k{k}-seed{seed}"
+    return stem + (f"-kinds-{'-'.join(sorted(kinds))}" if kinds else "")
+
+
+def only_kinds(month: Month, kinds: Sequence[str]) -> Month:
+    """The month's tickets of these kinds only, in order: a cheaper re-run on tuning data of the
+    kinds a change touches. The sealed set always runs whole (`main` refuses this there)."""
+    wanted = set(kinds)
+    return replace(month, tickets=tuple(t for t in month.tickets if t.kind in wanted))
 
 
 def ticket_details(
@@ -802,6 +813,12 @@ def main(
     r.add_argument("--k", type=int, required=True)
     r.add_argument("--seed", type=int, default=None, help="default: the set's fixed seed")
     r.add_argument("--picker", choices=("none", "knowledge"), default="none")
+    r.add_argument(
+        "--kinds",
+        default=None,
+        help="tuning data only: run only these ticket kinds, comma-separated (the rest are left "
+        "out of the run and of its numbers)",
+    )
     r.add_argument("--picker-prompt", default=None, help="milestone 4 prompt version")
     r.add_argument(
         "--final-test",
@@ -831,7 +848,15 @@ def main(
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
     sealed = args.set in SEALED_SETS
-    stem = result_stem(args.set, setup.name, args.picker, args.k, args.seed)
+    kinds = tuple(sorted(set(args.kinds.split(",")))) if args.kinds else ()
+    if kinds and sealed:
+        print(f"refused: {args.set} always runs whole; --kinds is for tuning data", file=sys.stderr)
+        return 2
+    unknown = sorted(set(kinds) - set(KINDS))
+    if unknown:
+        print(f"refused: unknown ticket kinds: {', '.join(unknown)}", file=sys.stderr)
+        return 2
+    stem = result_stem(args.set, setup.name, args.picker, args.k, args.seed, kinds)
     out_json = args.out / f"{stem}.json"
     out_md = args.out / f"{stem}.md"
     out_runs = args.out / f"{stem}.runs.jsonl"
@@ -840,6 +865,8 @@ def main(
         return 2
 
     month = month_for(args.set, seed=args.seed)
+    if kinds:
+        month = only_kinds(month, kinds)
     model = CountedModel((make_model or setup.factory())())
     picker = NONE_PICKER
     if args.picker == "knowledge":
@@ -868,6 +895,7 @@ def main(
         "picker_prompt": picker.prompt_version,
         "picker_prompt_sha256": picker.prompt_sha256,
         "k": args.k,
+        "kinds": list(kinds) or None,
         "minutes_per_kind": MINUTES_PER_KIND,
         "bootstrap_samples": samples,
         "bootstrap_seed": BOOTSTRAP_SEED,
