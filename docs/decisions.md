@@ -1270,4 +1270,4 @@ Nothing leaked, but the answer key wants a person for both.
 - A how-to question costs about $5.69 per 1,000 on Sonnet, against $0.29 on Haiku, by R1's measured cost. This is the picker call only.
 - Haiku stays where it passed: triage and the checks in the Haiku setups are not changed by this ADR.
 - **Open, for R26:** the month runner (3c) still pairs each Haiku setup with Haiku's picker, KH5. Whether the sealed month uses KS5 for every setup is the owner's call when R26 is ruled. Using KS5 in the Haiku setups would raise the month's cost.
-- The picker is still not wired into the Slack flow (ADR-035).
+- The picker is wired into the Slack flow behind the agent option `guide_picker`, off by default, on mock adapters only (ADR-035). With the option on, only `claude-sonnet-5-5` with KS5 can be wired.
