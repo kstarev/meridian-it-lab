@@ -16,6 +16,9 @@ Short records of the choices that shape Access-as-Code, one file each, numbered 
 | [AAC-010](010-human-rulings-before-publishing.md) | Every disagreement on the held-out score gets the owner's ruling, logged, before anything is published | Accepted; applies in milestone 7 |
 | [AAC-011](011-blind-referee-against-shared-mistakes.md) | A blind referee builds its own key from the raw held-out files, as the check against shared mistakes | Accepted |
 | [AAC-012](012-title-map-seeded-from-the-practice-world.md) | The reviewed job-title map is seeded from the practice world; new titles stay unmapped | Accepted |
+| [AAC-013](013-m7-frozen-prompts-and-the-owners-answers.md) | Milestone 7's prompts are frozen by hash, the final run is guarded, and the owner's answers to M7-R1 to M7-R17 | Accepted; the run waits for its budget item and the owner's go |
+| [AAC-014](014-line-breaks-are-flattened-before-any-prompt.md) | Line breaks in world fields are flattened in code before any prompt is built; the M7 prompts are re-frozen | Accepted; built in its own pull request |
+| [AAC-015](015-the-red-team-set.md) | A red-team set, written blind and sealed, measures attacks through the AI's three jobs; it runs after the line-break fix | Accepted; the paid run waits for its item, a workflow and the owner's go |
 
 ## Template
 
