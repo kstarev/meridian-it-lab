@@ -179,6 +179,8 @@ Written before any new score.
 
 ### The re-run on the tuning month (2026-11-16, k = 1, optimistic)
 
+Generated summaries: [haiku-3d](../evals/2026-11-16-m3c-retune-haiku-3d.md), [sonnet-3d, four kinds](../evals/2026-11-16-m3c-retune-sonnet-3d-four-kinds.md).
+
 Tuning data, so I read the results. The new prompts were written after the dry run's misses, so these numbers flatter them. Only the sealed month measures anything.
 
 | Setup | Picker | Tickets | Out-of-scope wrongly answered | Before (2026-11-15, 3b setups, KH2 or KS2) | Cost |
