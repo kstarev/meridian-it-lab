@@ -39,27 +39,36 @@ FROZEN_MODEL = "claude-haiku-5-5"
 KINDS = ("title", "owner", "summary")
 PARTS = ("system", "user", "schema", "request")
 
-# Frozen on 2026-11-15 for the final held-out score (access/docs/m7-prep.md).
+# Frozen on 2026-11-15 for the final held-out score (access/docs/m7-prep.md); re-frozen on
+# 2026-11-16 after the M7-R16 fix: only the user and request pins changed, because the probes
+# now carry line breaks.
 PINNED_SHA256: dict[str, str] = {
-    "owner.request": "af829e688054fe887f9429d59937f873f1d06d3cee96a2993d87f1a5bc28b342",
+    "owner.request": "00e43b231b72961194636e35259d77959ee019cedf8542229b7c5f1dc9c5581e",
     "owner.schema": "e117eafd019103a826bed8d168c564e1fa5786fb24f03a20002ba165afb01f48",
     "owner.system": "f37b44fe503ec699b5ec8772efcd51e906ad21f0030e108c51da6ac554c5b6ec",
-    "owner.user": "d49e6a7f077f1d3ad3c641397a0299ff1f76ed0e1ba352ad611b77548f57e665",
-    "summary.request": "06b6313877527749b3381b6df39e99d9ca15023be430836e88d2853d5775c91d",
+    "owner.user": "32a13cf03f555a4f31826691c9fd04130cb50285412202b775a4e66103988719",
+    "summary.request": "6e905011f637da6f5fa271236ff3ed9bec64d0499e1f0f319f488a744dc36068",
     "summary.schema": "34ebde27d47aa44c7e7128cd27b29bb486b28f90959eac4209d20a86a4444e2e",
     "summary.system": "6ce3944b119b1ad0ff2a5bb801aa2555d0ececfa04b2ec96cbee0dc01e1a3fce",
-    "summary.user": "89ba600d1dd352a4548d28fe8f228e4f85af7252863c41d73c5e5b8aa14a04fc",
-    "title.request": "a9a630f5258c0ccc0face04631a1e2010c7c98a56d0729191c60e52843a8c0bb",
+    "summary.user": "0e917f55c55dc53e72a7d3e5fc060eb41493d2321c15fdc5b7d420a23b8c8658",
+    "title.request": "649353fa7084ec1b827e634b10e0df0c091df5405c6309ad24ed691be53817ca",
     "title.schema": "4c3a72b74622c422779571ed407cbe7a76b1437fedec6be6db4cc17ceec4d7dc",
     "title.system": "5ec9d59ce662e983919f7d231e819019e5df304ff79f7a490b7324081597af69",
-    "title.user": "c0e4c0ded4e1aedd8754220d4984d726cfb08093fc75bfc859e5b2f372eef6c3",
+    "title.user": "9c10e87c5f173198b95ca8b8c6fc0e5d5a31ec13f5ee6c742252d3520210179a",
 }
 # SHA-256 of the lines "<name> <hash>\n" of PINNED_SHA256, sorted by name: one number to confirm.
-FREEZE_DIGEST = "f7f0d297e8890550ce1ccdef24f97fcb54f002148c16f15eb270051bf9c39005"
+FREEZE_DIGEST = "e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24cf"
 
-# Fixed probe inputs: fake, and never a real person.
+# Fixed probe inputs: fake, and never a real person. The fields the prompt builders flatten
+# carry line breaks (M7-R16): LF, CRLF and CR, U+2028 and U+2029, VT, FF and NEL, and runs of
+# them. So the pinned user messages are the flattened text, and removing the flattening, or
+# any one kind of break from it, breaks the freeze.
 PROBE_ROLES = ("probe-role-a", "probe-role-b")
-PROBE_TITLE = ("Probe Title", "Probe Department", "Probe Team")
+PROBE_TITLE = (
+    "Probe\nJob\r\nTitle",
+    "Probe\rDepartment\u2028Name",
+    "Probe\u2029Team\x0b\x0c\x85Name",
+)
 
 
 class PromptsNotFrozen(RuntimeError):
@@ -81,11 +90,11 @@ def _probe_record(n: int) -> HrisRecord:
         employee_id=f"E-PROBE-{n}",
         given_name="Probe",
         family_name=f"Person{n}",
-        preferred_name="",
+        preferred_name=f"Probe\r\nPerson{n}",
         work_email=f"probe.person{n}@{DOMAIN}",
         personal_email=f"probe{n}@personal.example",
         job_title="Probe Title",
-        department="Probe Department",
+        department="Probe\nDepartment\u2029Name\x85",
         team="Probe Team",
         manager_id="",
         country="XX",
@@ -109,9 +118,9 @@ def _probe_plan() -> Any:
         "account": f"probe.person1@{DOMAIN}",
         "system": "okta",
         "app_id": "probe-app",
-        "app_name": "Probe App",
+        "app_name": "Probe\rApp\u2028Name",
         "action": "remove",
-        "reason": "probe reason",
+        "reason": "probe\nreason\r\n\u2029with line breaks",
     }
     by_type = dict.fromkeys(sorted(TYPE_WORDS), 1)
     return Plan({"counts": {"total": len(by_type), "by_type": by_type}, "changes": [change]})
@@ -129,7 +138,7 @@ def prompt_parts() -> dict[str, dict[str, Any]]:
         email=f"probe.person1@{DOMAIN}",
         given="Probe",
         family="Person1",
-        display="Probe Person1",
+        display="Probe\u2028Person1",
     )
     candidates = [_probe_record(1), _probe_record(2)]
     return {

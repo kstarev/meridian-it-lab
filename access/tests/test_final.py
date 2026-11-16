@@ -97,6 +97,61 @@ def test_the_prompts_are_frozen_by_hash():
     assert all(re.fullmatch(r"[0-9a-f]{64}", h) for h in frozen.PINNED_SHA256.values())
 
 
+# M7-R16 (a): the probes carry every kind of line break, so the freeze locks the flattening.
+LINE_BREAKS = {
+    "LF": "\n",
+    "CR": "\r",
+    "CRLF": "\r\n",
+    "LS": "\u2028",
+    "PS": "\u2029",
+    "VT": "\x0b",
+    "FF": "\x0c",
+    "NEL": "\x85",
+}
+
+
+def test_the_probes_carry_every_kind_of_line_break():
+    title = "".join(frozen.PROBE_TITLE)
+    assert {k for k, br in LINE_BREAKS.items() if br in title} == set(LINE_BREAKS)
+    record, change = frozen._probe_record(1), frozen._probe_plan().changes[0]
+    for text in (record.preferred_name, record.department, change["app_name"], change["reason"]):
+        assert len(text.splitlines()) > 1
+    for p in frozen.prompt_parts().values():  # and none of them reaches a user message
+        assert not any(br in p["user"].replace("\n", "") for br in LINE_BREAKS.values())
+
+
+@pytest.mark.parametrize(
+    ("module", "kind"), [(titles, "title"), (matching, "owner"), (summary, "summary")]
+)
+def test_removing_the_line_break_flattening_breaks_the_freeze(monkeypatch, module, kind):
+    monkeypatch.setattr(module, "flatten_line_breaks", lambda text: text)
+    issues = frozen.problems()
+    assert f"{kind}.user differs from its pinned hash" in issues
+    assert f"{kind}.request differs from its pinned hash" in issues
+    with pytest.raises(frozen.PromptsNotFrozen):
+        frozen.require_frozen()
+
+
+@pytest.mark.parametrize("kind", [*sorted(LINE_BREAKS), "runs"])
+def test_flattening_one_kind_less_breaks_the_freeze(monkeypatch, kind):
+    from meridian_access.ai.prompt_text import flatten_line_breaks
+
+    if kind == "runs":  # one space per break, so CRLF and a run would be several spaces
+
+        def weaker(text: str) -> str:
+            return re.sub("[\n\x0b\x0c\r\x1c\x1d\x1e\x85\u2028\u2029]", " ", text)
+    else:
+        br = LINE_BREAKS[kind]
+
+        def weaker(text: str) -> str:
+            parts = [flatten_line_breaks(p) for p in text.split(br)]
+            return br.join(parts)
+
+    for module in (titles, matching, summary):
+        monkeypatch.setattr(module, "flatten_line_breaks", weaker)
+    assert "title.user differs from its pinned hash" in frozen.problems()
+
+
 def test_a_system_prompt_hash_is_the_sha256_of_its_exact_text():
     """So anyone can check a pin by hand: the bytes of the text, nothing added."""
     for kind, text in (
