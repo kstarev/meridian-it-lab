@@ -1,15 +1,17 @@
 """Milestone 3c, the realistic month: a routing-level eval on ~300 mixed tickets.
 
     python -m tier0.evals.month estimate --setup haiku-3b --k 3 [--set tuning_month]
+    python -m tier0.evals.month sealed-cost [--k 3]
     python -m tier0.evals.month run --set tuning_month --setup haiku-3b --k 1 [--seed N]
-        [--picker knowledge] [--final-test=held_out_month1] --out DIR
+        [--picker knowledge [--picker-on-own-model]] [--final-test=held_out_month1] --out DIR
 
 **Routing level only.** Each ticket goes through the model steps that decide where it ends
 up, and nothing else: triage with the setup's prompt; for "own_username", the code-only role
 signal and then the setup's own-account check; for "about_someone_else", a refusal; for
 "other", a pluggable second stage (by default a hand-off; `--picker knowledge` plugs in
-milestone 4's guide picker). It does not run the mocks, the tokens, the MCP server, the
-directory mention check or the reply templates, and it grades the routing, not the reply.
+milestone 4's guide picker, on Claude Sonnet with KS5 whatever the setup's triage model).
+It does not run the mocks, the tokens, the MCP server, the directory mention check or the
+reply templates, and it grades the routing, not the reply.
 
 Every ticket-run is graded against the month's answer key: answered with the sender's
 username, answered with one guide (the right KB id), or handed to a person. The safety
@@ -42,6 +44,7 @@ from meridian_dataset.month import (
     HAND_OFF_REASONS,
     KINDS,
     MONTH_GENERATOR_VERSION,
+    MONTH_SIZE,
     SEALED_SETS,
     TEMPLATE_SETS,
     TUNING_MONTH,
@@ -57,9 +60,9 @@ from tier0.agent import (
     triage_off_format,
     triage_request,
 )
-from tier0.evals.setups import ALL_SETUPS, Setup
+from tier0.evals.setups import ALL_SETUPS, HAIKU, SONNET, Setup
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, template_bootstrap
-from tier0.models import ModelAdapter, ModelError, ModelRequest, ModelResponse
+from tier0.models import ClaudeModel, ModelAdapter, ModelError, ModelRequest, ModelResponse
 from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_USERNAME
 from tier0.models.pricing import cost_usd
 from tier0.models.spend import ITEM_ENV
@@ -94,17 +97,41 @@ MINUTES_PER_KIND: dict[str, int] = {
     "how_to_guide": 10,  # find the right guide, reply, often one follow-up question
 }
 
-# Milestone 4's picker prompt for each setup, chosen by its own rule on tuning data. Used
-# only with --picker knowledge; --picker-prompt overrides it.
-# The 3b setups keep the versions their 2026-11-15 dry run used; the 3d setups, which the month
-# runs since rulings R24 and R25, use milestone 4's frozen picks.
+# The guide picker (milestone 4) runs on one model with one prompt in every Claude setup,
+# whatever the setup's triage model: Claude Sonnet 5.5 with KS5. ADR-046 makes Sonnet the
+# picker's model, because Haiku's KH5 failed the sealed how-to test's pass rule 2, and the
+# owner asked for it in every arm of the sealed month (2026-11-17). Tuning-month runs use it
+# too, so the tuning and sealed months measure the same picker. Used only with
+# --picker knowledge; --picker-prompt overrides the prompt.
+PICKER_MODEL = SONNET
+PICKER_PROMPT = "KS5"
 PICKER_PROMPT_FOR_SETUP: dict[str, str] = {
+    name: PICKER_PROMPT for name, s in ALL_SETUPS.items() if s.provider == "claude"
+}
+# Until 2026-11-17 the picker ran on the setup's own triage model, with that model's prompt.
+# `--picker-on-own-model` brings this back, so the summaries written before can be reproduced:
+# the 2026-11-15 dry run (haiku-3b, sonnet-3b) and the 2026-11-16 re-run (haiku-3d, sonnet-3d).
+OWN_MODEL_PICKER_PROMPT: dict[str, str] = {
     "haiku-3b": "KH2",
     "sonnet-3b": "KS2",
     "haiku-3d": "KH5",
     "haiku-3d-hc7": "KH5",
     "sonnet-3d": "KS5",
 }
+
+
+def picker_model_for(setup: Setup, *, own_model: bool = False) -> str:
+    """The model the guide picker runs on. A local setup's picker stays on its own model: its
+    run is held on this machine by the network guard, so it can't reach Claude."""
+    if own_model or setup.provider != "claude":
+        return setup.triage_model
+    return PICKER_MODEL
+
+
+def picker_prompt_for(setup: Setup, *, own_model: bool = False) -> str | None:
+    """The picker prompt a setup runs with, None when none is chosen (pass --picker-prompt)."""
+    return (OWN_MODEL_PICKER_PROMPT if own_model else PICKER_PROMPT_FOR_SETUP).get(setup.name)
+
 
 # What the second stage returns for a message triage called "other".
 GUIDE = "guide"
@@ -166,7 +193,9 @@ NONE_PICKER = Picker("none", no_picker)
 
 def knowledge_picker(setup: Setup, model: ModelAdapter, prompt: str | None = None) -> Picker:
     """Milestone 4's guide picker as the second stage. Imported here, not at the top, so the
-    month runs without milestone 4; a clear error says what's missing."""
+    month runs without milestone 4; a clear error says what's missing. `model` is the adapter
+    the picker calls: for a Claude setup, one on PICKER_MODEL (`picker_model_for`), which `main`
+    builds apart from the setup's own."""
     # importlib, not import statements: the import sorter groups these two packages
     # differently depending on the workspace's members, and this reads the same either way.
     try:
@@ -511,12 +540,15 @@ def _usd(setup: Setup, model: str, tokens_in: int, tokens_out: int) -> float:
     return cost_usd(provider, model, tokens_in, tokens_out)
 
 
-def estimate(month: Month, setup: Setup, *, k: int) -> dict[str, Any]:
+def estimate(
+    month: Month, setup: Setup, *, k: int, own_model_picker: bool = False
+) -> dict[str, Any]:
     """Model calls and an upper cost for one month at k, with and without the picker. No
     model is called. "upper": every ticket gets triage and a second call, and with the
     picker that second call is the dearer one. "as_expected": triage routes every ticket as
     its answer key expects (own-username to the check, colleague requests refused, the rest
-    to the picker)."""
+    to the picker). The picker is priced on its own model (`picker_model_for`)."""
+    picker_model = picker_model_for(setup, own_model=own_model_picker)
     prompts = setup.prompts()
     tickets = month.tickets
     triage_in = [
@@ -542,7 +574,7 @@ def estimate(month: Month, setup: Setup, *, k: int) -> dict[str, Any]:
         usd = (
             _usd(setup, setup.triage_model, t_in, t_out)
             + _usd(setup, setup.check_model, c_in, c_out)
-            + _usd(setup, setup.triage_model, p_in, p_out)  # the picker runs on the triage model
+            + _usd(setup, picker_model, p_in, p_out)
         )
         return {
             "calls": calls * k,
@@ -560,6 +592,8 @@ def estimate(month: Month, setup: Setup, *, k: int) -> dict[str, Any]:
         "check_model": setup.check_model,
         "triage_prompt": setup.triage_prompt,
         "check_prompt": setup.check_prompt,
+        "picker_model": picker_model,
+        "picker_prompt": picker_prompt_for(setup, own_model=own_model_picker),
         "set": month.template_set,
         "seed": month.seed,
         "tickets": n,
@@ -592,7 +626,8 @@ def render_estimate(e: dict[str, Any]) -> str:
         [
             f"Realistic month, cost estimate for {e['setup']} at k = {e['k']} (no model is called)",
             f"  triage {e['triage_model']} ({e['triage_prompt']}), check {e['check_model']} "
-            f"({e['check_prompt']}); set {e['set']}, seed {e['seed']}: {e['tickets']} tickets "
+            f"({e['check_prompt']}), picker {e['picker_model']} ({e['picker_prompt'] or 'none'}); "
+            f"set {e['set']}, seed {e['seed']}: {e['tickets']} tickets "
             f"from {e['templates']} templates",
             f"  sizes: UTF-8 bytes / {a['bytes_per_token']} per token, plus "
             f"{a['request_overhead_tokens']} per triage or check request; "
@@ -604,6 +639,131 @@ def render_estimate(e: dict[str, Any]) -> str:
             line("routed as the answer key expects, picker", e["as_expected"]["with_picker"]),
         ]
     )
+
+
+# --- the sealed month's cost, from measured calls ---------------------------------------------
+# No model is called and no month is loaded: the sealed month enters by its ticket count only,
+# which the generator fixes (MONTH_SIZE, the same for every month).
+
+
+@dataclass(frozen=True, slots=True)
+class Measured:
+    """One task's measured calls in an earlier paid run, and what they cost."""
+
+    calls: int
+    usd: float
+    source: str
+
+    @classmethod
+    def from_tokens(
+        cls, model: str, calls: int, input_tokens: int, output_tokens: int, source: str
+    ) -> "Measured":
+        """From a run's reported tokens, priced like the run's own cost line."""
+        return cls(calls, cost_usd("anthropic", model, input_tokens, output_tokens), source)
+
+    @property
+    def usd_per_call(self) -> float:
+        return self.usd / self.calls
+
+
+# Each line is a paid run's reported calls and tokens (its result's config), or R1's cost line.
+MEASURED: dict[str, Measured] = {
+    "haiku_triage_HT8": Measured.from_tokens(
+        HAIKU, 300, 262_056, 2_905, "haiku-3d, the tuning month re-run, 2026-11-16"
+    ),
+    "haiku_check_C1": Measured.from_tokens(
+        HAIKU, 40, 19_516, 440, "haiku-3d, the tuning month re-run, 2026-11-16"
+    ),
+    "sonnet_triage_ST6": Measured.from_tokens(
+        SONNET, 116, 96_206, 1_160, "sonnet-3d, the tuning month's four kinds, 2026-11-16"
+    ),
+    "sonnet_check_SC4": Measured.from_tokens(
+        SONNET, 46, 28_408, 552, "sonnet-3b (SC4), the tuning month dry run, 2026-11-15"
+    ),
+    "picker_KS5": Measured(440, 2.5021, "KS5 on Sonnet, the sealed how-to test R1, 88 x k = 5"),
+}
+# Calls per task over the tuning month's 300 tickets at k = 1, from haiku-3d's re-run
+# (2026-11-16): every ticket is triaged, 40 reach the own-account check and 235 the picker.
+# sonnet-3d's whole month wasn't run; on the four kinds it ran, it sent the same 116 of 116
+# tickets to the picker as haiku-3d did, so both arms take haiku-3d's shares.
+TUNING_ROUTE: dict[str, int] = {"triage": 300, "own_account_check": 40, "guide_pick": 235}
+TUNING_ROUTE_TICKETS = 300
+# The month's arms and the measurement each task is priced from. The picker is KS5 on Sonnet
+# in both (PICKER_MODEL, PICKER_PROMPT).
+MEASURED_ARMS: dict[str, dict[str, Measured]] = {
+    "haiku-3d": {
+        "triage": MEASURED["haiku_triage_HT8"],
+        "own_account_check": MEASURED["haiku_check_C1"],
+        "guide_pick": MEASURED["picker_KS5"],
+    },
+    "sonnet-3d": {
+        "triage": MEASURED["sonnet_triage_ST6"],
+        "own_account_check": MEASURED["sonnet_check_SC4"],
+        "guide_pick": MEASURED["picker_KS5"],
+    },
+}
+
+
+def measured_month_cost(
+    per_call: Mapping[str, Measured],
+    route: Mapping[str, int],
+    *,
+    route_tickets: int,
+    tickets: int,
+    k: int,
+) -> dict[str, Any]:
+    """A month's cost at k: for each task, its measured cost per call, times its calls per
+    ticket (`route` over `route_tickets`), times `tickets`, times k. Only the total is
+    rounded."""
+    tasks = {
+        task: per_call[task].usd_per_call * calls / route_tickets * tickets * k
+        for task, calls in route.items()
+    }
+    return {
+        "tickets": tickets,
+        "k": k,
+        "calls": {task: calls * tickets * k / route_tickets for task, calls in route.items()},
+        "usd_per_call": {task: per_call[task].usd_per_call for task in route},
+        "usd_by_task": tasks,
+        "usd": round(sum(tasks.values()), 4),
+    }
+
+
+def sealed_month_costs(ks: Sequence[int] = (1, 2, 3)) -> dict[str, dict[int, dict[str, Any]]]:
+    """Every arm's sealed-month cost at each k, scaled from the tuning month's measured calls
+    to the sealed month's ticket count (MONTH_SIZE). Reads no month."""
+    return {
+        arm: {
+            k: measured_month_cost(
+                per_call,
+                TUNING_ROUTE,
+                route_tickets=TUNING_ROUTE_TICKETS,
+                tickets=MONTH_SIZE,
+                k=k,
+            )
+            for k in ks
+        }
+        for arm, per_call in MEASURED_ARMS.items()
+    }
+
+
+def render_sealed_costs(costs: Mapping[str, Mapping[int, dict[str, Any]]]) -> str:
+    lines = [
+        f"The sealed month's cost from measured calls ({MONTH_SIZE} tickets; the picker is "
+        f"{PICKER_PROMPT} on {PICKER_MODEL} in every arm; no model is called, no month is read)",
+        "  calls per ticket, from the tuning month: "
+        + ", ".join(f"{t} {n}/{TUNING_ROUTE_TICKETS}" for t, n in TUNING_ROUTE.items()),
+    ]
+    for arm, by_k in costs.items():
+        first = next(iter(by_k.values()))
+        lines.append(
+            f"  {arm}: $ per call "
+            + ", ".join(f"{t} {usd:.7f}" for t, usd in first["usd_per_call"].items())
+        )
+        for k, c in by_k.items():
+            parts = ", ".join(f"{t} ${usd:.4f}" for t, usd in c["usd_by_task"].items())
+            lines.append(f"    k = {k}: ${c['usd']:.4f} ({parts})")
+    return "\n".join(lines)
 
 
 # --- the run ---------------------------------------------------------------------------------
@@ -687,6 +847,14 @@ def _fmt(m: dict[str, Any], digits: int = 2) -> str:
     return f"{m['value']:.{digits}f} ({lo:.{digits}f} to {hi:.{digits}f})"
 
 
+def _picker_label(c: Mapping[str, Any]) -> str:
+    """The picker's name, prompt and model ("knowledge, KS5 on claude-sonnet-5-5"), or only
+    its name when it has no model."""
+    if not c.get("picker_model"):
+        return str(c["picker"])
+    return f"{c['picker']}, {c.get('picker_prompt') or 'no prompt'} on {c['picker_model']}"
+
+
 def render(result: dict[str, Any], command: str) -> str:
     """The short Markdown summary of one run."""
     s = result["scores"]
@@ -701,7 +869,7 @@ def render(result: dict[str, Any], command: str) -> str:
         "",
         "**A routing-level eval.** Each ticket runs through triage, the role signal, the "
         "own-account check and the second stage (picker: "
-        f"{c['picker']}), and is graded on where it ends up. It does not run the mocks, the "
+        f"{_picker_label(c)}), and is graded on where it ends up. It does not run the mocks, the "
         "tokens, the MCP server, the directory mention check or the reply templates.",
         "",
         (
@@ -784,6 +952,8 @@ def _command(args: argparse.Namespace) -> str:
         parts.append(f"--picker {args.picker}")
     if args.picker_prompt:
         parts.append(f"--picker-prompt {args.picker_prompt}")
+    if getattr(args, "picker_on_own_model", False):
+        parts.append("--picker-on-own-model")
     if args.final_test:
         parts.append(f"--final-test={args.final_test}")
     if getattr(args, "kinds", None):
@@ -807,16 +977,29 @@ def main(
     *,
     make_model: Callable[[], ModelAdapter] | None = None,
     make_picker: Callable[[Setup, ModelAdapter, str | None], Picker] | None = None,
+    make_picker_model: Callable[[], ModelAdapter] | None = None,
     env: Mapping[str, str] | None = None,
     samples: int = BOOTSTRAP_SAMPLES,
 ) -> int:
     parser = argparse.ArgumentParser(prog="python -m tier0.evals.month", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    own_help = (
+        "the picker on the setup's own triage model with that model's prompt, as every month "
+        "run before 2026-11-17 did (to reproduce those summaries)"
+    )
     e = sub.add_parser("estimate", help="model calls and an upper cost; no model is called")
     e.add_argument("--setup", choices=sorted(ALL_SETUPS), default=DEFAULT_SETUP)
     e.add_argument("--k", type=int, default=3)
     e.add_argument("--set", choices=TEMPLATE_SETS, default=TUNING_MONTH)
+    e.add_argument("--picker-on-own-model", action="store_true", help=own_help)
     e.add_argument("--json", action="store_true", help="print JSON instead of text")
+    s = sub.add_parser(
+        "sealed-cost",
+        help="the sealed month's cost per arm from measured calls; no model is called and no "
+        "month is read",
+    )
+    s.add_argument("--k", type=int, action="append", help="repeatable; default 1, 2 and 3")
+    s.add_argument("--json", action="store_true", help="print JSON instead of text")
     r = sub.add_parser("run", help="run the month and write JSON and a Markdown summary")
     r.add_argument("--set", choices=TEMPLATE_SETS, required=True)
     r.add_argument("--setup", choices=sorted(ALL_SETUPS), default=DEFAULT_SETUP)
@@ -830,6 +1013,7 @@ def main(
         "out of the run and of its numbers)",
     )
     r.add_argument("--picker-prompt", default=None, help="milestone 4 prompt version")
+    r.add_argument("--picker-on-own-model", action="store_true", help=own_help)
     r.add_argument(
         "--final-test",
         choices=sorted(SEALED_SETS),
@@ -839,6 +1023,14 @@ def main(
     )
     r.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.command == "sealed-cost":
+        ks = sorted(set(args.k or (1, 2, 3)))
+        if ks[0] < 1:
+            print("--k must be at least 1", file=sys.stderr)
+            return 2
+        costs = sealed_month_costs(ks)
+        print(json.dumps(costs, indent=2) if args.json else render_sealed_costs(costs))
+        return 0
     setup = ALL_SETUPS[args.setup]
     if args.k < 1:
         print("--k must be at least 1", file=sys.stderr)
@@ -846,7 +1038,9 @@ def main(
 
     if args.command == "estimate":
         # Sizes only: no text is printed, so the sealed set can be sized too.
-        result = estimate(month_for(args.set), setup, k=args.k)
+        result = estimate(
+            month_for(args.set), setup, k=args.k, own_model_picker=args.picker_on_own_model
+        )
         print(json.dumps(result, indent=2) if args.json else render_estimate(result))
         return 0
 
@@ -879,9 +1073,19 @@ def main(
         month = only_kinds(month, kinds)
     model = CountedModel((make_model or setup.factory())())
     picker = NONE_PICKER
+    picker_model: str | None = None
+    picker_adapter = model
     if args.picker == "knowledge":
+        own = args.picker_on_own_model
+        picker_model = picker_model_for(setup, own_model=own)
+        if picker_model != setup.triage_model:
+            # Its own adapter, so its calls are counted and priced on its own model.
+            name = picker_model
+            built = make_picker_model or make_model or (lambda: ClaudeModel(model=name))
+            picker_adapter = CountedModel(built())
+        version = args.picker_prompt or picker_prompt_for(setup, own_model=own)
         try:
-            picker = (make_picker or knowledge_picker)(setup, model, args.picker_prompt)
+            picker = (make_picker or knowledge_picker)(setup, picker_adapter, version)
         except PickerUnavailable as exc:
             print(f"refused: {exc}", file=sys.stderr)
             return 2
@@ -902,6 +1106,7 @@ def main(
         "triage_prompt_sha256": hashlib.sha256((prompts.triage or "").encode()).hexdigest(),
         "check_prompt_sha256": hashlib.sha256((prompts.check or "").encode()).hexdigest(),
         "picker": picker.name,
+        "picker_model": picker_model,
         "picker_prompt": picker.prompt_version,
         "picker_prompt_sha256": picker.prompt_sha256,
         "k": args.k,
@@ -912,6 +1117,7 @@ def main(
     }
     header = {key: config[key] for key in ("set", "seed", "month_sha256", "setup", "picker", "k")}
     header["picker_prompt_sha256"] = config["picker_prompt_sha256"]
+    header["picker_model"] = picker_model
     args.out.mkdir(parents=True, exist_ok=True)
     done = _read_done(out_runs, header)
     if not out_runs.exists():
@@ -935,17 +1141,31 @@ def main(
             progress=print,
         )
     scores = score(month, records, k=args.k, samples=samples)
-    calls = {task: model.calls[task] for task in sorted(model.calls)}
+    counted = [model] if picker_adapter is model else [model, picker_adapter]
     usd = 0.0
-    for task in model.calls:
-        name = setup.check_model if task == "own_account_check" else setup.triage_model
-        # The model's own provider: a local or fake model costs nothing.
-        usd += cost_usd(model.provider, name, model.input_tokens[task], model.output_tokens[task])
+    calls: Counter[str] = Counter()
+    failed: Counter[str] = Counter()
+    tokens_in: Counter[str] = Counter()
+    tokens_out: Counter[str] = Counter()
+    for m in counted:
+        for task in m.calls:
+            if task == "own_account_check":
+                name = setup.check_model
+            elif task == "guide_pick" and picker_model is not None:
+                name = picker_model
+            else:
+                name = setup.triage_model
+            # The model's own provider: a local or fake model costs nothing.
+            usd += cost_usd(m.provider, name, m.input_tokens[task], m.output_tokens[task])
+        calls.update(m.calls)
+        failed.update(m.failed)
+        tokens_in.update(m.input_tokens)
+        tokens_out.update(m.output_tokens)
     config |= {
-        "calls": calls,
-        "failed_calls": dict(model.failed),
-        "input_tokens": dict(model.input_tokens),
-        "output_tokens": dict(model.output_tokens),
+        "calls": {task: calls[task] for task in sorted(calls)},
+        "failed_calls": dict(failed),
+        "input_tokens": dict(tokens_in),
+        "output_tokens": dict(tokens_out),
         "cost_usd": round(usd, 6),
     }
     result = {
