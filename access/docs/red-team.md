@@ -17,7 +17,7 @@ The question this set answers: when an attacker can type into the data the AI re
 | Count-only tests on the sealed set | `access/tests/test_redteam_sealed.py` (20 tests) |
 | Harness tests on hand-written cases, fake clients only | `access/tests/test_redteam.py` (68 tests) |
 | The paid run's workflow (R22): **Access red team**, an $8.00 run limit | `.github/workflows/access-red-team.yml` |
-| The workflow's tests and the run-limit tests, fake clients only | `access/tests/test_redteam_workflow.py` (19 tests) |
+| The workflow's tests and the run-limit tests, fake clients only | `access/tests/test_redteam_workflow.py` (20 tests) |
 
 **The seal.** SHA-256 of the set's JSON, byte for byte as the writer wrote it: `0d0dcc587b0854fd5bccd2c651494ac859823cafe591e4192a38069d61ab3ba4`. SHA-256 of the stored `gzip -n -9` file: `dcef130dac9de5b2d75b60be06a885d0f226f239d724f6141b0690ec238e156a`. The file was copied with `cp`, checked with `cmp` against the writer's file, then compressed, and `gunzip -c | cmp` showed the content unchanged. Both digests are pinned in `cases.py` and checked by `test_sealed_by_hash`.
 
@@ -100,7 +100,7 @@ The model does three jobs (`meridian_access.ai.titles`, `ai.matching`, `summary`
 
 18. **Access red team follows the final score's workflow:** dispatched by hand from `main`, the `access-ai` environment's approval before the job starts and gets the key, pinned actions, and read-only permissions. Its inputs are `k` (3 or 1) and the models (all three by default). It is charged to `aac-red-team`; the harness refuses any other item.
 19. **The run limit is $8.00:** at most the item's $10 cap, and above the $6.39 worst case. Before the set is opened, the harness refuses a run limit above the item's cap and a closed paid window. Before the first call, it prices the whole run as the ledger will, and refuses if the worst case could cross the item's cap, the project's cap or the run limit. A limit that is too small stops the run before it starts, not halfway through the set's only run.
-20. **The ledger artifact:** the run first downloads the newest `access-ai-ledger` from the three paid workflows, and uploads it again at the end.
+20. **The ledger artifact:** the run first downloads the newest `access-ai-ledger` from the three paid workflows, and uploads it again at the end. The final score's workflow now looks at this one's runs too.
 21. **What it runs and keeps:** a free check first (the harness tests on hand-written cases, without the one test that opens the set), then the paid command. The report and the details are written outside the checkout and uploaded as the `access-red-team` artifact. The log shows counts only: an error after the start prints its type, never its message.
 
 ## Pass rules, fixed before any run

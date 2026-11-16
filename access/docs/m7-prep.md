@@ -129,7 +129,7 @@ The upper cost is what the spend ledger checks before each call: the request's s
 - **D7. No answer counts as a miss for titles.** The comparison left failed calls out of the count. It had none, so the numbers agree.
 - **D8. Three disagreement lists**, matched exactly as the score counts (section 2).
 - **D9. Output outside the checkout, counts only in the log,** error messages withheld.
-- **D10. A new workflow,** `Access final score`. It is manual only, from `main` only, in the `access-ai` environment, and uses the same pinned actions as the compare workflow. It has a `k` choice of 3 or 1, a free freeze check first, and the spend ledger continued from the newest run of either AI workflow. A test locks each of these.
+- **D10. A new workflow,** `Access final score`. It is manual only, from `main` only, in the `access-ai` environment, and uses the same pinned actions as the compare workflow. It has a `k` choice of 3 or 1, a free freeze check first, and the spend ledger continued from the newest run of any of the three paid workflows (this one, the compare and, since R22, the red team). A test locks each of these.
 - **D11. Small refactors, no change in behaviour:** the client's request is built by one function (`request_params`), the summary's token limit is a named constant, and `score_titles` shares its majority-role lookup with the new title disagreements. Every existing test passes unchanged.
 - **D12. Boxes not ticked here.** The milestone 4 box "The chosen prompts are frozen by hash" and milestone 5's GitHub setup box are outside the lines this change may edit. The owner can tick them on merge. The evidence is `test_the_prompts_are_frozen_by_hash`, and M7-R7 for the setup.
 

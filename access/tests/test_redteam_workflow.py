@@ -245,6 +245,17 @@ def test_the_cap_holds_across_runs_through_the_ledger_artifact():
     assert not any("upload-pages-artifact" in str(s.get("uses", "")) for s in steps)
 
 
+def test_the_final_score_continues_the_ledger_of_the_red_team_run_too():
+    """The newest ledger may come from a red-team run: the final score's workflow must look at
+    it, or its upload would drop the red team's spend from the shared ledger."""
+    for name in PAID_WORKFLOWS:
+        assert (WORKFLOWS / name).is_file(), name
+    final = yaml.safe_load((WORKFLOWS / "access-ai-final.yml").read_text(encoding="utf-8"))
+    (job,) = final["jobs"].values()
+    fetch = _step(job, "gh run download")
+    assert f"for wf in {' '.join(PAID_WORKFLOWS)}; do" in fetch["run"]
+
+
 # ------------------------------------------------------------------ the run limit, in code
 
 
