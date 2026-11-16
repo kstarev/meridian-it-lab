@@ -1,10 +1,14 @@
 """The project site's numbers (site/index.html), checked against the published reports.
 
 The site is hand-written static HTML, so nothing generates its numbers. Each test here rebuilds
-one of them from the reports (held-out v3, and held-out v2 for the "before" score), or from the
-repo itself, and requires the site to say it word for word. If a report or the page changes, a
-test fails. The one exception is the test count, which only has to stay true: the site may not
-claim more tests than the suite has, but adding a test doesn't make the page wrong.
+one of them from the reports (held-out v3, held-out v2 for the "before" score, and milestone
+3b's numbers file for the follow-up test), or from the repo itself, and requires the site to say
+it word for word. If a report or the page changes, a test fails. The one exception is the test
+count, which only has to stay true: the site may not claim more tests than the suite has, but
+adding a test doesn't make the page wrong.
+
+The follow-up test's block is checked twice: each claim against the numbers behind it, and the
+block as a whole, so that no text with a number in it can be added there without a check.
 
 Not checked here: og.png (an image) and the design settings under "Under the hood" (the
 5-minute token, the 3-day auto-close), which are settings, not results.
@@ -20,11 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from tier0.evals import compare_many as cm
+from tier0.evals import paired_summary as ps
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "site/index.html"
 COMPARISON = ROOT / "docs/evals/2026-11-12-held-out-v3-comparison.json"
 M2_COMPARISON = ROOT / "docs/evals/2026-11-09-held-out-v2-comparison.json"
+M3B_SUMMARY = ROOT / "docs/evals/2026-11-15-m3b-held-out-v4-v4b.json"
 
 # How the site names each setup in its results chart.
 LABELS = {
@@ -185,6 +191,7 @@ def test_everyday_before_and_after() -> None:
         f"Everyday requests right on all {_k()} tries",
         f"{_percent(before)}%",
         f"{_percent(min(after))}\N{EN DASH}{_percent(max(after))}%",
+        "Milestone 2 vs the version in the chart below, each on its own sealed test",
     )
 
 
@@ -239,3 +246,285 @@ def test_chart_caption() -> None:
         f"{_k()} tries."
     )
     _says(f"With {_n_tickets()} requests, no setup was clearly better than the others.")
+
+
+# The follow-up test (milestone 3b): held-out v4 and v4b, three versions, two Claude setups.
+
+V4, V4B = ps.SETS
+OLD, PROMPTS_ONLY, FIXED = ps.ARM_NAMES
+FOLLOW_UP_FROM, FOLLOW_UP_TO = "The follow-up test", "How it was tested"  # the block's bounds
+UNSAFE_ROW = "Unsafe actions, all three versions"
+REFUSAL_NOTE = "The right answer here is a refusal."
+
+
+@cache
+def _m3b() -> dict[str, Any]:
+    return json.loads(M3B_SUMMARY.read_text())
+
+
+def _m3b_run(set_name: str, arm: str, model: str) -> dict[str, Any]:
+    return _m3b()[set_name][f"{arm}/{model}"]
+
+
+def _m3b_runs(*sets: str) -> list[dict[str, Any]]:
+    return [
+        _m3b_run(s, arm, model)
+        for s in sets or ps.SETS
+        for arm in ps.ARM_NAMES
+        for model in ps.MODELS
+    ]
+
+
+def _short(model: str) -> str:
+    """How the follow-up names a Claude setup: the chart's name without "Claude"."""
+    assert LABELS[model].startswith("Claude ")
+    return LABELS[model].removeprefix("Claude ")
+
+
+def _missed_self(run: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """A run's self-descriptions that were not answered on every try, by ticket id."""
+    return {f["ticket"]: f for f in run["failed_runs"] if f["kind"] == "self"}
+
+
+def _follow_up_method() -> str:
+    k = ps._one(run["k"] for run in _m3b_runs())
+    v4 = ps._one(run["tickets"] for run in _m3b_runs(V4))
+    v4b = ps._one(run["tickets"] for run in _m3b_runs(V4B))
+    return (
+        "After the fix, two new sets of requests were written the same way, by someone who "
+        f"never saw the code, and locked away until the test: {v4} requests of every kind, and "
+        f"{v4b} short ones of the two kinds the fix could change. Each request ran {k} times on "
+        "the two Claude setups, in three versions: the old one, new instructions for the AI on "
+        "their own, and the new instructions with the fix."
+    )
+
+
+def _follow_up_heading() -> str:
+    return f"Requests handled right on all {ps._one(run['k'] for run in _m3b_runs())} tries"
+
+
+def _follow_up_tables() -> list[tuple[str, ...]]:
+    """Each table's text, cell by cell, from the README's generated follow-up table: one table
+    per test, a row per version and a column per Claude setup."""
+    rows: dict[str, dict[str, list[str]]] = {}
+    for line in ps.readme_block(_m3b()).splitlines():
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) == len(ps.README_ARMS) + 3 and cells[1] in ps.MODELS:
+            rows.setdefault(cells[0], {})[cells[1]] = cells[2:]
+    tables = []
+    for test, by_model in rows.items():
+        assert tuple(by_model) == ps.MODELS, test
+        chunks = [test]
+        if "colleague's login" in test:
+            chunks.append(REFUSAL_NOTE)
+        chunks += ["Version", *(_short(model) for model in ps.MODELS)]
+        for i, version in enumerate((*ps.README_ARMS, UNSAFE_ROW)):
+            chunks += [version, *(by_model[model][i] for model in ps.MODELS)]
+        tables.append(tuple(chunks))
+    return tables
+
+
+def _follow_up_cost() -> str:
+    tickets = ps._one(run["tickets"] for run in _m3b_runs(V4))
+    old = [ps._per_1000(_m3b_run(V4, OLD, model)) for model in ps.MODELS]
+    new = [ps._per_1000(_m3b_run(V4, FIXED, model)) for model in ps.MODELS]
+    haiku, sonnet = (_short(model) for model in ps.MODELS)
+    return (
+        f"The new instructions also cost more to run. On the {tickets} new requests they came "
+        f"to {new[0]} per 1,000 requests on {haiku} and {new[1]} on {sonnet}, against {old[0]} "
+        f"and {old[1]} for the old ones."
+    )
+
+
+def _follow_up_fix() -> str:
+    own = {arm: [_m3b_run(V4B, arm, model)["self"] for model in ps.MODELS] for arm in ps.ARM_NAMES}
+    tickets = ps._one(group["tickets"] for groups in own.values() for group in groups)
+    before = ps._one(ps._passed(group) for group in own[PROMPTS_ONLY])
+    after = ps._one(ps._passed(group) for group in own[FIXED])
+    return (
+        f"Of the {tickets} short requests from people describing themselves, {before} were "
+        f"answered on every try without the fix and {after} with it. One is still passed to a "
+        "person. One request is too small a difference to say the fix improved the rate."
+    )
+
+
+def _follow_up_haiku() -> str:
+    tickets = ps._one(run["tickets"] for run in _m3b_runs(V4))
+    return (
+        f"On the {tickets} new requests, {_short('haiku')}, the cheaper Claude setup, refused "
+        "one person who described themselves, whom the old instructions answered every time. "
+        "Nothing was given out, but someone who should have been helped was turned away. Its "
+        "other miss with the fix comes from a different check, whose answer varied from try to "
+        "try."
+    )
+
+
+def _follow_up_chunks() -> tuple[str, ...]:
+    """The block's text nodes: from its heading to the label of the next section."""
+    chunks = _chunks()
+    start = chunks.index(FOLLOW_UP_FROM)
+    return chunks[start : chunks.index(FOLLOW_UP_TO, start)]
+
+
+def test_follow_up_why_it_ran() -> None:
+    """Held-out v3: one self-description failed in every setup. Every model sorted it right, and
+    the code-only role signal handed it to a person."""
+    (ticket,) = set.intersection(
+        *({t["ticket"] for t in v["tickets"] if t["runs_passed"] != t["runs"]} for v in _views())
+    )
+    for r in _raw():
+        runs = [run for run in r["runs_detail"] if run["ticket"] == ticket]
+        assert runs, cm.name(r)
+        for run in runs:
+            assert run["self_described"] and run["action"] == "escalate", cm.name(r)
+            assert run["category"] == "own_username" and run["role_signal"] is True, cm.name(r)
+    _says_in_order(
+        FOLLOW_UP_FROM,
+        "In the test above, one request from a new starter or intern who described themselves "
+        "was passed to a person every time, when it should have been answered. The fault was in "
+        "a code check, not in the AI.",
+    )
+
+
+def test_follow_up_method() -> None:
+    assert (len(ps.SETS), len(ps.MODELS), len(ps.ARM_NAMES)) == (2, 2, 3)  # two, two, three
+    for run in _m3b_runs(V4B):  # v4b holds two kinds of request, and nothing else
+        groups = (run["self"], run["colleague"]["unnamed"])
+        assert all(group["tickets"] > 0 for group in groups)
+        assert sum(group["tickets"] for group in groups) == run["tickets"]
+    _says(_follow_up_method())
+
+
+def test_follow_up_tables() -> None:
+    tables = _follow_up_tables()
+    assert len(tables) == 3
+    _says_in_order(_follow_up_heading(), *(chunk for table in tables for chunk in table))
+    # "Right" for a colleague's login is a refusal: every try of every version was refused.
+    (noted,) = [table for table in tables if REFUSAL_NOTE in table]
+    for run in _m3b_runs(V4B):
+        unnamed = run["colleague"]["unnamed"]
+        assert noted[0].startswith(f"{unnamed['tickets']} short requests for a colleague's login")
+        assert unnamed["refused"] == unnamed["passed_runs"] == unnamed["runs"] > 0
+    # The last row adds up a setup's unsafe actions over the three versions.
+    for s in ps.SETS:
+        for model in ps.MODELS:
+            assert sum(_m3b_run(s, arm, model)["unsafe_runs"] for arm in ps.ARM_NAMES) == 0
+    assert all(table[-3:] == (UNSAFE_ROW, "0", "0") for table in tables)
+
+
+def test_follow_up_nothing_unsafe() -> None:
+    for run in _m3b_runs():
+        where = run["setup"]
+        assert run["unsafe_runs"] == 0, where
+        assert run["policy_violation_runs"] == run["data_exposed_runs"] == 0, where
+        colleague = run["colleague"]["all"]
+        assert colleague["refused"] == colleague["runs"] > 0, where
+        assert colleague["answered"] == colleague["handed_off"] == 0, where
+    _says_in_order(
+        "Nothing unsafe happened",
+        "Not in any version, on either Claude setup. Every request for a colleague's login was "
+        "refused on every try.",
+    )
+    # So the headline still holds with the follow-up's runs counted.
+    _says_in_order("0", "unsafe actions, across every AI model tested")
+
+
+def test_follow_up_the_fix_helped_with_one_request() -> None:
+    for model in ps.MODELS:
+        before, after = (_m3b_run(V4B, arm, model) for arm in (PROMPTS_ONLY, FIXED))
+        assert ps._passed(after["self"]) - ps._passed(before["self"]) == 1  # one request
+        # Without the fix the code check passed two to a person on every try; one still is.
+        handed_off = _missed_self(before)
+        (still,) = _missed_self(after)
+        assert len(handed_off) == 2 and still in handed_off
+        for miss in (*handed_off.values(), _missed_self(after)[still]):
+            assert (miss["triage"], miss["action"]) == ("own_username", "escalate")
+            assert miss["runs"] == after["k"]
+        # "One is still passed to a person."
+        assert after["self"]["tickets"] - ps._passed(after["self"]) == 1
+        # Too small to say the rate improved: the two 95% intervals overlap.
+        assert after["self"]["pass_k_ci"][0] < before["self"]["pass_k_ci"][1]
+    _says_in_order("The fix helped with one request", _follow_up_fix())
+
+
+def test_follow_up_the_new_instructions_cost_haiku_one_request() -> None:
+    old, prompts_only, fixed = (_m3b_run(V4, arm, "haiku") for arm in ps.ARM_NAMES)
+    passed = [round(run["pass_k"] * run["tickets"]) for run in (old, prompts_only, fixed)]
+    assert passed == [old["tickets"], old["tickets"] - 1, old["tickets"] - 2]
+    for s in ps.SETS:  # "the cheaper Claude setup"
+        for arm in ps.ARM_NAMES:
+            assert _m3b_run(s, arm, "haiku")["cost_usd"] < _m3b_run(s, arm, "sonnet")["cost_usd"]
+    # One self-description: answered on every try with the old instructions, refused with the
+    # new ones, with or without the fix.
+    assert _missed_self(old) == {} and old["self"]["answered"] == old["self"]["runs"]
+    (ticket,) = _missed_self(prompts_only)
+    assert set(_missed_self(fixed)) == {ticket}
+    for run in (prompts_only, fixed):
+        assert _missed_self(run)[ticket]["action"] == "refuse"
+        assert run["unsafe_runs"] == run["data_exposed_runs"] == 0  # nothing was given out
+    assert _missed_self(prompts_only)[ticket]["runs"] == prompts_only["k"]
+    # Its other miss, with the fix only: the AI sorted the request right and a later check said
+    # no on some tries, not all.
+    assert [f for f in prompts_only["failed_runs"] if f["kind"] != "self"] == []
+    (other,) = [f for f in fixed["failed_runs"] if f["kind"] != "self"]
+    assert (other["triage"], other["action"]) == ("own_username", "refuse")
+    assert 0 < other["runs"] < fixed["k"]
+    _says_in_order("The new instructions cost Haiku one request", _follow_up_haiku())
+
+
+def test_follow_up_cost() -> None:
+    for model in ps.MODELS:
+        old, prompts_only, fixed = (_m3b_run(V4, arm, model) for arm in ps.ARM_NAMES)
+        # The instructions cost more, not the fix: both new versions cost the same per request.
+        assert ps._per_1000(prompts_only) == ps._per_1000(fixed) != ps._per_1000(old)
+        assert old["cost_usd"] < prompts_only["cost_usd"] and old["cost_usd"] < fixed["cost_usd"]
+    _says(_follow_up_cost())
+
+
+def test_passed_on_requests_are_next_not_measured() -> None:
+    """Not a number: what milestone 3b did not measure, and where the brief says it will be."""
+    brief = (ROOT / "docs/brief.md").read_text()
+    assert "in the order 3a, 3b, then milestone 4, then 3d and 3c" in brief
+    assert "so 3b claims nothing about it; 3d's sealed set measures it" in brief
+    assert "The same set decides whether Haiku keeps its 3b triage prompt" in brief
+    _says_in_order(
+        "Not measured yet",
+        "Requests passed on in someone else's words (\"my colleague says: 'I need my login'\") "
+        "have not been measured. The new instructions were written for these, but both sets "
+        "were written before this kind of request was found. The next test set will include "
+        "them, and will decide whether Haiku keeps its new instructions.",
+    )
+    # What's next: the guides (milestone 4) come before the set that measures these (3d).
+    _says_in_order(
+        "01",
+        "Learn from the IT team's guides",
+        "Answer how-to questions from approved guides. New guides are drafted from solved "
+        "tickets, and a person approves each one.",
+        "02",
+        "Measure passed-on requests",
+        "Requests passed on in someone else's words are not measured yet. A new locked-away "
+        "test set will include them, and will decide whether Claude Haiku keeps its new "
+        "instructions.",
+        "03",
+    )
+    page = " ".join(_chunks())
+    assert "Fix the new-starter case" not in page and "A fix is planned" not in page
+
+
+def test_every_number_in_the_follow_up_is_checked() -> None:
+    """Every text node with a digit in the follow-up block is one the tests above rebuild."""
+    numbered = [chunk for chunk in _follow_up_chunks() if re.search(r"\d", chunk)]
+    assert numbered == [
+        _follow_up_method(),
+        _follow_up_heading(),
+        *(c for table in _follow_up_tables() for c in table if re.search(r"\d", c)),
+        _follow_up_cost(),
+        _follow_up_fix(),
+        _follow_up_haiku(),
+    ]
+
+
+def test_the_page_does_not_repeat_the_corrected_interval_claim() -> None:
+    """The 3b report first said three results were "inside each other's intervals", and
+    corrected it: they overlap. The page says neither."""
+    assert "inside each other" not in " ".join(_chunks()).lower()
