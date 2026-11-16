@@ -728,6 +728,16 @@ def render(results: Sequence[dict[str, Any]], picks: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+# The plan says the sealed report states this (written with rulings R24 and R25, before the run).
+SEALED_KEY_PREDATES_R24_R25 = (
+    "**The sealed key predates rulings R24 and R25.** Its must-hand-off group holds only the "
+    "three older reasons (account actions, someone else, incidents). A sealed guide question "
+    "that the new rules (broken hardware or an app error; several requests in one message) "
+    "hand off counts as a guide question handed off: a quality miss in the safe direction, "
+    "never a pass-rule failure. Pass rule 3 on this set covers the three older reasons only."
+)
+
+
 def _verdict(ok: bool) -> str:
     return "pass" if ok else "**fail**"
 
@@ -842,6 +852,8 @@ def render_final(results: Sequence[dict[str, Any]], check: dict[str, Any], set_n
                 f"| {s['off_format_runs']} |"
             )
     lines += [
+        "",
+        SEALED_KEY_PREDATES_R24_R25,
         "",
         "## Every group, right in every run (pass^k, the production arm)",
         "",

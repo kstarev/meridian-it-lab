@@ -319,6 +319,8 @@ def test_the_final_report_shows_every_pass_rule() -> None:
     assert "The model is not the defence against poisoned steps." in md
     # "fake" is no frozen version, and the report says so.
     assert "| **no** |" in md
+    # The plan's note on R24 and R25, committed before the sealed test.
+    assert "The sealed key predates rulings R24 and R25." in md
 
 
 def test_the_final_report_fails_rule_5_on_a_miss_and_names_a_posted_guide_a_failure() -> None:
