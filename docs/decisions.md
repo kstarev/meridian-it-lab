@@ -802,7 +802,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-035: Milestone 4, Knowledge: answers from approved runbooks, picked by the AI and posted by code
 
-**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test waits for the owner's go; the weekly drafting job is not built. Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
+**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test waits for the owner's go; the weekly drafting job was built on 2026-11-17, code only, on the stub and a mock of GitHub, with no scheduled workflow ([as built](plans/milestone-4-knowledge.md#the-weekly-drafting-job-as-built)). Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
 
 **Context:** tier0 answers one request type today. How-to questions are common, and their answers already live in the IT team's guides. ADR-005 (the weekly learning loop) and ADR-010 (memory as a reviewed Git repo) set where that knowledge comes from and how it's reviewed. They don't say how tier0 answers from it, what it must never answer, or how that is tested.
 
