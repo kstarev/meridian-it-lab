@@ -1170,7 +1170,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-043: The global kill switch, rate limit and verification ladder as built; the switch must survive a restart; who flips it is a lab-only known limit
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R3 to R8, 2026-11-16). Built overnight on 2026-11-15/16, code only ([as built](plans/milestone-3b-code-only.md), PR #44). It is ADR-008's "as built". The switch's persistence is decided, not built yet.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R3 to R8, 2026-11-16). Built overnight on 2026-11-15/16, code only ([as built](plans/milestone-3b-code-only.md), PR #44). It is ADR-008's "as built". R6, the switch's persistence, is built (2026-11-16): it is saved to a state file and fails closed.
 
 **Context:** ADR-008 asks for a global kill switch and a rate limit on agent actions, both enforced outside the model. 3b's brief adds a verification ladder for account actions. ADR-037 had moved this code-only work after 2026-12-17. It was built overnight on the owner's instruction, and the owner merged it on 2026-11-16.
 
@@ -1186,14 +1186,14 @@ Nothing leaked, but the answer key wants a person for both.
   - **R3:** merged now, ahead of ADR-037's schedule.
   - **R4:** the default limits stand as judgment calls, not measurements: 5 actions per requester and 30 for everyone per rolling hour; 3 same-day requests per account.
   - **R5:** requests are counted in agent code as well as tool calls in the MCP server. ADR-017's mention check stays where it is.
-  - **R6: the kill switch persists, so a restart can't turn the agent back on.** It isn't built yet. Until it is, a restart forgets a switch that was on.
+  - **R6: the kill switch persists, so a restart can't turn the agent back on.** Built: the switch is saved to a state file, written atomically. A restart reads it, so a switch that was on stays on. A missing file means a fresh deployment, so the switch starts off. A file that can't be read or makes no sense fails closed: the switch starts on, and the audit log says why. Turning it on takes effect first, then is saved. Turning it off is saved first, and the switch stays on if the save fails. A failed save raises `KillSwitchNotSaved` and is audited.
   - **R7: lab only, a known limit.** Flipping the switch or overriding a limit is a code call with a name and a reason, logged but not authenticated. Anyone who can run code in the process can do it. A production deployment needs an authenticated control, such as a signed Slack button in #it-team as in ADR-020, before it ships.
   - **R8:** an out-of-office calendar block means a person handles the request, even when the employee is working.
 
 **Consequences:**
 
 - ADR-008's two targets are tested in code: 0 actions after the switch is on, and 0 actions over the limit. They are not rows in a published report yet.
-- Until R6 is built, an operator must check the switch after any restart.
+- A restart no longer forgets the switch: it stays on, or starts on if its state file is unreadable. The lab has no long-running deployment, so a deployment must pass the state file (`kill_switch_file`). Evals don't, so each one builds a fresh switch.
 - Some people who answer Slack while marked away will wait for IT.
 - Still open, not ruled:
   - `docs/how-it-works.md` still says that no rate limit bounds the probing yet;

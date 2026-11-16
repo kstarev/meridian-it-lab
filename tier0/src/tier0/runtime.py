@@ -7,6 +7,7 @@ shared between runs. Used by tests, `make eval` and `make demo`.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from meridian_dataset import World
@@ -73,13 +74,18 @@ async def offline_runtime(
     final_comparison: str | None = None,
     rate_limits: RateLimitSettings | None = None,
     context_settings: ContextSettings | None = None,
+    kill_switch_file: Path | None = None,
     **agent_options: Any,
 ) -> AsyncIterator[Runtime]:
     """Build the whole agent against the mocks. `agent_options` go to ServiceDeskAgent.
 
     Refuses a sealed world (held-out v2) unless this is the final comparison (ADR-015).
 
-    The kill switch starts off, the rate limits are the defaults unless `rate_limits`
+    The kill switch starts off and lives in memory, unless `kill_switch_file` is given.
+    With a file, the switch is saved there and a new runtime on the same file picks it
+    up: a switch that was on stays on, and a file that can't be read starts it on. A
+    deployment must pass the file. Evals don't, so each one gets a fresh switch.
+    The rate limits are the defaults unless `rate_limits`
     is given, and the ladder's mocks start with nothing unusual, so a world behaves
     as it did before these existed until a test or an operator changes something.
     """
@@ -93,7 +99,7 @@ async def offline_runtime(
     tickets = LinearTicketAdapter(linear)
     issuer = TokenIssuer(clock)
     verifier = JwtVerifier(issuer.public_key, clock)
-    controls = build_controls(clock, rate_limits=rate_limits)
+    controls = build_controls(clock, rate_limits=rate_limits, kill_switch_file=kill_switch_file)
     handle = build_mcp_server(directory=directory, verifier=verifier, controls=controls)
     calendar = MockCalendar(clock)
     devices = MockDeviceAssurance(clock)
