@@ -1,0 +1,9 @@
+{
+  "apps": [
+    {
+      "app_id": "000000000001-fakenotesprout.apps.googleusercontent.com",
+      "name": "NoteSprout AI",
+      "reason": "an AI note-taker, banned by IT on 2026-10-01 because it copies meetings and files to its own servers"
+    }
+  ]
+}

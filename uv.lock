@@ -7,6 +7,7 @@ members = [
     "meridian-access",
     "meridian-dataset",
     "meridian-it-lab",
+    "meridian-oauth-radar",
     "tier0",
 ]
 
@@ -360,6 +361,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "meridian-access" },
     { name = "meridian-dataset" },
+    { name = "meridian-oauth-radar" },
     { name = "tier0" },
 ]
 
@@ -374,6 +376,7 @@ dev = [
 requires-dist = [
     { name = "meridian-access", editable = "access" },
     { name = "meridian-dataset", editable = "dataset" },
+    { name = "meridian-oauth-radar", editable = "oauth-radar" },
     { name = "tier0", editable = "tier0" },
 ]
 
@@ -383,6 +386,11 @@ dev = [
     { name = "pytest", specifier = "==9.2.0" },
     { name = "ruff", specifier = "==0.17.4" },
 ]
+
+[[package]]
+name = "meridian-oauth-radar"
+version = "0.1.0"
+source = { editable = "oauth-radar" }
 
 [[package]]
 name = "opentelemetry-api"

@@ -213,7 +213,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 ## In scope
 
 - One seeded synthetic dataset of Meridian's people, devices, apps, access, OAuth grants and tickets, covering several simulated weeks, with planted problems and an answer key
-- Four projects (tier0, access-as-code, oauth-radar, evidence) running offline on files shaped like Okta, Google Workspace, Slack, Jamf, Intune and Linear exports. Access-as-Code has its own brief, decisions and milestones in [access/](../access/BRIEF.md)
+- Four projects (tier0, access-as-code, oauth-radar, evidence) running offline on files shaped like Okta, Google Workspace, Slack, Jamf, Intune and Linear exports. Access-as-Code has its own brief, decisions and milestones in [access/](../access/BRIEF.md), and Shadow AI Radar (oauth-radar) in [oauth-radar/](../oauth-radar/BRIEF.md)
 - Stateful, resettable mocks shaped like the Google Workspace Directory, Jamf Pro, Microsoft Graph (Intune), Slack and Linear APIs, a mock OAuth 2.1 token issuer and an MCP server for tier0
 - A simulated-Slack demo for tier0: a replay of real runs on the mocks, as an HTML transcript labelled "Simulated Slack, fake data" (ADR-036)
 - OpenTelemetry traces, a kill switch and a rate limit for tier0
