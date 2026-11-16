@@ -20,7 +20,7 @@
   It rehearses the whole run with a fake client and checks the worst-case cost before the first call.
 - **A manual-only workflow,** `access-ai-final.yml`: dispatched by hand from `main`, behind the `access-ai` environment's approval, with a free freeze check first. It has never run.
 - **The owner's answers, 2026-11-16: every recommendation in the M7 prep, except as noted.**
-  - **M7-R1:** approve `aac-m7-final-score` as is, in its own pull request, after the answers below are merged. It isn't open yet. The approval takes effect only when the owner merges it.
+  - **M7-R1:** approve `aac-m7-final-score` as is, in its own pull request, after the answers below are merged. Opened on 2026-11-16, together with `aac-red-team` as the owner asked. The approval takes effect only when the owner merges it.
   - **M7-R2:** the prompts are re-frozen after the M7-R16 fix ([AAC-014](014-line-breaks-are-flattened-before-any-prompt.md)). The owner confirms the new digest.
   - **M7-R3:** the run sends titles, owners and the two plan summaries. The summaries are reported as "passed n of 2".
   - **M7-R4:** k = 3, with the lowest repeat as the headline for each model-dependent number, and all three shown.
