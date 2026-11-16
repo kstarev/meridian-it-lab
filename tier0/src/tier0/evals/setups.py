@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from tier0.agent import Prompts
+from tier0.agent import Features, Prompts
 from tier0.evals.prompt_history import M3_CHECK_VERSIONS, M3_TRIAGE_VERSIONS
 from tier0.models import ClaudeModel, ModelAdapter, OllamaModel
 from tier0.models.ollama import DEFAULT_OLLAMA_URL
@@ -60,6 +60,12 @@ class Setup:
     check_model: str
     triage_prompt: str  # a key of M3_TRIAGE_VERSIONS
     check_prompt: str  # a key of M3_CHECK_VERSIONS
+    # Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md). Off for every earlier setup, so
+    # each runs exactly as it was frozen. `tier_c` turns on the reset signal and the prepared
+    # Tier C ticket; `split_prompt` (a key of M3_TRIAGE_VERSIONS, the same model's version from
+    # before R25) turns on the split option.
+    tier_c: bool = False
+    split_prompt: str | None = None
 
     def __post_init__(self) -> None:
         if self.triage_model != self.check_model and {self.triage_model, self.check_model} <= (
@@ -85,7 +91,11 @@ class Setup:
         return Prompts(
             triage=M3_TRIAGE_VERSIONS[self.triage_prompt],
             check=M3_CHECK_VERSIONS[self.check_prompt],
+            split_triage=M3_TRIAGE_VERSIONS[self.split_prompt] if self.split_prompt else None,
         )
+
+    def features(self) -> Features:
+        return Features(tier_c=self.tier_c, split=self.split_prompt is not None)
 
     def factory(self, temperature: float = 0.5) -> Callable[[], ModelAdapter]:
         url = os.environ.get("TIER0_OLLAMA_URL", DEFAULT_OLLAMA_URL)
@@ -156,4 +166,29 @@ SETUPS_3D: dict[str, Setup] = {
         Setup("sonnet-3d", "claude", SONNET, SONNET, "ST6", "SC4"),
     )
 }
-ALL_SETUPS: dict[str, Setup] = SETUPS | SETUPS_3B | SETUPS_3D
+# Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md): the five arms of the final run on
+# held-out v6. They reuse frozen prompts only: the 3d triage versions with R25 (HT8, ST6), the
+# checks HC7, C1 and SC4, and for the split option the same model's version from before R25
+# (HT7, ST5). Every one has the Tier C handling on. Tests pin each prompt's hash.
+SETUPS_3D2: dict[str, Setup] = {
+    s.name: s
+    for s in (
+        Setup("haiku-3d2", "claude", HAIKU, HAIKU, "HT8", "HC7", tier_c=True),
+        Setup(
+            "haiku-3d2-split", "claude", HAIKU, HAIKU, "HT8", "HC7", tier_c=True, split_prompt="HT7"
+        ),
+        Setup("haiku-3d2-c1", "claude", HAIKU, HAIKU, "HT8", "C1", tier_c=True),
+        Setup("sonnet-3d2", "claude", SONNET, SONNET, "ST6", "SC4", tier_c=True),
+        Setup(
+            "sonnet-3d2-split",
+            "claude",
+            SONNET,
+            SONNET,
+            "ST6",
+            "SC4",
+            tier_c=True,
+            split_prompt="ST5",
+        ),
+    )
+}
+ALL_SETUPS: dict[str, Setup] = SETUPS | SETUPS_3B | SETUPS_3D | SETUPS_3D2

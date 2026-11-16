@@ -32,6 +32,7 @@ from tier0.models import (
     CATEGORIES,
     OTHER,
     OWN_ACCOUNT_CHECK_SCHEMA,
+    OWN_USERNAME,
     TRIAGE_SCHEMA,
     ModelAdapter,
     ModelError,
@@ -46,6 +47,7 @@ from tier0.policy import (
     check_tool_call,
     decide,
 )
+from tier0.resets import reset_request
 from tier0.roles import role_reference
 from tier0.tickets.adapter import (
     AWAITING_REPLY,
@@ -61,7 +63,12 @@ from tier0.tickets.adapter import (
     TicketRecord,
 )
 from tier0.tracing import Session, Tracer
-from tier0.verification.ladder import RUNG_NAMES, VerificationLadder, required_rung
+from tier0.verification.ladder import (
+    RUNG_NAMES,
+    TIER_C_HUMAN_STEPS,
+    VerificationLadder,
+    required_rung,
+)
 
 # Bot echoes (including tier0's own replies) must never open tickets, or the bot would loop.
 IGNORED_REASONS = frozenset({"wrong_installation", "not_a_user_message", "bot_user"})
@@ -72,6 +79,10 @@ KILL_SWITCH_ON = "kill_switch_on"
 RATE_LIMITED_CODE = "rate_limited"
 # How the MCP server's refusals map to hand-off codes.
 _TOOL_REFUSALS = {ACTIONS_STOPPED: KILL_SWITCH_ON, RATE_LIMITED: RATE_LIMITED_CODE}
+# Milestone 3d part 2: a password or MFA reset is Tier C, prepared for a person. The ladder
+# counts it under this action, apart from own-username requests.
+CREDENTIAL_RESET = "credential_reset"
+TIER_C_RESET = "tier_c_reset"
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +146,23 @@ class Prompts:
 
     triage: str | None = None
     check: str | None = None
+    # Milestone 3d part 2's split option: the same model's triage prompt from before R25. It
+    # is asked only about a message the R25 prompt sorted as "other" (Features.split).
+    split_triage: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Features:
+    """Milestone 3d part 2's behaviour (docs/plans/milestone-3d-part-2.md). Both are off by
+    default, so every earlier setup runs exactly as before on every world.
+
+    - `tier_c`: the code-only reset signal sends a password or MFA reset to a person as a
+      prepared Tier C ticket, whatever triage said, unless triage refused it.
+    - `split`: a several-question message whose own-username part the pre-R25 triage prompt
+      finds gets that part answered, and the rest goes to a person."""
+
+    tier_c: bool = False
+    split: bool = False
 
 
 def triage_request(text: str, system: str | None = None) -> ModelRequest:
@@ -235,6 +263,7 @@ class ServiceDeskAgent:
         prompts: Prompts | None = None,
         controls: Controls | None = None,
         ladder: VerificationLadder | None = None,
+        features: Features | None = None,
     ) -> None:
         self._slack = slack
         self._secret = signing_secret
@@ -253,6 +282,7 @@ class ServiceDeskAgent:
         self._prompts = prompts if prompts is not None else Prompts()
         self._controls = controls
         self._ladder = ladder
+        self._features = features if features is not None else Features()
         self._seen_event_ids: set[str] = set()
         self._disclosed: set[str] = set()
         # Tickets a handler is working on right now; stand_down leaves them to it.
@@ -404,6 +434,8 @@ class ServiceDeskAgent:
                     action, state = self._refuse(s, identifier, channel, bound)
                 elif rule.action == "answer":
                     action, state = await self._answer(s, identifier, channel, bound, rule, text)
+                elif self._features.tier_c or self._features.split:
+                    action, state = await self._other(s, identifier, channel, bound, text)
                 else:
                     action, state = self._escalate(s, identifier, channel, bound, "policy_escalate")
                 return Outcome("handled", None, identifier, action, category, state, s.trace_id)
@@ -564,6 +596,78 @@ class ServiceDeskAgent:
         self._tickets.set_state(identifier, TRIAGE)
         return "escalate", TRIAGE
 
+    # --- milestone 3d part 2 ---------------------------------------------------
+
+    async def _other(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, text: str
+    ) -> tuple[str, str]:
+        """A request triage didn't sort as a username request or a refusal. With part 2 on: a
+        reset is prepared for a person as Tier C; with the split option, a message that also
+        asks for the sender's own username gets that part answered. Otherwise the hand-off."""
+        if self._features.tier_c and reset_request(text):
+            return self._prepare_tier_c(s, identifier, channel, bound)
+        if self._features.split and self._prompts.split_triage:
+            part = self._split_triage(s, text)
+            if self._stopped():
+                return self._escalate(s, identifier, channel, bound, KILL_SWITCH_ON)
+            if part == OWN_USERNAME:
+                rule = decide(OWN_USERNAME, self._policy)
+                if rule.action == "answer":
+                    self._tickets.add_comment(
+                        identifier,
+                        "tier0: several requests; the own-username part goes down the username "
+                        "path, and a person handles the rest.",
+                    )
+                    return await self._answer(s, identifier, channel, bound, rule, text, split=True)
+        return self._escalate(s, identifier, channel, bound, "policy_escalate")
+
+    def _split_triage(self, s: Session, text: str) -> str:
+        """The pre-R25 triage prompt: does the message ask for the sender's own username?"""
+        try:
+            response = s.chat(self._model, triage_request(text, self._prompts.split_triage))
+        except ModelError:
+            return OTHER
+        if triage_off_format(response):
+            s.event("tier0.format_failure", task="triage")
+        category = parse_triage(response)
+        s.event("tier0.split_triage", category=category)
+        return category
+
+    def _prepare_tier_c(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity
+    ) -> tuple[str, str]:
+        """A password or MFA reset: Tier C, so tier0 only prepares the ticket. The ladder runs
+        at Tier C (rung 0 is the binder, rung 1 counts the try and lists what it finds, rung 3
+        always stops), and its result and the steps a person must take go on the ticket. No
+        further model call, no token, no tool call."""
+        found = "no ladder"
+        if self._ladder is not None:
+            decision = self._ladder.evaluate("C", bound, action=CREDENTIAL_RESET)
+            rung = decision.stopped_at if decision.stopped_at is not None else required_rung("C")
+            s.event(
+                "tier0.ladder",
+                tier="C",
+                allowed=decision.allowed,
+                rung=int(rung),
+                reason=decision.reason,
+            )
+            notes = ", ".join(decision.findings) or decision.reason
+            found = f"stopped at rung {int(rung)} ({RUNG_NAMES[rung]}): {notes}"
+        s.event("tier0.escalated", reason=TIER_C_RESET)
+        try:
+            self._send(channel, _audience(bound), "handoff_reset", identifier)
+        except (_SendBlocked, _SendFailed):
+            s.event("tier0.reply.not_sent", reason="send_failed")
+        steps = " ".join(TIER_C_HUMAN_STEPS)
+        self._tickets.add_comment(
+            identifier,
+            "tier0: Tier C request (a password or MFA reset, a new factor or an unlock); "
+            f"prepared for a person. tier0 did nothing on the account. Ladder: {found}. "
+            f"A person must: {steps}",
+        )
+        self._tickets.set_state(identifier, TRIAGE)
+        return "prepare_tier_c", TRIAGE
+
     def _second_checks(
         self, s: Session, bound: BoundIdentity, text: str
     ) -> tuple[bool | None, int, bool]:
@@ -615,7 +719,13 @@ class ServiceDeskAgent:
         bound: BoundIdentity,
         rule: PolicyRule,
         text: str,
+        *,
+        split: bool = False,
     ) -> tuple[str, str]:
+        # Milestone 3d part 2: a reset that triage sent down the username path still goes to
+        # a person, before the ladder's Tier A check and before any further model call.
+        if self._features.tier_c and reset_request(text):
+            return self._prepare_tier_c(s, identifier, channel, bound)
         # The verification ladder first: code only, no model, no directory read. The
         # sender is already bound (rung 0); the context checks (rung 1) decide whether
         # tier0 may act for them right now.
@@ -700,6 +810,8 @@ class ServiceDeskAgent:
             # The switch flipped after the lookup: the answer is not sent.
             return self._escalate(s, identifier, channel, bound, KILL_SWITCH_ON)
 
+        if split:
+            return self._answer_and_hand_off(s, identifier, channel, bound, username)
         # The model classifies; code speaks (ADR-028): the answer comes from a template.
         try:
             self._send(channel, _audience(bound), "answer", identifier, username=username)
@@ -714,6 +826,27 @@ class ServiceDeskAgent:
         )
         self._tickets.set_state(identifier, AWAITING_REPLY)
         return "answer", AWAITING_REPLY
+
+    def _answer_and_hand_off(
+        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, username: str
+    ) -> tuple[str, str]:
+        """The split option's end: the own username in the reply, the rest with a person."""
+        try:
+            self._send(
+                channel, _audience(bound), "answer_and_handoff", identifier, username=username
+            )
+        except _SendBlocked as error:
+            return self._guard_blocked(s, identifier, channel, bound, error.count)
+        except _SendFailed:
+            return self._escalate(s, identifier, channel, bound, "send_failed")
+        s.event("tier0.escalated", reason="split_rest")
+        self._tickets.add_comment(
+            identifier,
+            "tier0: answered the own-username part with the requester's own username (self-only "
+            "lookup); handed the rest to a person.",
+        )
+        self._tickets.set_state(identifier, TRIAGE)
+        return "answer_and_handoff", TRIAGE
 
     # --- sending --------------------------------------------------------------
 

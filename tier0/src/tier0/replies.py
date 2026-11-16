@@ -17,7 +17,15 @@ from typing import Literal
 
 type Language = Literal["en", "de", "es", "fr"]
 type ReplyType = Literal[
-    "answer", "refuse_colleague", "unverified", "handoff", "guard_fallback", "auto_close"
+    "answer",
+    "refuse_colleague",
+    "unverified",
+    "handoff",
+    "guard_fallback",
+    "auto_close",
+    # Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md).
+    "handoff_reset",
+    "answer_and_handoff",
 ]
 
 LANGUAGES: tuple[Language, ...] = ("en", "de", "es", "fr")
@@ -29,6 +37,8 @@ REPLY_TYPES: tuple[ReplyType, ...] = (
     "handoff",
     "guard_fallback",
     "auto_close",
+    "handoff_reset",
+    "answer_and_handoff",
 )
 # The facts a reply type must carry; body() refuses to drop one.
 REQUIRED_FIELDS: dict[ReplyType, tuple[str, ...]] = {
@@ -38,6 +48,8 @@ REQUIRED_FIELDS: dict[ReplyType, tuple[str, ...]] = {
     "handoff": (),
     "guard_fallback": (),
     "auto_close": (),
+    "handoff_reset": (),
+    "answer_and_handoff": ("username",),
 }
 
 # The first message: a greeting and the AI disclosure.
@@ -293,6 +305,84 @@ TEMPLATES: dict[ReplyType, dict[Language, tuple[str, ...]]] = {
             "chose, envoie-moi un nouveau message.",
         ),
     },
+}
+
+# Milestone 3d part 2. A password or MFA reset is Tier C: a person does it after checking who
+# the requester is. The reply says so, holds no link and no code, and warns that IT never asks
+# for a password in chat. The split option's reply gives the own username and says a person
+# has the rest of the message.
+TEMPLATES["handoff_reset"] = {
+    "en": (
+        "A person on the IT team handles password and MFA resets, so I've passed this on. "
+        "They'll check it's really you first, then reply here.",
+        "I've sent this to IT, because resets are done by a person. They'll confirm who you are "
+        "before they change anything. IT never asks for your password in chat.",
+        "Resets need a person, so I've handed this to the IT team. Expect them to check your "
+        "identity first. Don't share your password here, not even with IT.",
+    ),
+    "de": (
+        "Passwort- und MFA-Zurücksetzungen macht ein Mensch aus dem IT-Team, deshalb habe ich "
+        "das weitergegeben. Die Person prüft zuerst, dass du es wirklich bist, und antwortet "
+        "dann hier.",
+        "Ich habe das an die IT geschickt, weil Zurücksetzungen ein Mensch übernimmt. Vorher "
+        "wird bestätigt, wer du bist. Die IT fragt im Chat nie nach deinem Passwort.",
+        "Dafür braucht es einen Menschen, deshalb liegt das jetzt beim IT-Team. Rechne damit, "
+        "dass zuerst deine Identität geprüft wird. Teile dein Passwort hier mit niemandem, auch "
+        "nicht mit der IT.",
+    ),
+    "es": (
+        "Los restablecimientos de contraseña y MFA los hace una persona del equipo de TI, así "
+        "que lo he pasado. Primero comprobará que eres tú y luego te responderá aquí.",
+        "Lo he enviado a TI, porque los restablecimientos los hace una persona. Antes de cambiar "
+        "nada confirmarán quién eres. TI nunca te pedirá tu contraseña por chat.",
+        "Esto necesita a una persona, así que se lo he pasado al equipo de TI. Primero "
+        "verificarán tu identidad. No compartas tu contraseña aquí, ni siquiera con TI.",
+    ),
+    "fr": (
+        "Les réinitialisations de mot de passe et de MFA sont faites par une personne de "
+        "l'équipe informatique, donc j'ai transmis ta demande. Elle vérifiera d'abord que c'est "
+        "bien toi, puis te répondra ici.",
+        "J'ai envoyé ça à l'équipe informatique, car une personne s'occupe des "
+        "réinitialisations. Elle confirmera ton identité avant de changer quoi que ce soit. "
+        "L'informatique ne demande jamais ton mot de passe par chat.",
+        "Il faut une personne pour ça, donc l'équipe informatique a ta demande. Attends-toi à "
+        "une vérification de ton identité d'abord. Ne partage pas ton mot de passe ici, même "
+        "avec l'informatique.",
+    ),
+}
+TEMPLATES["answer_and_handoff"] = {
+    "en": (
+        "Your username is {username}. I've passed the rest of your message to a person on the "
+        "IT team, and they'll reply here.",
+        "You sign in as {username}. The other part needs a person, so I've sent it to IT. "
+        "They'll follow up in this chat.",
+        "It's {username}. For the rest of your message, I've handed it to someone in IT. You'll "
+        "hear back here.",
+    ),
+    "de": (
+        "Dein Benutzername ist {username}. Den Rest deiner Nachricht habe ich an jemanden aus "
+        "dem IT-Team gegeben, die Antwort kommt hier.",
+        "Du meldest dich mit {username} an. Für den anderen Teil braucht es einen Menschen, "
+        "deshalb habe ich ihn an die IT geschickt.",
+        "Dein Login lautet {username}. Um den Rest kümmert sich jemand aus der IT und antwortet "
+        "dir hier.",
+    ),
+    "es": (
+        "Tu nombre de usuario es {username}. El resto de tu mensaje se lo he pasado a una "
+        "persona del equipo de TI, que te responderá aquí.",
+        "Inicias sesión como {username}. La otra parte necesita a una persona, así que la he "
+        "enviado a TI. Te responderán en este chat.",
+        "Es {username}. Del resto de tu mensaje se encarga alguien de TI, y recibirás la "
+        "respuesta aquí.",
+    ),
+    "fr": (
+        "Ton nom d'utilisateur est {username}. J'ai transmis le reste de ton message à une "
+        "personne de l'équipe informatique, qui te répondra ici.",
+        "Tu te connectes avec {username}. L'autre partie demande une personne, donc je l'ai "
+        "envoyée à l'informatique. Elle te répondra dans ce chat.",
+        "C'est {username}. Pour le reste de ton message, quelqu'un de l'informatique va s'en "
+        "charger et te répondre ici.",
+    ),
 }
 
 # The way out every colleague refusal ends with: a one-line request about the requester's

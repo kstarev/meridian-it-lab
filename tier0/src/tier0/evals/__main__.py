@@ -23,7 +23,15 @@ from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals import watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.evals.setups import ALL_SETUPS, BIG_MODELS, FROZEN, SETUPS, SETUPS_3B, SETUPS_3D
+from tier0.evals.setups import (
+    ALL_SETUPS,
+    BIG_MODELS,
+    FROZEN,
+    SETUPS,
+    SETUPS_3B,
+    SETUPS_3D,
+    SETUPS_3D2,
+)
 from tier0.models import ModelAdapter, ModelError, build_model, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
@@ -159,7 +167,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if (
         setup is not None
-        and setup.name not in FROZEN | set(SETUPS_3B) | set(SETUPS_3D)
+        and setup.name not in FROZEN | set(SETUPS_3B) | set(SETUPS_3D) | set(SETUPS_3D2)
         and args.seed != DEFAULT_SEED
     ):
         print(
@@ -193,9 +201,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.model != "stub":
         print(f"WARNING: --model {args.model} may call a paid or local model.", file=sys.stderr)
 
+    features = None
     if setup is not None:
         factory = setup.factory(args.temperature if args.temperature is not None else 0.5)
         prompts = setup.prompts()
+        features = setup.features()
     else:
         factory, prompts = _model_factory(args.model, args.temperature), None
 
@@ -213,6 +223,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             model_seed_base=args.model_seed,
             prompts=prompts,
             setup=setup.name if setup is not None else None,
+            features=features,
         )
 
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.

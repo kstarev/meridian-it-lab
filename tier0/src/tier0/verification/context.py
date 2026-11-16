@@ -134,6 +134,19 @@ class ContextChecks:
         self.settings = settings if settings is not None else ContextSettings()
         self._requests: dict[tuple[str, str], deque[datetime]] = {}
 
+    def preload(self, directory_id: str, action: str, times: Sequence[datetime]) -> None:
+        """Load earlier requests for one account, as a store would after a restart: the
+        same-day count then starts from them. Milestone 3d part 2's eval loads a chain's
+        earlier requests this way before the ticket runs, since each ticket gets a fresh
+        runtime. Only requests within the window are kept."""
+        times_for = self._requests.setdefault(
+            (directory_id, action), deque(maxlen=self.settings.same_day_limit + 1)
+        )
+        floor = self._clock.now() - self.settings.same_day_window
+        for moment in sorted(times):
+            if moment > floor:
+                times_for.append(moment)
+
     def check(self, identity: BoundIdentity, *, action: str) -> ContextResult:
         """Run every check for one request by `identity` about their own account.
 
