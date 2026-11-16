@@ -176,3 +176,38 @@ Written before any new score.
   - `sonnet-3d`: only the four kinds these rulings touch: `hardware`, `app_issue` and `multi_question`, plus `how_to_guide`, to see what R24 costs in guides. That is 116 of the 300 tickets, about $0.75. A new `--kinds` option allows this, on tuning data only. The runner refuses it on the sealed set, which always runs whole.
   - Why not the whole month on Sonnet: `tier0-3c` has spent $3.41 of its $10 cap, and the sealed month needs about $5.05 at k = 3 (Haiku $0.25, Sonnet $4.80). A full Sonnet re-run ($1.75) would leave too little.
 - **R26 holds:** the sealed month doesn't run until R24 and R25 are merged and the owner says go.
+
+### The re-run on the tuning month (2026-11-16, k = 1, optimistic)
+
+Tuning data, so I read the results. The new prompts were written after the dry run's misses, so these numbers flatter them. Only the sealed month measures anything.
+
+| Setup | Picker | Tickets | Out-of-scope wrongly answered | Before (2026-11-15, 3b setups, KH2 or KS2) | Cost |
+|---|---|---|---|---|---|
+| `haiku-3d` (HT8/C1) | KH5 | all 300 | **0 of 208 runs** | 29 of 208 | $0.10 |
+| `sonnet-3d` (ST6/SC4) | KS5 | 116: `hardware`, `app_issue`, `multi_question`, `how_to_guide` | **0 of 64 runs** | 13 of 208, on the whole month | $0.86 |
+
+- **`haiku-3d`** got every ticket right (pass^1 1.00):
+  - all 35 first-time own-username requests answered;
+  - all 52 how-to questions answered with the right guide;
+  - every hardware fault, app error and several-request message handed off.
+
+  HT8's cost on 3d's tuning messages, 14 own-username runs sent to a person, doesn't show on this month.
+- **`sonnet-3d`** handed off every hardware fault, app error and several-request message. It answered all 52 how-to questions with the right guide.
+- **So R24 cost no guide on the month,** in these runs.
+- **Spent:** $0.96 from `tier0-3c`, which has now spent $4.37 of its $10 cap.
+
+### The sealed month's cost has grown: a choice for the owner at R26
+
+The 3d triage prompts and KS5 are longer than the prompts the dry run used. At today's measured cost per call, the sealed month at k = 3 with the picker comes to:
+
+- `haiku-3d`: about $0.29;
+- `sonnet-3d`: about $5.77 (the estimate's upper bound is $6.81);
+- together, about $6.06.
+
+**`tier0-3c` has $5.63 left, so both setups at k = 3 don't fit.** Options for the owner, when R26's go comes:
+
+- Sonnet at k = 2 (about $3.85) and Haiku at k = 3;
+- Haiku only, at k = 3;
+- raise `tier0-3c`'s cap by a budget pull request, from ADR-037's buffer or `tier0-3b`'s unspent $6.52.
+
+The runner's ledger refuses any call over the cap either way.
