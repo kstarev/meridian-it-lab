@@ -25,6 +25,8 @@ from tier0.guard import check_reply
 from tier0.identity.binding import BoundIdentity, IdentityBinder, Unbound
 from tier0.identity.slack_signature import SignatureError, verify_slack_request
 from tier0.identity.tokens import TokenIssuer
+from tier0.knowledge.answer import GUIDE, reply_text
+from tier0.knowledge.wiring import NOT_POSTABLE, GuidePicker, code_link, postable_guide
 from tier0.mcp_server.client import McpAuthError, McpToolError, open_session
 from tier0.mentions import MentionCheck
 from tier0.mocks.slack import SlackHttpRequest
@@ -72,6 +74,10 @@ KILL_SWITCH_ON = "kill_switch_on"
 RATE_LIMITED_CODE = "rate_limited"
 # How the MCP server's refusals map to hand-off codes.
 _TOOL_REFUSALS = {ACTIONS_STOPPED: KILL_SWITCH_ON, RATE_LIMITED: RATE_LIMITED_CODE}
+# Milestone 4, only with the guide_picker option: the action when an approved guide is posted,
+# and the start of every hand-off code the knowledge path gives ("guide_no_guide_fits", ...).
+ANSWER_GUIDE = "answer_guide"
+GUIDE_HAND_OFF = "guide_"
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +175,17 @@ def _triage_value(response: ModelResponse) -> str | None:
     return value if isinstance(value, str) and value in CATEGORIES else None
 
 
+def triage_given(response: ModelResponse | None) -> bool:
+    """The model really gave a category: the call worked, it wasn't a refusal, and the reply
+    is exactly the schema. Only then is an "other" sent to the guide picker; a failed or
+    off-format triage also reads as "other", but it goes to a person."""
+    return (
+        response is not None
+        and response.finish_reason != "refusal"
+        and _triage_value(response) is not None
+    )
+
+
 def triage_off_format(response: ModelResponse | None) -> bool:
     """A reply came back but isn't exactly the triage schema: a format failure, counted
     apart from a wrong answer (ADR-031). A failed call or a refusal isn't one."""
@@ -214,6 +231,26 @@ def parse_own_account_check(response: ModelResponse | None) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+class _TracedModel:
+    """The guide picker's model, called inside the session's chat span, so its call is traced
+    like every other model call (codes and token counts, no content unless asked for)."""
+
+    def __init__(self, session: Session, inner: ModelAdapter) -> None:
+        self._session = session
+        self._inner = inner
+        self.provider = inner.provider
+        self.model = inner.model
+        self.temperature = inner.temperature
+        self.seed = inner.seed
+        self.supports_seed = inner.supports_seed
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        return self._session.chat(self._inner, request)
+
+    def describe(self) -> dict[str, str]:
+        return self._inner.describe()
+
+
 class ServiceDeskAgent:
     def __init__(
         self,
@@ -235,7 +272,11 @@ class ServiceDeskAgent:
         prompts: Prompts | None = None,
         controls: Controls | None = None,
         ladder: VerificationLadder | None = None,
+        guide_picker: GuidePicker | None = None,
     ) -> None:
+        """`guide_picker` turns milestone 4's knowledge path on: a message triage really
+        calls "other" may get an approved guide (tier0.knowledge.wiring). None, the default,
+        leaves it off, and every "other" goes to a person as before."""
         self._slack = slack
         self._secret = signing_secret
         self._binder = binder
@@ -253,6 +294,7 @@ class ServiceDeskAgent:
         self._prompts = prompts if prompts is not None else Prompts()
         self._controls = controls
         self._ladder = ladder
+        self._guide_picker = guide_picker
         self._seen_event_ids: set[str] = set()
         self._disclosed: set[str] = set()
         # Tickets a handler is working on right now; stand_down leaves them to it.
@@ -384,7 +426,7 @@ class ServiceDeskAgent:
                     action, state = self._escalate(s, identifier, channel, bound, stopped)
                     return Outcome("handled", stopped, identifier, action, None, state, s.trace_id)
                 self._tickets.set_state(identifier, IN_PROGRESS)
-                category = self._triage(s, text)
+                category, given = self._triage(s, text)
                 rule = decide(category, self._policy)
                 s.event(
                     "tier0.policy.decision",
@@ -404,6 +446,12 @@ class ServiceDeskAgent:
                     action, state = self._refuse(s, identifier, channel, bound)
                 elif rule.action == "answer":
                     action, state = await self._answer(s, identifier, channel, bound, rule, text)
+                elif self._guide_picker is not None and given and category == OTHER:
+                    # Milestone 4, only with the option on: the policy says escalate, but an
+                    # approved guide may answer first. Anything else still goes to a person.
+                    action, state = self._answer_from_guide(
+                        s, identifier, channel, bound, self._guide_picker, text
+                    )
                 else:
                     action, state = self._escalate(s, identifier, channel, bound, "policy_escalate")
                 return Outcome("handled", None, identifier, action, category, state, s.trace_id)
@@ -467,14 +515,15 @@ class ServiceDeskAgent:
 
     # --- steps ----------------------------------------------------------------
 
-    def _triage(self, s: Session, text: str) -> str:
+    def _triage(self, s: Session, text: str) -> tuple[str, bool]:
+        """The category (OTHER when the call fails), and whether the model really gave it."""
         try:
             response = s.chat(self._model, triage_request(text, self._prompts.triage))
         except ModelError:
-            return OTHER
+            return OTHER, False
         if triage_off_format(response):
             s.event("tier0.format_failure", task="triage")
-        return parse_triage(response)
+        return parse_triage(response), triage_given(response)
 
     def _refuse(
         self,
@@ -715,6 +764,71 @@ class ServiceDeskAgent:
         self._tickets.set_state(identifier, AWAITING_REPLY)
         return "answer", AWAITING_REPLY
 
+    # --- milestone 4: an approved guide (only with the guide_picker option) ------
+
+    def _answer_from_guide(
+        self,
+        s: Session,
+        identifier: str,
+        channel: str,
+        bound: BoundIdentity,
+        picker: GuidePicker,
+        text: str,
+    ) -> tuple[str, str]:
+        """A message triage called "other": post an approved guide word for word, or hand it
+        to a person as before (ADR-035, ADR-046).
+
+        The model only picks; `answer_question`'s gates decide in code. Nothing here reads or
+        changes an account: no token, no tool call, no directory lookup. So the verification
+        ladder, which checks a request about the sender's own account, is not walked; identity
+        binding, the kill switch and the rate limit ran before triage, as for every request."""
+        outcome = picker.answer(text, model=_TracedModel(s, picker.model))
+        pick = outcome.pick
+        request_type = pick.request_type if pick is not None else "none"
+        picked = pick.guide if pick is not None and pick.guide is not None else "none"
+        s.event(
+            "tier0.guide.pick",
+            version=picker.version,
+            request_type=request_type,
+            guide=picked,
+            screen=outcome.screen or "none",
+            outcome=outcome.kind,
+            why=outcome.why or "none",
+        )
+        self._tickets.add_comment(
+            identifier,
+            f"tier0: guide picker {picker.version}: request type {request_type}, guide "
+            f"{picked}; message screen {outcome.screen or 'none'}.",
+        )
+        if self._stopped():
+            # The switch flipped during the picker call: nothing is posted.
+            return self._escalate(s, identifier, channel, bound, KILL_SWITCH_ON)
+        guide = postable_guide(picker.guides, outcome.guide) if outcome.kind == GUIDE else None
+        if guide is None:
+            why = outcome.why or NOT_POSTABLE
+            return self._escalate(s, identifier, channel, bound, f"{GUIDE_HAND_OFF}{why}")
+
+        # The model picks; code speaks (ADR-028): the header, then the approved steps word for
+        # word, then the link (decision 7 of the plan). The guard checks all of it but the link.
+        to = _audience(bound)
+        link = code_link(guide)
+        try:
+            self._post(
+                channel, to, reply_text(guide, to.language), code_links=(link,) if link else ()
+            )
+        except _SendBlocked as error:
+            return self._guard_blocked(s, identifier, channel, bound, error.count)
+        except _SendFailed:
+            return self._escalate(s, identifier, channel, bound, "send_failed")
+        s.event("tier0.guide.posted", guide=guide.id)
+        self._tickets.add_comment(
+            identifier,
+            f"tier0: answered with the approved guide {guide.id}: its steps word for word and "
+            "its link.",
+        )
+        self._tickets.set_state(identifier, AWAITING_REPLY)
+        return ANSWER_GUIDE, AWAITING_REPLY
+
     # --- sending --------------------------------------------------------------
 
     def _send(
@@ -727,14 +841,22 @@ class ServiceDeskAgent:
     ) -> None:
         """Post one templated message, guarded. The guard runs on every message, ours
         included. The first message to a requester carries the AI disclosure."""
-        first = to.user_id not in self._disclosed
-        text = replies.compose(
+        self._post(
+            channel,
+            to,
             replies.body(reply_type, to.language, key, weekday=self._weekday(to.tz), **fields),
-            to.language,
-            first_name=to.first_name,
-            first=first,
         )
-        verdict = check_reply(text, requester_email=to.email, domain=self._domain)
+
+    def _post(
+        self, channel: str, to: _Audience, body: str, *, code_links: tuple[str, ...] = ()
+    ) -> None:
+        """Greet, guard and post one message body that code wrote (a template, or an approved
+        guide's steps). `code_links` are links code built itself; only they skip the guard."""
+        first = to.user_id not in self._disclosed
+        text = replies.compose(body, to.language, first_name=to.first_name, first=first)
+        verdict = check_reply(
+            text, requester_email=to.email, domain=self._domain, code_links=code_links
+        )
         if not verdict.allowed:
             raise _SendBlocked(len(verdict.blocked))
         response = self._slack.chat_post_message(channel=channel, text=text)

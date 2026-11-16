@@ -10,7 +10,8 @@ the message to a person. The model never sees a guide's steps and never writes a
     answer.py   the decision and the reply, both in code
     prompts.py  the picker's prompt versions, tuned on tuning data only
     sealed.py   the sealed how-to test: nothing runs on it before its final test
+    wiring.py   the path in the Slack flow, after triage says "other"; off by default
 
-This is a stand-alone path for now. Wiring it into the Slack flow (after triage says
-"other") is left for a later step.
+The Slack flow uses it only when the agent is given a `GuidePicker` (the `guide_picker`
+option, default off), on the mocks; off, every "other" goes to a person as before.
 """
