@@ -11,6 +11,8 @@
   check back from #it-help, so a restart can't repeat one.
 - The kill switch stops previews and posts. Every toggle and every refused button press
   is logged with who did it.
+- The global kill switch on agent actions (ADR-008) stops them too, when one is given:
+  while it is on, a tick sends nothing at all, not even the "paused" notice.
 - Every message goes through the output guard; a blocked post isn't sent, and #it-team is
   told.
 """
@@ -22,6 +24,7 @@ from typing import Any, Protocol
 from urllib.parse import parse_qs
 
 from tier0.clock import Clock
+from tier0.controls import KillSwitch
 from tier0.guard import check_reply
 from tier0.identity.slack_signature import SignatureError, verify_slack_request
 from tier0.mocks.slack import CHANNELS, SlackHttpRequest
@@ -99,6 +102,7 @@ class ProactiveRunner:
         domain: str,
         config: Config | None = None,
         dry_run: bool = True,
+        global_switch: KillSwitch | None = None,
     ) -> None:
         self._slack = slack
         self._directory = directory
@@ -112,6 +116,8 @@ class ProactiveRunner:
         self._skips_logged: set[str] = set()
         self._unknown_logged: set[str] = set()
         self._pause_announced = False
+        self._global_switch = global_switch
+        self._global_stop_noted = False
         # Nothing survives a restart, so start paused and remember the last pulse from
         # #it-help itself.
         self.kill_switch = True
@@ -175,6 +181,13 @@ class ProactiveRunner:
     def tick(self) -> list[LogEntry]:
         """Send whatever is due now. Returns the log entries this tick added."""
         start = len(self.log)
+        if self._global_switch is not None and self._global_switch.is_on:
+            # A post is an agent action. Logged once per stop, not on every tick.
+            if not self._global_stop_noted:
+                self._global_stop_noted = True
+                self._note("global_kill_switch_on")
+            return self.log[start:]
+        self._global_stop_noted = False
         if self.kill_switch:
             self._announce_pause()
             return self.log[start:]

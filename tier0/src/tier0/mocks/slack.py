@@ -95,6 +95,14 @@ class MockSlack:
         self._sent: list[SentMessage] = []
         self._human: list[ChannelMessage] = []
         self._counter = 0
+        # Members a test or a needle turned into guests: user ID -> single-channel?
+        self._guests: dict[str, bool] = {}
+
+    def mark_guest(self, slack_user_id: str, *, single_channel: bool = False) -> None:
+        """Make one workspace member a guest, as Slack reports it: `is_restricted`,
+        and `is_ultra_restricted` too for a single-channel guest. The world is not
+        changed; nobody is a guest unless a test or a needle says so."""
+        self._guests[slack_user_id] = single_channel
 
     @property
     def signing_secret(self) -> bytes:
@@ -117,6 +125,7 @@ class MockSlack:
         self._sent.clear()
         self._human.clear()
         self._counter = 0
+        self._guests.clear()
 
     def _epoch(self) -> int:
         return int(self._clock.now().timestamp())
@@ -183,8 +192,8 @@ class MockSlack:
             "is_owner": False,
             "is_bot": False,
             "is_app_user": False,
-            "is_restricted": False,
-            "is_ultra_restricted": False,
+            "is_restricted": person.slack_user_id in self._guests,
+            "is_ultra_restricted": self._guests.get(person.slack_user_id, False),
             "updated": int(parse_time(self._world.reference_time).timestamp()),
             "profile": {
                 "real_name": person.full_name,
