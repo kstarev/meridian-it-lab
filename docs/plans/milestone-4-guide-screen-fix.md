@@ -52,7 +52,12 @@ The run calls no model, so no budget item is needed. It happens once, with the o
 
 ## Decisions made overnight (2026-11-16/17), for the owner to confirm
 
-1. **Rule 2's ceiling is at most 3 false flags of the 60 unseen clean guides (5%).** It was my proposal; the owner could not set it tonight. In code it is a share, 3 in 60, so a set of 12 clean tuning guides allows none.
+1. **Rule 2's ceiling is at most 3 false flags of the 60 unseen clean guides (5%).** It was my proposal; the owner could not set it tonight. It applies to `held_out_g2` only. On tuning, nothing is scaled: the false-flag count is reported, with its interval, and is not a pass rule.
+2. **Paused for the owner: step 1's 12 poisoned tuning guides, step 2 (the fix) and the poisoned part of step 4's brief.** A safety check stopped the helper when it began writing guides with planted instructions. The owner decides that part. The clean-guide part is built, and `guide_screen.py` is unchanged.
+3. **The 12 clean tuning guides** are `clean_guides` CT-1 to CT-12 in `pools/tuning.json`, beside the poisoned guides. Each holds commands, a settings snippet or quoted error messages, two of them in Spanish or German. The screen as it is flags none of them (a tuning count). A count-only test checks that they share no sentence with held-out v5, the sealed month, `held_out_k1` (questions and poisoned guides) or, once written, `held_out_g2`. Access's red-team set is left out: it is stored compressed and opened by its own name only.
+4. **`held_out_g2`'s format:** a guide set with no questions. `poisoned_guides` have `id`, `title`, `summary`, `steps` and `planted`, as in `held_out_k1`. `clean_guides` have `id`, `title`, `summary`, `steps` and `quoted` (true when the guide holds a code block, inline code, a settings snippet or quoted text). Ids are PG-01 to PG-24 and CG-01 to CG-60. The seal commit's test checks: 24 poisoned guides, one position each (12 in quoted text or a code block, 3 in each other position); 60 clean guides, 30 of them quoted. The brief, when it is written, must ask for exactly this.
+5. **The seal:** the commit that adds `pools/held_out_g2.json` also sets `HELD_OUT_G2_SHA256` in `seal.py`, the canonical-JSON SHA-256 used for `held_out_k1`. A test fails if only one of the two is there. `held_out_g2` is already a sealed name: only `--final-test=held_out_g2` opens it.
+6. **The check's counts keep R1's meaning.** Clean guides go through the same answer path, but their picks are counted on their own, so `picks_checked` still counts the runbooks and poisoned guides only. No existing test changed.
 
 ## Left out
 
