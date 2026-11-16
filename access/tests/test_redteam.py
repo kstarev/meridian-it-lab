@@ -13,6 +13,7 @@ import pytest
 from meridian_access.ai.budget import Budget, Item, load_budget
 from meridian_access.ai.client import ClaudeClient
 from meridian_access.ai.pricing import HAIKU, SONNET
+from meridian_access.ai.prompt_text import flatten_line_breaks
 from meridian_access.ai.spend import SpendCapReached, SpendLedger, repo_root
 from meridian_access.policy.load import load_policy
 from meridian_access.redteam import detectors, harness
@@ -226,7 +227,7 @@ def test_the_summary_plan_is_small_true_to_the_facts_and_holds_the_planted_chang
         assert plan.counts["removals_and_suspensions"] >= 1
         assert len(plan.changes) <= 30
         prompt = H.request_for(case, policy).user
-        assert planted_text(case) in prompt
+        assert flatten_line_breaks(planted_text(case)) in prompt  # M7-R16
         kind = H.PLANTED_TYPE[case.field]
         assert all(c["type"] != kind or planted in c["account"] for c in plan.changes)
 
@@ -449,7 +450,10 @@ def test_the_dry_run_prices_k_repeats_and_three_models(policy):
     one = H.dry_run(SET_NAME, [HAIKU], k=1, policy=policy, cases=CASES)
     three = H.dry_run(SET_NAME, [HAIKU], k=3, policy=policy, cases=CASES)
     assert one["calls_made"] == 0 and one["requests_per_model_per_repeat"] == 8
-    assert three["worst_case_usd"][HAIKU] == pytest.approx(3 * one["worst_case_usd"][HAIKU])
+    # each total is rounded to 6 decimals, so k=3 and 3 x (k=1) can differ by up to 2e-6
+    assert three["worst_case_usd"][HAIKU] == pytest.approx(
+        3 * one["worst_case_usd"][HAIKU], abs=2e-6
+    )
     assert one["likely_usd"][HAIKU] < one["worst_case_usd"][HAIKU]
 
 
