@@ -239,9 +239,23 @@ Run with the owner's go, from commit `d855e26`, which holds rule 5 and the repor
 - **The guide picker's model is Sonnet (KS5),** because Haiku failed rule 2 on held-out data ([ADR-046](../decisions.md)).
 - **Neither screen changes now.** The guide screen's miss has its own plan, [the guide screen fix](milestone-4-guide-screen-fix.md). It is written from tuning data and measured on a new blind-written set with unseen clean guides. The plan's API cost is $0. Nothing is built yet.
 
+## As wired
+
+Built on 2026-11-17, overnight, on mock adapters and fake pickers only. No model was paid for.
+
+- **Off by default.** The agent option `guide_picker` turns it on: a `GuidePicker` holding the picker's model (`tier0/src/tier0/knowledge/wiring.py`). Without it, every "other" goes to a person exactly as before. The stub eval on the tuning world gives the same report before and after, apart from wall-clock latency.
+- **Where it sits.** After identity binding, the kill switch, the rate limit and triage, as for every request. Only a message that triage really called "other" reaches the picker. A failed, refused or off-format triage also reads as "other", but it goes to a person without the picker, as in the month's routing.
+- **What decides.** `answer_question`, with all its gates: KS5 on Claude Sonnet 5.5 (ADR-046), the message screen, and the posting gate (approved by a person, not flagged by the guide screen). The model is injected; a real Claude model other than Sonnet 5.5 is refused. It sees ids, titles and summaries, never steps.
+- **A guide** is posted as decision 7 says: the header in the requester's language (their Slack locale), then the steps word for word, then the link. The first message to a person still carries the AI disclosure. The ticket then waits for a reply, like an answered username, and the sweep closes it after 3 days.
+- **Anything else** gets the standard hand-off reply, whatever the picker said. Only IT sees why, in a code such as `guide_no_guide_fits` or `guide_screen`.
+- **No token, no tool call, no lookup.** So the verification ladder, which checks requests about the sender's own account, is not walked. Triage refuses a request about someone else before the picker. For what reaches the picker, its request type and the message screen hand off account actions, incidents and someone-else requests.
+- **The kill switch** is checked again after triage and after the picker call; then nothing is posted. The picker call counts under its request for the rate limit, like the own-account check. It runs inside the ticket's `chat` span, and its decision is logged as codes only.
+- **The output guard** still checks every reply, steps included. Only the guide's own link is exempt, character for character: a file name such as `office-wifi.md` is shaped like first.last, so without the exemption the guard blocks every guide reply. The exemption is a new `check_reply` argument, empty by default, so no other message changes.
+- **Tests:** `tier0/tests/test_guide_picker_slack.py`, with fake pickers and the mocks.
+
 ## Left for later
 
-- Wiring the picker into the Slack flow after triage, with identity binding in front of it.
+- Turning the wired picker on in a run of the agent, such as an eval. It calls the paid Sonnet picker, so it needs the owner's go and a budget.
 - The weekly job that drafts guide updates from resolved tickets (ADR-005). It runs on the stub until a later budget (ADR-037).
 - Guides in German, Spanish and French.
 - **A blind-written set of clean guides,** to measure the guide screen's false flags on guides it was not built on (the owner's ruling, 2026-11-16). Code only and free. Now part of [the guide screen fix](milestone-4-guide-screen-fix.md); not built yet.
