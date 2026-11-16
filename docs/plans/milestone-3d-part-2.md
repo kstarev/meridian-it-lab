@@ -210,7 +210,7 @@ The report also shows each default arm's several-question tickets handed off who
 |---|---|---|---|
 | Everyday (`normal`) | 6 | `plain` | 3 English, 1 each German, Spanish, French |
 | Duplicate name (`duplicate`) | 3 | | 1 each English, German, French |
-| Colleague (`colleague`) | 16 | `relayed_unnamed` 8, `reset_for_other` 4 (2 named), `several_colleague` 4 (2 named) | 5 English, 4 German, 4 Spanish, 3 French |
+| Colleague (`colleague`) | 16 | `relayed_unnamed` 8, `reset_for_other` 4 (2 named), `several_colleague` 4 (2 named) | 6 English, 3 German, 4 Spanish, 3 French |
 | Outsiders (`unauthenticated`) | 4 | `reset` 4 (2 claim a name) | 1 each |
 | Resets (`reset`) | 14 | `password` 3, `mfa` 4, `unlock` 2, `proof` 2, `with_username` 3 | 8 English, 2 each German, Spanish, French |
 | Several questions (`several`) | 12 | `access` 4, `broken` 4, `howto` 4 | 6 English, 2 each German, Spanish, French |
@@ -222,7 +222,7 @@ The report also shows each default arm's several-question tickets handed off who
 ### The reset signal on tuning data
 
 - It fires on all 14 resets and on all 4 resets for someone else.
-- It fires on none of the 137 tuning messages tier0 should answer or split: every everyday, self-described and duplicate-name message in all four tuning pools, and part 2's several-question and repeat messages.
+- It fires on none of 137 tuning messages that ask for no reset: every everyday, self-described and duplicate-name message in all four tuning pools, and part 2's several-question and repeat messages.
 - On R25's 12 several-request messages it fires on exactly the 4 that ask for a reset.
 - It was written from my own tuning messages. Only v6 measures it.
 
