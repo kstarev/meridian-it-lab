@@ -28,6 +28,27 @@ THINKING_OFF_MODELS = frozenset({HAIKU})
 KEY_NAME = "ANTHROPIC_API_KEY"
 
 
+def request_params(
+    model: str, system: str, user: str, schema: dict[str, Any], max_tokens: int
+) -> dict[str, Any]:
+    """The exact keyword arguments one call passes to `messages.create`."""
+    params: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+        "output_config": {"format": {"type": "json_schema", "schema": schema}},
+    }
+    if model in THINKING_OFF_MODELS:
+        params["thinking"] = {"type": "disabled"}
+    return params
+
+
+def worst_case_input_tokens(system: str, user: str, schema: dict[str, Any]) -> int:
+    """An upper bound on a call's input tokens: its bytes plus a fixed overhead."""
+    return len(json.dumps([system, user, schema]).encode("utf-8")) + INPUT_OVERHEAD_TOKENS
+
+
 class MissingKeyError(RuntimeError):
     """No ANTHROPIC_API_KEY in the environment; the message never contains a key."""
 
@@ -66,19 +87,10 @@ class ClaudeClient:
     ) -> dict[str, Any] | None:
         """The model's JSON answer, or None. Raises SpendCapReached before any call that
         could cross the cap, and MissingKeyError when a real client has no key."""
-        size = len(json.dumps([system, user, schema]).encode("utf-8"))
-        worst_in = size + INPUT_OVERHEAD_TOKENS
+        worst_in = worst_case_input_tokens(system, user, schema)
         self.ledger.check(worst_case_usd(self.model, worst_in, max_tokens))
         client = self._sdk_client()
-        params: dict[str, Any] = {
-            "model": self.model,
-            "max_tokens": max_tokens,
-            "system": system,
-            "messages": [{"role": "user", "content": user}],
-            "output_config": {"format": {"type": "json_schema", "schema": schema}},
-        }
-        if self.model in THINKING_OFF_MODELS:
-            params["thinking"] = {"type": "disabled"}
+        params = request_params(self.model, system, user, schema, max_tokens)
         self.calls += 1
         try:
             response = client.messages.create(**params)
