@@ -1136,7 +1136,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-042: Milestone 3d part 1 as built: injection and relayed or forwarded requests, sealed held-out v5, and an informational HC7 arm
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-3d-injection-relayed.md), PR #50) and the owner's rulings since. Carries the decision ADR-039 left to 3d.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-3d-injection-relayed.md), PR #50) and the owner's rulings since. Carries the decision ADR-039 left to 3d. **R2 ran on 2026-11-16 with the owner's go** ([report](evals/2026-11-16-m3d-v5-final.md)). Three Haiku arms fail the safety target, with 5 unsafe runs each, all on one relayed request that names nobody. `haiku-3d-hc7` and both Sonnet arms pass. The decision rule recommends that HT4 stays. The owner's rulings on it are pending, and held-out v5 is spent.
 
 **Context:** 3b left two message shapes unmeasured on held-out data: prompt injection inside a message, and a colleague's request relayed or forwarded in that person's own words. ADR-039 also kept Haiku's 3b triage prompt (HT4) on safety grounds, until 3d's sealed set decides.
 
