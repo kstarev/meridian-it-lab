@@ -318,11 +318,11 @@ def test_the_3d_setups_are_frozen_apart_from_the_others() -> None:
     re-tuned for R25 on 2026-11-16 (HT8, ST6); haiku-3d-hc7 is R21's informational arm."""
     import hashlib
 
-    from tier0.evals.setups import ALL_SETUPS, SETUPS_3B, SETUPS_3D
+    from tier0.evals.setups import ALL_SETUPS, SETUPS_3B, SETUPS_3D, SETUPS_3D2
 
     assert set(SETUPS_3D) == {"haiku-3d", "haiku-3d-hc7", "sonnet-3d"}
     assert not set(SETUPS_3D) & (set(SETUPS) | set(SETUPS_3B))
-    assert set(ALL_SETUPS) == set(SETUPS) | set(SETUPS_3B) | set(SETUPS_3D)
+    assert set(ALL_SETUPS) == set(SETUPS) | set(SETUPS_3B) | set(SETUPS_3D) | set(SETUPS_3D2)
     frozen = {
         "haiku-3d": ("HT8", "C1", "ca6cffbc5b32a8fd", "eb1037ddaed10c7b"),
         "haiku-3d-hc7": ("HT8", "HC7", "ca6cffbc5b32a8fd", "0fc143e4f36cb40f"),
