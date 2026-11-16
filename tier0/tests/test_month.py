@@ -564,6 +564,8 @@ def test_a_tuning_run_can_take_only_some_kinds(tmp_path: Path) -> None:
     assert result["config"]["kinds"] == ["hardware", "multi_question"]
     assert {t["kind"] for t in result["tickets"]} == {"hardware", "multi_question"}
     assert result["config"]["calls"] == {"triage": len(result["tickets"])}
+    summary = (tmp_path / f"{stem}.md").read_text(encoding="utf-8")
+    assert "--kinds hardware,multi_question" in summary
 
 
 def test_the_sealed_month_always_runs_whole(tmp_path: Path) -> None:

@@ -786,6 +786,8 @@ def _command(args: argparse.Namespace) -> str:
         parts.append(f"--picker-prompt {args.picker_prompt}")
     if args.final_test:
         parts.append(f"--final-test={args.final_test}")
+    if getattr(args, "kinds", None):
+        parts.append(f"--kinds {','.join(sorted(set(args.kinds.split(','))))}")
     parts.append(f"--out {args.out.as_posix()}")
     return " ".join(parts)
 
