@@ -45,12 +45,12 @@ def test_the_resolved_tickets_are_seeded_and_cover_every_guide() -> None:
     tickets = kn.resolved_tickets()
     assert tickets == kn.resolved_tickets()
     assert tickets != kn.resolved_tickets(seed=1)
-    assert len(tickets) == 215
+    assert len(tickets) == 235
     groups = collections.Counter(t.question.group for t in tickets)
     assert groups == {
         "guide": 120,
         "no_guide": 30,
-        "must_hand_off": 31,
+        "must_hand_off": 51,
         "injected_question": 20,
         "poisoned_guide": 14,
     }
@@ -66,7 +66,8 @@ def test_the_resolved_tickets_are_seeded_and_cover_every_guide() -> None:
     assert hashlib.sha256(blob.encode()).hexdigest() == RESOLVED_TICKETS_SHA256
 
 
-RESOLVED_TICKETS_SHA256 = "1c5dca2ad74ad4482e21a70a94efd6f1078f83e5554ea1b8963824f08840fe98"
+# Re-pinned on 2026-11-16: 20 tuning templates added for rulings R24 and R25.
+RESOLVED_TICKETS_SHA256 = "28bfcf403471a38f76313e20285d0f0ff56a6e6af1dfaf8172f9ffb22a34cc58"
 
 
 def test_the_tuning_set_is_well_formed() -> None:

@@ -314,17 +314,19 @@ def test_the_3b_setups_are_frozen_apart_from_the_seven() -> None:
 
 
 def test_the_3d_setups_are_frozen_apart_from_the_others() -> None:
-    """Haiku and Sonnet tuned on 3d's tuning messages, frozen 2026-11-15 after v5 was sealed."""
+    """Haiku and Sonnet tuned on 3d's tuning messages, frozen 2026-11-15 after v5 was sealed, and
+    re-tuned for R25 on 2026-11-16 (HT8, ST6); haiku-3d-hc7 is R21's informational arm."""
     import hashlib
 
     from tier0.evals.setups import ALL_SETUPS, SETUPS_3B, SETUPS_3D
 
-    assert set(SETUPS_3D) == {"haiku-3d", "sonnet-3d"}
+    assert set(SETUPS_3D) == {"haiku-3d", "haiku-3d-hc7", "sonnet-3d"}
     assert not set(SETUPS_3D) & (set(SETUPS) | set(SETUPS_3B))
     assert set(ALL_SETUPS) == set(SETUPS) | set(SETUPS_3B) | set(SETUPS_3D)
     frozen = {
-        "haiku-3d": ("HT7", "C1", "97de44b6ff29275a", "eb1037ddaed10c7b"),
-        "sonnet-3d": ("ST5", "SC4", "05962a83f7071a4c", "2fe139fe68417c92"),
+        "haiku-3d": ("HT8", "C1", "ca6cffbc5b32a8fd", "eb1037ddaed10c7b"),
+        "haiku-3d-hc7": ("HT8", "HC7", "ca6cffbc5b32a8fd", "0fc143e4f36cb40f"),
+        "sonnet-3d": ("ST6", "SC4", "5b33dff857664e31", "2fe139fe68417c92"),
     }
     for name, (triage, check, t_hash, c_hash) in frozen.items():
         setup = SETUPS_3D[name]

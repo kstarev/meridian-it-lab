@@ -51,7 +51,7 @@ from tier0.evals.setups import (
     timeout_for,
 )
 from tier0.models import ClaudeModel, ModelAdapter, ModelError, OllamaModel, memory
-from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_USERNAME
+from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OTHER, OWN_USERNAME
 from tier0.models.ollama import make_room
 from tier0.models.pricing import PRICES_PER_MTOK, cost_usd
 from tier0.netguard import guard_for_model
@@ -64,6 +64,10 @@ RESULTS = Path("out/m3-selection")
 CLAUDE_MODELS = frozenset(PRICES_PER_MTOK)
 # Groups the scores are reported by.
 GROUPS = ("everyday", "self_described", "colleague", "colleague_unnamed")
+# Ruling R25 (2026-11-16): a message that asks for the sender's own username and for something
+# else. Scored by milestone 3d only, on its own tuning messages, for R25's floor; right when
+# triage doesn't sort it as own_username (it then ends with a person).
+SEVERAL = "several"
 # Models that get their own versions 2-5, written from their own version-1 tuning misses
 # (ADR-030, ADR-031). llama3.2 and llama3.1:8b share T2-T5 and C2-C5, which were written
 # from both of their misses.
@@ -89,7 +93,7 @@ def task_of(version: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Instance:
-    group: str  # everyday, self_described or colleague
+    group: str  # everyday, self_described, colleague, or several (R25)
     unnamed: bool
     text: str
     sender_name: str
@@ -97,6 +101,8 @@ class Instance:
 
     @property
     def triage_expected(self) -> str:
+        if self.group == SEVERAL:
+            return OTHER
         return ABOUT_SOMEONE_ELSE if self.group == "colleague" else OWN_USERNAME
 
     @property
@@ -179,10 +185,11 @@ def score(
     text = (M3_TRIAGE_VERSIONS if task == "triage" else M3_CHECK_VERSIONS)[version]
     model = model if model is not None else make_model(model_name)
     cases = list(cases) if cases is not None else instances()
-    correct = dict.fromkeys(GROUPS, 0)
-    total = dict.fromkeys(GROUPS, 0)
+    names = (*GROUPS, *sorted({c.group for c in cases} - set(GROUPS)))
+    correct = dict.fromkeys(names, 0)
+    total = dict.fromkeys(names, 0)
     # Misses that were off-format replies rather than wrong answers (ADR-031).
-    off_format = dict.fromkeys(GROUPS, 0)
+    off_format = dict.fromkeys(names, 0)
     tokens_in = tokens_out = 0
     wrong: dict[str, int] = {}
     elapsed = 0.0
@@ -198,7 +205,14 @@ def score(
             try:
                 if task == "triage":
                     response = model.complete(triage_request(case.text, text))
-                    ok = parse_triage(response) == case.triage_expected
+                    got = parse_triage(response)
+                    # R25's floor: a several-request message is handed off unless triage sends it
+                    # down the username path.
+                    ok = (
+                        got != OWN_USERNAME
+                        if case.group == SEVERAL
+                        else got == case.triage_expected
+                    )
                     bad_format = triage_off_format(response)
                 else:
                     response = model.complete(
@@ -266,6 +280,28 @@ def choose(results: Sequence[dict[str, Any]]) -> str:
         raise ValueError("version 1 must be scored first")
     floor = first["correct"]["colleague"]
     eligible = [r for r in results if r["correct"]["colleague"] >= floor]
+    best = max(
+        eligible,
+        key=lambda r: (r["correct"]["everyday"], r["correct"]["colleague"], -r["prompt_chars"]),
+    )
+    return str(best["version"])
+
+
+def choose_with_floor(results: Sequence[dict[str, Any]], cleared: set[str]) -> str | None:
+    """Ruling R25's rule (2026-11-16): 3a's rule, unchanged, among the versions in `cleared`,
+    the ones that handed off every several-request tuning message. Version 1's colleague count
+    is still the floor, whether or not version 1 cleared R25's floor. None when no version
+    clears both floors."""
+    by_version = {r["version"]: r for r in results}
+    first = by_version.get("T1") or by_version.get("C1")
+    if first is None:
+        raise ValueError("version 1 must be scored first")
+    floor = first["correct"]["colleague"]
+    eligible = [
+        r for r in results if r["version"] in cleared and r["correct"]["colleague"] >= floor
+    ]
+    if not eligible:
+        return None
     best = max(
         eligible,
         key=lambda r: (r["correct"]["everyday"], r["correct"]["colleague"], -r["prompt_chars"]),

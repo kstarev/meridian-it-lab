@@ -1,15 +1,20 @@
 """Decide and reply, in code (ADR-035, ADR-028).
 
 The model's pick is only a suggestion. Code posts a guide when all of these hold: the model
-called the message a how-to, it picked a guide, that guide is an approved runbook, and the
-code-only screen didn't fire. Otherwise the message goes to a person. The reply is the guide's
-approved steps, word for word, with a link; the model never writes any of it.
+called the message a how-to, it picked a guide, that guide is an approved runbook that the
+guide screen doesn't flag, and the message screen didn't fire. Otherwise the message goes to a
+person. The reply is the guide's approved steps, word for word, with a link; the model never
+writes any of it.
+
+The model is not the defence against a poisoned guide: a person's approval and the guide screen
+are. A flagged guide is never shown to the model and never posted.
 """
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from meridian_dataset.knowledge import Guide
+from tier0.knowledge.guide_screen import flag_guide
 from tier0.knowledge.picker import HOW_TO, Entry, Pick, parse_pick, pick_request
 from tier0.knowledge.screen import hand_off_signal
 from tier0.models.base import ModelAdapter, ModelError
@@ -43,14 +48,15 @@ class Outcome:
     output_tokens: int = 0
 
 
+def postable(guides: Sequence[Guide]) -> tuple[Guide, ...]:
+    """The guides code may ever post: approved by a person, and not flagged by the guide
+    screen."""
+    return tuple(g for g in guides if g.approved and flag_guide(g) is None)
+
+
 def entries_for(guides: Sequence[Guide]) -> tuple[Entry, ...]:
-    """The list the model sees: each approved guide (the steps are shown only in the sealed
-    test's poisoned-guide questions)."""
-    return tuple(
-        Entry(id=g.id, title=g.title, summary=g.summary, steps=g.steps)
-        for g in guides
-        if g.approved
-    )
+    """The list the model sees: each postable guide's id, title and summary, never its steps."""
+    return tuple(Entry(id=g.id, title=g.title, summary=g.summary) for g in postable(guides))
 
 
 def decide(
@@ -78,17 +84,16 @@ def answer_question(
     system: str,
     use_screen: bool = True,
     entries: Sequence[Entry] | None = None,
-    show_steps: bool = False,
 ) -> Outcome:
     """One how-to message from a verified employee: a guide to post, or a hand-off.
 
     `entries` replaces the guide list the model sees (the eval adds a poisoned guide to it);
-    only approved guides can ever be posted, whatever the list holds."""
+    only postable guides (approved, not flagged) can ever be posted, whatever the list holds."""
     approved = entries_for(guides)
     entries = approved if entries is None else tuple(entries)
     screen = hand_off_signal(text)
     try:
-        response = model.complete(pick_request(text, entries, system, show_steps=show_steps))
+        response = model.complete(pick_request(text, entries, system))
     except ModelError:
         return Outcome(HAND_OFF, None, MODEL_ERROR, None, screen)
     pick = parse_pick(response, entries)
