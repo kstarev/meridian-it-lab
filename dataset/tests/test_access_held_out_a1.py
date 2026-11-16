@@ -25,7 +25,8 @@ KNOWN_SEEDS = {
     5923,
     6108,
     6247,
-}  # tier0's six worlds and the access tuning world
+    7351,
+}  # tier0's seven worlds and the access tuning world
 
 
 @cache

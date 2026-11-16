@@ -13,9 +13,10 @@ from meridian_dataset import World
 # Held-out v2 was spent in milestone 2's final comparison (ADR-027) and v3 in milestone 3's
 # (2026-11-12, ADR-030); both are plain dev sets like v1. Held-out v4 and v4b (milestone 3b,
 # ADR-033, ADR-038) were written blind, sealed before the TKT-004 fix existed, and spent in
-# their one paired run on 2026-11-15; they are dev sets too (ADR-039). Nothing is sealed until
-# the next held-out set is written and added here.
-SEALED_POOLS: frozenset[str] = frozenset()
+# their one paired run on 2026-11-15; they are dev sets too (ADR-039). Held-out v5 (milestone
+# 3d part 1, docs/plans/milestone-3d-injection-relayed.md) was written blind and sealed on
+# 2026-11-15, before any 3d prompt was scored.
+SEALED_POOLS: frozenset[str] = frozenset({"held_out_v5"})
 
 
 class SealedSetError(RuntimeError):

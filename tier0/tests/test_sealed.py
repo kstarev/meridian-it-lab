@@ -1,7 +1,7 @@
 """The seal: nothing runs the agent on a sealed set before its final comparison, and only
 its own name unseals it (ADR-015, ADR-029). Held-out v2, v3, v4 and v4b are spent and run
-like any dev set (ADR-029, ADR-030, ADR-039), so nothing is sealed right now. The mechanism's
-details are tested on v3 as a stand-in for the next sealed set."""
+like any dev set (ADR-029, ADR-030, ADR-039). Held-out v5 (3d part 1) is sealed. The
+mechanism's details are tested on v3 as a stand-in, so no test runs anything on v5."""
 
 from pathlib import Path
 
@@ -15,6 +15,7 @@ from meridian_dataset import (
     HOLDOUT_V3_SEED,
     HOLDOUT_V4_SEED,
     HOLDOUT_V4B_SEED,
+    HOLDOUT_V5_SEED,
     generate,
 )
 from tier0 import demo, sealed
@@ -35,8 +36,8 @@ def seal_v3(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(module, "SEALED_POOLS", STAND_IN)
 
 
-def test_nothing_is_sealed_and_the_spent_sets_run_as_dev_sets() -> None:
-    assert frozenset() == sealed.SEALED_POOLS
+def test_only_v5_is_sealed_and_the_spent_sets_run_as_dev_sets(tmp_path: Path) -> None:
+    assert frozenset({"held_out_v5"}) == sealed.SEALED_POOLS
     spent = (HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED, HOLDOUT_V4_SEED, HOLDOUT_V4B_SEED)
     for seed in (DEFAULT_SEED, *spent):
         require_unsealed(generate(seed))
@@ -45,6 +46,17 @@ def test_nothing_is_sealed_and_the_spent_sets_run_as_dev_sets() -> None:
     # v4 and v4b (ADR-033, ADR-038) were spent in milestone 3b's paired run (ADR-039).
     assert generate(HOLDOUT_V4_SEED).message_pool == "held_out_v4"
     assert generate(HOLDOUT_V4B_SEED).message_pool == "held_out_v4b"
+    # Held-out v5 (3d part 1): nothing runs on it before its final run, and only its own name
+    # unseals it.
+    v5 = generate(HOLDOUT_V5_SEED)
+    assert v5.message_pool == "held_out_v5"
+    with pytest.raises(SealedSetError, match="--final-comparison=held_out_v5"):
+        require_unsealed(v5)
+    with pytest.raises(SealedSetError):
+        require_unsealed(v5, final_comparison="held_out_v4")
+    with pytest.raises(SealedSetError):
+        anyio.run(lambda: run_eval(HOLDOUT_V5_SEED, k=1))
+    assert demo.main(["--seed", str(HOLDOUT_V5_SEED), "--out", str(tmp_path)]) == 2
 
 
 @pytest.mark.parametrize(("seed", "name"), [(HOLDOUT_V4_SEED, "v4"), (HOLDOUT_V4B_SEED, "v4b")])

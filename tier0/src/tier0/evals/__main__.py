@@ -16,13 +16,14 @@ from meridian_dataset.generator import (
     HOLDOUT_V3_SEED,
     HOLDOUT_V4_SEED,
     HOLDOUT_V4B_SEED,
+    HOLDOUT_V5_SEED,
 )
 from tier0 import roles
 from tier0.agent import Prompts, own_account_check_request, triage_request
 from tier0.evals import watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
-from tier0.evals.setups import ALL_SETUPS, BIG_MODELS, FROZEN, SETUPS, SETUPS_3B
+from tier0.evals.setups import ALL_SETUPS, BIG_MODELS, FROZEN, SETUPS, SETUPS_3B, SETUPS_3D
 from tier0.models import ModelAdapter, ModelError, build_model, memory
 from tier0.models.base import DEFAULT_MODEL_SEED_BASE
 from tier0.models.ollama import DEFAULT_OLLAMA_URL, make_room
@@ -48,6 +49,7 @@ def split_label(seed: int) -> str:
         HOLDOUT_V3_SEED: "held-out-v3",
         HOLDOUT_V4_SEED: "held-out-v4",
         HOLDOUT_V4B_SEED: "held-out-v4b",
+        HOLDOUT_V5_SEED: "held-out-v5",
     }.get(seed, "tuning")
 
 
@@ -112,8 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         metavar="SET",
         help="unseal exactly this held-out set for its final comparison, by its pool name "
-        "(ADR-015, ADR-029). No set is sealed right now: v4 and v4b were spent in milestone "
-        "3b (ADR-039)",
+        "(ADR-015, ADR-029): held_out_v5 (milestone 3d part 1), only with the owner's go",
     )
     parser.add_argument(
         "--tkt004-fix",
@@ -158,7 +159,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     if (
         setup is not None
-        and setup.name not in FROZEN | set(SETUPS_3B)
+        and setup.name not in FROZEN | set(SETUPS_3B) | set(SETUPS_3D)
         and args.seed != DEFAULT_SEED
     ):
         print(

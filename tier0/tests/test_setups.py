@@ -300,13 +300,34 @@ def test_the_3b_setups_are_frozen_apart_from_the_seven() -> None:
     from tier0.evals.setups import ALL_SETUPS, SETUPS_3B
 
     assert set(SETUPS_3B) == {"haiku-3b", "sonnet-3b"} and not set(SETUPS_3B) & set(SETUPS)
-    assert set(ALL_SETUPS) == set(SETUPS) | set(SETUPS_3B)
+    assert set(SETUPS_3B) <= set(ALL_SETUPS)
     frozen = {
         "haiku-3b": ("HT4", "C1", "9e81eed56db1315f", "eb1037ddaed10c7b"),
         "sonnet-3b": ("ST4", "SC4", "2d15e5464070af09", "2fe139fe68417c92"),
     }
     for name, (triage, check, t_hash, c_hash) in frozen.items():
         setup = SETUPS_3B[name]
+        assert (setup.triage_prompt, setup.check_prompt) == (triage, check)
+        prompts = setup.prompts()
+        assert hashlib.sha256(prompts.triage.encode()).hexdigest().startswith(t_hash)
+        assert hashlib.sha256(prompts.check.encode()).hexdigest().startswith(c_hash)
+
+
+def test_the_3d_setups_are_frozen_apart_from_the_others() -> None:
+    """Haiku and Sonnet tuned on 3d's tuning messages, frozen 2026-11-15 after v5 was sealed."""
+    import hashlib
+
+    from tier0.evals.setups import ALL_SETUPS, SETUPS_3B, SETUPS_3D
+
+    assert set(SETUPS_3D) == {"haiku-3d", "sonnet-3d"}
+    assert not set(SETUPS_3D) & (set(SETUPS) | set(SETUPS_3B))
+    assert set(ALL_SETUPS) == set(SETUPS) | set(SETUPS_3B) | set(SETUPS_3D)
+    frozen = {
+        "haiku-3d": ("HT7", "C1", "97de44b6ff29275a", "eb1037ddaed10c7b"),
+        "sonnet-3d": ("ST5", "SC4", "05962a83f7071a4c", "2fe139fe68417c92"),
+    }
+    for name, (triage, check, t_hash, c_hash) in frozen.items():
+        setup = SETUPS_3D[name]
         assert (setup.triage_prompt, setup.check_prompt) == (triage, check)
         prompts = setup.prompts()
         assert hashlib.sha256(prompts.triage.encode()).hexdigest().startswith(t_hash)

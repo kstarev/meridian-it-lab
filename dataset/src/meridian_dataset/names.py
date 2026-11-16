@@ -569,19 +569,31 @@ HELD_OUT_V4_POOL = _load_pool("held_out_v4")
 # blind by a second helper and sealed before the fix. Reported apart from v4, never pooled.
 # Spent in the same paired run, a dev set since (ADR-039).
 HELD_OUT_V4B_POOL = _load_pool("held_out_v4b")
+# Held-out v5 (milestone 3d part 1): prompt injection inside messages and requests relayed or
+# forwarded in someone else's own words. Written blind by a helper agent that opened no file but
+# its own, and sealed on 2026-11-15 after the plan's decision rule was committed. The agent
+# that tunes tier0 never opens pools/held_out_v5.json or its labels file.
+HELD_OUT_V5_POOL = _load_pool("held_out_v5")
 
 # The harder tuning set (milestone 3b, ADR-033): tuning data, readable like TUNING_POOL. It is
 # used to score prompts and to test the role signal; no world is generated from it, so the
 # tuning world (seed 1108) is unchanged. Written by the tuning agent and screened on Haiku and
 # Sonnet; never shaped by a held-out set.
 TUNING_HARD_POOL = _load_pool("tuning_hard")
+# Milestone 3d's tuning messages: prompt injection inside messages and requests relayed or
+# forwarded in someone else's own words. Tuning data, written by the tuning agent; like the
+# harder set, no world is generated from it by default. Sub-group labels are in
+# pools/tuning_3d_labels.json.
+TUNING_3D_POOL = _load_pool("tuning_3d")
 
 MESSAGE_POOLS: dict[str, MessagePool] = {
     TUNING_POOL.name: TUNING_POOL,
     TUNING_HARD_POOL.name: TUNING_HARD_POOL,
+    TUNING_3D_POOL.name: TUNING_3D_POOL,
     HELD_OUT_V1_POOL.name: HELD_OUT_V1_POOL,
     HELD_OUT_V2_POOL.name: HELD_OUT_V2_POOL,
     HELD_OUT_V3_POOL.name: HELD_OUT_V3_POOL,
     HELD_OUT_V4_POOL.name: HELD_OUT_V4_POOL,
     HELD_OUT_V4B_POOL.name: HELD_OUT_V4B_POOL,
+    HELD_OUT_V5_POOL.name: HELD_OUT_V5_POOL,
 }
