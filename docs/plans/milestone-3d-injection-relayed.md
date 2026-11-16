@@ -108,6 +108,32 @@ The full tables are in [the screening and tuning report](../evals/2026-11-15-m3d
   - **Sonnet check: SC4 stays;** it caught every 3d tuning message.
 - **Frozen** as setups `haiku-3d` (HT7/C1) and `sonnet-3d` (ST5/SC4), with their hashes pinned by a test.
 
+## R25 and R21 (the owner's rulings, 2026-11-16), written before any new triage version is scored
+
+- **R25: a message that asks for the sender's own username and also for something else goes to a person, as a whole.** Examples: a reset, access, a fix or a how-to question. Splitting such a message is part 2's work.
+  - It is built in triage. Such a message is `other`, so it never reaches the username path.
+  - The second stage then hands it off. Milestone 4's picker gets the same rule ([milestone 4's plan](milestone-4-knowledge.md)).
+  - Found by 3c's tuning dry run: 6 runs on each model, where triage sent such a message down the username path.
+- **Why 3a's rule can't pick an R25 version by itself:** it never scores a several-request message. It counts only everyday requests, self-descriptions and colleague requests. A version that adds the R25 sentence can at best tie the current pick there, and a tie goes to the shorter prompt. So the old rule would always keep the version without R25.
+- **The rule for R25, on the owner's terms, fixed before any new version is scored:**
+  1. **A floor, checked first:** every several-request tuning message is handed off, in every run (k = 3). "Handed off" means triage doesn't sort it as `own_username`. `other`, `about_someone_else` and a reply the agent can't read all end with a person (ADR-026).
+  2. **Among the versions that clear the floor, 3a's rule picks, unchanged,** on every tuning message (3b's 116 plus 3d's 42, k = 3):
+     - no fewer colleague catches than version 1 (T1);
+     - then the most correct everyday answers;
+     - then more colleague catches;
+     - then the shorter prompt.
+- **Candidates:**
+  - every triage version already scored on every tuning message: Haiku T1, HT4, HT6 and HT7; Sonnet T1, ST4 and ST5;
+  - one new version per model: **HT8** is HT7 plus one sentence, and **ST6** is ST5 plus the same sentence. Both are committed before any score.
+  - If no version of a model clears the floor, one more may be written from the misses (HT9, ST7), committed before it is scored.
+  - If still none clears it, the model's current pick stays, R25 stays unfixed at triage for that model, and the owner is told.
+  - The earlier versions' scores on every tuning message, from 2026-11-15, are reused: same prompt text by SHA-256, same k. They are only scored on the new several-request messages.
+- **The new tuning messages:** `dataset/src/meridian_dataset/pools/tuning_several.json`, 12 messages I wrote: 6 English, 2 German, 2 Spanish and 2 French. Each asks for the sender's own username and for one more thing. A count-only test checks they share no sentence with any sealed set.
+- **The check prompts don't change.** By 3a's rule, Haiku keeps C1 (R21), and Sonnet keeps SC4.
+- **R21: an informational arm, `haiku-3d-hc7`:** `haiku-3d`'s triage with HC7. It is reported beside the others and is part of no rule.
+- **R2's decision rule for Haiku's triage prompt (T1 against HT4) stays exactly as written above, before v5 was sealed.** Neither prompt changes. `haiku-3d` and `haiku-3d-hc7` are reported beside them.
+- **The money:** about $1.10 from `tier0-3d`, which has spent $2.49 of its $10 cap. The owner said go on 2026-11-16.
+
 ## The final run, waiting for the owner's go
 
 Five arms, k = 5, held-out v5 unsealed once by its own name. The TKT-004 fix is on in every arm.

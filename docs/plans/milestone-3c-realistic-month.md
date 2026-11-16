@@ -163,3 +163,16 @@ Generated summaries: [haiku-3b](../evals/2026-11-15-m3c-dry-run-haiku-3b.md), [s
 2. **Several questions in one message.** When one of them is the sender's own username, triage reads it as an own-username request. The reply answers that part and drops the rest, such as an MFA reset or an access request: 6 runs on each model. The answer key wants a hand-off.
 
 Both are design questions for the owner (rulings R24 and R25 in the night's notes). The prompts were not changed for them tonight: milestone 4's are frozen and its PR is open, and the 3a/3b prompts are frozen too. The sealed month must not run until the owner has ruled on both, or the run will mostly measure these two known gaps.
+
+## After rulings R24 and R25 (the owner's rulings, 2026-11-16)
+
+Written before any new score.
+
+- **R24:** broken hardware and app errors go to a person. It is built in milestone 4's picker: a new hand-off reason, re-tuned on tuning data ([milestone 4's plan](milestone-4-knowledge.md)).
+- **R25:** a message with several requests goes to a person as a whole. It is built in 3d's triage and in the picker ([3d's plan](milestone-3d-injection-relayed.md)). The answer key already wants a hand-off for `multi_question`, so it doesn't change.
+- **The month now runs the 3d setups,** `haiku-3d` and `sonnet-3d`, because R25 lives in their triage prompts. Each runs with its model's newly frozen picker version. `haiku-3d` becomes the runner's default setup. The 3b setups still run if named.
+- **The re-run on the tuning month, k = 1, charged to `tier0-3c`:**
+  - `haiku-3d`: the whole month, about $0.10.
+  - `sonnet-3d`: only the four kinds these rulings touch: `hardware`, `app_issue` and `multi_question`, plus `how_to_guide`, to see what R24 costs in guides. That is 116 of the 300 tickets, about $0.75. A new `--kinds` option allows this, on tuning data only. The runner refuses it on the sealed set, which always runs whole.
+  - Why not the whole month on Sonnet: `tier0-3c` has spent $3.41 of its $10 cap, and the sealed month needs about $5.05 at k = 3 (Haiku $0.25, Sonnet $4.80). A full Sonnet re-run ($1.75) would leave too little.
+- **R26 holds:** the sealed month doesn't run until R24 and R25 are merged and the owner says go.
