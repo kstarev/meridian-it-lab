@@ -164,3 +164,5 @@ done
 **Expected cost:** about $1.60 in all, scaled from 3b's measured cost per ticket-run: about $0.03 per Haiku arm and $0.73 per Sonnet arm. The 3d triage prompts are about 10% longer.
 
 **The decision rule for Haiku's triage prompt (T1 against HT4, above) is applied to the `haiku` and `haiku-3b` arms, exactly as written before v5 was sealed.** `haiku-3d` and `haiku-3d-hc7` are reported beside them, as the rule says.
+
+**The report** (added on 2026-11-16, after the owner's go): `python -m tier0.evals.m3d_final --final-comparison=held_out_v5 --out docs/evals/2026-11-16-m3d-v5-final.md`. It shows the pass rule for every arm, the decision rule's steps with every number and its interval, and each reported measure by sub-group. Counts only: code maps each ticket to its template and its sealed sub-group label, and prints neither. It was written and committed while R2 ran, before any R2 number was read.
