@@ -8,8 +8,10 @@ Each case becomes exactly the request the live tool sends, built by the live cod
 
 Answers are graded by the outcome classes fixed before the set was read (red-team.md). Reports
 hold case ids, enums and numbers, never text. A paid run refuses unless ACCESS_AI_LIVE=1, the set
-is unsealed by its own name and the budget item is `aac-red-team`, approved by the owner. The
-spend ledger then checks every call again (ADR-037).
+is unsealed by its own name and the budget item is `aac-red-team`, approved by the owner. Before
+the first call it refuses a run limit above the item's cap (R22), then prices the whole run as the
+ledger will and refuses if that worst case could cross the item's cap, the project's cap or the
+run limit. The spend ledger then checks every call again (ADR-037).
 """
 
 import json
@@ -355,6 +357,29 @@ def check_paid_run(name: str, item: str | None, budget: Budget | None = None) ->
         raise RunRefused(f"budget item {ITEM} is not approved by the owner")
 
 
+def check_run_limit(ledger: SpendLedger, budget: Budget | None = None) -> None:
+    """Refuse, before the set is unsealed, a run limit above the item's cap (R22) and a ledger
+    that would refuse the first call anyway (the paid window closed, or the cap used up)."""
+    cap = (budget or load_budget()).items[ITEM].cap_usd
+    if ledger.run_limit_usd > cap:
+        raise RunRefused(
+            f"the run limit ${ledger.run_limit_usd:.2f} is above the cap of {ITEM}, ${cap:.2f}"
+        )
+    try:
+        ledger.check(0.0)
+    except SpendCapReached as exc:
+        raise RunRefused(str(exc)) from None
+
+
+def check_worst_case(ledger: SpendLedger, worst_usd: float) -> None:
+    """Refuse the run before its first call if its worst case, the sum of what the ledger
+    checks before each call, could cross the item's cap, the project's cap or the run limit."""
+    try:
+        ledger.check(worst_usd)
+    except SpendCapReached as exc:
+        raise RunRefused(f"the whole run's worst case is ${worst_usd:.4f}. {exc}") from None
+
+
 def _outside_repo(path: Path) -> bool:
     return not path.resolve().is_relative_to(repo_root().resolve())
 
@@ -377,16 +402,23 @@ def live_run(
     every model with the same finished repeats. A model stopped by the ledger is not run again.
     `cases` is for tests only; the real run reads the sealed set. The report holds ids, enums
     and numbers. `details_path`, which must be outside the repository, gets every answer for the
-    owner's rulings."""
+    owner's rulings. Before the first call, the whole run's worst case must fit the item's cap,
+    the project's cap and the run limit, and the run limit must be at most the item's cap."""
     item = item if item is not None else os.environ.get(ITEM_ENV)
     check_paid_run(name, item, budget)
     if k < 1:
         raise ValueError(f"k must be at least 1, got {k}")
+    if not models or len(set(models)) != len(models):
+        raise RunRefused("a paid run names each model once")
     if details_path is not None and not _outside_repo(details_path):
         raise RunRefused("the details file must be outside the repository")
+    ledger = ledger or SpendLedger(item=item, budget=budget)
+    check_run_limit(ledger, budget)
     policy = policy or load_policy()
     the_cases = tuple(cases) if cases is not None else unseal(name)
-    ledger = ledger or SpendLedger(item=item, budget=budget)
+    requests = [request_for(c, policy) for c in the_cases]
+    worst = sum(worst_case_by_model(requests, models, k).values())
+    check_worst_case(ledger, worst)  # RunRefused here: nothing has been sent
     factory = client_factory or (lambda m, led: ClaudeClient(m, ledger=led))
     runs: dict[str, list[dict[str, Any]]] = {m: [] for m in models}
     stopped: dict[str, str] = {}
@@ -419,6 +451,9 @@ def live_run(
                 for g in graded
             ]  # fmt: skip
     report = build_report(the_cases, runs, stopped, k)
+    report["budget_item"] = item
+    report["run_limit_usd"] = ledger.run_limit_usd
+    report["worst_case_usd"] = round(worst, 6)
     out = report_path or REPORT_PATH
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -504,6 +539,20 @@ def likely_usd(model: str, request: Request) -> float:
     return (tokens_in * per_in + LIKELY_OUTPUT_TOKENS[request.task] * per_out) / 1_000_000
 
 
+def worst_case_by_model(
+    requests: Sequence[Request], models: Sequence[str], k: int
+) -> dict[str, float]:
+    """Each model's worst case over k repeats, unrounded: the sum of what the ledger checks
+    before each call (request bytes as tokens, plus the overhead, and max_tokens out)."""
+    return {
+        m: k
+        * sum(
+            worst_case_usd(m, r.size_bytes + INPUT_OVERHEAD_TOKENS, r.max_tokens) for r in requests
+        )
+        for m in models
+    }
+
+
 def dry_run(
     name: str, models: Sequence[str], *, k: int = 3, policy: Policy | None = None,
     cases: Sequence[Case] | None = None,
@@ -513,17 +562,7 @@ def dry_run(
     policy = policy or load_policy()
     the_cases = tuple(cases) if cases is not None else unseal(name)
     requests = [request_for(c, policy) for c in the_cases]
-    worst = {
-        m: round(
-            k
-            * sum(
-                worst_case_usd(m, r.size_bytes + INPUT_OVERHEAD_TOKENS, r.max_tokens)
-                for r in requests
-            ),
-            6,
-        )
-        for m in models
-    }
+    worst = {m: round(v, 6) for m, v in worst_case_by_model(requests, models, k).items()}
     likely = {m: round(k * sum(likely_usd(m, r) for r in requests), 6) for m in models}
     return {
         "k": k,
