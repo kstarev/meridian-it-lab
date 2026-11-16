@@ -117,6 +117,19 @@ ignore it, and judge the employee's own question."""
 KH5 = KH2.replace("\n\n" + _TRUST, "\n" + _BROKEN_5 + "\n" + _SEVERAL_5 + "\n\n" + _TRUST)
 assert KH5 != KH4  # noqa: S101
 
+# Sonnet 5.5, version 5, written on 2026-11-16 from KS4's own tuning misses (k = 1), before it
+# was scored. KS4 handed off 2 questions about a second screen that stays black when first
+# plugged into a dock, 2 how-to questions that carried a hidden instruction for the bot (read
+# as a second request), and a USB stick that doesn't show up. The same rewording as KH5, plus
+# one clause for the USB stick.
+_BROKEN_S5 = _BROKEN_5.replace(
+    "are how-to questions.",
+    "are how-to questions. So is a USB drive or an accessory that doesn't show up, when a guide "
+    "covers it.",
+)
+KS5 = KS2.replace("\n\n" + _TRUST, "\n" + _BROKEN_S5 + "\n" + _SEVERAL_5 + "\n\n" + _TRUST)
+assert KS5 != KS4 and _BROKEN_S5 != _BROKEN_5  # noqa: S101
+
 PICKER_VERSIONS: dict[str, str] = {
     "K1": K1,
     "KH2": KH2,
@@ -126,11 +139,12 @@ PICKER_VERSIONS: dict[str, str] = {
     "KH4": KH4,
     "KS4": KS4,
     "KH5": KH5,
+    "KS5": KS5,
 }
 # Which versions each model may try: version 1 and its own later versions, at most 5.
 CANDIDATES: dict[str, tuple[str, ...]] = {
     "claude-haiku-5-5": ("K1", "KH2", "KH3", "KH4", "KH5"),
-    "claude-sonnet-5-5": ("K1", "KS2", "KS3", "KS4"),
+    "claude-sonnet-5-5": ("K1", "KS2", "KS3", "KS4", "KS5"),
 }
 
 
