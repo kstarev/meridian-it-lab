@@ -153,5 +153,8 @@ def sha256(version: str) -> str:
 
 
 # Frozen on 2026-11-15 by the selection rule, on tuning scores only
-# (docs/evals/2026-11-15-m4-picker-tuning.md). The sealed how-to test runs only these.
-FROZEN: dict[str, str] = {"claude-haiku-5-5": "KH2", "claude-sonnet-5-5": "KS2"}
+# (docs/evals/2026-11-15-m4-picker-tuning.md): KH2 and KS2. Re-frozen on 2026-11-16 after rulings
+# R24 and R25, by the same rule, unchanged, on the 235 tuning tickets with the production view
+# (docs/evals/2026-11-16-m4-picker-retune.md): KH5 and KS5. The sealed how-to test runs only
+# these.
+FROZEN: dict[str, str] = {"claude-haiku-5-5": "KH5", "claude-sonnet-5-5": "KS5"}

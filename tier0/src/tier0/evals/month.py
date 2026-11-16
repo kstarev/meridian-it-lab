@@ -96,7 +96,15 @@ MINUTES_PER_KIND: dict[str, int] = {
 
 # Milestone 4's picker prompt for each setup, chosen by its own rule on tuning data. Used
 # only with --picker knowledge; --picker-prompt overrides it.
-PICKER_PROMPT_FOR_SETUP: dict[str, str] = {"haiku-3b": "KH2", "sonnet-3b": "KS2"}
+# The 3b setups keep the versions their 2026-11-15 dry run used; the 3d setups, which the month
+# runs since rulings R24 and R25, use milestone 4's frozen picks.
+PICKER_PROMPT_FOR_SETUP: dict[str, str] = {
+    "haiku-3b": "KH2",
+    "sonnet-3b": "KS2",
+    "haiku-3d": "KH5",
+    "haiku-3d-hc7": "KH5",
+    "sonnet-3d": "KS5",
+}
 
 # What the second stage returns for a message triage called "other".
 GUIDE = "guide"

@@ -276,16 +276,17 @@ def test_the_report_is_built_from_saved_scores_only() -> None:
     assert "has not been run" in md
 
 
+# Re-frozen on 2026-11-16 after R24 and R25 (KH2 was d8e4775e…, KS2 c8861963…).
 FROZEN_SHA256 = {
-    "KH2": "d8e4775e41368f68feef2d10a35b9992ba9bcf3e0c7c01fef9541d843528795c",
-    "KS2": "c8861963340c53e6715f76c18cfd156a139eb1f47e90362fc708499450f14f49",
+    "KH5": "8c131df776edd9701db3435e8b3fab7f07fcfd7155a8b0444b9801abab7f4425",
+    "KS5": "45906bd1b29e19d18c3ff282c4fb0e68b83d0d09e50998d7b28ef82ff1415cdf",
 }
 
 
 def test_the_picks_are_frozen_by_hash() -> None:
     from tier0.knowledge.prompts import FROZEN, sha256
 
-    assert FROZEN == {"claude-haiku-5-5": "KH2", "claude-sonnet-5-5": "KS2"}
+    assert FROZEN == {"claude-haiku-5-5": "KH5", "claude-sonnet-5-5": "KS5"}
     assert {v: sha256(v) for v in FROZEN.values()} == FROZEN_SHA256
 
 
