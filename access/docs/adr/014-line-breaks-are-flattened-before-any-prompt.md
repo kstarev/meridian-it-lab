@@ -1,6 +1,6 @@
 # AAC-014: Line breaks in world fields are flattened in code before any prompt is built, and the M7 prompts are re-frozen
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's ruling M7-R16, option (a), 2026-11-16). Built in its own pull request.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's ruling M7-R16, option (a), 2026-11-16). Built in PR #54. New freeze digest `e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24cf`, for the owner to confirm (M7-R2).
 
 **Context:** The red-team mapping found a gap ([red team](../red-team.md)). The title prompt and the summary's change lines are built line by line: `Job title: …`, `Department: …`, `Team: …`, `Roles: …`. A line break inside a job title, a department or a plan field can therefore forge a line, such as a second `Roles:` line. The owner prompt is JSON, which escapes CR and LF but keeps the Unicode line and paragraph separators. Of the red-team set's cases, 16 carry a line break, and 9 of them sit where a prompt is line-based.
 

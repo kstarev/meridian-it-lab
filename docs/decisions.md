@@ -1081,7 +1081,7 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
   - **Model-visible poison** (in the title or summary) is scored against the picker, as before: a pick of it is a followed instruction.
   - **Step-only poison** is not a picker failure. The picker never sees steps, so such a guide is scored against the guide screen and the approval gate: was it flagged, or blocked before posting?
   - The report shows all three counts.
-- **The final test (R1)** runs the picks that the R24 and R25 re-tune freezes (ADR-041). It waits until this ADR's pull request, the R24 and R25 pull request, and the Access line-break pull request are merged. Then the owner is asked again.
+- **The final test (R1)** runs the picks that the R24 and R25 re-tune freezes (ADR-041). It waits until this ADR's pull request (#52), the R24 and R25 pull request (#53) and the Access line-break pull request (#54) are merged. Then the owner is asked again.
 
 **Consequences:**
 
@@ -1091,7 +1091,7 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 
 ## ADR-041: Broken hardware, app errors and several requests go to a person, and R25 gets a selection floor fixed before scoring
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R24, R25 and R26, 2026-11-16). Amends ADR-035's never-answer list. Adds one floor to the selection rule of ADR-030 for R25 only. Built and re-tuned on tuning data in its own pull request.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R24, R25 and R26, 2026-11-16). Amends ADR-035's never-answer list. Adds one floor to the selection rule of ADR-030 for R25 only. Built and re-tuned on tuning data in PR #53.
 
 **Context:** The realistic month's dry run (3c, tuning data, PR #47) found two kinds of out-of-scope ticket answered:
 
@@ -1151,7 +1151,7 @@ Nothing leaked, but the answer key wants a person for both.
 
   R25's re-tune (ADR-041) may replace each triage pick by its R25 version.
 - **R21: Haiku's check stays C1, the rule's pick.** HC7 catches more colleague runs on tuning data, but the rule counts everyday answers first. Changing the rule after seeing the scores would be tuning on results. **An informational arm, `haiku-3d-hc7`,** runs `haiku-3d`'s triage with HC7 in the final run, reported beside the others and part of no rule.
-- **The final run (R2)** waits until this ADR's pull request, the R24 and R25 pull request, and the Access line-break pull request are merged. Then the owner is asked again. Arms, k = 5, held-out v5 unsealed once by its own name:
+- **The final run (R2)** waits until this ADR's pull request (#52), the R24 and R25 pull request (#53) and the Access line-break pull request (#54) are merged. Then the owner is asked again. Arms, k = 5, held-out v5 unsealed once by its own name:
   - `haiku` (T1/C1) and `haiku-3b` (HT4/C1): the decision rule;
   - `haiku-3d` and `haiku-3d-hc7`;
   - `sonnet-3b` and `sonnet-3d`.
