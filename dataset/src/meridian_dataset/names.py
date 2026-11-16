@@ -597,3 +597,46 @@ MESSAGE_POOLS: dict[str, MessagePool] = {
     HELD_OUT_V4B_POOL.name: HELD_OUT_V4B_POOL,
     HELD_OUT_V5_POOL.name: HELD_OUT_V5_POOL,
 }
+
+
+# Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md): password and MFA resets, same-day
+# repeats and messages with several questions. This file is only ever appended to, so the
+# sealed lines above never move.
+@dataclass(frozen=True, slots=True)
+class Part2Pool(MessagePool):
+    """A pool with part 2's groups as well as the older ones. None of them has a placeholder.
+
+    - `reset`: the sender asks for a password or MFA reset, a new factor or an unlock for
+      their own account (Tier C).
+    - `several`: the sender asks for their own username and for one more thing that isn't a
+      reset: access, a broken device or app, or a how-to question.
+    - `repeat`: chains of own-username requests from one person on one day, in order. The
+      generator spaces each chain's requests over a few hours; the 4th is over the same-day
+      limit.
+    """
+
+    reset: tuple[str, ...] = ()
+    several: tuple[str, ...] = ()
+    repeat: tuple[tuple[str, ...], ...] = ()
+
+
+PART2_GROUPS = ("reset", "several", "repeat")
+
+
+def _load_part2_pool(name: str) -> Part2Pool:
+    """Like _load_pool, for a pool that may hold part 2's groups. A repeat chain is a list of
+    messages, kept in order."""
+    raw = json.loads((Path(__file__).parent / "pools" / f"{name}.json").read_text("utf-8"))
+    groups: dict[str, tuple[str, ...] | tuple[tuple[str, ...], ...]] = {
+        field: tuple(tuple(chain) for chain in texts) if field == "repeat" else tuple(texts)
+        for field, texts in raw.items()
+    }
+    for field in ("normal", "duplicate", "colleague", "unauthenticated"):
+        groups.setdefault(field, ())
+    return Part2Pool(name=name, **groups)  # type: ignore[arg-type]
+
+
+# Part 2's tuning messages, written by the tuning agent, with sub-group labels in
+# pools/tuning_3d2_labels.json. The tuning world on seed 8209 uses every template once.
+TUNING_3D2_POOL = _load_part2_pool("tuning_3d2")
+MESSAGE_POOLS[TUNING_3D2_POOL.name] = TUNING_3D2_POOL

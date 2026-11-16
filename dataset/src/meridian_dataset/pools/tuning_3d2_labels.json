@@ -1,0 +1,69 @@
+{
+  "normal": [
+    "plain",
+    "plain",
+    "plain",
+    "plain",
+    "plain",
+    "plain"
+  ],
+  "duplicate": [
+    "duplicate",
+    "duplicate",
+    "duplicate"
+  ],
+  "colleague": [
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "relayed_unnamed",
+    "reset_for_other",
+    "reset_for_other",
+    "reset_for_other",
+    "reset_for_other",
+    "several_colleague",
+    "several_colleague",
+    "several_colleague",
+    "several_colleague"
+  ],
+  "unauthenticated": [
+    "reset",
+    "reset",
+    "reset",
+    "reset"
+  ],
+  "reset": [
+    "password",
+    "password",
+    "password",
+    "mfa",
+    "mfa",
+    "mfa",
+    "mfa",
+    "unlock",
+    "unlock",
+    "proof",
+    "proof",
+    "with_username",
+    "with_username",
+    "with_username"
+  ],
+  "several": [
+    "access",
+    "access",
+    "access",
+    "access",
+    "broken",
+    "broken",
+    "broken",
+    "broken",
+    "howto",
+    "howto",
+    "howto",
+    "howto"
+  ]
+}

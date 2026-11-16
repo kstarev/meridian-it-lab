@@ -16,6 +16,9 @@ GROUPS = (
     ("duplicate", "Duplicate name ({other_email} is filled in)"),
     ("colleague", "Colleague requests ({target} / {target_guess} are filled in)"),
     ("unauthenticated", "Outsiders"),
+    # Milestone 3d part 2's groups (Part2Pool).
+    ("reset", "Password and MFA resets, own account"),
+    ("several", "Several questions (own username plus one more thing)"),
 )
 
 
@@ -23,11 +26,16 @@ def render(name: str) -> str:
     pool = MESSAGE_POOLS[name]
     lines = [f"Pool {name}"]
     for field, title in GROUPS:
-        templates = getattr(pool, field)
+        templates = getattr(pool, field, ())
         if not templates:
             continue
         lines += ["", f"{title}: {len(templates)}"]
         lines += [f"  {i:2d}. {t}" for i, t in enumerate(templates, 1)]
+    chains = getattr(pool, "repeat", ())
+    if chains:
+        lines += ["", f"Same-day repeat chains (the 4th request is over the limit): {len(chains)}"]
+        for i, chain in enumerate(chains, 1):
+            lines += [f"  {i:2d}.{n} {m}" for n, m in enumerate(chain, 1)]
     return "\n".join(lines)
 
 

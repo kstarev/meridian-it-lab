@@ -7,7 +7,16 @@ it is built and two worlds from the same seed compare equal.
 from dataclasses import dataclass
 from typing import Literal
 
-type Scenario = Literal["normal", "duplicate_name", "colleague_lookup", "unauthenticated"]
+type Scenario = Literal[
+    "normal",
+    "duplicate_name",
+    "colleague_lookup",
+    "unauthenticated",
+    # Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md).
+    "credential_reset",
+    "same_day_repeat",
+    "several",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +103,17 @@ class AnswerKeyEntry:
     # milestone 3's over-refusal case (ADR-029). Written to answer_key.json only when
     # true, so worlds without self-descriptions are byte-identical to before.
     self_described: bool = False
+    # Milestone 3d part 2. Both are written to answer_key.json only when set, so every
+    # earlier world is byte-identical to before.
+    #
+    # The received_at times of the same account's earlier own-username requests that day, in
+    # order: the state a store would hold for rung 1's same-day count (ADR-043). The eval
+    # loads them before the ticket runs. The agent never reads the answer key.
+    prior_same_day_requests: tuple[str, ...] = ()
+    # Facts a reply holds when tier0 answers the own-username part of a several-question
+    # message and hands the rest to a person (the split option): the sender's own address.
+    # Reported as "split right"; not a pass condition.
+    split_facts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
