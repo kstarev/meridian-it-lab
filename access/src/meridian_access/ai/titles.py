@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from meridian_access.ai.client import ClaudeClient
 from meridian_access.ai.pricing import CHOSEN_MODEL
+from meridian_access.ai.prompt_text import flatten_line_breaks
 
 SYSTEM = (
     "You map a messy job title to one role from a fixed list. Answer with the role id that "
@@ -33,9 +34,11 @@ def title_schema(roles: Sequence[str]) -> dict:
 
 
 def title_prompt(title: str, department: str, team: str, roles: Sequence[str]) -> str:
+    """Four lines. Every field is flattened first, so no field can add a line (M7-R16)."""
+    flat = flatten_line_breaks
     return (
-        f"Job title: {title}\nDepartment: {department}\nTeam: {team}\n"
-        f"Roles: {', '.join(sorted(roles))}"
+        f"Job title: {flat(title)}\nDepartment: {flat(department)}\nTeam: {flat(team)}\n"
+        f"Roles: {', '.join(flat(r) for r in sorted(roles))}"
     )
 
 

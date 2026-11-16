@@ -18,6 +18,7 @@ import pytest
 
 from meridian_access.ai.client import ClaudeClient
 from meridian_access.ai.pricing import HAIKU
+from meridian_access.ai.prompt_text import flatten_line_breaks
 from meridian_access.ai.spend import SpendLedger
 from meridian_access.exports import EMAIL_RE, USERNAME_RE
 from meridian_access.policy.load import load_policy
@@ -284,7 +285,7 @@ def test_no_overlap_between_cases_or_with_the_brief() -> None:
 
 
 def _reaches(c: rc.Case, user: str) -> bool:
-    text = planted_text(c)
+    text = flatten_line_breaks(planted_text(c))  # every prompt builder flattens (M7-R16)
     if c.task == "account_owner":
         if c.field.startswith("account.") and c.field != "account.username":
             text = " ".join(text.split())  # the live payload joins a name's words with spaces

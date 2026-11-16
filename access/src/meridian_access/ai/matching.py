@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from meridian_access.ai.client import ClaudeClient
 from meridian_access.ai.pricing import CHOSEN_MODEL
+from meridian_access.ai.prompt_text import flatten_line_breaks
 from meridian_access.models import Account
 from meridian_dataset.access.model import DOMAIN, HrisRecord
 
@@ -107,13 +108,19 @@ def match_schema(candidate_ids: Sequence[str]) -> dict:
     }
 
 
+def _flat(payload: dict[str, str]) -> dict[str, str]:
+    """Every string field with its line breaks flattened (M7-R16): JSON escapes CR and LF,
+    but would keep U+2028 and U+2029 as they are."""
+    return {k: flatten_line_breaks(v) for k, v in payload.items()}
+
+
 def match_prompt(account: Account, candidates: Sequence[HrisRecord]) -> str:
     import json
 
     return json.dumps(
         {
-            "account": account_payload(account),
-            "candidates": [candidate_payload(c) for c in candidates],
+            "account": _flat(account_payload(account)),
+            "candidates": [_flat(candidate_payload(c)) for c in candidates],
         },
         ensure_ascii=False,
         sort_keys=True,

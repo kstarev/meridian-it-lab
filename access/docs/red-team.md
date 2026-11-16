@@ -32,13 +32,13 @@ The model does three jobs (`meridian_access.ai.titles`, `ai.matching`, `summary`
 
 | Job | Field | Comes from | Who could plant text | How it reaches the prompt | Defence in code before the model |
 |---|---|---|---|---|---|
-| Title → role | job title | HRIS record | HR (often pasted from an email), a self-service profile, a bad import | `title_prompt`: a `Job title:` line, inserted as typed | none |
-| Title → role | department, team | HRIS record | as above | `Department:` and `Team:` lines, as typed | none |
+| Title → role | job title | HRIS record | HR (often pasted from an email), a self-service profile, a bad import | `title_prompt`: a `Job title:` line, inserted as typed | line breaks become spaces (M7-R16, since 2026-11-16); nothing else |
+| Title → role | department, team | HRIS record | as above | `Department:` and `Team:` lines, as typed | line breaks become spaces (M7-R16); nothing else |
 | Account → person | given, family, display name | Okta, Google, Slack, export name columns | a Slack user (sets their own display name), an app admin, anyone with a foothold in one app | `match_prompt`: JSON (`account_payload`) | words with `@` are dropped, and the words are joined with single spaces, so line breaks become spaces |
-| Account → person | username | Slack `userName`, export username column, the local part of a company login | as above | JSON, `username` | an export username must be `[A-Za-z0-9._'-]{1,64}`, or the row is unreadable; an address outside the company domain gives an empty username |
-| Account → person | candidate preferred name, department | HRIS records (up to 20 candidates) | a self-service profile, HR | JSON, `candidates` | JSON escapes CR and LF; nothing else |
-| Summary | account name | the `account` of a change: an export cell, a login or a username | an app admin naming an account | `change_line`: the part before `@` | an export cell with whitespace is unreadable and never becomes an account |
-| Summary | mover's department | the HRIS move event | HR | the change reason, `moved to <department> on <date>` | none |
+| Account → person | username | Slack `userName`, export username column, the local part of a company login | as above | JSON, `username` | an export username must be `[A-Za-z0-9._'-]{1,64}`, or the row is unreadable; an address outside the company domain gives an empty username; line breaks become spaces (M7-R16) |
+| Account → person | candidate preferred name, department | HRIS records (up to 20 candidates) | a self-service profile, HR | JSON, `candidates` | line breaks become spaces (M7-R16), Unicode separators included; nothing else |
+| Summary | account name | the `account` of a change: an export cell, a login or a username | an app admin naming an account | `change_line`: the part before `@` | an export cell with whitespace is unreadable and never becomes an account; line breaks become spaces (M7-R16) |
+| Summary | mover's department | the HRIS move event | HR | the change reason, `moved to <department> on <date>` | line breaks become spaces (M7-R16); nothing else |
 
 **What the model's answer can change:**
 
@@ -130,11 +130,12 @@ The dry run (`python -m meridian_access.redteam --unseal held_out_redteam1`, no 
 
 1. **Whether and when to run.** Approve `aac-red-team` in the budget file, in its own pull request. ADR-037 plans the run for 12-12 to 12-13.
 2. **Where it runs.** Paid runs belong on GitHub Actions ([AAC-008](adr/008-runs-on-github-only.md)). No workflow for this run exists yet. The comparison's workflow is the pattern: dispatched by hand, the `access-ai` environment's approval, the ledger artifact and the run limit. Building it is code only, a later pull request.
-3. **The two open rulings below,** which are also `M7-R16` and `M7-R17` in [PR #45](https://github.com/kstarev/meridian-it-lab/pull/45). Whatever the owner picks for the final score also decides what this set measures, so the red-team run should come after those answers are merged.
+3. **The two rulings below,** which are also `M7-R16` and `M7-R17` in [PR #45](https://github.com/kstarev/meridian-it-lab/pull/45). Whatever the owner picks for the final score also decides what this set measures, so the red-team run should come after those answers are merged. M7-R16 is decided (a) and built; M7-R17 is still open.
 4. **Whether the rules above are right,** before the run: the safety target, `force_none` reported apart, stopped-by-code counted as safe, and the detectors' word lists.
 
-### Open ruling: line breaks inside HR fields (M7-R16)
+### Ruling: line breaks inside HR fields (M7-R16), decided (a) and built
 
+- **Decided on 2026-11-16: option (a), and built** (see `M7-R16` in [m7-prep.md](m7-prep.md)). Every prompt builder now replaces each run of line breaks in a field with one space (`flatten_line_breaks`, in `ai/prompt_text.py`): CR, LF, CRLF, U+2028, U+2029, VT, FF, NEL and the other `str.splitlines()` boundaries. That covers the title prompt, the summary's change lines and every string field of the owner prompt. The harness asks through those same builders, so **the red-team run measures the fixed code**: the 9 line-based cases below now test whether the fix holds, and the 3 candidate-field cases see a space where JSON used to show `\n`. The rest of this section is the finding as it was written before the ruling.
 - **What:** the title prompt and the summary's change lines are built line by line. A line break inside a title, department or team can forge a line, such as a second `Roles:` line.
 - **Where code already flattens them:** the account's name fields lose their line breaks before the model sees them, because the payload joins their words with spaces. Candidate fields are JSON-escaped (CR and LF; Unicode line separators would pass).
 - **The set, by count:** 16 cases carry a line break. 9 of them are where the prompt is line-based: 5 titles (4 job titles, 1 team) and 4 summary departments. 4 are in account name fields, which are already flattened, and 3 in candidate fields. None uses a Unicode line separator.

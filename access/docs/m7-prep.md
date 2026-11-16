@@ -1,6 +1,6 @@
 # Milestone 7 prep: frozen prompts, the owner's rulings and the run steps
 
-**Date:** 2026-11-15 · **Status:** Prepared overnight under the owner's "pick and log" rule. Nothing has run and nothing is paid. Follows [AAC-005](adr/005-sealed-answer-key.md), [AAC-006](adr/006-model-choice-and-spend-cap.md), [AAC-010](adr/010-human-rulings-before-publishing.md), [AAC-011](adr/011-blind-referee-against-shared-mistakes.md) and lab [ADR-037](../../docs/decisions.md).
+**Date:** 2026-11-15 · **Status:** Prepared overnight under the owner's "pick and log" rule. Nothing has run and nothing is paid. **Updated 2026-11-16:** M7-R16 decided as (a) and built, and the prompts re-frozen with a new digest (sections 1 and 5). Follows [AAC-005](adr/005-sealed-answer-key.md), [AAC-006](adr/006-model-choice-and-spend-cap.md), [AAC-010](adr/010-human-rulings-before-publishing.md), [AAC-011](adr/011-blind-referee-against-shared-mistakes.md) and lab [ADR-037](../../docs/decisions.md).
 
 Milestone 7 scores the sealed held-out world once, with the chosen model (Haiku 5.5) and frozen prompts, in a GitHub Actions run the owner approves. Then the owner rules on every disagreement, and only then is anything published. This file covers:
 
@@ -25,37 +25,43 @@ The final run sends three kinds of call, all to `claude-haiku-5-5`:
 For each kind, four SHA-256 hashes are pinned in `access/src/meridian_access/ai/frozen.py`:
 
 - **system:** the system prompt, hashed as its exact text (UTF-8 bytes, nothing added);
-- **user:** the user message, built from fixed fake inputs ("Probe Title", two probe people), so every fixed word of the template and every field it sends is covered;
+- **user:** the user message, built from fixed fake inputs (a probe title, two probe people, a one-change probe plan), so every fixed word of the template and every field it sends is covered. The fields code flattens carry line breaks of every kind (M7-R16), so the hash also covers the flattening;
 - **schema:** the JSON schema sent as structured output, built from the same fake inputs;
 - **request:** the whole request for those fake inputs: model, token limit (400, or 500 for a summary), thinking turned off, and the output format.
 
 One more hash, the **freeze digest**, covers all twelve. It is the one number to confirm.
 
 ```text
-owner.request    af829e688054fe887f9429d59937f873f1d06d3cee96a2993d87f1a5bc28b342
+owner.request    00e43b231b72961194636e35259d77959ee019cedf8542229b7c5f1dc9c5581e
 owner.schema     e117eafd019103a826bed8d168c564e1fa5786fb24f03a20002ba165afb01f48
 owner.system     f37b44fe503ec699b5ec8772efcd51e906ad21f0030e108c51da6ac554c5b6ec
-owner.user       d49e6a7f077f1d3ad3c641397a0299ff1f76ed0e1ba352ad611b77548f57e665
-summary.request  06b6313877527749b3381b6df39e99d9ca15023be430836e88d2853d5775c91d
+owner.user       32a13cf03f555a4f31826691c9fd04130cb50285412202b775a4e66103988719
+summary.request  6e905011f637da6f5fa271236ff3ed9bec64d0499e1f0f319f488a744dc36068
 summary.schema   34ebde27d47aa44c7e7128cd27b29bb486b28f90959eac4209d20a86a4444e2e
 summary.system   6ce3944b119b1ad0ff2a5bb801aa2555d0ececfa04b2ec96cbee0dc01e1a3fce
-summary.user     89ba600d1dd352a4548d28fe8f228e4f85af7252863c41d73c5e5b8aa14a04fc
-title.request    a9a630f5258c0ccc0face04631a1e2010c7c98a56d0729191c60e52843a8c0bb
+summary.user     0e917f55c55dc53e72a7d3e5fc060eb41493d2321c15fdc5b7d420a23b8c8658
+title.request    649353fa7084ec1b827e634b10e0df0c091df5405c6309ad24ed691be53817ca
 title.schema     4c3a72b74622c422779571ed407cbe7a76b1437fedec6be6db4cc17ceec4d7dc
 title.system     5ec9d59ce662e983919f7d231e819019e5df304ff79f7a490b7324081597af69
-title.user       c0e4c0ded4e1aedd8754220d4984d726cfb08093fc75bfc859e5b2f372eef6c3
-freeze digest    f7f0d297e8890550ce1ccdef24f97fcb54f002148c16f15eb270051bf9c39005
+title.user       9c10e87c5f173198b95ca8b8c6fc0e5d5a31ec13f5ee6c742252d3520210179a
+freeze digest    e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24cf
 ```
 
-**These are the prompts the model comparison measured.** The title and owner prompts are byte for byte the ones of commit `f4d6334`, the k=3 comparison ([report](../../docs/evals/2026-11-15-access-model-comparison-k3.md)). Since then only the default model line changed. The summary prompt has never run live.
+**These are the prompts the model comparison measured.** The title and owner prompts are byte for byte the ones of commit `f4d6334`, the k=3 comparison ([report](../../docs/evals/2026-11-15-access-model-comparison-k3.md)), for any input without a line break. Since then only the default model line changed, and the M7-R16 fix. The summary prompt has never run live.
+
+**Re-frozen on 2026-11-16, after the M7-R16 fix.** The first freeze (2026-11-15) had digest `f7f0d297…9005`. Code now replaces each run of line breaks in a field with one space before it builds a prompt (section 5, M7-R16). What changed, and what didn't:
+
+- The six system and schema pins are unchanged.
+- The six user and request pins changed only because the probe inputs now carry line breaks: `Probe\nJob\r\nTitle` is sent as `Probe Job Title`, and so on. Without the fix those probes would give other hashes, so removing the flattening, or any one kind of break from it, breaks the freeze. A test checks each.
+- For input without a line break nothing moves. Tests check that each prompt builder gives the same bytes as before for such input. Checked once by script on 2026-11-16: the fixed code with the old probes gives the old twelve pins and `f7f0d297…9005`, and on the tuning world all 93 requests of the run are byte for byte the same with and without the fix.
 
 **How it is enforced:**
 
-- `test_the_prompts_are_frozen_by_hash` fails if any hash changes. Other tests change one piece at a time (a word of a prompt, a schema field, a token limit, the thinking setting, the fields sent about a candidate) and check that the freeze notices.
+- `test_the_prompts_are_frozen_by_hash` fails if any hash changes. Other tests change one piece at a time (a word of a prompt, a schema field, a token limit, the thinking setting, the fields sent about a candidate, the line-break flattening of each prompt, any one kind of break left out of it) and check that the freeze notices.
 - The final run refuses to start if any hash differs, or if the chosen model (`CHOSEN_MODEL`) is not the frozen one.
 - During the run, the frozen client refuses any other model, and any call whose system prompt or token limit isn't one of the three pinned ones. It refuses before the spend check, so nothing is sent.
 
-**What the hashes don't cover:** the data inside each call (the titles, the candidates, the plan's lines), which comes from the world. The role list comes from the policy, and a test keeps it equal to the public table. The rest of the code, such as which 20 candidates are shortlisted, is held by the commit the run uses. The Actions run records that commit.
+**What the hashes don't cover:** the data inside each call (the titles, the candidates, the plan's lines), which comes from the world. What code does to that data before it is sent, such as flattening its line breaks, is covered through the probes. The role list comes from the policy, and a test keeps it equal to the public table. The rest of the code, such as which 20 candidates are shortlisted, is held by the commit the run uses. The Actions run records that commit.
 
 **To check by hand:** `make access-data`, then `uv run --locked python -m meridian_access.ai final-check --world out/access/seed-6108`. A system prompt can also be checked alone: `uv run --locked python -c "import hashlib; from meridian_access.ai import titles; print(hashlib.sha256(titles.SYSTEM.encode()).hexdigest())"`.
 
@@ -98,7 +104,7 @@ freeze digest    f7f0d297e8890550ce1ccdef24f97fcb54f002148c16f15eb270051bf9c3900
 
 `python -m meridian_access.ai final-check --world out/access/seed-6108 --k 3`. It takes the tuning world only, and refuses any world whose seed isn't 6108 or whose recipe isn't `tuning`. It runs the final run's calls through the frozen client with a fake client that records each request and answers "none". Nothing leaves the process, no key is needed and no ledger is written. A test checks that its requests are exactly the ones the run sends. The workflow runs it first, as a free check.
 
-Output on 2026-11-15:
+Output on 2026-11-16, after the M7-R16 fix (the counts and costs are the same as on 2026-11-15; only the digest is new):
 
 ```text
 dry check of the final score: no calls made, no key, no money. Tuning world only.
@@ -106,7 +112,7 @@ dry check of the final score: no calls made, no key, no money. Tuning world only
   calls per repeat: 93 (76 title, 15 owner, 2 summary); k=3: 279
   upper cost: $0.0389 per repeat, $0.1168 for k=3
   prompt hashes (SHA-256): (the twelve above)
-  freeze digest: f7f0d297e8890550ce1ccdef24f97fcb54f002148c16f15eb270051bf9c39005
+  freeze digest: e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24cf
   frozen: yes, every hash matches its pin
 ```
 
@@ -147,9 +153,9 @@ Each ruling below gives what the owner decides, the options, a recommendation an
 
 **M7-R2. Confirm the frozen prompts.**
 
-- **Decide:** that the twelve hashes in section 1, freeze digest `f7f0d297…9005`, are the prompts to score with.
+- **Decide:** that the twelve hashes in section 1, freeze digest `e48df223…24cf`, are the prompts to score with. The prompts were re-frozen on 2026-11-16 after the M7-R16 fix, so this is the new digest, which the owner confirms. It replaces the first freeze's `f7f0d297…9005`.
 - **Options:** confirm; or change a prompt first. A change means new pins in a reviewed pull request, and then the tuning comparison no longer describes the prompts. A new comparison would need the unapproved `aac-model-comparison` money.
-- **Recommendation:** confirm. They are the prompts the k=3 comparison measured, and the pick was made on those numbers.
+- **Recommendation:** confirm. They are the prompts the k=3 comparison measured, and the pick was made on those numbers. The M7-R16 fix changes only fields that hold a line break, and on the tuning world none does: all 93 requests are the same bytes as before (section 1).
 - **If no:** the run refuses until the code and the pins agree.
 
 **M7-R3. Confirm what the run sends.**
@@ -221,9 +227,17 @@ Each ruling below gives what the owner decides, the options, a recommendation an
 
 ### Before the run: two findings from the red-team mapping
 
-These came from a red-team reading of the code on 2026-11-15, not from any held-out content. Nothing was changed for either; they are listed for the owner to decide.
+These came from a red-team reading of the code on 2026-11-15, not from any held-out content. They were listed for the owner to decide. M7-R16 is now decided and built; M7-R17 is open.
 
 **M7-R16. Line breaks inside HR fields in the line-based prompts.**
+
+- **Decided on 2026-11-16: option (a), and built.** The owner's ruling: "Fix now. Strip or escape line breaks in code, then re-freeze the M7 prompts and give me the new digest." What was built:
+  - one helper, `flatten_line_breaks` in `access/src/meridian_access/ai/prompt_text.py`. It replaces each run of line breaks with one space and changes nothing else. A line break is any boundary `str.splitlines()` splits on: LF, CR, CRLF (one break, so one space), VT, FF, FS, GS, RS, NEL, U+2028 and U+2029;
+  - each prompt builder calls it on every field before it builds the prompt: `title_prompt` (title, department, team and role names), the summary's `change_line` and placeholder lines (action, account local part, app, reason; type names), and `match_prompt` (every string field of the account and of each candidate). So every path that builds a prompt gets it: the final run, the dry check, the comparison and the red-team harness;
+  - the prompts were re-frozen with probe inputs that carry line breaks of every kind, so the freeze locks the fix (section 1). The recommendation below expected no pin to change, since the old probes had no line breaks; that holds for the old probes, but new probes were chosen on purpose so that the freeze covers the fix, so the six user and request pins changed. New freeze digest: `e48df223…24cf` (M7-R2);
+  - tests (fake data only, `access/tests/test_line_breaks.py` and `test_final.py`): each kind of break in each field of each prompt forges no line; text without a break is unchanged byte for byte; removing the flattening from any prompt, or leaving any one kind of break out of it, breaks the freeze.
+
+  What follows is the finding as it was written on 2026-11-15.
 
 - **Context:** the title prompt is built line by line: `Job title: …`, `Department: …`, `Team: …`, `Roles: …`. The summary prompt is too: one line per change, built from the plan's fields. A line break inside a job title, department or team can therefore forge a line, such as a second `Roles:` line. The owner prompt is JSON, which escapes CR and LF, so it is mostly not affected. It keeps non-ASCII text as it is, so the Unicode line separators would pass through there too. The harm is bounded: a title answer must be one role from the schema's list, every suggestion is reviewed by a person, and code checks every word of a summary. But a forged line can still steer which role or which words the model picks.
 - **Decide, before the run:** whether code removes or escapes line breaks in those fields before it builds the prompts.
@@ -311,9 +325,9 @@ These came from a red-team reading of the code on 2026-11-15, not from any held-
 ## 6. Run steps, once the rulings before the run are in
 
 1. Answer M7-R2 to M7-R8, M7-R11 to M7-R14, M7-R16 and M7-R17 in the table below.
-2. Merge any code-only pull request the answers call for: the safety counts (M7-R14 (a)), line breaks (M7-R16 (a) or (b)), a claims check or saved paragraphs (M7-R17 (a) or (c)). Each one must keep `test_the_prompts_are_frozen_by_hash` green, or come with new pins and a new M7-R2 answer.
+2. Merge any code-only pull request the answers call for: the safety counts (M7-R14 (a)), line breaks (M7-R16 (a), decided and built, with the new pins and digest for M7-R2), a claims check or saved paragraphs (M7-R17 (a) or (c)). Each one must keep `test_the_prompts_are_frozen_by_hash` green, or come with new pins and a new M7-R2 answer.
 3. Open and merge the M7-R1 pull request: the budget item approved, `APPROVED` in `tests/test_budget.py`, the line in ADR-037, and the table below. Wait for **Lint and test** to pass.
-4. Optional, free, on any machine: `make access-data`, then `uv run --locked python -m meridian_access.ai final-check --world out/access/seed-6108 --k 3`. Check that it ends with "frozen: yes" and digest `f7f0d297…9005`.
+4. Optional, free, on any machine: `make access-data`, then `uv run --locked python -m meridian_access.ai final-check --world out/access/seed-6108 --k 3`. Check that it ends with "frozen: yes" and digest `e48df223…24cf`.
 5. Open `https://github.com/kstarev/meridian-it-lab/actions/workflows/access-ai-final.yml`, click **Run workflow**, keep **main**, choose **k** (3, per M7-R4), and click the green **Run workflow** button.
 6. The job waits for review. Click **Review deployments**, tick `access-ai`, then **Approve and deploy** (M7-R9).
 7. Watch the log:
@@ -334,7 +348,7 @@ These came from a red-team reading of the code on 2026-11-15, not from any held-
 ## 7. Still to build (no paid call)
 
 - **Before the run, if M7-R14 is (a):** the four safety counts, added to `run_world` and its report, tested on the tuning world.
-- **Before the run, if the owner chooses so:** the line-break handling (M7-R16) and the summary claims check or saved paragraphs (M7-R17).
+- **Before the run, if the owner chooses so:** the summary claims check or saved paragraphs (M7-R17). The line-break handling (M7-R16) is built.
 - **After the run:** the report generator. It reads `report.json`, `details.json` and the rulings log, takes out key errors (and "both acceptable", per M7-R11), and writes `docs/evals/<date>-access-held-out-a1.md` with intervals, the key errors listed apart with their count, and a test that keeps the numbers in step.
 - **After the run:** `site/access/`, the honest limits and the compliance mapping, with every number checked against the report by a test.
 - **Not part of M7, still open in milestone 5:** the 5-minute leaver timing measured in the workflow.

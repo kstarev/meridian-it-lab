@@ -13,6 +13,8 @@ answer, gives the template.
 import re
 from typing import TYPE_CHECKING, Any
 
+from meridian_access.ai.prompt_text import flatten_line_breaks
+
 if TYPE_CHECKING:
     from meridian_access.ai.client import ClaudeClient
     from meridian_access.plan import Plan
@@ -109,10 +111,12 @@ def local_part(account: str) -> str:
 
 
 def change_line(c: dict[str, Any]) -> str:
-    """A short line for the model: the action, the person (local part), the app, the why."""
+    """A short line for the model: the action, the person (local part), the app, the why.
+    Every field is flattened first, so no field can add a line (M7-R16)."""
+    flat = flatten_line_breaks
     who = local_part(c["account"]) or "(bulk change)"
     app = c["app_name"] or c["app_id"] or c["system"]
-    return f"{c['action']} {who} in {app}: {c['reason']}"
+    return f"{flat(c['action'])} {flat(who)} in {flat(app)}: {flat(c['reason'])}"
 
 
 def placeholder_values(plan: "Plan") -> dict[str, int]:
@@ -218,7 +222,10 @@ def model_prompt(plan: "Plan") -> str:
         "{approvals}: approvals required",
         "{held}: changes held for bad HR data, never applied",
         "{held_plan}: changes in the held plan, applied only after two approvals",
-        *(f"{{count:{t}}}: {TYPE_WORDS.get(t, t)}" for t in counts["by_type"]),
+        *(
+            f"{{count:{flatten_line_breaks(t)}}}: {flatten_line_breaks(TYPE_WORDS.get(t, t))}"
+            for t in counts["by_type"]
+        ),
         f"Change lines (the first {len(lines)} of {counts['total']} changes):",
     ]
     return "\n".join([*head, *lines])
