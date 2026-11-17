@@ -1,0 +1,117 @@
+# Access-as-Code: the red-team run, once (AAC-015, ruling R22; access/docs/red-team.md).
+# Manual only (workflow_dispatch), from main only, and the `access-ai` environment needs the
+# owner's approval before the job starts and the key is released. It makes paid API calls to
+# Haiku, Sonnet and Opus 5.5, charged to the budget item aac-red-team (ADR-037: a $10 sub-cap
+# inside Access-as-Code's $30). The ledger refuses every call until the owner approves that item
+# in budget/claude-credit-2026-12.json, and after 2026-12-17. The command refuses unless it is
+# given --unseal held_out_redteam1, the set's own name. Before the first call it prices the whole
+# run from the real requests and refuses if the worst case (about $6.39 for three models at
+# k = 3) would cross the item's cap, the project's cap or this run's $8.00 limit, which must be
+# at most the item's cap.
+# The log shows counts only. The report holds case ids, enums and numbers, and the details hold
+# every answer, paragraphs included, for the owner's rulings (AAC-010). Both are written outside
+# the checkout and uploaded as the `access-red-team` artifact, not for publishing until ruled.
+# The cap holds across runs through the ledger artifact (`access-ai-ledger`): the run first
+# downloads the newest one from this workflow or the two Access AI workflows.
+name: Access red team
+
+on:
+  workflow_dispatch:
+    inputs:
+      k:
+        description: "Repeats of the whole set (AAC-015: k = 3)"
+        type: choice
+        options:
+          - "3"
+          - "1"
+        default: "3"
+      models:
+        description: "Models, comma-separated, each once (haiku, sonnet, opus)"
+        type: string
+        default: "haiku,sonnet,opus"
+
+permissions: {}
+
+concurrency:
+  group: access-red-team
+  cancel-in-progress: false
+
+jobs:
+  redteam:
+    name: Run the red-team set once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: access-ai
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: make setup
+
+      - name: Check the harness on hand-written cases (fake clients, no calls, the set stays sealed)
+        run: >
+          uv run --locked pytest access/tests/test_redteam.py access/tests/test_redteam_workflow.py
+          -q --deselect access/tests/test_redteam.py::test_the_cli_dry_run_prints_numbers_and_makes_no_call
+
+      - name: Fetch the newest spend ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          runs=$(
+            for wf in access-ai-final.yml access-ai-compare.yml access-red-team.yml; do
+              gh run list --workflow "$wf" --status completed --limit 5 \
+                --json databaseId,createdAt --jq '.[] | "\(.createdAt) \(.databaseId)"'
+            done | sort -r | cut -d' ' -f2
+          )
+          for id in $runs; do
+            if gh run download "$id" -n access-ai-ledger -D out/; then
+              echo "ledger from run $id"
+              exit 0
+            fi
+          done
+          echo "no previous ledger: starting with an empty one"
+
+      - name: Run the red-team set (paid calls, behind the spend cap)
+        timeout-minutes: 90
+        env:
+          ACCESS_CLAUDE_SPEND_LEDGER: out/access-claude-spend.jsonl
+          ACCESS_AI_LIVE: "1"
+          ACCESS_CLAUDE_BUDGET_ITEM: aac-red-team
+          ACCESS_CLAUDE_RUN_LIMIT_USD: "8.0"
+          REDTEAM_K: ${{ inputs.k }}
+          REDTEAM_MODELS: ${{ inputs.models }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >
+          uv run --locked python -m meridian_access.redteam --unseal held_out_redteam1
+          --no-dry-run --models "$REDTEAM_MODELS" --k "$REDTEAM_K"
+          --report "$RUNNER_TEMP/access-red-team/report.json"
+          --details "$RUNNER_TEMP/access-red-team/details.json"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: access-ai-ledger
+          path: out/access-claude-spend.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: access-red-team
+          path: ${{ runner.temp }}/access-red-team
+          retention-days: 30
+          if-no-files-found: ignore
