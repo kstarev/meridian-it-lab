@@ -331,3 +331,44 @@ Scored at k = 3 on every tuning message: 3b's 116, 3d's 42, R25's 12 and part 2'
 - **Frozen:** `haiku-3d2` (HT9/HC7), `haiku-3d2-split` (HT9/HC7 + HT7) and `haiku-3d2-c1` (HT9/C1). HT9's SHA-256 starts `5469f3352b35f9e0`, pinned by a test. The split prompt stays HT7, as the plan said: Haiku's triage prompt from before R25.
 - **Spent on round 1:** $0.098 (T1 and HT8 on part 2's messages, $0.010 and $0.019 by their saved costs; HT9 on every tuning message the rest).
 - The final report now refuses any arm's report whose prompt hashes aren't that arm's frozen ones. The dry-run report names each arm by the hashes its report recorded, so the HT8 run above keeps its name.
+
+### The Haiku arms again, with HT9 (tuning data, optimistic)
+
+The Haiku arms changed, so they ran once more on the tuning world (k = 3) before the final run's setups were final: [report](../evals/2026-11-17-m3d2-tuning-haiku-ht9.md).
+
+- **0 unsafe runs in all three,** the C1 arm included. HT9 now catches the pasted quote at triage, so C1 is never asked about it.
+- `haiku-3d2` (HT9/HC7) and `haiku-3d2-c1` (HT9/C1): no failed run.
+- `haiku-3d2-split`: 9 of 12 several-question tickets split right, as before. HC7 refused the username part of one access request in all 3 runs, in the safe direction.
+- Spent: $0.079.
+
+### No round 2
+
+- **Haiku:** no triage version failed a run. The only misses left are HC7's refusals in the split arm. The check rule (3a's) can't credit a fix for them, so no version was written for them.
+- **Sonnet:** no round could fit the money, and its misses are 2 safe-direction runs on one duplicate-name request.
+
+## Phase B's spend, from the shared ledger
+
+| Step | Spent |
+|---|---|
+| Dry run, five arms, k = 3 | $1.081 |
+| Round 1: T1 and HT8 on part 2's messages, HT9 on every tuning message | $0.098 |
+| The Haiku arms again with HT9, k = 3 | $0.079 |
+| **Phase B in all** | **$1.259** of the $2.50 cap |
+
+`tier0-3d` has now spent $6.43 of its $10 cap, which leaves $3.57.
+
+## The final run, as frozen after tuning
+
+Nothing has run on v6. The arms are the plan's five; only Haiku's triage prompt changed, by the rule:
+
+| Arm | Triage / check | Split prompt |
+|---|---|---|
+| `haiku-3d2` | HT9 / HC7 | none |
+| `haiku-3d2-split` | HT9 / HC7 | HT7 |
+| `haiku-3d2-c1` | HT9 / C1 | none |
+| `sonnet-3d2` | ST6 / SC4 | none |
+| `sonnet-3d2-split` | ST6 / SC4 | ST5 |
+
+- **The command** is the one above, with `--final-comparison=held_out_v6` and the owner's go. Then `python -m tier0.evals.m3d2_final --final-comparison=held_out_v6 --out docs/evals/<date>-m3d2-v6-final.md`, which refuses any arm's report that didn't run that arm's frozen prompts.
+- **The estimate,** from the measured cost per ticket run: about $1.87. That is $0.04 or $0.05 per Haiku arm, $0.77 for `sonnet-3d2` and $0.96 for `sonnet-3d2-split`, against $3.57 left in the item. A spend gate runs before each arm.
+- **What tuning says, and doesn't:** on tuning data the Sonnet split arm cleared the split rule's bar (12 of 12) and the Haiku split arm didn't (9 of 12). These are tuning scores. Only v6 counts, and the rule there is the one fixed before sealing.
