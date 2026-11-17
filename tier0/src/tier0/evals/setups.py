@@ -97,12 +97,14 @@ class Setup:
     def features(self) -> Features:
         return Features(tier_c=self.tier_c, split=self.split_prompt is not None)
 
-    def factory(self, temperature: float = 0.5) -> Callable[[], ModelAdapter]:
+    def factory(
+        self, temperature: float = 0.5, *, prompt_cache: bool = False
+    ) -> Callable[[], ModelAdapter]:
         url = os.environ.get("TIER0_OLLAMA_URL", DEFAULT_OLLAMA_URL)
 
         def one(model: str) -> ModelAdapter:
             if self.provider == "claude":
-                return ClaudeModel(model=model)
+                return ClaudeModel(model=model, cache_system=prompt_cache)
             return OllamaModel(
                 model=model,
                 base_url=url,
