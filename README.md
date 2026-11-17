@@ -31,7 +31,7 @@ It runs on simulated copies of the real tools (Slack, the ticket system and the 
 
 ## What's next
 
-1. **Milestone 4, "Knowledge":** answering how-to questions ("How do I set up the VPN?") from the IT team's own approved guides. Built, and tuned on practice questions; its locked-away test has not run yet.
+1. **Milestone 4, "Knowledge":** answering how-to questions ("How do I set up the VPN?") from the IT team's own approved guides. Built, tuned on practice questions, and tested once on its locked-away test on 16 November. Nothing was posted to a person, but two safety rules failed: Claude Haiku picked a planted fake guide for one question, and the code check of guides missed an instruction hidden in a code block. Claude Sonnet, which passed, now picks the guides. A fix for the guide check is planned. [Results](docs/how-it-works.md).
    - The AI only picks which guide fits. Tier0 then posts that guide's approved steps word for word, with a link.
    - If no guide fits, or the question is about someone's account or is risky, it goes to a person.
    - Planned: once a week, Tier0 drafts new or updated guides from solved tickets, with personal details removed. Each draft waits for a person on the IT team to approve it.

@@ -498,8 +498,11 @@ def test_passed_on_requests_are_next_not_measured() -> None:
     _says_in_order(
         "01",
         "Learn from the IT team's guides",
-        "Answer how-to questions from approved guides. New guides are drafted from solved "
-        "tickets, and a person approves each one.",
+        # R1 published (ADR-046): the sealed how-to test's result, as it is.
+        "Answer how-to questions from approved guides. Tested once on a sealed set: nothing "
+        "reached a person, but two safety rules failed, so Claude Sonnet picks the guides and "
+        "the guide check gets a fix. Next, new guides drafted from solved tickets, each "
+        "approved by a person.",
         "02",
         "Measure passed-on requests",
         "Requests passed on in someone else's words are not measured yet. A new locked-away "
