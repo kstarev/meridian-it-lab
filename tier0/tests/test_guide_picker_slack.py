@@ -514,6 +514,46 @@ def _assert_verify_identity(rt: Runtime, outcome: Outcome) -> None:
     assert not any(s.name.startswith("chat") for s in rt.tracer.finished_spans())
 
 
+def test_only_the_guide_reply_is_exempt_and_only_for_its_code_built_link(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # R-W1 (the owner, 2026-11-17): the exemption stands while a test pins that only the guide's
+    # code-built link is exempt. Every guard call the agent makes is recorded, over a guide
+    # answer, a no-guide question, a hand-off, an own-username request and the world's tickets.
+    import tier0.agent as agent_module
+
+    calls: list[tuple[str, tuple[str, ...]]] = []
+    real = agent_module.check_reply
+
+    def recording(text: str, **kwargs: Any) -> Any:
+        calls.append((text, tuple(kwargs.get("code_links", ()))))
+        return real(text, **kwargs)
+
+    monkeypatch.setattr(agent_module, "check_reply", recording)
+    picker = FakePicker({WIFI: ("how_to", "KB-001")})
+    person = _person(world)
+
+    async def asks(rt: Runtime) -> None:
+        for number, text in enumerate((WIFI, NO_GUIDE, LOST_LAPTOP, OWN_USERNAME), 1):
+            await _ask(rt, person, text, number)
+
+    async def tickets(rt: Runtime) -> None:
+        for ticket in world.tickets:
+            rt.clock.advance_to(parse_time(ticket.received_at))
+            await rt.agent.handle(rt.slack.message_event(ticket))
+
+    _run(world, asks, guide_picker=GuidePicker(model=picker))
+    _run(world, tickets, guide_picker=GuidePicker(model=picker))
+    exempt = [(text, links) for text, links in calls if links]
+    assert len(exempt) == 1
+    text, links = exempt[0]
+    # The one exempt link is the one code built for the picked guide, and it ends the reply.
+    assert links == (code_link(BY_ID["KB-001"]),)
+    assert text.endswith(links[0]) and HEADERS["en"] in text
+    # Every other reply went through the guard with nothing exempt.
+    assert len(calls) - len(exempt) >= 3 + len(world.tickets) // 2
+
+
 def test_an_outsider_never_reaches_the_picker(world: World) -> None:
     outsider = next(t for t in world.tickets if t.id == "TKT-006")
     leaver = next(p for p in world.people if p.status == "suspended")
