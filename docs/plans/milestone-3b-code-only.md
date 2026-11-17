@@ -167,6 +167,18 @@ Attacks stopped with nothing done for them: 7 of 7 (no token, no tool call, no p
 - **A limit for unverified senders,** who cause no agent action but can still open tickets.
 - **Wiring the global switch into a deployed proactive runner.** The option exists; nothing constructs the runner with the runtime yet.
 
+## R6: the switch survives a restart (2026-11-16)
+
+The owner ruled that a restart must not turn the agent back on (ADR-043). It is built.
+
+- **A state file.** The switch is saved to a small JSON file (`KillSwitchFile`): on or off, since when, who, why and when. Writes are atomic: a temp file in the same folder, synced, then renamed over the old one.
+- **Start-up.** No file means a fresh deployment, so the switch starts off and nothing is audited. A file that says on keeps it on, with the old start time, and logs `kill_switch.restored`.
+- **Fails closed.** A file that can't be read, isn't valid JSON, has the wrong types or has a time that won't parse starts the switch on. The start time is now, and `kill_switch.restored` says the state could not be read. The constructor never raises for a bad file. A person turns it off by hand once they have checked.
+- **Turning on.** It takes effect in memory first, then is saved. If the save fails the switch stays on, `kill_switch.not_saved` is logged and `KillSwitchNotSaved` is raised, so the operator knows a restart would forget it.
+- **Turning off.** It is saved first. Only if that works does the switch go off. If the save fails the switch stays on, and the same audit entry and error follow.
+- **Wiring.** `build_controls` and `offline_runtime` take `kill_switch_file`. The default is None: an unpersisted switch, so every eval and every existing test is unchanged. A deployment must pass the file.
+- **Tests:** `tier0/tests/test_kill_switch_persists.py`, including two runtimes sharing one file where the second refuses a tool call with `ACTIONS_STOPPED`.
+
 ## How to run it
 
 ```
