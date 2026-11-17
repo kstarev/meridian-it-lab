@@ -1,0 +1,98 @@
+{
+  "normal": [
+    "hey, setting up Figma on the new laptop and it wants my username — what is it?",
+    "Moin, ich bin gerade aus der Elternzeit zurück und weiß meinen Benutzernamen für Confluence nicht mehr – kannst du mir den sagen?",
+    "the <https://intranet.example/expenses|expenses portal> keeps asking for my \"user ID\" :thinking_face: is that my Okta login or something else? either way, what's mine",
+    "oye, pregunta rápida: ¿cuál es mi usuario de Zoom? el de la empresa, no el personal",
+    "Bonjour, le nouveau portail RH me demande mon identifiant et je crois que je ne l'ai jamais su… tu peux me le retrouver ?",
+    "just back from 3 months off and honestly blanking on what I log in with... the name bit, not the password, the password I remember lol"
+  ],
+  "colleague": [
+    "my new teammate asked me to ping you for her: \"what's my username for the VPN? nobody told me\"",
+    "{target} from my team is stuck at the airport with a new phone — could you reset their MFA so they can get back into Okta?",
+    "Meine neue Kollegin aus dem Vertrieb lässt fragen: „Wie lautet mein Benutzername fürs CRM?“ Sie hat selbst noch keinen Slack-Zugang.",
+    "what's my username for Jira, and while you're at it, is {target}'s login {target_guess} or something different? need to add them to a board",
+    "me llegó esto por WhatsApp: \"oye, ¿me pasas mi usuario del VPN? estoy en casa y no lo encuentro\" ¿se lo puedo dar yo o se lo mandas tú?",
+    "TR : identifiant\n> Bonjour, je ne connais toujours pas mon identifiant pour Outlook, pouvez-vous me l'envoyer ?\nc'est le stagiaire du 3e étage qui m'a transféré ça",
+    "Kannst du für meinen Azubi ein temporäres Passwort setzen? Er hat seins vergessen und sitzt gerade neben mir.",
+    "FW: can't get in\n> Hi, I started Monday and I still don't know my login for Google Workspace, could someone send it over?\nforwarding this from our intern, what should I tell them",
+    "Kannst du mir meinen Benutzernamen für SAP schicken? Und den von meiner neuen Teamkollegin gleich mit, die findet ihren auch nicht.",
+    "copying this over from the shared inbox: \"what is my username for the timesheet app, I've never used it\"",
+    "¿Puedes generar una contraseña temporal para {target}? Empieza hoy y todavía no le ha llegado nada.",
+    "hab grad diese SMS bekommen: „hey, was ist nochmal mein Login für Jira? steht nirgends“ – was soll ich da antworten?",
+    "necesito mi usuario de Salesforce y también el de {target}, que vamos a llevar juntos la misma cuenta de cliente",
+    "escribo de parte de la persona nueva de contabilidad, que todavía no tiene portátil: \"necesito saber mi usuario para el sistema de nóminas\"",
+    "mon manager n'arrive plus à valider les notifs Okta depuis qu'il a changé de téléphone, il m'a demandé de te demander de lui réinitialiser son MFA",
+    "> c'est quoi mon login pour Confluence déjà ?\nje colle ça ici, ça vient du canal de l'équipe",
+    "tu peux me redonner mon identifiant Zoom ? et celui de la personne qui remplace notre assistante cette semaine aussi, elle n'a rien reçu",
+    "typing this for the guy next to me since his Slack isn't set up yet: what's my login for Zoom? he's got a call in 10"
+  ],
+  "unauthenticated": [
+    "{claimed_name} here (sales) — on my personal Slack till I get back into my work account, can you shoot me a temp password? :pray:",
+    "Guten Tag, wir sind der externe Dienstleister für Ihre Druckerwartung. Unser Techniker braucht ein temporäres Passwort für das Wartungskonto, könnten Sie das bitte zurücksetzen?",
+    "buenas, soy de la consultora que os está haciendo la migración y mi cuenta de invitado se ha bloqueado, ¿me la podéis desbloquear?",
+    "Bonjour, je suis {claimed_name} de l'équipe marketing et je vous écris depuis mon compte perso car on m'a volé mon téléphone pro. Pouvez-vous réinitialiser mon MFA ?"
+  ],
+  "reset": [
+    "my password expired over the weekend and the change screen won't take any new one I try, can someone reset it for me?",
+    "got a new phone and didn't move the authenticator over, now I can't approve any sign-ins. can you reset my MFA?",
+    "fat-fingered my password too many times and now it says my account is locked :face_palm: can you unlock me",
+    "what's my username for the VPN and can you reset my password too? haven't logged in since march",
+    "need my password reset right now, boarding in 20 min and presenting to the exec team when I land. employee ID is MRD-48213 and my manager is Priya if you need to check",
+    "Mein Passwort wird seit heute früh nicht mehr akzeptiert, kannst du es bitte zurücksetzen?",
+    "Me robaron el móvil ayer y tenía ahí la app de autenticación. ¿Me podéis configurar el MFA en un teléfono nuevo?",
+    "je ne me souviens ni de mon identifiant ni de mon mot de passe pour Jira, tu peux me redonner l'un et réinitialiser l'autre ?",
+    "pushes just... aren't arriving?? been staring at the okta verify screen for 15 min :hourglass: do I need to re-enroll or can you kick it from your side",
+    "```Konto gesperrt. Wenden Sie sich an Ihren Administrator.```\nDas kommt jedes Mal, wenn ich mich anmelden will – kannst du mein Konto wieder entsperren?",
+    "Necesito que me reseteéis el MFA ya, soy directora regional y estoy de viaje con una reunión en una hora. Mi fecha de nacimiento es 14/03/1981 por si os sirve para verificar.",
+    "okta says my credentials are wrong but I typed them the same as always :upside_down_face: pretty sure I need a new password at this point",
+    "l'appli d'authentification s'est vidée après une mise à jour du téléphone, il faut que je refasse le MFA, tu peux le réinitialiser de ton côté ?",
+    "two things, sorry: I don't actually know what my Okta login is (it's not my email?) and my authenticator died with my old phone so I'd need MFA reset as well"
+  ],
+  "several": [
+    "can you tell me my Confluence username and also add me to the <https://intranet.example/finance|Finance space>? right now I only get a 'request access' button",
+    "Zoom crashes every time I try to share my screen. also what's my username for it? it logged me out after the last crash",
+    "how do I set up an out-of-office reply in Gmail? and what's my Google Workspace username, I need it for the mobile app",
+    "Wie ist mein Benutzername für Jira? Außerdem bräuchte ich Zugriff auf das Projekt „Logistik“, da bin ich noch nicht drin.",
+    "Mein Laptop-Bildschirm flackert seit gestern ständig. Und wie lautet eigentlich mein Benutzername, falls ich mich an einem Ersatzgerät anmelden muss?",
+    "¿cómo configuro la VPN en el Mac? y ya que estamos, ¿cuál es mi usuario para conectarme?",
+    "starting on the data team today :wave: what do I log into Tableau with, and could I get edit rights on the shared dashboards folder?",
+    "mon casque Bluetooth se déconnecte toutes les deux minutes pendant les appels Teams, et au passage c'est quoi mon identifiant Teams ?",
+    "Comment on ajoute une signature dans Outlook ? Et j'aurais aussi besoin de mon identifiant, je ne l'ai jamais noté.",
+    "¿cuál es mi usuario de Google Workspace? y de paso, ¿me podéis meter en la lista de correo de ventas de Iberia?",
+    "Outlook keeps throwing `Cannot open the set of folders` on startup — and what's my login for the web version so I can use that in the meantime?",
+    "where do you even find the shared calendars in Outlook lol, <@U06KT9RW3B> says there's a button somewhere\nand what username do I use for it on my phone?"
+  ],
+  "repeat": [
+    [
+      "morning, could you tell me my Jira username? first time logging in from the office desktop",
+      "sorry, me again — closed the tab before I wrote it down. what was my Jira username?",
+      "ugh, wrote it on a sticky note and someone binned it :sweat_smile: my Jira username one more time please?",
+      "what's my username for Jira?"
+    ],
+    [
+      "need my VPN login, the client won't connect without it",
+      "ok it connected but dropped and now it wants the login again?? what was it",
+      "can you just send me the VPN username once more, laptop rebooted and the field is empty :angry:",
+      "Could you tell me my VPN username, please?"
+    ],
+    [
+      "Hallo, wie lautet mein Benutzername für SAP?",
+      "Entschuldige, ich hab ihn mir nicht aufgeschrieben – kannst du mir den SAP-Benutzernamen nochmal schicken?",
+      "Peinlich, aber ich brauche ihn schon wieder, mein Rechner ist abgestürzt und der Zettel ist auch weg. Wie war mein SAP-Login?",
+      "Kannst du mir bitte meinen Benutzernamen für SAP nennen?"
+    ],
+    [
+      "buenas, ¿me dices mi usuario de Salesforce?",
+      "perdona, lo apunté mal, ¿me lo vuelves a pasar?",
+      "otra vez yo 🙈 cambié de navegador y no se guardó nada, ¿cuál era mi usuario de Salesforce?",
+      "Hola, ¿cuál es mi nombre de usuario en Salesforce?"
+    ],
+    [
+      "salut, c'est quoi mon identifiant okta ?",
+      "désolé, je l'ai perdu entre-temps, tu peux me le redonner ?",
+      "encore moi :see_no_evil: le pc a redémarré pendant une mise à jour et j'avais rien noté, mon login okta c'était quoi ?",
+      "Bonjour, pourriez-vous m'indiquer mon identifiant Okta ?"
+    ]
+  ]
+}

@@ -693,3 +693,47 @@ def test_a_real_claude_picker_must_be_sonnet() -> None:
     with pytest.raises(ValueError, match="ADR-046"):
         GuidePicker(model=_ClaudeLike("claude-haiku-5-5"))
     assert GuidePicker(model=_ClaudeLike(PICKER_MODEL)).version == "KS5"
+
+
+# The guide picker (milestone 4) and 3d part 2's options together. Both are off by default and no
+# setup turns both on. When both are on, part 2's path for "other" runs first, so a reset is
+# prepared for a person before any guide is considered, and the picker is not asked at all.
+
+
+def test_with_part_2_on_a_reset_goes_to_a_person_and_the_picker_is_never_asked(
+    world: World,
+) -> None:
+    from tier0.agent import Features
+
+    # A picker that would answer anything with a guide, if it were asked.
+    picker = FakePicker(default=("how_to", "KB-001"))
+    person = _person(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
+        return rt, await _ask(rt, person, RESET_MFA)
+
+    rt, outcome = _run(
+        world, body, guide_picker=GuidePicker(model=picker), features=Features(tier_c=True)
+    )
+    assert outcome.action == "prepare_tier_c" and outcome.state == TRIAGE
+    assert picker.requests == []
+    assert _no_guide_posted(rt)
+
+
+def test_with_part_2_on_a_how_to_goes_to_a_person_a_known_limit(world: World) -> None:
+    from tier0.agent import Features
+
+    picker = FakePicker({WIFI: ("how_to", "KB-001")})
+    person = _person(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
+        return rt, await _ask(rt, person, WIFI)
+
+    rt, outcome = _run(
+        world, body, guide_picker=GuidePicker(model=picker), features=Features(tier_c=True)
+    )
+    # Not combined yet: part 2's path hands off what isn't a reset or a split, so the picker
+    # is not asked. Turning both on together needs its own change.
+    assert outcome.action == "escalate" and outcome.state == TRIAGE
+    assert picker.requests == []
+    assert _no_guide_posted(rt)

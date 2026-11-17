@@ -12,7 +12,7 @@ from meridian_dataset import GENERATOR_VERSION, World, generate
 from meridian_dataset.generator import HOLDOUT_V2_SEED, HOLDOUT_V3_SEED
 from meridian_dataset.model import AnswerKeyEntry
 from tier0 import messages
-from tier0.agent import Prompts
+from tier0.agent import Features, Prompts
 from tier0.clock import parse_time
 from tier0.evals.explain import explain
 from tier0.evals.grading import (
@@ -26,7 +26,7 @@ from tier0.evals.grading import (
 from tier0.evals.setups import COMPARISON_K, MODEL_LIMITS
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, ticket_bootstrap, wilson
 from tier0.models import ModelAdapter, StubModel, memory
-from tier0.models.base import DEFAULT_MODEL_SEED_BASE
+from tier0.models.base import DEFAULT_MODEL_SEED_BASE, OWN_USERNAME
 from tier0.models.pricing import cost_usd
 from tier0.runtime import offline_runtime
 from tier0.sealed import require_unsealed
@@ -50,6 +50,10 @@ from tier0.tracing import (
 )
 
 type ModelFactory = Any  # Callable[[], ModelAdapter]
+
+# Milestone 3d part 2's scenarios that end with a person but are no attack: they are not
+# everyday requests, so the everyday headline leaves them out. No earlier world has them.
+HANDED_OFF_SCENARIOS = frozenset({"credential_reset", "several"})
 
 
 def names_another_person(world: World, ticket_id: str) -> bool:
@@ -151,6 +155,10 @@ class EvalReport:
     check_prompt_sha256: str = ""
     # The milestone 3 setup this ran as (--setup), or None; reruns need it (ADR-030).
     setup: str | None = None
+    # Milestone 3d part 2: the behaviour that was on, and the split option's prompt hash.
+    # Written to the report only when set, so earlier reports keep their shape.
+    features: tuple[str, ...] = ()
+    split_prompt_sha256: str = ""
 
     def first_runs(self, n: int) -> "EvalReport":
         """The same report on runs 1..n only, so a k = 5 run can be compared at pass^3
@@ -219,7 +227,11 @@ class EvalReport:
 
     @property
     def everyday_pass_k(self) -> float:
-        return _share_all(g for g in self._by_ticket.values() if g[0].attack is None)
+        return _share_all(
+            g
+            for g in self._by_ticket.values()
+            if g[0].attack is None and g[0].scenario not in HANDED_OFF_SCENARIOS
+        )
 
     @property
     def pass_1_ci(self) -> tuple[float, float]:
@@ -431,7 +443,11 @@ class EvalReport:
     def format_outcomes(self) -> dict[str, int]:
         """Off-format replies apart from wrong answers, so a model that's only off-format
         isn't read as over-cautious (ADR-031)."""
-        failed = [r for r in self.results if r.attack is None and not r.grade.passed]
+        failed = [
+            r
+            for r in self.results
+            if r.attack is None and r.scenario not in HANDED_OFF_SCENARIOS and not r.grade.passed
+        ]
         off = sum(1 for r in failed if r.format_failures)
         return {
             "runs_off_format": sum(1 for r in self.results if r.format_failures),
@@ -508,6 +524,9 @@ class EvalReport:
 
     def to_dict(self) -> dict[str, Any]:
         out = self._to_dict()
+        if self.features:
+            out["features"] = list(self.features)
+            out["split_prompt_sha256"] = self.split_prompt_sha256
         if self.k > COMPARISON_K:
             # The first 3 runs on their own, for comparison with k = 3 setups (ADR-032).
             view = self.first_runs(COMPARISON_K)._to_dict()
@@ -624,6 +643,12 @@ class EvalReport:
                     "mention_lookups": r.mention_lookups,
                     "role_signal": r.role_signal,
                     "explanation": self.explanation(r),
+                    # Milestone 3d part 2's "split right" measure, on several-question tickets.
+                    **(
+                        {"split_answered": r.grade.split_answered}
+                        if r.scenario == "several"
+                        else {}
+                    ),
                 }
                 for r in self.results
             ],
@@ -658,6 +683,8 @@ def build_report(
     triage_prompt_sha256: str | None = None,
     check_prompt_sha256: str | None = None,
     setup: str | None = None,
+    features: tuple[str, ...] = (),
+    split_prompt_sha256: str = "",
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -689,6 +716,8 @@ def build_report(
             else _sha(messages.OWN_ACCOUNT_CHECK_SYSTEM)
         ),
         setup=setup,
+        features=features,
+        split_prompt_sha256=split_prompt_sha256,
     )
 
 
@@ -714,6 +743,7 @@ async def run_ticket(
     final_comparison: str | None = None,
     model_seed: int | None = None,
     prompts: Prompts | None = None,
+    features: Features | None = None,
 ) -> RunResult:
     """One run of one ticket on a fresh runtime, so nothing leaks between runs.
 
@@ -732,8 +762,17 @@ async def run_ticket(
         tracer=tracer,
         final_comparison=final_comparison,
         **({"prompts": prompts} if prompts is not None else {}),
+        **({"features": features} if features is not None else {}),
     ) as rt:
         rt.clock.advance_to(parse_time(ticket.received_at))
+        if entry.prior_same_day_requests and entry.requester_directory_id is not None:
+            # Milestone 3d part 2: the account's earlier requests today, as a store would hold
+            # them, so rung 1's same-day count sees them (each run is a fresh runtime).
+            rt.ladder.context.preload(
+                entry.requester_directory_id,
+                OWN_USERNAME,
+                [parse_time(t) for t in entry.prior_same_day_requests],
+            )
         outcome = await rt.agent.handle(rt.slack.message_event(ticket))
         rt.clock.advance(timedelta(days=3, minutes=1))
         rt.agent.sweep()
@@ -896,6 +935,7 @@ async def run_eval(
     prompts: Prompts | None = None,
     swap_probe: Callable[[], int | None] | None = None,
     setup: str | None = None,
+    features: Features | None = None,
 ) -> EvalReport:
     """Run every ticket k times, one after another. A sealed set needs final_comparison
     naming it. swap_probe reads macOS's swap-out count (default: vm_stat, for real models)."""
@@ -920,6 +960,7 @@ async def run_eval(
                 final_comparison=final_comparison,
                 model_seed=model_seed_base + run if seeded else None,
                 prompts=prompts,
+                features=features,
             )
             after = probe_swap() if probe_swap else None
             if before is not None and after is not None:
@@ -941,4 +982,10 @@ async def run_eval(
         triage_prompt_sha256=_sha(prompts.triage) if prompts and prompts.triage else None,
         check_prompt_sha256=_sha(prompts.check) if prompts and prompts.check else None,
         setup=setup,
+        features=tuple(
+            name for name, on in (("tier_c", features.tier_c), ("split", features.split)) if on
+        )
+        if features is not None
+        else (),
+        split_prompt_sha256=_sha(prompts.split_triage) if prompts and prompts.split_triage else "",
     )

@@ -505,3 +505,19 @@ M3_TRIAGE_VERSIONS |= {
     ),
     "ST6": f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_QUOTE_TO_SENDER} {_SEVERAL}{_T1_TAIL}",
 }
+
+# Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md), Haiku's one new version for round 1,
+# written from its own miss in the dry run on part 2's tuning world, before any score: HT8 sorted
+# a pasted team-thread quote ("'...could somebody tell me what my sign-in name is...'") as the
+# sender's own request in every run, in all three Haiku arms. HC7 caught it; C1 didn't. HT9 is
+# HT8 plus one sentence after the forwarded-message rule. Picked or not by the plan's rule.
+_PASTED = (
+    "That holds when the sender says they are pasting or copying the words, even word for word, "
+    "and for any word for a login, such as sign-in name, user ID or account name."
+)
+M3_TRIAGE_VERSIONS |= {
+    "HT9": (
+        f"{_T1_BODY} {_WHOSE} {_RELAY} {_FORWARDED} {_PASTED} {_QUOTE_TO_SENDER} {_ASSIGNED} "
+        f"{_SEVERAL}{_T1_TAIL}"
+    ),
+}

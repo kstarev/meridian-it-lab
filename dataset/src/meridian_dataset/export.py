@@ -26,8 +26,11 @@ def write_dataset(world: World, out_dir: Path) -> dict[str, Path]:
     del everything["answer_key"]
     key = asdict(world.answer_key)
     for entry in key["entries"]:
-        if not entry["self_described"]:
-            del entry["self_described"]
+        # Fields added after a world was sealed are written only when set, so its bytes and
+        # its manifest hash never change.
+        for optional in ("self_described", "prior_same_day_requests", "split_facts"):
+            if not entry[optional]:
+                del entry[optional]
     contents = {
         "world.json": everything,
         "tickets.json": {

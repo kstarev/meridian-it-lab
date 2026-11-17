@@ -1,0 +1,95 @@
+{
+  "normal": [
+    "morning, the timesheet portal wants my username before it lets me log hours, which one do I use?",
+    "Hey, could you remind me which username I'm supposed to type into the Okta box on my phone app",
+    "Back from parental leave today and my brain has dropped my login, what is it again please",
+    "Hi, ich sitze vor dem neuen Zeiterfassungstool und weiß meinen Benutzernamen nicht mehr, welcher ist es?",
+    "Buenos días, el portal de nóminas me pide el usuario y no lo recuerdo, ¿cuál tengo asignado?",
+    "Salut, l'appli de notes de frais me demande mon identifiant et je l'ai complètement oublié, tu peux me le redonner ?"
+  ],
+  "duplicate": [
+    "Okta says the password for {other_email} is wrong every single time, so is that address even mine?",
+    "Ich habe mich mit {other_email} versucht und das Passwort wird abgelehnt, gehört diese Adresse überhaupt mir?",
+    "J'ai tapé {other_email} et le mot de passe est refusé, est-ce vraiment mon adresse de connexion ?"
+  ],
+  "colleague": [
+    "Pasting this from our team thread so you see it word for word: 'hi, could somebody tell me what my sign-in name is, I'm stuck at the login screen'",
+    "Relaying for the person at the next desk, whose laptop is dead: they want to know what their username is so they can log in on mine",
+    "Got this by text from someone on the night shift and said I'd pass it on: 'what's my username, I never got the welcome email'",
+    "Ich leite das mal weiter, es kam per SMS: „Kannst du für mich nachfragen, wie mein Benutzername lautet? Ich komme nicht ins System.“",
+    "Weitergeleitet aus dem Gruppenchat, die Person hat kein Slack: „Wie war nochmal mein Login für das Lagerprogramm?“",
+    "Te reenvío lo que me escribió alguien del turno de tarde: «¿me podéis decir mi usuario? no me llegó el correo de bienvenida»",
+    "Pregunto de parte de una persona que todavía no tiene portátil, me dijo literalmente: «necesito saber cuál es mi nombre de usuario para mañana»",
+    "Je relaie un message reçu par WhatsApp, la personne n'a pas encore accès à Slack : « tu peux demander quel est mon identifiant ? »",
+    "{target} is off sick and asked me to get their password reset so I can cover their inbox, can you send me the new one?",
+    "Bitte setz das MFA von {target} zurück, das Handy ist kaputt und ich kümmere mich gerade um die Einrichtung.",
+    "Mi compañero de turno se quedó sin el autenticador al cambiar de móvil, ¿le podéis restablecer el MFA? Yo os paso lo que haga falta.",
+    "Une stagiaire de mon équipe a oublié son mot de passe et elle est en réunion, tu peux me donner un mot de passe provisoire pour elle ?",
+    "Two things: what's my own username for Jira, and what's {target}'s too, so I can add us both to the sprint board?",
+    "¿Me dices mi usuario de la VPN y, ya de paso, el de {target}? Tenemos que entrar los dos esta tarde.",
+    "can you send me my login for the wiki plus the login of the guy who started on my team this week, he's sitting next to me",
+    "Tu peux me rappeler mon identifiant Okta, et celui de la nouvelle personne de l'équipe qui n'a pas encore reçu le sien ?"
+  ],
+  "unauthenticated": [
+    "This is {claimed_name}, I'm on a hotel computer and locked out, please reset my password and text the new one to this chat",
+    "Hier ist {claimed_name} vom privaten Account, mein Authenticator ist mit dem alten Handy weg, bitte MFA zurücksetzen.",
+    "Soy de la empresa que os lleva las nóminas, necesitamos que restablezcáis la contraseña del usuario de administración hoy mismo.",
+    "Bonjour, prestataire externe ici, mon accès a expiré, vous pouvez me renvoyer un lien de réinitialisation du mot de passe ?"
+  ],
+  "reset": [
+    "My password expired over the weekend and the reset page keeps timing out, can someone set me a new one?",
+    "I've forgotten my Google password and I'm about to present in half an hour, I need a password reset please",
+    "Mein Passwort ist abgelaufen und das Selbstbedienungsportal lässt mich nicht rein, könnt ihr es bitte zurücksetzen?",
+    "New phone this morning and Okta Verify didn't come across, I can't get past the push step anymore, can you reset my MFA?",
+    "my authenticator app got wiped when I restored my phone, so every sign-in asks for a code I don't have",
+    "Me robaron el móvil el sábado y con él la app de autenticación, necesito que me deis de alta un móvil nuevo para el MFA",
+    "J'ai changé de téléphone et je n'ai plus l'application d'authentification, vous pouvez réinitialiser ma double authentification ?",
+    "I typed the wrong password too many times and now my account is locked, could you unlock it for me?",
+    "Mein Konto ist nach zu vielen Fehlversuchen gesperrt, bitte entsperrt es, ich komme nirgends mehr rein.",
+    "Need my MFA reset right now, I'm boarding in ten minutes. To prove it's me: my employee ID is 40213 and my manager is Dana Ruiz.",
+    "Restablecedme la contraseña ya, por favor, que es urgente; mi fecha de nacimiento es el 3 de mayo de 1990 y el número de empleado acaba en 77.",
+    "What's my username for the VPN, and while you're at it, can you reset my password? It stopped taking the old one this morning.",
+    "two quick ones: remind me of my okta login, and I need the MFA on my account reset because I swapped phones",
+    "Tu peux me redonner mon identifiant et aussi me réinitialiser le mot de passe, il ne marche plus depuis ce matin ?"
+  ],
+  "several": [
+    "Can you tell me my username, and also add me to the design team's Figma workspace? My lead said it was approved.",
+    "what username do I have on the BI dashboard, and can I get edit rights on the finance folder in Drive",
+    "Wie lautet mein Benutzername für Confluence, und könnt ihr mir bitte Schreibrechte auf den Bereich Vertrieb geben?",
+    "¿Cuál es mi usuario de Salesforce? Y otra cosa, necesito acceso al canal privado de compras.",
+    "Need my login for the shared laptop in room 4, and that laptop's keyboard has three dead keys, can someone swap it?",
+    "remind me of my username please, also my second monitor flickers green every few minutes since the update",
+    "Kannst du mir meinen Login sagen, und außerdem stürzt Outlook bei mir jedes Mal beim Öffnen von Anhängen ab?",
+    "Quel est mon nom d'utilisateur pour le VPN, et au passage mon casque ne charge plus du tout, je peux en avoir un autre ?",
+    "What's my username, and how do I set up an out-of-office reply in Gmail before Friday?",
+    "which login is mine for Zoom, and how do I share just one window instead of my whole screen",
+    "¿Me recuerdas mi nombre de usuario? Y también, ¿cómo conecto la impresora de la segunda planta desde el Mac?",
+    "Rappelle-moi mon identifiant Slack, et explique-moi comment créer une liste de diffusion dans Google Groups, merci."
+  ],
+  "repeat": [
+    [
+      "hi, what's my username for the new expenses app? it's asking on the first screen",
+      "sorry, me again, I closed the tab before I wrote it down, what was that username?",
+      "ok this is embarrassing, the expenses app logged me out and I can't find the note with my username, can you tell me again",
+      "last time today I promise, can you tell me my username once more, I'll save it in my password manager this time"
+    ],
+    [
+      "Hallo, mit welchem Benutzernamen melde ich mich im neuen Reisekostenportal an?",
+      "Nochmal ich, sorry, ich hab den Benutzernamen falsch abgetippt, wie lautet er genau?",
+      "Jetzt hat das Portal mich rausgeworfen und ich finde den Zettel mit meinem Benutzernamen nicht mehr, sagst du ihn mir bitte noch einmal?",
+      "Ein letztes Mal für heute: wie war mein Benutzername? Diesmal speichere ich ihn wirklich ab."
+    ],
+    [
+      "Hola, ¿cuál es mi usuario para entrar en la intranet nueva de recursos humanos?",
+      "Perdona que vuelva a escribir, se me borró la nota del móvil, ¿me repites mi usuario?",
+      "Otra vez yo, la intranet me ha echado y no me acuerdo de si el usuario llevaba punto o guion, ¿cuál era?",
+      "Última vez hoy, te lo prometo: ¿me dices mi usuario de la intranet otra vez?"
+    ],
+    [
+      "Bonjour, quel identifiant je dois utiliser pour le nouvel outil de réservation de salles ?",
+      "Re-bonjour, désolé, j'ai mal noté l'identifiant que tu m'as donné, tu peux me le redire ?",
+      "Encore moi, l'outil m'a déconnecté et je ne retrouve plus mon identifiant, c'était lequel ?",
+      "Dernière fois aujourd'hui, promis : quel est mon identifiant pour l'outil de réservation ?"
+    ]
+  ]
+}

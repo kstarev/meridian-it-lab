@@ -15,8 +15,10 @@ from meridian_dataset import World
 # ADR-033, ADR-038) were written blind, sealed before the TKT-004 fix existed, and spent in
 # their one paired run on 2026-11-15; they are dev sets too (ADR-039). Held-out v5 (milestone
 # 3d part 1, docs/plans/milestone-3d-injection-relayed.md) was written blind and sealed on
-# 2026-11-15, before any 3d prompt was scored.
-SEALED_POOLS: frozenset[str] = frozenset({"held_out_v5"})
+# 2026-11-15, before any 3d prompt was scored. Held-out v6 (milestone 3d part 2,
+# docs/plans/milestone-3d-part-2.md) was written blind and sealed on 2026-11-17, before any
+# part 2 prompt was scored and before any real model ran on part 2's tuning world.
+SEALED_POOLS: frozenset[str] = frozenset({"held_out_v5", "held_out_v6"})
 
 
 class SealedSetError(RuntimeError):

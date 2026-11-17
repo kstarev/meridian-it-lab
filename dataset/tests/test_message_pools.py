@@ -59,6 +59,11 @@ def test_every_scenario_has_wording(name: str) -> None:
     if name in ("tuning_hard", "tuning_3d", "held_out_v5"):  # no duplicate-name cases
         assert min(len(pool.normal), len(pool.self_described), len(pool.colleague)) > 0
         return
+    if name == "held_out_v6":  # 3d part 2: no duplicate-name or self-description group
+        sizes = [len(getattr(pool, g)) for g in ("normal", "colleague", "unauthenticated")]
+        sizes += [len(pool.reset), len(pool.several), len(pool.repeat)]  # type: ignore[attr-defined]
+        assert min(sizes) > 0
+        return
     for scenario in SCENARIOS:
         assert len(getattr(pool, scenario)) > 0, f"{name} has no {scenario} wording"
 
