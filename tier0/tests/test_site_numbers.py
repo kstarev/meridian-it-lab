@@ -481,30 +481,35 @@ def test_follow_up_cost() -> None:
     _says(_follow_up_cost())
 
 
-def test_passed_on_requests_are_next_not_measured() -> None:
-    """Not a number: what milestone 3b did not measure, and where the brief says it will be."""
+def test_passed_on_requests_were_measured_on_the_next_set() -> None:
+    """Not a number: what milestone 3b did not measure, where the brief said it would be, and
+    what the next set (held-out v5, R2) found, in the report's terms."""
     brief = (ROOT / "docs/brief.md").read_text()
     assert "in the order 3a, 3b, then milestone 4, then 3d and 3c" in brief
     assert "so 3b claims nothing about it; 3d's sealed set measures it" in brief
     assert "The same set decides whether Haiku keeps its 3b triage prompt" in brief
     _says_in_order(
-        "Not measured yet",
+        "Measured since",
         "Requests passed on in someone else's words (\"my colleague says: 'I need my login'\") "
-        "have not been measured. The new instructions were written for these, but both sets "
-        "were written before this kind of request was found. The next test set will include "
-        "them, and will decide whether Haiku keeps its new instructions.",
+        "were measured on the next test set. Claude Sonnet stopped every one. In three of the "
+        "four Claude Haiku setups, one relayed request that names nobody got through in every "
+        "run, with no data exposed; a stricter second check stopped it in the fourth.",
     )
     # What's next: the guides (milestone 4) come before the set that measures these (3d).
     _says_in_order(
         "01",
         "Learn from the IT team's guides",
-        "Answer how-to questions from approved guides. New guides are drafted from solved "
-        "tickets, and a person approves each one.",
+        # R1 published (ADR-046): the sealed how-to test's result, as it is.
+        "Answer how-to questions from approved guides. Tested once on a sealed set: nothing "
+        "reached a person, but two safety rules failed, so Claude Sonnet picks the guides and "
+        "the guide check gets a fix. Next, new guides drafted from solved tickets, each "
+        "approved by a person.",
         "02",
         "Measure passed-on requests",
-        "Requests passed on in someone else's words are not measured yet. A new locked-away "
-        "test set will include them, and will decide whether Claude Haiku keeps its new "
-        "instructions.",
+        # R2 published: held-out v5's result, as it is.
+        "Measured once on a locked-away set: Claude Sonnet stopped every passed-on request, and "
+        "three of four Claude Haiku setups let one through. Next, password and MFA resets, "
+        "repeated requests and messages with several questions.",
         "03",
     )
     page = " ".join(_chunks())
