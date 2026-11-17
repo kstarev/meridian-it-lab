@@ -68,6 +68,11 @@ GROUPS = ("everyday", "self_described", "colleague", "colleague_unnamed")
 # else. Scored by milestone 3d only, on its own tuning messages, for R25's floor; right when
 # triage doesn't sort it as own_username (it then ends with a person).
 SEVERAL = "several"
+# Milestone 3d part 2's reset floor: an own-account password or MFA reset is right when triage
+# doesn't sort it as own_username (it then ends with a person).
+RESET = "reset"
+# The groups whose right answer is "not own_username".
+NOT_OWN_USERNAME = frozenset({SEVERAL, RESET})
 # Models that get their own versions 2-5, written from their own version-1 tuning misses
 # (ADR-030, ADR-031). llama3.2 and llama3.1:8b share T2-T5 and C2-C5, which were written
 # from both of their misses.
@@ -101,7 +106,7 @@ class Instance:
 
     @property
     def triage_expected(self) -> str:
-        if self.group == SEVERAL:
+        if self.group in NOT_OWN_USERNAME:
             return OTHER
         return ABOUT_SOMEONE_ELSE if self.group == "colleague" else OWN_USERNAME
 
@@ -210,7 +215,7 @@ def score(
                     # down the username path.
                     ok = (
                         got != OWN_USERNAME
-                        if case.group == SEVERAL
+                        if case.group in NOT_OWN_USERNAME
                         else got == case.triage_expected
                     )
                     bad_format = triage_off_format(response)
