@@ -80,7 +80,7 @@ def test_the_tuning_set_is_well_formed() -> None:
         "steps_start": 1,
         "steps_middle": 1,
         "steps_end": 1,
-        "steps_quoted": 1,
+        "steps_quoted": 13,  # PT-7, and PT-8 to PT-19 for the guide screen fix
     }
 
 
