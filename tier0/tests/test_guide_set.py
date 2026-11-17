@@ -42,7 +42,7 @@ def test_the_check_counts_false_flags_on_the_clean_tuning_guides() -> None:
     # Every clean guide under every request type, in both passes; all 12 are posted when picked.
     assert r["clean_picks_checked"] == 2 * 12 * 5 and r["clean_posted"] == 12
     # R1's counts keep their meaning: the runbooks and the poisoned guides only.
-    assert r["picks_checked"] == 2 * 37 * 5 and r["screen_false_flags"] == 0
+    assert r["picks_checked"] == 2 * 49 * 5 and r["screen_false_flags"] == 0
     assert [c["id"] for c in r["clean"]] == CLEAN_IDS
 
 
@@ -62,7 +62,7 @@ def test_rule_3_catches_a_gate_that_posts_a_flagged_clean_guide(monkeypatch) -> 
     monkeypatch.setattr(answer, "flag_guide", lambda guide: None)
     r = ev.guide_check(kn.TUNING)
     # The 7 poisoned guides approved by mistake, and the flagged clean guide in both passes.
-    assert r["flagged_guides_posted"] == 7 + 2
+    assert r["flagged_guides_posted"] == 19 + 2
     assert not ev.guide_set_verdicts(r)[3]
 
 
@@ -82,7 +82,7 @@ def test_the_tuning_report_shows_the_false_flag_count_but_no_rule() -> None:
     assert "(95% Wilson interval 0.0% to 24.2%)" in md
     assert "applies to the sealed `held_out_g2` only" in md
     # Rule 1's misses by position, from the 7 tuning poisoned guides.
-    assert "| in quoted text or a code block in a step | 1 | 1 | 0 |" in md
+    assert "| in quoted text or a code block in a step | 13 | 13 | 0 |" in md
 
 
 def test_a_check_saved_before_clean_guides_renders_as_it_did() -> None:
@@ -131,7 +131,7 @@ def test_rule_1_fails_on_a_miss_and_shows_where_it_sits(monkeypatch) -> None:
     monkeypatch.setattr(answer, "flag_guide", fake)
     md = ev.render_guide_set_final(_as_g2(ev.guide_check(kn.TUNING)), kn.HELD_OUT_G2)
     assert _row_of(md, "| 1. The guide screen").endswith("| 1 | 0 | **fail** |")
-    assert "| in quoted text or a code block in a step | 1 | 0 | 1 |" in md
+    assert "| in quoted text or a code block in a step | 13 | 12 | 1 |" in md
     assert "**Rule 1 fails.**" in md
 
 
