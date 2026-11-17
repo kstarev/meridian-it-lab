@@ -373,6 +373,15 @@ Nothing has run on v6. The arms are the plan's five; only Haiku's triage prompt 
 - **The estimate,** from the measured cost per ticket run: about $1.87. That is $0.04 or $0.05 per Haiku arm, $0.77 for `sonnet-3d2` and $0.96 for `sonnet-3d2-split`, against $3.57 left in the item. A spend gate runs before each arm.
 - **What tuning says, and doesn't:** on tuning data the Sonnet split arm cleared the split rule's bar (12 of 12) and the Haiku split arm didn't (9 of 12). These are tuning scores. Only v6 counts, and the rule there is the one fixed before sealing.
 
+## The owner's rulings before the final run (2026-11-17)
+
+Recorded and committed before anything ran on v6.
+
+- **R3D2-1: go for the final run on held-out v6,** five arms at k = 5, as frozen above. It runs from `tier0-3d`, with a spend gate before each arm.
+- **R3D2-2: `haiku-3d2` (HT9/HC7) is the default Haiku arm.** The table above is unchanged, and `haiku-3d2-c1` stays informational. This follows R2-2 (a): Haiku's check moves to HC7, because C1 failed the safety target on held-out v5 ([ADR-047](../decisions.md), in its own pull request).
+- **R3D2-3: HT9 stays,** by the committed selection rule.
+- **R3D2-4** (the guide picker with part 2's options on) is not ruled on. Nothing changes.
+
 ## With milestone 4's guide picker (merged 2026-11-17)
 
 This branch merges #62 and #64 to settle `docs/brief.md` and `tier0/src/tier0/agent.py`, which those pull requests also edit. Both new paths run at the point where triage says "other", and both are off by default; no setup turns both on.
