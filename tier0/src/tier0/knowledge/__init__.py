@@ -10,7 +10,13 @@ the message to a person. The model never sees a guide's steps and never writes a
     answer.py   the decision and the reply, both in code
     prompts.py  the picker's prompt versions, tuned on tuning data only
     sealed.py   the sealed how-to test: nothing runs on it before its final test
+    guide_screen.py  a code-only check that a guide's text holds no instruction or trap
     wiring.py   the path in the Slack flow, after triage says "other"; off by default
+
+The weekly job that drafts guides from resolved tickets (ADR-005) lives here too:
+
+    drafting.py the job and its command: tickets in, draft pull requests out, on the stub
+    scrub.py    removes personal details before anything reaches the drafting model
 
 The Slack flow uses it only when the agent is given a `GuidePicker` (the `guide_picker`
 option, default off), on the mocks; off, every "other" goes to a person as before.

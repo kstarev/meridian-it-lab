@@ -1,6 +1,6 @@
 # Plan: milestone 4, Knowledge (budget item `tier0-m4-knowledge`)
 
-**Date:** 2026-11-15 · **Status:** Built overnight on 2026-11-15/16. The sealed test ran on 2026-11-16 with the owner's go (R1): two pass rules fail (see "The sealed test's result" below) · **Decisions:** [ADR-035](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Built overnight on 2026-11-15/16. The sealed test ran on 2026-11-16 with the owner's go (R1): two pass rules fail (see "The sealed test's result" below). The weekly drafting job was built on 2026-11-17, code only, on the stub (see "The weekly drafting job, as built") · **Decisions:** [ADR-035](../decisions.md), [ADR-037](../decisions.md)
 
 tier0 answers a how-to question by picking one of the IT team's approved guides. Code posts that guide's steps word for word, or hands the message to a person. This plan covers the data, the picker, the sealed how-to test and the paid tuning. The decisions below were made overnight without the owner; each says why.
 
@@ -253,9 +253,70 @@ Built on 2026-11-17, overnight, on mock adapters and fake pickers only. No model
 - **The output guard** still checks every reply, steps included. Only the guide's own link is exempt, character for character: a file name such as `office-wifi.md` is shaped like first.last, so without the exemption the guard blocks every guide reply. The exemption is a new `check_reply` argument, empty by default, so no other message changes.
 - **Tests:** `tier0/tests/test_guide_picker_slack.py`, with fake pickers and the mocks.
 
+## The weekly drafting job, as built
+
+Built on 2026-11-17 without the owner, as code and tests only: the drafting model is the stub (ADR-037), GitHub is a mock, nothing calls the network, and no workflow runs it. Each decision says why.
+
+| Part | Where |
+|---|---|
+| The job and its command | `tier0/src/tier0/knowledge/drafting.py` |
+| Removing personal details | `tier0/src/tier0/knowledge/scrub.py` |
+| A mock of GitHub for meridian-memory | `tier0/src/tier0/mocks/github.py` |
+| The stub's drafting task | `tier0/src/tier0/models/stub.py` (`guide_draft`) |
+| Tests, fakes only | `tier0/tests/test_drafting.py` |
+
+**How to run it.** Offline. It keeps the mock repo and a log of codes in `out/drafting/`, so a second run sees the first run's pull requests.
+
+```
+uv run --locked python -m tier0.knowledge.drafting             # the last full week before --now
+uv run --locked python -m tier0.knowledge.drafting --since 2026-09-07 --until 2026-11-02
+```
+
+`--now` sets the injected clock (default: the tuning world's reference time, 2026-11-02 09:00 UTC). `--fresh` starts a new mock repo. `--model` accepts only `stub`.
+
+**Decisions:**
+
+1. **Which tickets count.** A ticket a person answered with an approved guide: the help desk handed it off although a guide covers it, so the draft updates that guide. A how-to a person answered by hand: no guide covers it, so the draft is a new guide. Why: those are the two gaps a guide can close. Never drafted from:
+   - account actions, requests about someone else, incidents, broken things and several requests in one message, because ADR-035 sends them to a person, so no guide may answer them;
+   - tickets the IT team marked as carrying an instruction for the bot;
+   - any ticket the guide screen or the message screen flags. Ticket text is untrusted (ADR-005).
+2. **Grouping, in code.** By the guide a person answered with, or else by topic, from a fixed word list in the four languages (`TOPICS`, written from the tuning tickets and the runbooks' tags; the first topic a question hits wins). A question that hits no topic is counted and left out. Why: repeatable and free. A model that clusters topics would be a second paid call, and the stub can't do it.
+3. **The threshold: 3 tickets from 3 different requesters in the window.** Why:
+   - one ticket is an anecdote, and two can be chance or one person asking twice; three people asking the same thing in a week is a pattern worth a reviewer's time, and every pull request costs a review;
+   - counting requesters means one person, or one taken-over account, can't make the job draft a guide alone (ASI06).
+
+   The cost: rare questions never get a drafted guide. IT can still write one by hand. On the tuning world, which holds about 30 resolved tickets a week, no single week reaches the threshold; the 8 weeks together give 30 drafts.
+4. **Personal details are removed before the request is built.** From the world's directory: every name, email address, username, Slack id and directory id. By pattern: any email address, Slack mentions and ids, @handles, ticket and record ids, asset tags, serial numbers, MAC and IP addresses, and phone numbers or other numbers of 7 or more digits. The request also leaves out who asked, who answered, when, and which ticket. The finished request is checked again, with a stricter search for every known address and id; if anything is found, it is not sent. **Known limit:** a name that is in no directory, such as someone outside the company, is caught only when a pattern comes with it.
+5. **The tuning source.** The dataset's 235 resolved tickets are not changed. The job's tuning source gives each one a requester and a resolver from the tuning world's directory, by a hash of the ticket id. It writes their details where real tickets carry them: a Slack mention, a signature or a phone number in some messages, and names, an address and a Slack mention in every resolver's note. So the scrubber is tested on the tuning world too, not only on fakes.
+6. **Checks on each draft, in code.** A draft is proposed only if all of these pass:
+   - a strict format: 3 to 9 steps, a short title and summary, plain tags;
+   - the guide screen, unchanged and still pinned;
+   - the message screen on the title and summary, so no guide covers a reset, access or an incident;
+   - no personal detail and no marker such as [name].
+
+   A draft that fails is not proposed. The log says why as a code (`guide_screen:steering`, `personal_detail_in_draft`, ...), never as text.
+7. **The drafting model writes text, which ADR-028 keeps out of replies.** A draft is not a reply. It goes into a pull request, and its steps reach an employee only after a person approves it, word for word through the posting gate. The stub never copies a word of the questions: it returns the old guide with one closing step, or three generic steps on the topic. It proves the wiring only.
+8. **Pull requests and approval, on a mock of meridian-memory.** One pull request per draft, opened by the learning loop's GitHub App (`tier0-learning-loop[bot]`), with the code owners (`* @meridian/it-team`) asked to review. The guide file says `approved: false`. The mock keeps these rules:
+   - main is protected, and nobody pushes to it;
+   - GitHub refuses self-approval, and a bot can't approve or merge;
+   - a merge needs a code owner's approval and no code owner asking for changes;
+   - only the App's pull requests can be merged, and not one whose guide already says `approved: true`.
+
+   The merge is what approves: it writes `approved: true`, the reviewer and the date. Tests show the job's identity is refused both approve and merge, and that the job only reads, pushes its own branches and opens pull requests.
+9. **What a pull request shows:** the window, the group, the counts, the draft and the source ticket ids, so the reviewer can read the tickets in the tracker. No ticket text, because it is untrusted.
+10. **Idempotent.** A window's draft for a guide or topic is proposed once. A second run in the same week proposes nothing, even after the reviewer closed the first one. While a draft for a guide or topic is open, the job opens no other for it, in any week. New guide ids skip main and open drafts.
+11. **No scheduled workflow.** CI never runs the job, and a test fails if a workflow names it. A weekly schedule comes with a later budget and the owner's go.
+
+**Left for a later budget:**
+- a real drafting model (prompt D1 is written, not tuned; a paid run needs a budget item and the owner's go);
+- the weekly scheduled workflow;
+- a real GitHub App adapter for meridian-memory;
+- reading guides from the memory repo at a pinned commit, instead of `runbooks.json`;
+- turning each learned ticket into a regression eval (ADR-005).
+
 ## Left for later
 
 - Turning the wired picker on in a run of the agent, such as an eval. It calls the paid Sonnet picker, so it needs the owner's go and a budget.
-- The weekly job that drafts guide updates from resolved tickets (ADR-005). It runs on the stub until a later budget (ADR-037).
+- The weekly drafting job's later-budget parts: a real drafting model, the scheduled workflow and a real GitHub adapter (see "The weekly drafting job, as built").
 - Guides in German, Spanish and French.
 - **A blind-written set of clean guides,** to measure the guide screen's false flags on guides it was not built on (the owner's ruling, 2026-11-16). Code only and free. Now part of [the guide screen fix](milestone-4-guide-screen-fix.md); not built yet.
