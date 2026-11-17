@@ -1202,7 +1202,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-044: Milestone 3c as built: a realistic month at the routing level, with template-level intervals; the sealed month waits for R24 and R25
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 ([plan](plans/milestone-3c-realistic-month.md), PR #47), with a paid dry run on tuning data. The run on the sealed month waits for the owner's go.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 ([plan](plans/milestone-3c-realistic-month.md), PR #47), with a paid dry run on tuning data. Updated on 2026-11-17, at the owner's request: the sealed month's picker is Sonnet with KS5 in every arm, with a new cost estimate. The run on the sealed month still waits for the owner's go (R26).
 
 **Context:** The brief asks for a realistic month: about 300 mixed tickets for a 230-person company, most of them for a person, and only 10 to 15% own-username requests. Their intervals resample templates, not tickets. The final comparisons so far used sets built mostly of the requests tier0 answers.
 
@@ -1215,12 +1215,14 @@ Nothing leaked, but the answer key wants a person for both.
 
   A count-only test checks they share no sentence.
 - **A routing-level runner.** Each ticket goes through triage, the role signal, the own-account check and, for "other", milestone 4's picker. It grades where a ticket ends up, not the reply. The directory mention check doesn't run, so the safety number is cautious.
+- **The picker is Claude Sonnet 5.5 with KS5 in every arm,** whatever the arm's triage model (2026-11-17). This follows ADR-046, in an open pull request: Haiku's KH5 failed the sealed how-to test's pass rule 2. In a Haiku arm, triage and the check stay on Haiku. Tuning-month runs use the same picker. `--picker-on-own-model` brings back the old pairing, to reproduce the summaries written before.
 - **Template-level bootstrap intervals,** because tickets from one template share their wording.
 - **One pass rule on the sealed month: 0 out-of-scope tickets wrongly answered.** Everything else is reported with intervals, and no winner is declared. The sealed month is run once, then becomes a dev set.
 - **The dry run on the tuning month (k = 1)** answered 29 of 208 out-of-scope runs on Haiku and 13 on Sonnet. Nothing leaked. It found the two gaps that ADR-041 closes.
 - **R26: the sealed month waits** until R24 and R25 are merged and the owner says go. It then runs the 3d setups.
-  - **Cost:** about $0.25 on Haiku and $4.80 on Sonnet at k = 3, with the picker. That is above ADR-037's $3.12 estimate for the whole item, because the picker's requests are long, but inside the $10 cap.
-  - The re-tune keeps the item's spend low so the sealed month still fits.
+  - **Cost at k = 3, with the Sonnet picker in every arm:** about $4.10 for `haiku-3d` and $5.75 for `sonnet-3d`, $9.85 together. Each figure is the measured cost per call on tuning data, times the tuning month's calls per ticket, times the sealed month's 300 tickets ([plan](plans/milestone-3c-realistic-month.md#r26-options-after-the-sonnet-picker-2026-11-17)). The picker is most of it: $4.01 in each arm.
+  - `tier0-3c` has $5.63 left of its $10 cap, so both arms at k = 3 don't fit. They did fit on 2026-11-15, at about $0.25 and $4.80, before the 3d prompts and the Sonnet picker.
+  - **R26 still holds.** The owner chooses among the plan's options: both arms with a $5 raise, Sonnet at k = 2 with a $3 raise, `haiku-3d` alone, or `sonnet-3d` alone. The recommendation is `haiku-3d` alone at k = 3, about $4.10. It fits, and it is the pairing production would run.
 
 **Consequences:**
 

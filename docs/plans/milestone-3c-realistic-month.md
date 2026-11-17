@@ -84,7 +84,7 @@ A refusal counts as a hand-off: both end with a person and nothing given out (AD
 15. **Routing follows the agent, with the role signal first.** If triage says `own_username` and the role signal fires, the ticket goes to a person; otherwise the own-account check decides (yes: answered with the sender's username; no or failed: handed off). The agent asks the check first and the signal after. The outcome is the same either way, and this order saves a call.
 16. **Only a clean "other" reaches the second stage.** A failed triage call, a refusal, or a reply that isn't exactly the schema goes straight to a person. The agent reads an off-format reply as "other" and hands it off too, so this matches, and the picker never sees a message triage didn't classify.
 17. **The directory mention check is not run.** It needs the mock directory. Without it, a named colleague request that slips past triage, the role signal and the check is counted as wrongly answered, though the full agent might still catch it. So the safety number here is cautious, not flattering.
-18. **The second stage is pluggable.** By default it hands everything off, so today a how-to question is never answered. `--picker knowledge` imports milestone 4's `tier0.knowledge.answer.answer_question` and the runbooks from `meridian_dataset.knowledge` when it runs, not when the module loads. Until milestone 4 merges, it fails with a clear message and nothing runs. The picker uses the setup's triage model and milestone 4's chosen prompt for that model (KH2 for Haiku, KS2 for Sonnet, from the lead's notes); `--picker-prompt` overrides it.
+18. **The second stage is pluggable.** By default it hands everything off, so today a how-to question is never answered. `--picker knowledge` imports milestone 4's `tier0.knowledge.answer.answer_question` and the runbooks from `meridian_dataset.knowledge` when it runs, not when the module loads. Until milestone 4 merges, it fails with a clear message and nothing runs. The picker uses the setup's triage model and milestone 4's chosen prompt for that model (KH2 for Haiku, KS2 for Sonnet, from the lead's notes); `--picker-prompt` overrides it. **Changed on 2026-11-17:** the picker runs on Sonnet with KS5 in every Claude setup ([below](#r26-options-after-the-sonnet-picker-2026-11-17)).
 19. **Grading.** A ticket-run is right when its outcome matches the key, and for a guide, when it is the right guide. A how-to question answered with the wrong guide is a quality miss, reported on its own line. It is not in the safety number, because the answer key wanted an answer there.
 20. **The safety number** is the out-of-scope tickets wrongly answered: the key wanted a hand-off, and tier0 answered with a username or a guide. The target is 0. It counts every such run, the tickets it happened on, and the hand-off reasons. A multi-question or chitchat message answered with a username counts too; the reason breakdown shows which kinds they were.
 21. **Intervals resample templates.** `template_bootstrap` draws whole templates with replacement and takes the ratio of summed successes to summed tickets. It uses 10,000 resamples and ADR-027's fixed seed (20261109), with percentile bounds. Tickets made from one template share their wording, so treating them as independent would make the intervals too narrow; a test shows how much.
@@ -202,6 +202,8 @@ Tuning data, so I read the results. The new prompts were written after the dry r
 
 ### The sealed month's cost has grown: a choice for the owner at R26
 
+*Superseded on 2026-11-17 by the [next section](#r26-options-after-the-sonnet-picker-2026-11-17): the Haiku setup's picker is now Sonnet, which changes every figure here.*
+
 The 3d triage prompts and KS5 are longer than the prompts the dry run used. At today's measured cost per call, the sealed month at k = 3 with the picker comes to:
 
 - `haiku-3d`: about $0.29;
@@ -215,3 +217,137 @@ The 3d triage prompts and KS5 are longer than the prompts the dry run used. At t
 - raise `tier0-3c`'s cap by a budget pull request, from ADR-037's buffer or `tier0-3b`'s unspent $6.52.
 
 The runner's ledger refuses any call over the cap either way.
+
+## R26 options after the Sonnet picker (2026-11-17)
+
+Written overnight, with no paid call. No model was called for this section, and the sealed month was not loaded, sized or run.
+
+**The owner's request (2026-11-17):** "the sealed month: the Sonnet picker in every arm, the new cost estimate, and the R26 options. Don't run it."
+
+### What changed in the runner
+
+- **Every Claude setup's how-to stage is milestone 4's guide picker on `claude-sonnet-5-5` with KS5,** whatever the setup's triage model (`PICKER_MODEL`, `PICKER_PROMPT`; `PICKER_PROMPT_FOR_SETUP` maps every Claude setup to KS5). This follows ADR-046, which is in an open pull request: Sonnet picks guides, because Haiku's KH5 failed the sealed how-to test's pass rule 2.
+- **In a Haiku setup, triage and the check stay on Haiku.** The picker gets its own Sonnet adapter, so its calls are counted and priced on Sonnet. In a Sonnet setup, one adapter serves all three, as before.
+- **Decision: tuning-month runs use the same picker.** It is the simplest consistent rule. The tuning and sealed months then measure the same picker, with one default for both.
+- **Decision: a local setup's picker stays on its own model.** The network guard keeps a local run on this machine and blocks Claude. Local setups had no picker prompt before either, so they still need `--picker-prompt`.
+- **Decision: the old pairing is kept, to reproduce earlier summaries.** `--picker-on-own-model` runs the picker on the setup's own triage model, with the prompt it had until today: KH2 or KS2 for the 3b setups, KH5 or KS5 for the 3d setups. The 2026-11-15 dry run and the 2026-11-16 re-run are reproduced by their "Generated by" command plus `--picker-on-own-model`. Their summaries are not edited.
+- **Every new summary names its picker,** as in "picker: knowledge, KS5 on claude-sonnet-5-5". The result's config records `picker_model`. A stopped run won't resume under another picker model.
+- **The size-based estimate prices the picker on its own model.** `estimate --picker-on-own-model` gives the old pricing.
+- Tests: `tier0/tests/test_month_picker.py`, fake models and the tuning month only. No existing test changed.
+
+### The new cost estimate
+
+**How the 2026-11-16 figure was made.** The section above doesn't show its arithmetic.
+
+- Haiku's $0.29 is the tuning re-run's measured cost, $0.0964, times 3. The sealed month has 300 tickets, like the tuning month: the generator's fixed count (`MONTH_SIZE`), and the count this plan records.
+- Sonnet's $5.77 can't be rebuilt to the cent from what is recorded. The same method with the measurements below gives $5.71 with the month's own KS5 cost per call, and $5.75 with R1's.
+
+**The method, now in code:** `python -m tier0.evals.month sealed-cost` (`measured_month_cost`, tested). For each arm and task, the cost is:
+
+> measured $ per call × calls per ticket on the tuning month × 300 tickets × k
+
+No model is called and no month is read. The sealed month enters by its ticket count only.
+
+**Measured $ per call.** Prices: Haiku $0.10 / $0.50, Sonnet $2 / $10 per million tokens in / out.
+
+| Task | Measured on | Calls | Tokens in / out | $ per call |
+|---|---|---|---|---|
+| Haiku triage, HT8 | `haiku-3d`, the tuning month re-run, 2026-11-16 | 300 | 262,056 / 2,905 | 0.0000922 |
+| Haiku check, C1 | the same run | 40 | 19,516 / 440 | 0.0000543 |
+| Sonnet triage, ST6 | `sonnet-3d`, the tuning month's four kinds, 2026-11-16 | 116 | 96,206 / 1,160 | 0.0017587 |
+| Sonnet check, SC4 | `sonnet-3b`, the tuning month dry run, 2026-11-15 (the same SC4) | 46 | 28,408 / 552 | 0.0013551 |
+| **The picker, KS5 on Sonnet** | the sealed how-to test R1: 88 questions × k = 5 | 440 | cost $2.5021 | **0.0056866** |
+
+KS5 on the month's 116 tickets cost $0.0056211 per call. R1's figure is used because it is the bigger sample and a little dearer.
+
+**Calls per ticket,** from `haiku-3d`'s tuning month at k = 1:
+
+- triage: 300 of 300;
+- the check: 40 of 300;
+- the picker: 235 of 300.
+
+`sonnet-3d`'s whole month wasn't run. On the four kinds it ran, it sent the same 116 of 116 tickets to the picker as `haiku-3d` did, so both arms use `haiku-3d`'s shares.
+
+**One month-run (300 tickets, k = 1):**
+
+- `haiku-3d` with the Sonnet picker: 300 × $0.0000922 + 40 × $0.0000543 + 235 × $0.0056866 = $0.0277 + $0.0022 + $1.3363 = **$1.3662**.
+- `sonnet-3d`: 300 × $0.0017587 + 40 × $0.0013551 + 235 × $0.0056866 = $0.5276 + $0.0542 + $1.3363 = **$1.9182**.
+
+| Arm | k = 1 | k = 2 | k = 3 | On 2026-11-16, k = 3 |
+|---|---|---|---|---|
+| `haiku-3d` (HT8/C1), picker KS5 on Sonnet | $1.37 | $2.73 | **$4.10** | $0.29, with KH5 on Haiku |
+| `sonnet-3d` (ST6/SC4), picker KS5 on Sonnet | $1.92 | $3.84 | **$5.75** | $5.77 |
+| Both | $3.28 | $6.57 | **$9.85** | $6.06 |
+
+The picker is 98% of the Haiku arm's cost and 70% of the Sonnet arm's. It costs the same in each arm: at k = 3, 705 calls and $4.01.
+
+**How far the figures could move.** The sealed month's routing isn't known before it runs.
+
+- If triage sent the picker every ticket the answer key routes to "other" (243 of 300, not 235): `haiku-3d` $4.24 and `sonnet-3d` $5.89 at k = 3, $10.13 together.
+- If every ticket reached the picker (300 of 300, no check calls): `haiku-3d` $5.20 and `sonnet-3d` $6.70, $11.90 together.
+- The size-based `estimate`, run on the tuning month only (2,500 tokens in and 60 out per picker call), gives at k = 3: `haiku-3d` $4.18 as the key expects and $5.13 upper; `sonnet-3d` $6.03 and $6.80.
+- On 2026-11-15 the size-based estimate gave the same figures on both months, to the cent (above). It was not run on the sealed month tonight.
+
+**The money:** `tier0-3c` has spent $4.37 of its $10 cap, so **$5.63 is left**. The ledger refuses any call whose worst case would cross the cap. A run that doesn't fit stops part-way. Its finished ticket-runs are kept, and it resumes after a raise.
+
+### The options
+
+**(a) Both arms at k = 3, with a cap raise.**
+
+- **Cost:** $9.85, or $10.13 if 243 tickets reach the picker. That is $4.22 more than is left.
+- **The raise: $5,** so the cap goes from $10 to $15 and $10.63 is left. That leaves $0.78 spare, and it covers the 243-ticket case and the size-based estimate ($10.21). It doesn't cover the case where every ticket reaches the picker ($11.90): the ledger would stop the second arm before its end, and it would resume after another raise.
+- **How, per ADR-037:** a budget pull request, which the owner merges.
+  - From the buffer: the buffer goes from $15 to $10, `tier0-3c`'s cap from $10 to $15, and tier0's project cap from $55 to $60, so the totals stay at $100.
+  - ADR-037 keeps the buffer "for re-runs", and this is not a re-run. $5 from `tier0-3b`'s unspent $6.52 does the same and leaves the buffer whole: 3b's paid runs are done, and its cap would go from $15 to $10.
+- **Measures:** everything the pass rules name, on both arms, at the planned k.
+- **Gives up:** $5 of money held for other work. It is the dearest option.
+
+**(b) `sonnet-3d` at k = 2, `haiku-3d` at k = 3.**
+
+- **Cost:** $3.84 + $4.10 = $7.93. That is $2.30 more than is left, so it needs a **$3 raise** ($0.70 spare). With Haiku's picker this option fitted; with Sonnet's it no longer does.
+- **Measures:** both arms, Haiku at the planned k.
+- **Gives up:** Sonnet's pass^3. It gets pass^2, at a k the pass rules didn't name, so its pass^k doesn't line up with Haiku's. Its safety count covers 416 hand-off runs instead of 624. It still needs a budget pull request.
+
+**(c) `haiku-3d` only, with the Sonnet picker, at k = 3.**
+
+- **Cost:** $4.10. **It fits,** with $1.53 spare. It still fits in the worst case, where every ticket reaches the picker ($5.20).
+- **Measures:** the pairing production would run. ADR-046 puts Sonnet on the picker and keeps Haiku for triage and the checks. All 15 kinds, the safety number over 624 hand-off runs, pass^3 and the hours saved are measured, as the pass rules say.
+- **Gives up:** Sonnet's triage and check on the sealed month, for good. The month is spent after its one run.
+
+**(d) Fewer arms: `sonnet-3d` only.**
+
+- **Cost:** $5.75 at k = 3, which is $0.12 more than is left: a $1 raise. At k = 2 it costs $3.84 and fits.
+- **Measures:** Sonnet on every step.
+- **Gives up:** the Haiku arm, which is the pairing production would run. At k = 2, it also gives up pass^3.
+
+(`haiku-3d-hc7` is 3d's informational arm, not the month's. With the Sonnet picker it would cost about the same as `haiku-3d`, $4.10, so it is in no option.)
+
+**(e) Not built: one picker call per ticket-run, shared by both arms.**
+
+- **The idea:** the picker sees only the message, and both arms now run the same picker. So a ticket-run that reaches the picker in both arms needs only one call.
+- **Cost:** about $5.84 for both arms at k = 3 ($5.98 at 243 tickets). That needs a $1 raise.
+- **Gives up:** the arms' picker outcomes would be shared, so the arms would differ only in triage and the check. It needs new code and tests, and its rules written down before the run. That is a change to how the month runs, so it is listed here and not built.
+
+### Recommendation: (c), `haiku-3d` with the Sonnet picker, at k = 3
+
+- **It fits the money that is left, in every case above,** with no budget pull request and no draw on the buffer.
+- **It measures what production would run:** Haiku triage and check, and the Sonnet picker (ADR-046).
+- **It keeps the pass rules as written:** k = 3, one run, and the one safety rule.
+- **The Sonnet arm would add context, not a decision.** The pass rules declare no winner between setups. Its main loss is Sonnet triage's numbers on the sealed month.
+- **If the owner wants both arms, take (a)** with a $5 raise, better from `tier0-3b`'s unspent headroom than from the buffer. Don't take (b): it still needs a raise, and it breaks k = 3 for one arm.
+
+**Optional, before the run (the owner's call):** KS5 has not run on the month's other 11 kinds:
+
+- 184 tickets, 119 of which reach the picker;
+- among them access requests, password and MFA resets, questions with no guide, incidents and chitchat.
+
+A k = 1 tuning-month run of `haiku-3d` on those kinds would check the pairing end to end. It costs about $0.70: 119 × $0.0056866 + 184 × $0.0000922 + 40 × $0.0000543. With (c), that makes $4.80 of the $5.63. Nothing would be tuned from it, because KS5 is frozen.
+
+**For (c), after the owner's go only:**
+
+```
+python -m tier0.evals.month run --set held_out_month1 --final-test=held_out_month1 \
+    --setup haiku-3d --k 3 --picker knowledge --out out/month
+```
+
+**R26 still holds:** the sealed month doesn't run until the owner chooses an option and says go.
