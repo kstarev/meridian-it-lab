@@ -37,7 +37,7 @@ def seal_v3(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_only_v5_is_sealed_and_the_spent_sets_run_as_dev_sets(tmp_path: Path) -> None:
-    assert frozenset({"held_out_v5"}) == sealed.SEALED_POOLS
+    assert frozenset({"held_out_v5", "held_out_v6"}) == sealed.SEALED_POOLS
     spent = (HOLDOUT_SEED, HOLDOUT_V2_SEED, HOLDOUT_V3_SEED, HOLDOUT_V4_SEED, HOLDOUT_V4B_SEED)
     for seed in (DEFAULT_SEED, *spent):
         require_unsealed(generate(seed))
