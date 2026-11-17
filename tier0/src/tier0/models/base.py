@@ -49,7 +49,9 @@ class ModelRequest:
 
 @dataclass(frozen=True, slots=True)
 class ModelResponse:
-    """What came back. `finish_reason` is "stop", "length", "refusal" or the raw provider value."""
+    """What came back. `finish_reason` is "stop", "length", "refusal" or the raw provider value.
+    `input_tokens` is the input billed at the full rate; with prompt caching on, tokens written
+    to or read from the cache are in `cache_write_tokens` and `cache_read_tokens` instead."""
 
     text: str
     model: str
@@ -57,6 +59,8 @@ class ModelResponse:
     output_tokens: int
     finish_reason: str
     response_id: str | None
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 class ModelError(Exception):

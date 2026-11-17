@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from tier0.models.budget import PROJECT, Budget, load_budget
-from tier0.models.pricing import rate_for
+from tier0.models.pricing import tokens_usd
 from tier0.secrets import REPO_ROOT
 
 DEFAULT_LEDGER = REPO_ROOT / "out" / "claude-spend.jsonl"
@@ -108,12 +108,25 @@ class SpendLedger:
                     f"cost up to ${next_call_usd:.4f}, cap ${cap:.2f} (ledger {self.path})"
                 )
 
-    def record(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def record(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        *,
+        cache_write_tokens: int = 0,
+        cache_read_tokens: int = 0,
+    ) -> float:
         """Write the call down. This runs after money is spent, so it never raises on a
         model it can't price: an unknown id (a fallback, a dated id) is priced at the
         highest known rate and logged."""
-        (per_in, per_out), known = rate_for(model)
-        cost = input_tokens * per_in / 1_000_000 + output_tokens * per_out / 1_000_000
+        cost, known = tokens_usd(
+            model,
+            input_tokens,
+            output_tokens,
+            cache_write_tokens=cache_write_tokens,
+            cache_read_tokens=cache_read_tokens,
+        )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         entry: dict[str, object] = {
             "at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -122,6 +135,10 @@ class SpendLedger:
             "output_tokens": output_tokens,
             "cost_usd": round(cost, 8),
         }
+        if cache_write_tokens:
+            entry["cache_write_tokens"] = cache_write_tokens
+        if cache_read_tokens:
+            entry["cache_read_tokens"] = cache_read_tokens
         if self.item:
             entry["budget_item"] = self.item
         if not known:

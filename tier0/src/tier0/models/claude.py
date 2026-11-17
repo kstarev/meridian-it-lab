@@ -11,6 +11,11 @@ Ollama runs are; reports say so. The key comes from `.env` only (tier0.secrets):
 client is built with it explicitly, with the shell's Anthropic variables hidden, and
 only on the first call. Every paid call is checked against the spend cap first and
 recorded in the spend ledger after (tier0.models.spend).
+
+Prompt caching is off unless `cache_system=True`. Then the system prompt is sent as one text
+block with a 5-minute cache marker, so calls that share a system prompt within 5 minutes read
+it from the cache; the user text is never cached. The worst case before the call prices the
+input as a cache write, and the ledger records cache writes and reads at their own rates.
 """
 
 import contextlib
@@ -69,10 +74,13 @@ class ClaudeModel:
     supports_seed = False
 
     def describe(self) -> dict[str, str]:
-        return {
+        info = {
             "model_id": self.model,
             "sampling": "API default: the Claude API accepts no temperature and no seed",
         }
+        if self._cache_system:
+            info["prompt_cache"] = "system prompt, 5-minute entries"
+        return info
 
     def __init__(
         self,
@@ -81,11 +89,13 @@ class ClaudeModel:
         effort: str = DEFAULT_EFFORT,
         client: Any | None = None,
         ledger: SpendLedger | None = None,
+        cache_system: bool = False,
     ) -> None:
         self.model = model
         self._effort = effort
         self._client = client
         self._ledger = ledger if ledger is not None else SpendLedger()
+        self._cache_system = cache_system
 
     def __repr__(self) -> str:  # never shows the client, and so never the key
         return f"ClaudeModel(model={self.model!r}, effort={self._effort!r})"
@@ -98,7 +108,12 @@ class ClaudeModel:
             json.dumps([request.system, request.user, request.json_schema]).encode("utf-8")
         )
         self._ledger.check(
-            worst_case_usd(self.model, request_bytes + INPUT_OVERHEAD_TOKENS, request.max_tokens)
+            worst_case_usd(
+                self.model,
+                request_bytes + INPUT_OVERHEAD_TOKENS,
+                request.max_tokens,
+                cache_write=self._cache_system,
+            )
         )
         if self._client is None:
             with _without_sdk_env():
@@ -107,10 +122,15 @@ class ClaudeModel:
         output_config: dict[str, Any] = {"effort": self._effort}
         if request.json_schema is not None:
             output_config["format"] = {"type": "json_schema", "schema": request.json_schema}
+        system: str | list[dict[str, Any]] = request.system
+        if self._cache_system:
+            system = [
+                {"type": "text", "text": request.system, "cache_control": {"type": "ephemeral"}}
+            ]
         params: dict[str, Any] = {
             "model": self.model,
             "max_tokens": request.max_tokens,
-            "system": request.system,
+            "system": system,
             "messages": [{"role": "user", "content": request.user}],
             "output_config": output_config,
         }
@@ -129,8 +149,14 @@ class ClaudeModel:
                 f"Claude request failed: {type(exc).__name__} "
                 f"{getattr(exc, 'status_code', '')}".rstrip()
             ) from exc
+        cache_write = int(getattr(response.usage, "cache_creation_input_tokens", 0) or 0)
+        cache_read = int(getattr(response.usage, "cache_read_input_tokens", 0) or 0)
         self._ledger.record(
-            str(response.model), response.usage.input_tokens, response.usage.output_tokens
+            str(response.model),
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+            cache_write_tokens=cache_write,
+            cache_read_tokens=cache_read,
         )
 
         finish_reason = _FINISH_REASONS.get(response.stop_reason, str(response.stop_reason))
@@ -146,6 +172,8 @@ class ClaudeModel:
             output_tokens=response.usage.output_tokens,
             finish_reason=finish_reason,
             response_id=response.id,
+            cache_write_tokens=cache_write,
+            cache_read_tokens=cache_read,
         )
 
 

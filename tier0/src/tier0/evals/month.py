@@ -26,6 +26,9 @@ The sealed set (held_out_month1) runs only with `--final-test=held_out_month1`, 
 name, at its fixed seed, and its result files hold ids, kinds and outcomes, never text. A
 real run of it is also refused unless it is one of the two frozen arms (haiku-3d2, sonnet-3d2)
 with `--picker knowledge` and `--k 3`.
+
+`run --prompt-cache` caches each call's system prompt for 5 minutes on Claude setups, writes
+the result under a name ending in `-cache`, and is refused on a sealed set.
 """
 
 import argparse
@@ -249,6 +252,8 @@ class CountedModel:
         self.failed: Counter[str] = Counter()
         self.input_tokens: Counter[str] = Counter()
         self.output_tokens: Counter[str] = Counter()
+        self.cache_write_tokens: Counter[str] = Counter()
+        self.cache_read_tokens: Counter[str] = Counter()
 
     @property
     def temperature(self) -> float | None:
@@ -275,6 +280,8 @@ class CountedModel:
             raise
         self.input_tokens[request.task] += response.input_tokens
         self.output_tokens[request.task] += response.output_tokens
+        self.cache_write_tokens[request.task] += getattr(response, "cache_write_tokens", 0)
+        self.cache_read_tokens[request.task] += getattr(response, "cache_read_tokens", 0)
         return response
 
     def describe(self) -> dict[str, str]:
@@ -902,11 +909,31 @@ def check_sealed_plan(
     return None
 
 
+def check_prompt_cache(set_name: str, setup: Setup, prompt_cache: bool) -> str | None:
+    """A reason to refuse, or None. The cache is for Claude setups, and a sealed set was
+    planned and costed without it."""
+    if not prompt_cache:
+        return None
+    if setup.provider != "claude":
+        return f"--prompt-cache is for Claude setups; {setup.name} runs on {setup.provider}"
+    if set_name in SEALED_SETS:
+        return f"{set_name} was run without the prompt cache; it never runs with --prompt-cache"
+    return None
+
+
 def result_stem(
-    set_name: str, setup: str, picker: str, k: int, seed: int, kinds: Sequence[str] = ()
+    set_name: str,
+    setup: str,
+    picker: str,
+    k: int,
+    seed: int,
+    kinds: Sequence[str] = (),
+    *,
+    prompt_cache: bool = False,
 ) -> str:
     stem = f"month-{set_name}-{setup}-picker-{picker}-k{k}-seed{seed}"
-    return stem + (f"-kinds-{'-'.join(sorted(kinds))}" if kinds else "")
+    stem += f"-kinds-{'-'.join(sorted(kinds))}" if kinds else ""
+    return stem + ("-cache" if prompt_cache else "")
 
 
 def only_kinds(month: Month, kinds: Sequence[str]) -> Month:
@@ -1085,9 +1112,35 @@ def render(result: dict[str, Any], command: str) -> str:
         "- Model calls: "
         + (", ".join(f"{task} {n:,}" for task, n in c["calls"].items()) or "none")
         + f". Cost from the reported tokens: ${c['cost_usd']:.4f}.",
+        *_cache_lines(c),
         "",
     ]
     return "\n".join(lines)
+
+
+def _cache_lines(c: Mapping[str, Any]) -> list[str]:
+    """The prompt-cache bullet, only for a run that used the cache."""
+    if not c.get("prompt_cache"):
+        return []
+    tasks = list(c["calls"])
+    cols = {
+        key: {task: c.get(key, {}).get(task, 0) for task in tasks}
+        for key in ("input_tokens", "cache_write_tokens", "cache_read_tokens")
+    }
+    plain, written, read = (sum(cols[key].values()) for key in cols)
+    total = plain + written + read
+    share = read / total if total else 0.0
+    by_task = "; ".join(
+        f"{task} {cols['input_tokens'][task]:,} / {cols['cache_write_tokens'][task]:,} / "
+        f"{cols['cache_read_tokens'][task]:,}"
+        for task in tasks
+    )
+    return [
+        "- Prompt cache on: each call's system prompt is cached for 5 minutes. Input tokens: "
+        f"{plain:,} at the full rate, {written:,} written to the cache and {read:,} read from it "
+        f"({share:.0%} of the input was read from the cache). By task: {by_task} "
+        "(full rate / written / read)."
+    ]
 
 
 def _command(args: argparse.Namespace) -> str:
@@ -1108,6 +1161,8 @@ def _command(args: argparse.Namespace) -> str:
         parts.append(f"--final-test={args.final_test}")
     if getattr(args, "kinds", None):
         parts.append(f"--kinds {','.join(sorted(set(args.kinds.split(','))))}")
+    if getattr(args, "prompt_cache", False):
+        parts.append("--prompt-cache")
     parts.append(f"--out {args.out.as_posix()}")
     return " ".join(parts)
 
@@ -1171,6 +1226,12 @@ def main(
         metavar="SET",
         help="unseal exactly this set for its one final test, by its own name",
     )
+    r.add_argument(
+        "--prompt-cache",
+        action="store_true",
+        help="Claude setups only: cache each call's system prompt for 5 minutes; the result's "
+        "name ends in -cache",
+    )
     r.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "sealed-cost":
@@ -1203,6 +1264,8 @@ def main(
 
     args.seed = DEFAULT_SEEDS[args.set] if args.seed is None else args.seed
     refusal = check_unseal(args.set, args.final_test, args.seed)
+    if refusal is None:
+        refusal = check_prompt_cache(args.set, setup, args.prompt_cache)
     if refusal is None and make_model is None:
         # A real run only: tests with fake models may still run a sealed set any way they need.
         refusal = check_sealed_plan(
@@ -1225,7 +1288,9 @@ def main(
     if unknown:
         print(f"refused: unknown ticket kinds: {', '.join(unknown)}", file=sys.stderr)
         return 2
-    stem = result_stem(args.set, setup.name, args.picker, args.k, args.seed, kinds)
+    stem = result_stem(
+        args.set, setup.name, args.picker, args.k, args.seed, kinds, prompt_cache=args.prompt_cache
+    )
     out_json = args.out / f"{stem}.json"
     out_md = args.out / f"{stem}.md"
     out_runs = args.out / f"{stem}.runs.jsonl"
@@ -1236,7 +1301,10 @@ def main(
     month = month_for(args.set, seed=args.seed)
     if kinds:
         month = only_kinds(month, kinds)
-    model = CountedModel((make_model or setup.factory())())
+    cache = args.prompt_cache
+    model = CountedModel(
+        (make_model or (setup.factory(prompt_cache=True) if cache else setup.factory()))()
+    )
     picker = NONE_PICKER
     picker_model: str | None = None
     picker_adapter = model
@@ -1246,7 +1314,13 @@ def main(
         if picker_model != setup.triage_model:
             # Its own adapter, so its calls are counted and priced on its own model.
             name = picker_model
-            built = make_picker_model or make_model or (lambda: ClaudeModel(model=name))
+            built = make_picker_model or make_model
+            if built is None:
+                built = (
+                    (lambda: ClaudeModel(model=name, cache_system=True))
+                    if cache
+                    else (lambda: ClaudeModel(model=name))
+                )
             picker_adapter = CountedModel(built())
         version = args.picker_prompt or picker_prompt_for(setup, own_model=own)
         try:
@@ -1281,9 +1355,13 @@ def main(
         "bootstrap_samples": samples,
         "bootstrap_seed": BOOTSTRAP_SEED,
     }
+    if cache:
+        config["prompt_cache"] = True
     header = {key: config[key] for key in ("set", "seed", "month_sha256", "setup", "picker", "k")}
     header["picker_prompt_sha256"] = config["picker_prompt_sha256"]
     header["picker_model"] = picker_model
+    if cache:
+        header["prompt_cache"] = True
     args.out.mkdir(parents=True, exist_ok=True)
     done = _read_done(out_runs, header)
     if not out_runs.exists():
@@ -1313,6 +1391,8 @@ def main(
     failed: Counter[str] = Counter()
     tokens_in: Counter[str] = Counter()
     tokens_out: Counter[str] = Counter()
+    cache_written: Counter[str] = Counter()
+    cache_read: Counter[str] = Counter()
     for m in counted:
         for task in m.calls:
             if task == "own_account_check":
@@ -1322,11 +1402,20 @@ def main(
             else:
                 name = setup.triage_model
             # The model's own provider: a local or fake model costs nothing.
-            usd += cost_usd(m.provider, name, m.input_tokens[task], m.output_tokens[task])
+            usd += cost_usd(
+                m.provider,
+                name,
+                m.input_tokens[task],
+                m.output_tokens[task],
+                cache_write_tokens=m.cache_write_tokens[task],
+                cache_read_tokens=m.cache_read_tokens[task],
+            )
         calls.update(m.calls)
         failed.update(m.failed)
         tokens_in.update(m.input_tokens)
         tokens_out.update(m.output_tokens)
+        cache_written.update(m.cache_write_tokens)
+        cache_read.update(m.cache_read_tokens)
     config |= {
         "calls": {task: calls[task] for task in sorted(calls)},
         "failed_calls": dict(failed),
@@ -1334,6 +1423,9 @@ def main(
         "output_tokens": dict(tokens_out),
         "cost_usd": round(usd, 6),
     }
+    if cache:
+        config["cache_write_tokens"] = {task: cache_written[task] for task in config["calls"]}
+        config["cache_read_tokens"] = {task: cache_read[task] for task in config["calls"]}
     result = {
         "config": config,
         "scores": scores,
