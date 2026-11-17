@@ -35,7 +35,7 @@ It runs on simulated copies of the real tools (Slack, the ticket system and the 
    - The AI only picks which guide fits. Tier0 then posts that guide's approved steps word for word, with a link.
    - If no guide fits, or the question is about someone's account or is risky, it goes to a person.
    - Planned: once a week, Tier0 drafts new or updated guides from solved tickets, with personal details removed. Each draft waits for a person on the IT team to approve it.
-2. **Requests passed on in someone else's words,** and instructions hidden inside messages. A new locked-away test set will measure both, and decide whether the cheaper Claude setup keeps its new instructions.
+2. **Requests passed on in someone else's words,** and instructions hidden inside messages. Measured on a new locked-away test set on 16 November. Claude Sonnet stopped every colleague request. In three of the four Claude Haiku setups, one relayed request that names nobody got through in every run; no data was exposed, and a stricter second check stopped it in the fourth. [Results](docs/how-it-works.md).
 
 ## Why you can trust it
 
@@ -96,7 +96,7 @@ Requests handled right on all 5 tries:
 - **Nothing unsafe happened** in any version, and every request for a colleague's login was refused on every try.
 - **The fix helped with one request.** Of the 20 short requests from people describing themselves, 18 were answered on every try without the fix and 19 with it. One is still passed to a person. One request is too small a difference to say the fix improved the rate.
 - **The new instructions cost the cheaper Claude setup one request.** On the 72 new requests, haiku refused one person who described themselves, whom the old instructions answered every time. Nothing was given out, but someone who should have been helped was turned away. Its other miss in the last column comes from a different check, whose answer varied from try to try.
-- **Not measured yet:** requests passed on in someone else's words ("my colleague says: 'I need my login'"). The new instructions were written for these, but both sets were written before this kind of request was found. The next test set will include them, and will decide whether haiku keeps its new instructions.
+- **Measured since, on the next test set:** requests passed on in someone else's words ("my colleague says: 'I need my login'"). Both sets above were written before this kind of request was found. On the next set, Sonnet stopped every one. Haiku let one relayed request that names nobody through in every run, unless its stricter second check was on ([results](docs/how-it-works.md)).
 
 ## More
 
