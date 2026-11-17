@@ -886,10 +886,10 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 
 | Item | What it pays for | Estimate | Cap | How the estimate is built |
 |---|---|---|---|---|
-| `tier0-3b` | Harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, the new sealed blind held-out v4 (ADR-033) | $3.31 | $15 | 2 tuning rounds × $0.99 (3a's tuning cost × 1.5 for a larger, harder set) + v1–v3 dev sets at 54 × k=3 × $0.00174 = $0.85 + v4 at 54 × k=5 × $0.00174 = $0.47 |
+| `tier0-3b` | Harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, the new sealed blind held-out v4 (ADR-033) | $3.31 | $10 | 2 tuning rounds × $0.99 (3a's tuning cost × 1.5 for a larger, harder set) + v1–v3 dev sets at 54 × k=3 × $0.00174 = $0.85 + v4 at 54 × k=5 × $0.00174 = $0.47 |
 | `tier0-m4-knowledge` | Milestone 4: tuning the guide picker, then the sealed blind how-to test (ADR-035) | $8.23 | $20 | Picker call ~2,500 in / 60 out: Sonnet $0.0056, Haiku $0.00028. Tuning 200 tickets × 5 versions = $5.88; test 80 questions × k=5 = $2.35 |
 | `tier0-3d` | 3d's new ticket types, prompt injection included, tuning then the test set | $2.86 | $10 | Messages 1.5× longer, $0.0026 per ticket-run. Tuning 120 × 5 = $1.56; test 100 × k=5 = $1.30 |
-| `tier0-3c` | 3c, the realistic month, ~300 tickets | $3.12 | $10 | $0.0026 per ticket-run. Month 300 × k=3 = $2.34; tuning 100 templates × 3 = $0.78 |
+| `tier0-3c` | 3c, the realistic month, ~300 tickets | $3.12 | $15 | $0.0026 per ticket-run. Month 300 × k=3 = $2.34; tuning 100 templates × 3 = $0.78 |
 | `aac-model-comparison` | Haiku, Sonnet and Opus 5.5 on the tuning world at k=3 (AAC-006) | $2.03 | $12 | 3 × the measured $0.677 |
 | `aac-m7-final-score` | The final held-out score, once, with the chosen model and frozen prompts (AAC-010) | $1.37 | $8 | Up to 3× the tuning world's 91 calls on the dearest model (Opus, $0.00495 each) = $1.35, + the two plan summaries |
 | `aac-red-team` | A red-team set reusing 3d's prompt-injection cases inside titles, names and exports | $1.34 | $10 | 60 cases × k=3 × all three models at $0.00744 per case-run |
@@ -907,6 +907,7 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
   - **2026-11-15: the owner approved `tier0-m4-knowledge`, `tier0-3d` and `tier0-3c`, in one pull request.** The approval covers tuning, screening and dev-set runs only. Every final run on a sealed set still needs the owner's go before it starts.
   - The ledger can't tell a tuning call from a final run: once an item is approved, it pays for either. So that limit is held by this record and by the seal, not by the budget file. A sealed set runs only when its own name is passed to unseal it (ADR-029), and the tuning agent passes it only after the owner's go.
   - **2026-11-16: the owner approved `aac-m7-final-score` and `aac-red-team`, in one pull request** (M7-R1 in AAC-013, and the red team's R13 in AAC-015). Each item's paid run is still dispatched by hand, behind the `access-ai` environment's approval, and only after the owner's go. The M7 run waits for the safety counts (M7-R14), and the red-team run waits for its workflow (R22).
+  - **2026-11-17: the owner moved $5 from `tier0-3b`'s unspent cap to `tier0-3c`, for the sealed month (R26 (a)).** `tier0-3b` now has a $10 cap, $8.48 spent, and stays unapproved. `tier0-3c` now has a $15 cap, $4.37 spent. The tier0 project cap stays at $55, and the buffer is untouched. The month still needs the owner's go, after held-out v6 has run (ADR-047).
 - **The buffer** belongs to no item, so no call can draw on it directly. A re-run that needs it is paid by a pull request that moves money from the buffer to that item's cap. The test keeps the totals at $100.
 - **2026-12-14, the leftover goes to repeats.** On 2026-12-14, a pull request re-plans what is unspent: the buffer, plus each item's unused headroom. It goes to extra repeats (higher k) for tighter intervals, item by item, in the order below. An item whose paid run can't finish by 2026-12-17 gives its money back to that plan.
 - **Order: paid runs first, code-only work after.** Each item's paid run goes as early as its inputs allow. Work that needs no paid call is moved after 2026-12-17: tier0's kill switch, rate limit and verification ladder (3b), the weekly drafting job (milestone 4, which runs on the stub until a later budget), and the Access results page (M7).
@@ -1223,6 +1224,7 @@ Nothing leaked, but the answer key wants a person for both.
   - **Cost at k = 3, with the Sonnet picker in every arm:** about $4.10 for `haiku-3d` and $5.75 for `sonnet-3d`, $9.85 together. Each figure is the measured cost per call on tuning data, times the tuning month's calls per ticket, times the sealed month's 300 tickets ([plan](plans/milestone-3c-realistic-month.md#r26-options-after-the-sonnet-picker-2026-11-17)). The picker is most of it: $4.01 in each arm.
   - `tier0-3c` has $5.63 left of its $10 cap, so both arms at k = 3 don't fit. They did fit on 2026-11-15, at about $0.25 and $4.80, before the 3d prompts and the Sonnet picker.
   - **R26 still holds.** The owner chooses among the plan's options: both arms with a $5 raise, Sonnet at k = 2 with a $3 raise, `haiku-3d` alone, or `sonnet-3d` alone. The recommendation is `haiku-3d` alone at k = 3, about $4.10. It fits, and it is the pairing production would run.
+  - **R26 ruled (the owner, 2026-11-17): option (a), both arms at k = 3.** `tier0-3c`'s cap is raised by $5, from `tier0-3b`'s unspent amount (ADR-037). No arm pairs Haiku with C1 (ADR-047). The month waits until held-out v6 has run, then uses the Haiku setup v6 supports, with HC7 and the Sonnet picker. It doesn't run without the owner's go.
 
 **Consequences:**
 

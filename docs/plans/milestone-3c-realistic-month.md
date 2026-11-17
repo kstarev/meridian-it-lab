@@ -350,4 +350,9 @@ python -m tier0.evals.month run --set held_out_month1 --final-test=held_out_mont
     --setup haiku-3d --k 3 --picker knowledge --out out/month
 ```
 
-**R26 still holds:** the sealed month doesn't run until the owner chooses an option and says go.
+## R26, ruled (the owner, 2026-11-17)
+
+- **Option (a): both arms at k = 3.** The estimate is about $9.85 with the Sonnet picker in every arm.
+- **The budget:** `tier0-3c`'s cap goes from $10 to $15, with the $5 moved from `tier0-3b`'s unspent amount, in a budget pull request (ADR-037). With $4.37 spent, that leaves $10.63.
+- **No arm pairs Haiku with C1** ([ADR-047](../decisions.md)). The month waits until held-out v6 has run, then uses the Haiku setup that v6 supports, with HC7 and the Sonnet picker (KS5). The arm's change comes in its own pull request, after v6's result, with the cost measured again.
+- **It doesn't run yet.** The run needs the owner's go.
