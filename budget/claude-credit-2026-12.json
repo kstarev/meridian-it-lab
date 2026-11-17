@@ -12,7 +12,7 @@
     {
       "id": "tier0-3b",
       "project": "tier0",
-      "cap_usd": 15,
+      "cap_usd": 10,
       "estimate_usd": 3.31,
       "what": "3b: harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, then the new sealed blind held-out v4 at k=5",
       "approved": false
@@ -36,7 +36,7 @@
     {
       "id": "tier0-3c",
       "project": "tier0",
-      "cap_usd": 10,
+      "cap_usd": 15,
       "estimate_usd": 3.12,
       "what": "3c: the realistic month (~300 tickets from at least 100 blind templates) at k=3",
       "approved": true

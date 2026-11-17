@@ -23,6 +23,7 @@ IN_WINDOW = datetime(2026, 12, 17, 23, 59, tzinfo=UTC)
 # and was set back to unapproved the same day so the rest of its cap can't be spent.
 # tier0-3b (schedule item 2) was approved on 2026-11-15, spent $8.48 of its $15 on milestone
 # 3b's tuning and paired run, and was set back to unapproved the same day (ADR-039).
+# On 2026-11-17 the owner moved $5 of its unspent cap to tier0-3c, for the sealed month (R26).
 # tier0-m4-knowledge, tier0-3d and tier0-3c were approved together on 2026-11-15, for tuning,
 # screening and dev-set runs only: a final run on a sealed set still needs the owner's go.
 # aac-m7-final-score and aac-red-team were approved together on 2026-11-16, in one pull request
