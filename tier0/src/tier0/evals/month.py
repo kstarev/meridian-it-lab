@@ -83,9 +83,10 @@ from tier0.roles import role_reference
 # The default Haiku setup since ADR-048 (2026-11-17): HT9/HC7 with part 2's Tier C handling.
 # R25 lives in its triage prompt.
 DEFAULT_SETUP = "haiku-3d2"
-# The budget item that pays for the month (ADR-037). A Claude run charged to any other item
-# is refused before the first call.
-BUDGET_ITEM = "tier0-3c"
+# The budget item that pays for a month run (ADR-037). A Claude run charged to any other item
+# is refused before the first call. It is tier0-3e since ADR-050 (2026-11-17): the picker fix
+# after the sealed month's fail. The runs up to that sealed month were paid by tier0-3c.
+BUDGET_ITEM = "tier0-3e"
 
 # --- the estimate's assumptions (no model is called) -----------------------------------------
 BYTES_PER_TOKEN = 3.5  # UTF-8 bytes per token, a cautious average for these languages
@@ -856,7 +857,7 @@ def render_sealed_costs(costs: Mapping[str, Mapping[int, dict[str, Any]]]) -> st
 
 
 def check_budget_item(setup: Setup, env: Mapping[str, str]) -> str | None:
-    """A reason to refuse, or None. A Claude month run must be charged to tier0-3c."""
+    """A reason to refuse, or None. A Claude month run must be charged to BUDGET_ITEM."""
     if setup.provider != "claude":
         return None
     item = env.get(ITEM_ENV)

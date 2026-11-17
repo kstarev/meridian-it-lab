@@ -29,10 +29,13 @@ IN_WINDOW = datetime(2026, 12, 17, 23, 59, tzinfo=UTC)
 # aac-m7-final-score and aac-red-team were approved together on 2026-11-16, in one pull request
 # (M7-R1 and the red team's R13): each paid run still needs the owner's go and the access-ai
 # environment's approval.
+# tier0-3e was created and approved on 2026-11-17 (ADR-050), for the picker fix after the sealed
+# month's fail: dev and tuning runs, and one run of the next blind month with the owner's go.
 APPROVED = {
     "tier0-m4-knowledge",
     "tier0-3d",
     "tier0-3c",
+    "tier0-3e",
     "aac-m7-final-score",
     "aac-red-team",
 }
@@ -53,9 +56,11 @@ def test_the_budget_file_splits_the_credit_as_the_owner_decided():
     raw = json.loads(FILE.read_text(encoding="utf-8"))
     assert raw["credit_usd"] == 100
     # 2026-11-17: $3 moved from the buffer to tier0-3c, for the tuning-month rehearsal and the
-    # sealed month. The split was tier0 55, access 30 and a buffer of 15.
-    assert raw["projects"] == {"tier0": 58, "access": 30}
-    assert raw["buffer_usd"] == 12
+    # sealed month. The split was tier0 55, access 30 and a buffer of 15, then 58, 30 and 12.
+    # 2026-11-17, later (ADR-050): tier0-3e gets $15: $9 of aac-model-comparison's unspent cap
+    # (12 to 3), $1 of tier0-3b's (10 to 9) and $5 from the buffer (12 to 7).
+    assert raw["projects"] == {"tier0": 72, "access": 21}
+    assert raw["buffer_usd"] == 7
     assert raw["paid_until"] == "2026-12-17"
     assert raw["credit_expires"] == "2026-12-18T00:00:00Z"
     assert "oauth-radar" not in json.dumps(raw)  # Shadow AI Radar gets nothing from this credit
@@ -63,7 +68,7 @@ def test_the_budget_file_splits_the_credit_as_the_owner_decided():
     assert sum(b.projects.values()) + b.buffer_usd == b.credit_usd
     # tier0's items in ADR-035's order: 3b, milestone 4, 3d, 3c.
     order = [i["id"] for i in raw["items"] if i["project"] == "tier0"]
-    assert order == ["tier0-3b", "tier0-m4-knowledge", "tier0-3d", "tier0-3c"]
+    assert order == ["tier0-3b", "tier0-m4-knowledge", "tier0-3d", "tier0-3c", "tier0-3e"]
     assert b.project_items("access") == {
         "aac-model-comparison",
         "aac-m7-final-score",

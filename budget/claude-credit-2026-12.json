@@ -3,16 +3,16 @@
   "credit_usd": 100,
   "credit_expires": "2026-12-18T00:00:00Z",
   "paid_until": "2026-12-17",
-  "buffer_usd": 12,
+  "buffer_usd": 7,
   "projects": {
-    "tier0": 58,
-    "access": 30
+    "tier0": 72,
+    "access": 21
   },
   "items": [
     {
       "id": "tier0-3b",
       "project": "tier0",
-      "cap_usd": 10,
+      "cap_usd": 9,
       "estimate_usd": 3.31,
       "what": "3b: harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, then the new sealed blind held-out v4 at k=5",
       "approved": false
@@ -42,9 +42,17 @@
       "approved": true
     },
     {
+      "id": "tier0-3e",
+      "project": "tier0",
+      "cap_usd": 15,
+      "estimate_usd": 14.4,
+      "what": "3e: the picker fix after the sealed month's fail: candidates compared on dev sets with the prompt cache on, a rehearsal on the tuning month, then the new blind month (held_out_month2) once",
+      "approved": true
+    },
+    {
       "id": "aac-model-comparison",
       "project": "access",
-      "cap_usd": 12,
+      "cap_usd": 3,
       "estimate_usd": 2.03,
       "what": "Haiku, Sonnet and Opus 5.5 compared on the tuning world at k=3 (AAC-006)",
       "approved": false
