@@ -1,6 +1,6 @@
 # Plan: milestone 3d, part 2: password and MFA resets, same-day repeats, and messages with several questions (budget item `tier0-3d`)
 
-**Date:** 2026-11-17 · **Status:** Built, sealed and tuned overnight on 2026-11-16/17: phase A with no paid call; held-out v6 sealed; tuning on tuning data for $1.26. The final run on v6 waits for the owner's go. · **Builds on:** [part 1's plan](milestone-3d-injection-relayed.md) (R2's result), [ADR-026](../decisions.md), [ADR-029](../decisions.md), [ADR-030](../decisions.md), [ADR-032](../decisions.md), [ADR-041](../decisions.md), [ADR-043](../decisions.md), [ADR-045](../decisions.md)
+**Date:** 2026-11-17 · **Status:** Built, sealed and tuned overnight on 2026-11-16/17: phase A with no paid call; held-out v6 sealed; tuning on tuning data for $1.26. **The final run on v6 ran on 2026-11-17, with the owner's go; the owner's rulings on it are in [ADR-048](../decisions.md).** · **Builds on:** [part 1's plan](milestone-3d-injection-relayed.md) (R2's result), [ADR-026](../decisions.md), [ADR-029](../decisions.md), [ADR-030](../decisions.md), [ADR-032](../decisions.md), [ADR-041](../decisions.md), [ADR-043](../decisions.md), [ADR-045](../decisions.md)
 
 Part 1 measured prompt injection and relayed or forwarded requests on held-out v5. This part covers the rest of 3d ([brief](../brief.md#delivery), items 1, 3 and 4):
 
@@ -419,6 +419,15 @@ Five arms, k = 5, held-out v6 unsealed once by its own name. The report is gener
 - **For the owner:**
   - the split option (the rule recommends against it for both models);
   - the sealed month's Haiku setup. The default Haiku arm v6 supports is HT9/HC7.
+
+## The owner's rulings on the final run (2026-11-17)
+
+Recorded in [ADR-048](../decisions.md).
+
+- **Messages are not split, on either model.** Both split arms failed the pass rule, so the split rule recommended against it. The split option stays off.
+- **R25 stays:** a message with several requests goes to a person whole.
+- **The default setups are `haiku-3d2` (HT9/HC7) and `sonnet-3d2` (ST6/SC4),** as they ran on v6.
+- **The sealed month (R26 (a)) runs these two setups,** each with the Sonnet picker (KS5), at k = 3. That change is in its own pull request, and the run needs the owner's go.
 
 ## With milestone 4's guide picker (merged 2026-11-17)
 

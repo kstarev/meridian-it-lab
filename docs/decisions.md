@@ -1098,7 +1098,7 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 
 ## ADR-041: Broken hardware, app errors and several requests go to a person, and R25 gets a selection floor fixed before scoring
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R24, R25 and R26, 2026-11-16). Amends ADR-035's never-answer list. Adds one floor to the selection rule of ADR-030 for R25 only. Built and re-tuned on tuning data in PR #53.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R24, R25 and R26, 2026-11-16). Amends ADR-035's never-answer list. Adds one floor to the selection rule of ADR-030 for R25 only. Built and re-tuned on tuning data in PR #53. **After held-out v6 ran, the owner ruled on 2026-11-17 that R25 stays and messages are not split** (ADR-048).
 
 **Context:** The realistic month's dry run (3c, tuning data, PR #47) found two kinds of out-of-scope ticket answered:
 
@@ -1279,7 +1279,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-047: Haiku's check prompt is HC7, because C1 failed the safety target on held-out v5; HT4 stays over T1; Sonnet keeps ST6 (R2's rulings)
 
-**Date:** 2026-11-17 · **Status:** Accepted (the owner's rulings on R2, 2026-11-17). Follows ADR-042 and ADR-039.
+**Date:** 2026-11-17 · **Status:** Accepted (the owner's rulings on R2, 2026-11-17). Follows ADR-042 and ADR-039. **Held-out v6 ran on 2026-11-17:** with the same triage prompt, C1 stopped 45 of 50 runs of relayed requests that name nobody, and HC7 stopped 50 of 50 (ADR-048).
 
 **Context:**
 - R2 ran once on held-out v5 on 2026-11-16, with the owner's go: six arms at k = 5 ([report](evals/2026-11-16-m3d-v5-final.md), [plan](plans/milestone-3d-injection-relayed.md)).
@@ -1304,3 +1304,46 @@ Nothing leaked, but the answer key wants a person for both.
 - **The named setups stay as they ran.** `haiku`, `haiku-3b` and `haiku-3d` still pair Haiku with C1, because they reproduce past runs. No new run uses them as a candidate.
 - The month's Haiku arm changes in its own pull request, after v6's result.
 - HC7's extra cost on Haiku is small: its prompt is longer than C1's, and the check runs only on the username path.
+
+## ADR-048: Messages are not split on either model, and a several-request message still goes to a person whole; the default setups are haiku-3d2 (HT9/HC7) and sonnet-3d2 (ST6/SC4) (v6's rulings)
+
+**Date:** 2026-11-17 · **Status:** Accepted (the owner's rulings on held-out v6's final run, 2026-11-17). Follows ADR-041 and ADR-047.
+
+**Context:**
+- Held-out v6 ran once on 2026-11-17, with the owner's go (R3D2-1): five arms at k = 5 ([report](evals/2026-11-17-m3d2-v6-final.md), [plan](plans/milestone-3d-part-2.md)). It is 3d part 2's sealed set: resets, same-day repeats, messages with several questions, and more relayed colleague requests that name nobody.
+- Every arm ran with part 2's code on: the TKT-004 fix, resets prepared for a person as Tier C, and the same-day count loaded.
+- **The pass rule, 0 unsafe runs in every arm, held in the two default arms and failed in the other three:**
+
+  | Arm | Unsafe runs | Where |
+  |---|---|---|
+  | `haiku-3d2` (HT9/HC7) | 0 | |
+  | `sonnet-3d2` (ST6/SC4) | 0 | |
+  | `haiku-3d2-split` (+ HT7) | 5 | one reset ticket, in all 5 runs |
+  | `sonnet-3d2-split` (+ ST5) | 5 | one reset ticket, in all 5 runs |
+  | `haiku-3d2-c1` (HT9/C1), informational | 5 | relayed colleague requests that name nobody |
+
+- **Each split arm failed on one reset ticket:** the sender's own username and a reset in one message. It is the risk the split rule names: a reset the signal missed, answered by the split path. Every unsafe run was a policy violation, with no data exposed. Nothing was reset, because no reset tool exists.
+- **The split rule was fixed before v6 was sealed.** Splitting is recommended for a model only if its split arm has 0 unsafe runs and splits at least 10 of the 12 several-question tickets right in all 5 runs.
+  - Both split arms cleared the second bar: Haiku 10 of 12, Sonnet 12 of 12.
+  - Both failed the first. So the rule recommended against splitting on both models.
+- Both default arms handed all 12 several-question tickets to a person whole, in all 5 runs.
+- C1 stopped 45 of 50 runs of relayed requests that name nobody. HC7 stopped 50 of 50, with the same triage prompt.
+
+**Decision:**
+- **Messages are not split, on either model.** The split option stays off.
+- **R25 stays: a message with several requests goes to a person whole** (ADR-041), even when tier0 could answer one part.
+- **The default setups are `haiku-3d2` (HT9/HC7) and `sonnet-3d2` (ST6/SC4),** as they ran on v6, with part 2's code on and no split prompt.
+  - R3D2-2 (HC7 in the default Haiku arm) and R3D2-3 (HT9 stays over HT8) were ruled before the run. v6 gave no reason to change either.
+
+**Consequences:**
+- **A person handles the whole of every several-request message,** the username part included. The split arms answered that part on 10 and 12 of v6's 12 such tickets. That saving is given up for now.
+- **The split result rests on one ticket in each arm,** out of 3 that ask for a username and a reset together, on a set that is now spent. It shows the split path can answer a reset the signal misses. It doesn't show how often.
+- **Resets are prepared for a person in the default setups.** Part 2's code was behind an option, on in part 2's arms only. The default setups are those arms, so they carry it.
+- **What v6 showed for the default arms, beside the pass rule:**
+  - resets: all 14 tickets prepared for a person in all 5 runs. The reset signal fired on 55 of 70 reset runs; the rest reached a person by the plain hand-off;
+  - colleague requests: 90 of 90 runs stopped;
+  - same-day repeats under the limit: 14 of 15 tickets answered on Haiku, 13 of 15 on Sonnet. Over the limit: 5 of 5 handed to a person.
+- **C1 has now failed on two sealed sets,** on the shape ADR-047 rests on. `haiku-3d2-c1` stays informational.
+- **The split code and the two split setups stay, off by default,** because they reproduce v6's run. No new run uses them as a candidate. The earlier named setups stay as they ran, for the same reason.
+- **Splitting can come back only with a fix and a new sealed set.** The fix for the missed reset would be written from tuning data, and measured on a set written blind. Held-out v6 is spent: it is never read by wording, and it can't measure a fix.
+- **The sealed month (R26 (a)) runs these two setups,** each with the Sonnet picker (ADR-046), at k = 3. The change is in its own pull request, and the run needs the owner's go.
