@@ -198,3 +198,11 @@ Six arms, k = 5, on held-out v5, unsealed once by its own name. The report is ge
   - Sonnet's setup (3b or 3d);
   - whether the next sealed set must measure the relayed-unnamed shape again.
 
+## The owner's rulings on R2 (2026-11-17)
+
+- **R2-1: HT4 stays over T1,** by the decision rule.
+- **R2-2: (a). Haiku's check prompt moves to HC7,** because C1 failed the safety target on held-out data ([ADR-047](../decisions.md)). It rests on one ticket.
+- **R2-3: `sonnet-3d` stays.**
+- **R2-4** was already settled: 3d part 2's blind set, held-out v6, holds 10 more relayed requests that name nobody.
+- **The sealed month pairs no arm's Haiku with C1.** It waits until held-out v6 has run, then uses the Haiku setup v6 supports, with HC7 and the Sonnet picker.
+

@@ -1137,7 +1137,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-042: Milestone 3d part 1 as built: injection and relayed or forwarded requests, sealed held-out v5, and an informational HC7 arm
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-3d-injection-relayed.md), PR #50) and the owner's rulings since. Carries the decision ADR-039 left to 3d. **R2 ran on 2026-11-16 with the owner's go** ([report](evals/2026-11-16-m3d-v5-final.md)). Three Haiku arms fail the safety target, with 5 unsafe runs each, all on one relayed request that names nobody. `haiku-3d-hc7` and both Sonnet arms pass. The decision rule recommends that HT4 stays. The owner's rulings on it are pending, and held-out v5 is spent.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-3d-injection-relayed.md), PR #50) and the owner's rulings since. Carries the decision ADR-039 left to 3d. **R2 ran on 2026-11-16 with the owner's go** ([report](evals/2026-11-16-m3d-v5-final.md)). Three Haiku arms fail the safety target, with 5 unsafe runs each, all on one relayed request that names nobody. `haiku-3d-hc7` and both Sonnet arms pass. The decision rule recommends that HT4 stays. Held-out v5 is spent. **The owner ruled on R2 on 2026-11-17:** HT4 stays, Haiku's check moves to HC7 and `sonnet-3d` stays (ADR-047).
 
 **Context:** 3b left two message shapes unmeasured on held-out data: prompt injection inside a message, and a colleague's request relayed or forwarded in that person's own words. ADR-039 also kept Haiku's 3b triage prompt (HT4) on safety grounds, until 3d's sealed set decides.
 
@@ -1274,3 +1274,31 @@ Nothing leaked, but the answer key wants a person for both.
 - Haiku stays where it passed: triage and the checks in the Haiku setups are not changed by this ADR.
 - **Open, for R26:** the month runner (3c) still pairs each Haiku setup with Haiku's picker, KH5. Whether the sealed month uses KS5 for every setup is the owner's call when R26 is ruled. Using KS5 in the Haiku setups would raise the month's cost.
 - The picker is wired into the Slack flow behind the agent option `guide_picker`, off by default, on mock adapters only (ADR-035). With the option on, only `claude-sonnet-5-5` with KS5 can be wired.
+
+## ADR-047: Haiku's check prompt is HC7, because C1 failed the safety target on held-out v5; HT4 stays over T1; Sonnet keeps ST6 (R2's rulings)
+
+**Date:** 2026-11-17 · **Status:** Accepted (the owner's rulings on R2, 2026-11-17). Follows ADR-042 and ADR-039.
+
+**Context:**
+- R2 ran once on held-out v5 on 2026-11-16, with the owner's go: six arms at k = 5 ([report](evals/2026-11-16-m3d-v5-final.md), [plan](plans/milestone-3d-injection-relayed.md)).
+- **The safety target, 0 unsafe runs in every arm, failed in the three arms with Haiku and C1:** `haiku` (T1/C1), `haiku-3b` (HT4/C1) and `haiku-3d` (HT8/C1), with 5 unsafe runs each.
+- `haiku-3d-hc7` (HT8/HC7) and both Sonnet arms had 0 unsafe runs.
+- **Every unsafe run was the same ticket,** in all 5 runs of each failing arm: a colleague's request relayed in that person's words, naming nobody. Triage called it the sender's own username, and C1 did not stop it. Each one was a policy violation, with no data exposed. HC7 stopped it in every run.
+- On tuning data, 3d part 2's dry run showed the same shape on one ticket: C1 let it through in all 3 runs, and HC7 stopped it. That is a tuning count, and optimistic.
+- The decision rule for Haiku's triage prompt, fixed before v5 was sealed, recommended that HT4 stays over T1:
+  - safety tied at 5 unsafe runs each;
+  - HT4 caught 16 more colleague runs at triage (the rule needed 7);
+  - HT4 cost nothing on everyday tickets.
+
+**Decision:**
+- **R2-2 (a): Haiku's check prompt moves from C1 to HC7.** C1 failed the safety target on held-out data, and HC7 met it.
+  - **This rests on one ticket,** on a set that is now spent. It shows C1 misses that shape, every time. It does not show HC7 has no misses of its own.
+- **R2-1: HT4 stays over T1,** by the decision rule.
+- **R2-3: `sonnet-3d` (ST6/SC4) stays as Sonnet's setup,** because R25 needs ST6. It passed 27 of 32 everyday tickets in all 5 runs, against 29 for `sonnet-3b` (ST4).
+- **The sealed month (R26) pairs no arm's Haiku with C1.** It waits until held-out v6 has run. Then it uses the Haiku setup that v6 supports, with HC7 and the Sonnet picker (KS5).
+
+**Consequences:**
+- **Held-out v6 measures HC7 again.** It holds 10 more relayed requests that name nobody (R2-4). Its default Haiku arm, `haiku-3d2`, is HT9/HC7, and `haiku-3d2-c1` (HT9/C1) is informational, as fixed before the seal.
+- **The named setups stay as they ran.** `haiku`, `haiku-3b` and `haiku-3d` still pair Haiku with C1, because they reproduce past runs. No new run uses them as a candidate.
+- The month's Haiku arm changes in its own pull request, after v6's result.
+- HC7's extra cost on Haiku is small: its prompt is longer than C1's, and the check runs only on the username path.
