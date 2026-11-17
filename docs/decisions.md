@@ -1348,3 +1348,28 @@ Nothing leaked, but the answer key wants a person for both.
 - **The split code and the two split setups stay, off by default,** because they reproduce v6's run. No new run uses them as a candidate. The earlier named setups stay as they ran, for the same reason.
 - **Splitting can come back only with a fix and a new sealed set.** The fix for the missed reset would be written from tuning data, and measured on a set written blind. Held-out v6 is spent: it is never read by wording, and it can't measure a fix.
 - **The sealed month (R26 (a)) runs these two setups,** each with the Sonnet picker (ADR-046), at k = 3. The change is in its own pull request, and the run needs the owner's go.
+
+## ADR-049: The sealed month (`held_out_month1`) is spent and is a dev set; its result stands as a fail
+
+**Date:** 2026-11-17 · **Status:** Accepted (the owner's rulings of 2026-11-17, after the sealed month's run). Follows ADR-014 and ADR-045.
+
+**Context:**
+- The sealed month ran once on 2026-11-17, with the owner's go: `haiku-3d2` and `sonnet-3d2`, the Sonnet picker, k = 3 ([result](plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17)).
+- **Its one pass rule failed on both arms.** Out-of-scope tickets were wrongly answered in 10 of 624 runs and 9 of 624 runs, on the same 4 tickets, by the picker both arms share.
+- The month's own rule says a spent set becomes a dev set, as held-out v1 did (ADR-014). Until this ruling the code still sealed it, and nobody had read its wording.
+- Two things about that run differ from what was asked, and both are recorded in the plan:
+  - the pass rules were committed two commits after the seal's commit, in the same pull request, before any run;
+  - one search by a helper covered the sealed file's path and printed no line from it.
+
+**Decision:**
+- **The result stands as a fail.** It is not re-scored. The answer key isn't changed, and the rule isn't softened.
+- **`held_out_month1` is a dev set from 2026-11-17.** It may be read and tuned on.
+- **Every number measured on it from now on is "dev, not blind".** The runner writes that label into the result and its summary, and names the result files `-dev`.
+- **The file stays pinned by its SHA-256.** The published result was measured on exactly those bytes.
+- **The sealed result files stay as published.** They keep their label, "Final test on the sealed set".
+
+**Consequences:**
+- **Nothing measured on this month can show that a fix works.** A fix to the picker needs a new month written blind (`held_out_month2`), with its pass rules committed before its seal.
+- **The 4 wrongly answered tickets were read** after this ruling, and only those 4 ([failure note](evals/2026-11-17-m3c-month1-failure-note.md)).
+- **No set is sealed in the month runner until the next one is added.** The runner's checks for a sealed set stay, and their tests stay.
+- **The other sealed sets are untouched.** The how-to sets and held-out v3 to v6 keep their own rules.

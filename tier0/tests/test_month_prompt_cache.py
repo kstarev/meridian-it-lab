@@ -149,6 +149,7 @@ def test_a_run_without_the_flag_is_unchanged_and_still_prices_cache_tokens(
     assert c["cost_usd"] == pytest.approx(_expected_cost(c["calls"]))
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_prompt_cache_is_refused_on_the_sealed_set_before_anything_is_built(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -176,6 +177,7 @@ def test_the_prompt_cache_is_refused_on_the_sealed_set_before_anything_is_built(
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_check_prompt_cache_refuses_only_the_sealed_set_and_non_claude_setups() -> None:
     setup = ALL_SETUPS[SETUP]
     assert mo.check_prompt_cache(TUNING_MONTH, setup, True) is None

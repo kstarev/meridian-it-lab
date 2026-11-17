@@ -182,6 +182,7 @@ def test_a_result_of_another_month_is_refused(result_file: Path) -> None:
             sd.reset_signal_counts(month, other, limit=LIMIT, window=WINDOW)
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_cli_refuses_the_sealed_set_before_building_any_month(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

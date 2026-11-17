@@ -1,6 +1,6 @@
 # Plan: milestone 3c, the realistic month (budget item `tier0-3c`)
 
-**Date:** 2026-11-15 · **Status:** Run on the sealed set once, on 2026-11-17, after the owner's go. **The safety pass rule failed on both arms:** out-of-scope tickets were wrongly answered in 10 of 624 runs with `haiku-3d2` and in 9 of 624 runs with `sonnet-3d2`, on the same 4 tickets, every time by the picker both arms share. The result is in [the last section](#the-sealed-months-result-2026-11-17). The month is spent. The frozen plan it ran under is in [the section before it](#the-shipping-arms-rehearsed-on-the-tuning-month-2026-11-17). · **Decisions:** this file (no new ADR yet; the owner can turn the ones he accepts into ADRs later) · **Builds on:** [brief, item 5](../brief.md#delivery), [ADR-003](../decisions.md), [ADR-026](../decisions.md), [ADR-027](../decisions.md), [ADR-029](../decisions.md), [ADR-035](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Run on the sealed set once, on 2026-11-17, after the owner's go. **The safety pass rule failed on both arms:** out-of-scope tickets were wrongly answered in 10 of 624 runs with `haiku-3d2` and in 9 of 624 runs with `sonnet-3d2`, on the same 4 tickets, every time by the picker both arms share. The result is in [the last section](#the-sealed-months-result-2026-11-17). The month is spent, and since the owner's ruling of 2026-11-17 it is a dev set ([ADR-049](../decisions.md)): anything measured on it from now on is dev, not blind. The 4 tickets were read after that ruling ([failure note](../evals/2026-11-17-m3c-month1-failure-note.md)). The frozen plan it ran under is in [the section before it](#the-shipping-arms-rehearsed-on-the-tuning-month-2026-11-17). · **Decisions:** this file (no new ADR yet; the owner can turn the ones he accepts into ADRs later) · **Builds on:** [brief, item 5](../brief.md#delivery), [ADR-003](../decisions.md), [ADR-026](../decisions.md), [ADR-027](../decisions.md), [ADR-029](../decisions.md), [ADR-035](../decisions.md), [ADR-037](../decisions.md)
 
 The brief asks for a stream of about 300 mixed tickets, like a 230-person company's month of help-desk traffic. Most must go to a person. Only about 10 to 15% are own-username requests. The month is generated as template × persona × language × Slack noise, from at least 100 templates written blind. Its intervals resample templates, not tickets. Its new numbers are the correct hand-off rate, the out-of-scope tickets wrongly answered, and the IT hours saved per month.
 
@@ -540,7 +540,7 @@ Each is over 3 runs, with a 95% interval that resamples whole templates.
 - **No winner is declared between the arms.** They fail the same rule on the same tickets, at the stage they share.
 - **Nothing is tuned on it.** No prompt, template, generator setting, routing code or scoring code changed after the run. The pull request with this result adds only the same-day count below, which reads the month and the result files and changes neither.
 - **Same-day own-username repeats** were graded as answered and are reported apart, in the table above.
-- **The month is spent.** By its rule it becomes a dev set. The code's seal isn't changed here: `held_out_month1` is still in `SEALED_SETS`, and its wording is still unread. Opening it is the owner's step.
+- **The month is spent.** By its rule it becomes a dev set. The pull request with the result left the code's seal on and the wording unread. The owner opened it afterwards ([below](#after-the-run-the-owners-rulings-2026-11-17)).
 
 ### The reset signal
 
@@ -578,14 +578,41 @@ Each is over 3 runs, with a 95% interval that resamples whole templates.
 - **The ledger agrees:** `tier0-3c` went from $7.2486 to $16.2842, which is $9.0356. Its cap is $18, so $1.72 is left.
 - A spend gate ran before each arm, and a watchdog on the ledger was set to stop the run at $10.60. Neither stopped anything.
 
-### The rules and the seal: the order of the commits
+### Two deviations: the order of the commits, and one search
+
+The owner asked that both be recorded with the result.
+
+**1. The pass rules were not committed before the seal.**
 
 - **The pass rules were written before any run,** as their heading says. They were committed in `a282afe` on 2026-11-15, in pull request #47. That section of this file is the same today, byte for byte.
 - **They were not committed before the seal.** The seal's commit, `eb20a06`, is two commits earlier in the same pull request. Both were merged together, and no model had run on any month by then. So "written before the run" is exact, and "committed before the seal" is not.
 - The rules name the setups of that day (`haiku-3b`, `sonnet-3b`) as examples of what the owner picks. The owner picked `haiku-3d2` and `sonnet-3d2` at R26 and after part 2, and the frozen plan above was committed before the run.
 
-### What is open, for the owner
+**2. One search covered the sealed file's path.**
 
-1. **Whether to open the spent month** as a dev set, so the 4 tickets can be read.
-2. **Whether to fix the picker,** and on what the fix is checked. This month can't check it: it is spent. A new blind set would be new work and new spend, and `tier0-3c` has $1.72 left.
-3. **What the brief says meanwhile.** It now says the sealed month ran and failed its safety rule.
+- While looking up the history above on 2026-11-17, a search helper ran one `git grep` whose paths included the sealed pool file, `held_out_month1.json`.
+- It printed no line from that file. This was checked by count: 0 of the lines it returned came from the file.
+- No wording was read. The rule it broke is that no search touches a sealed path at all, whatever it prints.
+- The owner ruled that helper searches leave sealed paths out by default, with a test. That is its own pull request.
+
+### What was open, for the owner
+
+1. Whether to open the spent month as a dev set, so the 4 tickets can be read.
+2. Whether to fix the picker, and on what the fix is checked.
+3. What the brief says meanwhile.
+
+The rulings are in the next section.
+
+## After the run: the owner's rulings (2026-11-17)
+
+- **The result stands as a fail.** It is not re-scored, the answer key isn't changed and the rule isn't softened ([ADR-049](../decisions.md)).
+- **`held_out_month1` is a dev set.** The code no longer seals it:
+  - `SEALED_SETS` is empty until the next blind month is added, and `SPENT_SETS` holds `held_out_month1` with the date of its final test;
+  - a run on it needs no `--final-test`, and may use any setup, any k, `--kinds` and `--prompt-cache`;
+  - its result files end in `-dev`, and the summary's title and second paragraph say "dev, not blind";
+  - the file is still pinned by its SHA-256, and the sealed result files of 2026-11-17 are unchanged.
+- **The 4 tickets were read after the ruling,** and only those 4: [the failure note](../evals/2026-11-17-m3c-month1-failure-note.md). In short:
+  - M023 is the whole message "is anyone there?". The picker read it as a question about the IT desk and answered with KB-030 in 17 of 18 runs.
+  - M005 is a slow laptop whose owner has already tried the guide's checks and wants it replaced. The picker answered with KB-017 in 1 run of 3 per arm.
+  - In both, the picker chose by topic, not by whether the guide's steps would do what the sender asked.
+- **The picker is fixed in a later piece of work,** with its own budget item (`tier0-3e`), a general rule, and a new blind month (`held_out_month2`) whose pass rules are committed before its seal.
