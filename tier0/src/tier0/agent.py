@@ -165,7 +165,9 @@ class Features:
     - `tier_c`: the code-only reset signal sends a password or MFA reset to a person as a
       prepared Tier C ticket, whatever triage said, unless triage refused it.
     - `split`: a several-question message whose own-username part the pre-R25 triage prompt
-      finds gets that part answered, and the rest goes to a person."""
+      finds gets that part answered, and the rest goes to a person.
+
+    `tier_c` combines with the guide picker (reset check first); `split` does not (ADR-048)."""
 
     tier_c: bool = False
     split: bool = False
@@ -305,7 +307,9 @@ class ServiceDeskAgent:
     ) -> None:
         """`guide_picker` turns milestone 4's knowledge path on: a message triage really
         calls "other" may get an approved guide (tier0.knowledge.wiring). None, the default,
-        leaves it off, and every "other" goes to a person as before."""
+        leaves it off, and every "other" goes to a person as before. With part 2's `tier_c`
+        on, the reset signal runs first and the picker is asked only about what part 2 would
+        plainly hand off."""
         self._slack = slack
         self._secret = signing_secret
         self._binder = binder
@@ -325,6 +329,11 @@ class ServiceDeskAgent:
         self._ladder = ladder
         self._features = features if features is not None else Features()
         self._guide_picker = guide_picker
+        if self._features.split and guide_picker is not None:
+            raise ValueError(
+                "the split option and the guide picker don't run together: messages are not "
+                "split (ADR-048)"
+            )
         self._seen_event_ids: set[str] = set()
         self._disclosed: set[str] = set()
         # Tickets a handler is working on right now; stand_down leaves them to it.
@@ -477,7 +486,9 @@ class ServiceDeskAgent:
                 elif rule.action == "answer":
                     action, state = await self._answer(s, identifier, channel, bound, rule, text)
                 elif self._features.tier_c or self._features.split:
-                    action, state = await self._other(s, identifier, channel, bound, text)
+                    action, state = await self._other(
+                        s, identifier, channel, bound, text, guide=given and category == OTHER
+                    )
                 elif self._guide_picker is not None and given and category == OTHER:
                     # Milestone 4, only with the option on: the policy says escalate, but an
                     # approved guide may answer first. Anything else still goes to a person.
@@ -648,11 +659,20 @@ class ServiceDeskAgent:
     # --- milestone 3d part 2 ---------------------------------------------------
 
     async def _other(
-        self, s: Session, identifier: str, channel: str, bound: BoundIdentity, text: str
+        self,
+        s: Session,
+        identifier: str,
+        channel: str,
+        bound: BoundIdentity,
+        text: str,
+        *,
+        guide: bool = False,
     ) -> tuple[str, str]:
         """A request triage didn't sort as a username request or a refusal. With part 2 on: a
         reset is prepared for a person as Tier C; with the split option, a message that also
-        asks for the sender's own username gets that part answered. Otherwise the hand-off."""
+        asks for the sender's own username gets that part answered. With the guide picker
+        wired, a message triage really called "other" that is not a reset may get an approved
+        guide. Otherwise the hand-off."""
         if self._features.tier_c and reset_request(text):
             return self._prepare_tier_c(s, identifier, channel, bound)
         if self._features.split and self._prompts.split_triage:
@@ -668,6 +688,10 @@ class ServiceDeskAgent:
                         "path, and a person handles the rest.",
                     )
                     return await self._answer(s, identifier, channel, bound, rule, text, split=True)
+        if guide and self._guide_picker is not None:
+            # Milestone 4 with part 2 on: what part 2 would plainly hand off may get an approved
+            # guide first. A reset never reaches this line.
+            return self._answer_from_guide(s, identifier, channel, bound, self._guide_picker, text)
         return self._escalate(s, identifier, channel, bound, "policy_escalate")
 
     def _split_triage(self, s: Session, text: str) -> str:

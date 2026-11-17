@@ -1,8 +1,8 @@
 """Milestone 3c, the realistic month: a routing-level eval on ~300 mixed tickets.
 
-    python -m tier0.evals.month estimate --setup haiku-3b --k 3 [--set tuning_month]
+    python -m tier0.evals.month estimate --setup haiku-3d2 --k 3 [--set tuning_month]
     python -m tier0.evals.month sealed-cost [--k 3]
-    python -m tier0.evals.month run --set tuning_month --setup haiku-3b --k 1 [--seed N]
+    python -m tier0.evals.month run --set tuning_month --setup haiku-3d2 --k 1 [--seed N]
         [--picker knowledge [--picker-on-own-model]] [--final-test=held_out_month1] --out DIR
 
 **Routing level only.** Each ticket goes through the model steps that decide where it ends
@@ -11,7 +11,10 @@ signal and then the setup's own-account check; for "about_someone_else", a refus
 "other", a pluggable second stage (by default a hand-off; `--picker knowledge` plugs in
 milestone 4's guide picker, on Claude Sonnet with KS5 whatever the setup's triage model).
 It does not run the mocks, the tokens, the MCP server, the directory mention check or the
-reply templates, and it grades the routing, not the reply.
+reply templates, and it grades the routing, not the reply. For a setup with part 2's Tier C
+handling on (`Setup.tier_c`), the code-only reset signal runs on every message triage did not
+refuse, before the username path's checks and before the picker, and hands a reset to a
+person. Split setups are refused: messages are not split (ADR-048).
 
 Every ticket-run is graded against the month's answer key: answered with the sender's
 username, answered with one guide (the right KB id), or handed to a person. The safety
@@ -67,10 +70,12 @@ from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_U
 from tier0.models.pricing import cost_usd
 from tier0.models.spend import ITEM_ENV
 from tier0.netguard import guard_for_model
+from tier0.resets import reset_request
 from tier0.roles import role_reference
 
-# The 3d setups since rulings R24 and R25 (2026-11-16): R25 lives in their triage prompts.
-DEFAULT_SETUP = "haiku-3d"
+# The default Haiku setup since ADR-048 (2026-11-17): HT9/HC7 with part 2's Tier C handling.
+# R25 lives in its triage prompt.
+DEFAULT_SETUP = "haiku-3d2"
 # The budget item that pays for the month (ADR-037). A Claude run charged to any other item
 # is refused before the first call.
 BUDGET_ITEM = "tier0-3c"
@@ -142,6 +147,7 @@ type SecondStage = Callable[[str], tuple[str, str | None]]
 TRIAGE_FAILED = "triage_failed"  # the call failed or the model refused
 TRIAGE_OFF_FORMAT = "triage_off_format"  # a reply, but not exactly the schema
 REFUSED = "refused"  # triage: about someone else
+RESET_SIGNAL = "reset_signal"  # code: part 2's reset signal, only in a setup with tier_c
 ROLE_SIGNAL = "role_signal"  # code: a person word near a login word (ADR-024)
 CHECK_FAILED = "check_failed"
 CHECK_NO = "check_no"
@@ -153,6 +159,7 @@ STAGES = (
     TRIAGE_FAILED,
     TRIAGE_OFF_FORMAT,
     REFUSED,
+    RESET_SIGNAL,
     ROLE_SIGNAL,
     CHECK_FAILED,
     CHECK_NO,
@@ -161,6 +168,8 @@ STAGES = (
     PICKER_GUIDE,
     PICKER_HAND_OFF,
 )
+# The two reset kinds: Tier C, so a person always handles them (3d part 2).
+RESET_KINDS = ("password_reset", "mfa_reset")
 # The triage label each kind should get, for the estimate's "as the answer key expects" row.
 _EXPECTED_TRIAGE = {
     "own_username": OWN_USERNAME,
@@ -290,7 +299,8 @@ def route_ticket(
     setup: Setup,
     second_stage: SecondStage = no_picker,
 ) -> Route:
-    """Where one message ends up. Every failure goes to a person."""
+    """Where one message ends up. Every failure goes to a person. With the setup's `tier_c` on,
+    a reset triage didn't refuse is handed off by code before anything else."""
     prompts = setup.prompts()
     try:
         response = model.complete(triage_request(text, prompts.triage))
@@ -304,6 +314,10 @@ def route_ticket(
     label = parse_triage(response)
     if label == ABOUT_SOMEONE_ELSE:
         return Route(HAND_OFF, None, REFUSED, label)
+    if setup.tier_c and reset_request(text):
+        # Part 2, as in the agent: a reset triage didn't refuse is prepared for a person,
+        # before the username path's checks and before any guide is considered. Code only.
+        return Route(HAND_OFF, None, RESET_SIGNAL, label)
     if label == OWN_USERNAME:
         # Code first: it costs nothing, and like in the agent it never refuses on its own.
         if role_reference(text):
@@ -455,6 +469,7 @@ def score(
 
     wrong_runs = [r for t in hand_offs for r in runs[t.id] if r["wrongly_answered"]]
     kind_of = {t.id: t for t in tickets}
+    signal_runs = [r for r in records if r["stage"] == RESET_SIGNAL]
 
     def minutes(t: MonthTicket) -> float:
         per = MINUTES_PER_KIND.get(t.kind, 0)
@@ -521,6 +536,19 @@ def score(
             },
         },
         "hours_saved": _interval(tickets, minutes, total=True, **iv),
+        "reset_signal": {
+            "runs": len(signal_runs),
+            "reset_runs": sum(kind_of[r["ticket_id"]].kind in RESET_KINDS for r in signal_runs),
+            "of_reset_runs": sum(t.kind in RESET_KINDS for t in tickets) * k,
+            "expected_answer_runs": sum(
+                kind_of[r["ticket_id"]].expected != HAND_OFF for r in signal_runs
+            ),
+            "by_kind": {
+                kind: n
+                for kind in KINDS
+                if (n := sum(kind_of[r["ticket_id"]].kind == kind for r in signal_runs))
+            },
+        },
         "stages": dict(Counter(r["stage"] for r in records).most_common()),
         "per_kind": per_kind,
     }
@@ -862,15 +890,27 @@ def render(result: dict[str, Any], command: str) -> str:
     w = s["wrongly_answered"]
     rep = s["repeats"]
     sealed = c["sealed"]
+    tier_c = bool(c.get("tier_c"))
+    sig = s.get("reset_signal") or {}
     lines = [
         f"# Realistic month: {c['set']}, {c['setup']}, k = {c['k']}",
         "",
         f"Generated by `{command}`. Do not edit by hand.",
         "",
-        "**A routing-level eval.** Each ticket runs through triage, the role signal, the "
-        "own-account check and the second stage (picker: "
-        f"{_picker_label(c)}), and is graded on where it ends up. It does not run the mocks, the "
-        "tokens, the MCP server, the directory mention check or the reply templates.",
+        (
+            "**A routing-level eval.** Each ticket runs through triage, the code-only reset "
+            "signal (3d part 2: a password or MFA reset is prepared for a person), the role "
+            "signal, the own-account check and the second stage (picker: "
+            f"{_picker_label(c)}), and is graded on where it ends up. It does not run the "
+            "mocks, the tokens, the MCP server, the directory mention check, the verification "
+            "ladder or the reply templates."
+            if tier_c
+            else "**A routing-level eval.** Each ticket runs through triage, the role signal, "
+            "the own-account check and the second stage (picker: "
+            f"{_picker_label(c)}), and is graded on where it ends up. It does not run the "
+            "mocks, the tokens, the MCP server, the directory mention check or the reply "
+            "templates."
+        ),
         "",
         (
             "**Final test on the sealed set.** Result files hold ids, kinds and outcomes only."
@@ -902,6 +942,16 @@ def render(result: dict[str, Any], command: str) -> str:
         f"{rep['username']['runs']} runs |",
         f"| Same-day repeats, password reset: handed off | "
         f"{rep['password']['handed_off_runs']} of {rep['password']['runs']} runs |",
+        *(
+            [
+                f"| Resets handed to a person by the reset signal | {sig['reset_runs']} of "
+                f"{sig['of_reset_runs']} reset runs; it also fired on "
+                f"{sig['runs'] - sig['reset_runs']} other runs, {sig['expected_answer_runs']} "
+                "of them on tickets the answer key wants answered |"
+            ]
+            if tier_c
+            else []
+        ),
         f"| Estimated IT hours saved per month | {_fmt(s['hours_saved'], 1)} h |",
         "",
         "Pass rate per run: " + ", ".join(f"{v:.3f}" for v in s["pass_rate_per_run"]) + ".",
@@ -910,6 +960,16 @@ def render(result: dict[str, Any], command: str) -> str:
         + ", ".join(f"{k} {v}" for k, v in w["by_reason"].items())
         + ".",
         "",
+        *(
+            [
+                "Reset signal runs by kind: "
+                + (", ".join(f"{k} {v}" for k, v in sig["by_kind"].items()) or "none")
+                + ".",
+                "",
+            ]
+            if tier_c
+            else []
+        ),
         "## Per kind",
         "",
         "| Kind | Expected | Tickets | Templates | pass^1 (interval) | pass^k "
@@ -929,8 +989,21 @@ def render(result: dict[str, Any], command: str) -> str:
         "- IT minutes saved per correctly answered ticket (assumptions, not measurements): "
         + ", ".join(f"{k} {v}" for k, v in c["minutes_per_kind"].items())
         + ". Hand-offs save nothing here, and a wrong answer's follow-up is not subtracted.",
-        "- Same-day repeats of an own-username request are expected to be answered until "
-        "the verification ladder decides otherwise; they are counted apart above.",
+        *(
+            [
+                "- Same-day repeats of an own-username request are expected to be answered: the "
+                "month plants a second request only, and the verification ladder acts on up to "
+                "3 requests for one account in 24 hours (ADR-043). The ladder is not run here; "
+                "the repeats are counted apart above.",
+                "- The reset signal is code only: it costs no model call and can only send a "
+                "ticket to a person. A reset it misses falls back to triage and the picker.",
+            ]
+            if tier_c
+            else [
+                "- Same-day repeats of an own-username request are expected to be answered "
+                "until the verification ladder decides otherwise; they are counted apart above."
+            ]
+        ),
         "- Every sender is a verified employee: identity binding is not part of this eval.",
         "- Model calls: "
         + (", ".join(f"{task} {n:,}" for task, n in c["calls"].items()) or "none")
@@ -1032,6 +1105,13 @@ def main(
         print(json.dumps(costs, indent=2) if args.json else render_sealed_costs(costs))
         return 0
     setup = ALL_SETUPS[args.setup]
+    if setup.split_prompt is not None:
+        print(
+            f"refused: {setup.name} has the split option, which the month doesn't run: "
+            "messages are not split (ADR-048)",
+            file=sys.stderr,
+        )
+        return 2
     if args.k < 1:
         print("--k must be at least 1", file=sys.stderr)
         return 2
@@ -1105,6 +1185,7 @@ def main(
         "check_prompt": setup.check_prompt,
         "triage_prompt_sha256": hashlib.sha256((prompts.triage or "").encode()).hexdigest(),
         "check_prompt_sha256": hashlib.sha256((prompts.check or "").encode()).hexdigest(),
+        "tier_c": setup.tier_c,
         "picker": picker.name,
         "picker_model": picker_model,
         "picker_prompt": picker.prompt_version,

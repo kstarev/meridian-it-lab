@@ -18,7 +18,7 @@ from meridian_dataset import World
 from meridian_dataset.knowledge import Guide, load_runbooks
 from meridian_dataset.model import Person, Ticket
 from tier0 import replies
-from tier0.agent import ANSWER_GUIDE, KILL_SWITCH_ON, RATE_LIMITED_CODE, Outcome
+from tier0.agent import ANSWER_GUIDE, KILL_SWITCH_ON, RATE_LIMITED_CODE, Features, Outcome
 from tier0.clock import parse_time
 from tier0.controls import RateLimitSettings
 from tier0.guard import check_reply
@@ -735,16 +735,15 @@ def test_a_real_claude_picker_must_be_sonnet() -> None:
     assert GuidePicker(model=_ClaudeLike(PICKER_MODEL)).version == "KS5"
 
 
-# The guide picker (milestone 4) and 3d part 2's options together. Both are off by default and no
-# setup turns both on. When both are on, part 2's path for "other" runs first, so a reset is
-# prepared for a person before any guide is considered, and the picker is not asked at all.
+# The guide picker (milestone 4) and 3d part 2's options together. The shipping setups run both
+# (ADR-048). Part 2's path for "other" runs first, so a reset is prepared for a person and the
+# picker is not asked. Whatever part 2 would plainly hand off goes to the picker. The split option
+# and the picker are refused together.
 
 
 def test_with_part_2_on_a_reset_goes_to_a_person_and_the_picker_is_never_asked(
     world: World,
 ) -> None:
-    from tier0.agent import Features
-
     # A picker that would answer anything with a guide, if it were asked.
     picker = FakePicker(default=("how_to", "KB-001"))
     person = _person(world)
@@ -760,20 +759,53 @@ def test_with_part_2_on_a_reset_goes_to_a_person_and_the_picker_is_never_asked(
     assert _no_guide_posted(rt)
 
 
-def test_with_part_2_on_a_how_to_goes_to_a_person_a_known_limit(world: World) -> None:
-    from tier0.agent import Features
-
-    picker = FakePicker({WIFI: ("how_to", "KB-001")})
+def test_with_part_2_on_a_how_to_gets_the_same_guide_as_without_it(world: World) -> None:
     person = _person(world)
+    results = []
+    for features in (Features(), Features(tier_c=True)):
+        picker = FakePicker({WIFI: ("how_to", "KB-001")})
+
+        async def body(rt: Runtime) -> Outcome:
+            return await _ask(rt, person, WIFI)
+
+        outcome = _run(world, body, guide_picker=GuidePicker(model=picker), features=features)
+        assert len(picker.requests) == 1
+        results.append((outcome.action, outcome.state))
+    assert results[0] == results[1] == (ANSWER_GUIDE, AWAITING_REPLY)
+
+
+@pytest.mark.parametrize(
+    "triage_text",
+    ['{"category": "other", "tier": "A"}', "other", '{"category": "unknown"}'],
+)
+def test_with_part_2_on_a_triage_that_gave_no_clean_label_never_reaches_the_picker(
+    world: World, triage_text: str
+) -> None:
+    picker = FakePicker(default=("how_to", "KB-001"))
 
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
-        return rt, await _ask(rt, person, WIFI)
+        return rt, await _ask(rt, _person(world), WIFI)
 
     rt, outcome = _run(
-        world, body, guide_picker=GuidePicker(model=picker), features=Features(tier_c=True)
+        world,
+        body,
+        model=TriageModel(triage_text=triage_text),
+        guide_picker=GuidePicker(model=picker),
+        features=Features(tier_c=True),
     )
-    # Not combined yet: part 2's path hands off what isn't a reset or a split, so the picker
-    # is not asked. Turning both on together needs its own change.
     assert outcome.action == "escalate" and outcome.state == TRIAGE
     assert picker.requests == []
     assert _no_guide_posted(rt)
+
+
+def test_the_split_option_and_the_picker_are_refused_together(world: World) -> None:
+    async def body(rt: Runtime) -> None:
+        return None
+
+    with pytest.raises(ValueError, match="ADR-048"):
+        _run(
+            world,
+            body,
+            guide_picker=GuidePicker(model=FakePicker()),
+            features=Features(tier_c=True, split=True),
+        )
