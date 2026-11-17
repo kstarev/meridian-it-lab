@@ -372,3 +372,9 @@ Nothing has run on v6. The arms are the plan's five; only Haiku's triage prompt 
 - **The command** is the one above, with `--final-comparison=held_out_v6` and the owner's go. Then `python -m tier0.evals.m3d2_final --final-comparison=held_out_v6 --out docs/evals/<date>-m3d2-v6-final.md`, which refuses any arm's report that didn't run that arm's frozen prompts.
 - **The estimate,** from the measured cost per ticket run: about $1.87. That is $0.04 or $0.05 per Haiku arm, $0.77 for `sonnet-3d2` and $0.96 for `sonnet-3d2-split`, against $3.57 left in the item. A spend gate runs before each arm.
 - **What tuning says, and doesn't:** on tuning data the Sonnet split arm cleared the split rule's bar (12 of 12) and the Haiku split arm didn't (9 of 12). These are tuning scores. Only v6 counts, and the rule there is the one fixed before sealing.
+
+## With milestone 4's guide picker (merged 2026-11-17)
+
+This branch merges #62 and #64 to settle `docs/brief.md` and `tier0/src/tier0/agent.py`, which those pull requests also edit. Both new paths run at the point where triage says "other", and both are off by default; no setup turns both on.
+- **When both are on, part 2's path runs first.** A reset is prepared for a person before any guide is considered, and the picker is not asked. A test pins this.
+- **A known limit:** with part 2 on, a how-to question also goes to a person, because part 2's path hands off whatever isn't a reset or a split. A test pins this too. Running both together needs its own change.

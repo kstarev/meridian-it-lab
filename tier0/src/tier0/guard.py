@@ -11,6 +11,7 @@ shaped like first.last). That only causes a hand-off to a person.
 """
 
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 
 _USERNAME = re.compile(
@@ -36,11 +37,26 @@ def normalise(text: str) -> str:
     return _AT.sub("@", _DOT.sub(".", text))
 
 
-def check_reply(text: str, *, requester_email: str | None, domain: str) -> GuardResult:
+def check_reply(
+    text: str,
+    *,
+    requester_email: str | None,
+    domain: str,
+    code_links: Collection[str] = (),
+) -> GuardResult:
     """Block every address at `domain`, and every bare username, that is not the requester's.
 
     With no requester email (an unverified sender) all of them are blocked.
+
+    `code_links` are links that code built itself, such as an approved guide's link in the
+    memory repo (milestone 4). Each is taken out, character for character, before the check,
+    because a file name like "office-wifi.md" is shaped like first.last. Nothing else is
+    exempt: the rest of the message, a guide's steps included, is checked as always. None by
+    default, so every other message is checked exactly as before.
     """
+    for link in code_links:
+        if link:
+            text = text.replace(link, " ")
     text = normalise(text)
     email_pattern = re.compile(r"[A-Za-z0-9._%+-]+@" + re.escape(domain) + r"\b", re.IGNORECASE)
     own = requester_email.lower() if requester_email is not None else None
