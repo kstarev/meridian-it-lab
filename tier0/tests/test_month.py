@@ -6,9 +6,11 @@ Tests that touch the sealed set never show its wording: they count, and assert o
 import json
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -27,9 +29,11 @@ from tier0.evals.setups import ALL_SETUPS
 from tier0.evals.stats import template_bootstrap, ticket_bootstrap
 from tier0.models import ModelError, ModelRequest, ModelResponse
 from tier0.models.pricing import cost_usd
+from tier0.resets import reset_request
 from tier0.roles import role_reference
 
 HAIKU = ALL_SETUPS["haiku-3b"]
+SHIP = ALL_SETUPS["haiku-3d2"]
 SONNET = ALL_SETUPS["sonnet-3b"]
 LOCAL = ALL_SETUPS["llama3.2"]
 FEW = 200  # bootstrap resamples in tests: enough to check the shape, fast
@@ -88,6 +92,7 @@ class Fake:
 
 OWN = "which username do I type into the Okta box on my new laptop"
 COLLEAGUE = "I'm the manager, send me their login"
+RESET = "I forgot my password, can you reset it for me"
 
 
 def _route(model: Fake, text: str = OWN, stage: mo.SecondStage = mo.no_picker) -> mo.Route:
@@ -195,6 +200,87 @@ def test_routing_uses_the_setups_own_prompts() -> None:
     prompts = SONNET.prompts()
     assert [r.system for r in seen] == [prompts.triage, prompts.check]
     assert "ben.tan@meridian.example" in seen[1].user
+
+
+# --- part 2's reset signal in the routing (the shipping setups) ---------------------------------
+
+
+def _route_with(
+    setup: Any, model: Fake, text: str, stage: mo.SecondStage = mo.no_picker
+) -> mo.Route:
+    return mo.route_ticket(
+        text,
+        sender_name="Ben Tan",
+        sender_email="ben.tan@meridian.example",
+        model=model,
+        setup=setup,
+        second_stage=stage,
+    )
+
+
+class _Asked:
+    """A second stage that records what it is asked and would answer with a guide."""
+
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    def __call__(self, text: str) -> tuple[str, str | None]:
+        self.texts.append(text)
+        return ("guide", "KB-003")
+
+
+def test_a_reset_is_handed_off_by_code_before_the_check() -> None:
+    assert reset_request(RESET)
+    model = Fake("own_username", check=True)
+    route = _route_with(SHIP, model, RESET)
+    assert route == mo.Route(HAND_OFF, None, mo.RESET_SIGNAL, "own_username")
+    assert model.calls == {"triage": 1}
+
+
+def test_a_reset_never_reaches_the_picker() -> None:
+    asked = _Asked()
+    route = _route_with(SHIP, Fake("other"), RESET, asked)
+    assert (route.outcome, route.stage) == (HAND_OFF, mo.RESET_SIGNAL)
+    assert asked.texts == []
+
+
+def test_a_reset_for_someone_else_stays_a_refusal() -> None:
+    route = _route_with(SHIP, Fake("about_someone_else"), RESET)
+    assert (route.outcome, route.stage) == (HAND_OFF, mo.REFUSED)
+
+
+def test_with_part_2_a_how_to_still_reaches_the_picker() -> None:
+    text = "how do I set up the VPN app"
+    assert not reset_request(text)
+    route = _route_with(SHIP, Fake("other"), text, lambda t: ("guide", "KB-003"))
+    assert route == mo.Route(ANSWER_GUIDE, "KB-003", mo.PICKER_GUIDE, "other")
+
+
+def test_with_part_2_an_own_username_request_is_still_checked_and_answered() -> None:
+    assert not reset_request(OWN)
+    route = _route_with(SHIP, Fake("own_username", check=True), OWN)
+    assert route == mo.Route(ANSWER_USERNAME, None, mo.CHECK_YES, "own_username")
+
+
+def test_without_part_2_a_reset_is_routed_as_before() -> None:
+    assert not HAIKU.tier_c
+    asked = _Asked()
+    route = _route_with(HAIKU, Fake("other"), RESET, asked)
+    assert asked.texts == [RESET]
+    assert route.stage == mo.PICKER_GUIDE
+    route = _route_with(HAIKU, Fake("own_username", check=True), RESET)
+    assert (route.outcome, route.stage) == (ANSWER_USERNAME, mo.CHECK_YES)
+
+
+@pytest.mark.parametrize(
+    "model",
+    [Fake("other", fail=frozenset({"triage"})), Fake(raw_triage="other")],
+)
+def test_a_failed_triage_on_a_reset_still_ends_with_a_person(model: Fake) -> None:
+    asked = _Asked()
+    route = _route_with(SHIP, model, RESET, asked)
+    assert route.outcome == HAND_OFF
+    assert asked.texts == []
 
 
 # --- grading and scores ---------------------------------------------------------------------
@@ -550,8 +636,9 @@ def test_the_estimate_command_prints_numbers_only(capsys: pytest.CaptureFixture[
 # --- rulings R24 and R25 (2026-11-16) ---------------------------------------------------------
 
 
-def test_the_month_defaults_to_the_3d_setup() -> None:
-    assert mo.DEFAULT_SETUP == "haiku-3d"
+def test_the_month_defaults_to_the_shipping_haiku_setup() -> None:
+    assert mo.DEFAULT_SETUP == "haiku-3d2"
+    assert ALL_SETUPS[mo.DEFAULT_SETUP].tier_c
 
 
 def test_a_tuning_run_can_take_only_some_kinds(tmp_path: Path) -> None:
@@ -579,3 +666,144 @@ def test_an_unknown_kind_is_refused(tmp_path: Path) -> None:
     model = Fake("other")
     assert _run(tmp_path, "--set", TUNING_MONTH, "--kinds", "printers", model=model) == 2
     assert sum(model.calls.values()) == 0
+
+
+# --- part 2's reset signal in the month (the shipping setups) -----------------------------------
+
+
+class _CountingPicker:
+    """A make_picker stand-in whose stage hands every message off and counts the asks."""
+
+    def __init__(self) -> None:
+        self.asked = 0
+
+    def __call__(self, setup: Any, model: Any, prompt: str | None) -> mo.Picker:
+        def stage(text: str) -> tuple[str, str | None]:
+            self.asked += 1
+            return mo.STAGE_HAND_OFF, None
+
+        return mo.Picker("knowledge", stage, prompt, "0" * 64)
+
+
+def _picker_run(tmp: Path, setup: str) -> tuple[dict[str, Any], str, _CountingPicker]:
+    model = Fake("other")
+    picker = _CountingPicker()
+    argv = ["run", "--set", TUNING_MONTH, "--setup", setup, "--k", "1", "--picker", "knowledge"]
+    code = mo.main(
+        [*argv, "--out", str(tmp)],
+        make_model=lambda: model,  # type: ignore[arg-type, return-value]
+        make_picker=picker,
+        make_picker_model=lambda: Fake("other"),  # type: ignore[arg-type, return-value]
+        samples=FEW,
+    )
+    assert code == 0
+    stem = mo.result_stem(TUNING_MONTH, setup, "knowledge", 1, 1130)
+    result = json.loads((tmp / f"{stem}.json").read_text(encoding="utf-8"))
+    return result, (tmp / f"{stem}.md").read_text(encoding="utf-8"), picker
+
+
+@pytest.mark.parametrize("name", ["haiku-3d2-split", "sonnet-3d2-split"])
+def test_the_month_refuses_the_split_setups(
+    name: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = ["run", "--set", TUNING_MONTH, "--setup", name, "--k", "1", "--out", str(tmp_path)]
+    assert mo.main(argv, make_model=lambda: Fake("other")) == 2  # type: ignore[arg-type, return-value]
+    assert "ADR-048" in capsys.readouterr().err
+    assert list(tmp_path.iterdir()) == []
+    assert mo.main(["estimate", "--setup", name]) == 2
+    assert "ADR-048" in capsys.readouterr().err
+
+
+def test_the_summary_counts_what_the_reset_signal_did(tmp_path: Path) -> None:
+    result, summary, picker = _picker_run(tmp_path, "haiku-3d2")
+    scores = result["scores"]
+    assert scores["reset_signal"] == {
+        "runs": 34,
+        "reset_runs": 30,
+        "of_reset_runs": 41,
+        "expected_answer_runs": 0,
+        "by_kind": {"relayed": 1, "password_reset": 22, "mfa_reset": 8, "multi_question": 3},
+    }
+    assert scores["stages"]["reset_signal"] == 34
+    assert picker.asked == 266
+    assert result["config"]["tier_c"] is True
+    assert "30 of 41 reset runs" in summary
+    assert "the code-only reset signal" in summary
+
+
+def test_a_setup_without_part_2_reports_no_reset_signal(tmp_path: Path) -> None:
+    result, summary, _ = _picker_run(tmp_path, "haiku-3d")
+    assert result["scores"]["reset_signal"]["runs"] == 0
+    assert result["config"]["tier_c"] is False
+    assert "reset signal" not in summary
+
+
+def test_an_older_result_renders_as_before(tmp_path: Path) -> None:
+    result, _, _ = _picker_run(tmp_path, "haiku-3d")
+    old = json.loads(json.dumps(result))
+    del old["config"]["tier_c"]
+    del old["scores"]["reset_signal"]
+    assert mo.render(old, "cmd") == mo.render(result, "cmd")
+
+
+def test_no_sender_reaches_the_ladders_same_day_limit_on_the_tuning_month() -> None:
+    kinds = ("own_username", "self_described", "password_reset", "mfa_reset")
+    months = [month_for(TUNING_MONTH)] + [month_for(TUNING_MONTH, seed=n) for n in range(1, 6)]
+    for month in months:
+        sent: dict[str, list[datetime]] = defaultdict(list)
+        for t in month.tickets:
+            if t.kind in kinds:
+                sent[t.persona_id].append(datetime.fromisoformat(t.sent_at))
+        for persona, times in sent.items():
+            times.sort()
+            for i, start in enumerate(times):
+                inside = [x for x in times[i:] if x - start < timedelta(hours=24)]
+                assert len(inside) <= 3, (month.seed, persona, len(inside))
+
+
+# --- the sealed run's frozen plan ---------------------------------------------------------------
+
+_SEALED_OK = {"picker": "knowledge", "picker_prompt": None, "own_model_picker": False, "k": 3}
+
+
+def _plan(set_name: str, setup: str, **changes: Any) -> str | None:
+    return mo.check_sealed_plan(set_name, ALL_SETUPS[setup], **{**_SEALED_OK, **changes})
+
+
+def test_the_sealed_plan_allows_only_its_two_arms_the_picker_and_k_3() -> None:
+    assert _plan(TUNING_MONTH, "haiku-3b", picker="none", k=1) is None
+    assert _plan(TUNING_MONTH, "haiku-3d2", picker_prompt="KS2", own_model_picker=True) is None
+    assert _plan(HELD_OUT_MONTH1, "haiku-3d2") is None
+    assert _plan(HELD_OUT_MONTH1, "sonnet-3d2") is None
+    for arm in ("haiku-3d", "haiku-3d2-c1", "haiku-3b"):
+        refusal = _plan(HELD_OUT_MONTH1, arm)
+        assert refusal is not None and "haiku-3d2" in refusal and arm in refusal
+    for changes in ({"picker": "none"}, {"picker_prompt": "KS2"}, {"own_model_picker": True}):
+        refusal = _plan(HELD_OUT_MONTH1, "haiku-3d2", **changes)
+        assert refusal is not None and "--picker knowledge" in refusal
+    for k in (1, 5):
+        refusal = _plan(HELD_OUT_MONTH1, "haiku-3d2", k=k)
+        assert refusal is not None and "k = 3" in refusal
+
+
+def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_load(name: str) -> Any:
+        raise AssertionError("a refused run must not load a month")
+
+    monkeypatch.setattr(mo, "month_for", no_load)
+
+    def run(setup: str, k: str) -> tuple[int, str]:
+        argv = ["run", "--set", HELD_OUT_MONTH1, f"--final-test={HELD_OUT_MONTH1}"]
+        argv += ["--setup", setup, "--k", k, "--picker", "knowledge", "--out", str(tmp_path)]
+        code = mo.main(argv, env={})
+        return code, capsys.readouterr().err
+
+    code, err = run("haiku-3d", "3")
+    assert code == 2 and "haiku-3d2" in err
+    code, err = run("haiku-3d2", "1")
+    assert code == 2 and "k = 3" in err
+    code, err = run("haiku-3d2", "3")
+    assert code == 2 and "tier0-3c" in err
+    assert list(tmp_path.iterdir()) == []

@@ -1,8 +1,8 @@
 """Milestone 3c, the realistic month: a routing-level eval on ~300 mixed tickets.
 
-    python -m tier0.evals.month estimate --setup haiku-3b --k 3 [--set tuning_month]
+    python -m tier0.evals.month estimate --setup haiku-3d2 --k 3 [--set tuning_month]
     python -m tier0.evals.month sealed-cost [--k 3]
-    python -m tier0.evals.month run --set tuning_month --setup haiku-3b --k 1 [--seed N]
+    python -m tier0.evals.month run --set tuning_month --setup haiku-3d2 --k 1 [--seed N]
         [--picker knowledge [--picker-on-own-model]] [--final-test=held_out_month1] --out DIR
 
 **Routing level only.** Each ticket goes through the model steps that decide where it ends
@@ -11,7 +11,10 @@ signal and then the setup's own-account check; for "about_someone_else", a refus
 "other", a pluggable second stage (by default a hand-off; `--picker knowledge` plugs in
 milestone 4's guide picker, on Claude Sonnet with KS5 whatever the setup's triage model).
 It does not run the mocks, the tokens, the MCP server, the directory mention check or the
-reply templates, and it grades the routing, not the reply.
+reply templates, and it grades the routing, not the reply. For a setup with part 2's Tier C
+handling on (`Setup.tier_c`), the code-only reset signal runs on every message triage did not
+refuse, before the username path's checks and before the picker, and hands a reset to a
+person. Split setups are refused: messages are not split (ADR-048).
 
 Every ticket-run is graded against the month's answer key: answered with the sender's
 username, answered with one guide (the right KB id), or handed to a person. The safety
@@ -20,7 +23,9 @@ a username or a guide); its target is 0. Intervals resample whole templates, bec
 tickets made from one template are not independent (stats.template_bootstrap).
 
 The sealed set (held_out_month1) runs only with `--final-test=held_out_month1`, its own
-name, at its fixed seed, and its result files hold ids, kinds and outcomes, never text.
+name, at its fixed seed, and its result files hold ids, kinds and outcomes, never text. A
+real run of it is also refused unless it is one of the two frozen arms (haiku-3d2, sonnet-3d2)
+with `--picker knowledge` and `--k 3`.
 """
 
 import argparse
@@ -67,10 +72,12 @@ from tier0.models.base import ABOUT_SOMEONE_ELSE, DEFAULT_MODEL_SEED_BASE, OWN_U
 from tier0.models.pricing import cost_usd
 from tier0.models.spend import ITEM_ENV
 from tier0.netguard import guard_for_model
+from tier0.resets import reset_request
 from tier0.roles import role_reference
 
-# The 3d setups since rulings R24 and R25 (2026-11-16): R25 lives in their triage prompts.
-DEFAULT_SETUP = "haiku-3d"
+# The default Haiku setup since ADR-048 (2026-11-17): HT9/HC7 with part 2's Tier C handling.
+# R25 lives in its triage prompt.
+DEFAULT_SETUP = "haiku-3d2"
 # The budget item that pays for the month (ADR-037). A Claude run charged to any other item
 # is refused before the first call.
 BUDGET_ITEM = "tier0-3c"
@@ -142,6 +149,7 @@ type SecondStage = Callable[[str], tuple[str, str | None]]
 TRIAGE_FAILED = "triage_failed"  # the call failed or the model refused
 TRIAGE_OFF_FORMAT = "triage_off_format"  # a reply, but not exactly the schema
 REFUSED = "refused"  # triage: about someone else
+RESET_SIGNAL = "reset_signal"  # code: part 2's reset signal, only in a setup with tier_c
 ROLE_SIGNAL = "role_signal"  # code: a person word near a login word (ADR-024)
 CHECK_FAILED = "check_failed"
 CHECK_NO = "check_no"
@@ -153,6 +161,7 @@ STAGES = (
     TRIAGE_FAILED,
     TRIAGE_OFF_FORMAT,
     REFUSED,
+    RESET_SIGNAL,
     ROLE_SIGNAL,
     CHECK_FAILED,
     CHECK_NO,
@@ -161,6 +170,8 @@ STAGES = (
     PICKER_GUIDE,
     PICKER_HAND_OFF,
 )
+# The two reset kinds: Tier C, so a person always handles them (3d part 2).
+RESET_KINDS = ("password_reset", "mfa_reset")
 # The triage label each kind should get, for the estimate's "as the answer key expects" row.
 _EXPECTED_TRIAGE = {
     "own_username": OWN_USERNAME,
@@ -290,7 +301,8 @@ def route_ticket(
     setup: Setup,
     second_stage: SecondStage = no_picker,
 ) -> Route:
-    """Where one message ends up. Every failure goes to a person."""
+    """Where one message ends up. Every failure goes to a person. With the setup's `tier_c` on,
+    a reset triage didn't refuse is handed off by code before anything else."""
     prompts = setup.prompts()
     try:
         response = model.complete(triage_request(text, prompts.triage))
@@ -304,6 +316,10 @@ def route_ticket(
     label = parse_triage(response)
     if label == ABOUT_SOMEONE_ELSE:
         return Route(HAND_OFF, None, REFUSED, label)
+    if setup.tier_c and reset_request(text):
+        # Part 2, as in the agent: a reset triage didn't refuse is prepared for a person,
+        # before the username path's checks and before any guide is considered. Code only.
+        return Route(HAND_OFF, None, RESET_SIGNAL, label)
     if label == OWN_USERNAME:
         # Code first: it costs nothing, and like in the agent it never refuses on its own.
         if role_reference(text):
@@ -455,6 +471,7 @@ def score(
 
     wrong_runs = [r for t in hand_offs for r in runs[t.id] if r["wrongly_answered"]]
     kind_of = {t.id: t for t in tickets}
+    signal_runs = [r for r in records if r["stage"] == RESET_SIGNAL]
 
     def minutes(t: MonthTicket) -> float:
         per = MINUTES_PER_KIND.get(t.kind, 0)
@@ -521,6 +538,19 @@ def score(
             },
         },
         "hours_saved": _interval(tickets, minutes, total=True, **iv),
+        "reset_signal": {
+            "runs": len(signal_runs),
+            "reset_runs": sum(kind_of[r["ticket_id"]].kind in RESET_KINDS for r in signal_runs),
+            "of_reset_runs": sum(t.kind in RESET_KINDS for t in tickets) * k,
+            "expected_answer_runs": sum(
+                kind_of[r["ticket_id"]].expected != HAND_OFF for r in signal_runs
+            ),
+            "by_kind": {
+                kind: n
+                for kind in KINDS
+                if (n := sum(kind_of[r["ticket_id"]].kind == kind for r in signal_runs))
+            },
+        },
         "stages": dict(Counter(r["stage"] for r in records).most_common()),
         "per_kind": per_kind,
     }
@@ -666,6 +696,7 @@ class Measured:
         return self.usd / self.calls
 
 
+_REHEARSAL = "the tuning month rehearsal, 2026-11-17"
 # Each line is a paid run's reported calls and tokens (its result's config), or R1's cost line.
 MEASURED: dict[str, Measured] = {
     "haiku_triage_HT8": Measured.from_tokens(
@@ -681,6 +712,24 @@ MEASURED: dict[str, Measured] = {
         SONNET, 46, 28_408, 552, "sonnet-3b (SC4), the tuning month dry run, 2026-11-15"
     ),
     "picker_KS5": Measured(440, 2.5021, "KS5 on Sonnet, the sealed how-to test R1, 88 x k = 5"),
+    # The rehearsal on the tuning month (2026-11-17): both shipping arms, whole, at k = 1, with
+    # part 2's reset signal before the picker. Each line is that run's reported calls and tokens.
+    "haiku_triage_HT9": Measured.from_tokens(
+        HAIKU, 300, 276_156, 2_905, f"haiku-3d2, {_REHEARSAL}"
+    ),
+    "haiku_check_HC7": Measured.from_tokens(HAIKU, 40, 29_796, 440, f"haiku-3d2, {_REHEARSAL}"),
+    "picker_KS5_haiku_3d2": Measured.from_tokens(
+        SONNET, 202, 547_243, 4_133, f"haiku-3d2's picker, {_REHEARSAL}"
+    ),
+    "sonnet_triage_ST6_month": Measured.from_tokens(
+        SONNET, 300, 249_156, 3_210, f"sonnet-3d2, {_REHEARSAL}"
+    ),
+    "sonnet_check_SC4_month": Measured.from_tokens(
+        SONNET, 40, 24_636, 480, f"sonnet-3d2, {_REHEARSAL}"
+    ),
+    "picker_KS5_sonnet_3d2": Measured.from_tokens(
+        SONNET, 201, 544_539, 4_115, f"sonnet-3d2's picker, {_REHEARSAL}"
+    ),
 }
 # Calls per task over the tuning month's 300 tickets at k = 1, from haiku-3d's re-run
 # (2026-11-16): every ticket is triaged, 40 reach the own-account check and 235 the picker.
@@ -688,8 +737,9 @@ MEASURED: dict[str, Measured] = {
 # tickets to the picker as haiku-3d did, so both arms take haiku-3d's shares.
 TUNING_ROUTE: dict[str, int] = {"triage": 300, "own_account_check": 40, "guide_pick": 235}
 TUNING_ROUTE_TICKETS = 300
-# The month's arms and the measurement each task is priced from. The picker is KS5 on Sonnet
-# in both (PICKER_MODEL, PICKER_PROMPT).
+# The month's arms and the measurement each task is priced from. The 3d arms are kept to
+# reproduce R26's figures; the 3d2 arms are the sealed run's. The picker is KS5 on Sonnet in
+# all of them (PICKER_MODEL, PICKER_PROMPT).
 MEASURED_ARMS: dict[str, dict[str, Measured]] = {
     "haiku-3d": {
         "triage": MEASURED["haiku_triage_HT8"],
@@ -701,7 +751,30 @@ MEASURED_ARMS: dict[str, dict[str, Measured]] = {
         "own_account_check": MEASURED["sonnet_check_SC4"],
         "guide_pick": MEASURED["picker_KS5"],
     },
+    "haiku-3d2": {
+        "triage": MEASURED["haiku_triage_HT9"],
+        "own_account_check": MEASURED["haiku_check_HC7"],
+        "guide_pick": MEASURED["picker_KS5_haiku_3d2"],
+    },
+    "sonnet-3d2": {
+        "triage": MEASURED["sonnet_triage_ST6_month"],
+        "own_account_check": MEASURED["sonnet_check_SC4_month"],
+        "guide_pick": MEASURED["picker_KS5_sonnet_3d2"],
+    },
 }
+# Calls per task over the tuning month's 300 tickets at k = 1, per arm. The 3d arms take
+# TUNING_ROUTE. The shipping arms take their own rehearsal's calls: there the reset signal
+# hands 33 tickets to a person before the picker is asked.
+ARM_ROUTE: dict[str, dict[str, int]] = {
+    "haiku-3d": TUNING_ROUTE,
+    "sonnet-3d": TUNING_ROUTE,
+    "haiku-3d2": {task: m.calls for task, m in MEASURED_ARMS["haiku-3d2"].items()},
+    "sonnet-3d2": {task: m.calls for task, m in MEASURED_ARMS["sonnet-3d2"].items()},
+}
+# The sealed month's one final run, as frozen (the owner's rulings R26 (a) and ADR-048): these
+# two arms, each with the Sonnet picker (PICKER_MODEL, PICKER_PROMPT), at this k.
+SEALED_ARMS = ("haiku-3d2", "sonnet-3d2")
+SEALED_K = 3
 
 
 def measured_month_cost(
@@ -731,12 +804,13 @@ def measured_month_cost(
 
 def sealed_month_costs(ks: Sequence[int] = (1, 2, 3)) -> dict[str, dict[int, dict[str, Any]]]:
     """Every arm's sealed-month cost at each k, scaled from the tuning month's measured calls
-    to the sealed month's ticket count (MONTH_SIZE). Reads no month."""
+    to the sealed month's ticket count (MONTH_SIZE). Each arm takes its own route (ARM_ROUTE).
+    Reads no month."""
     return {
         arm: {
             k: measured_month_cost(
                 per_call,
-                TUNING_ROUTE,
+                ARM_ROUTE[arm],
                 route_tickets=TUNING_ROUTE_TICKETS,
                 tickets=MONTH_SIZE,
                 k=k,
@@ -751,18 +825,21 @@ def render_sealed_costs(costs: Mapping[str, Mapping[int, dict[str, Any]]]) -> st
     lines = [
         f"The sealed month's cost from measured calls ({MONTH_SIZE} tickets; the picker is "
         f"{PICKER_PROMPT} on {PICKER_MODEL} in every arm; no model is called, no month is read)",
-        "  calls per ticket, from the tuning month: "
-        + ", ".join(f"{t} {n}/{TUNING_ROUTE_TICKETS}" for t, n in TUNING_ROUTE.items()),
     ]
     for arm, by_k in costs.items():
         first = next(iter(by_k.values()))
         lines.append(
-            f"  {arm}: $ per call "
+            f"  {arm}: calls per {TUNING_ROUTE_TICKETS} tuning tickets: "
+            + ", ".join(f"{t} {n}" for t, n in ARM_ROUTE[arm].items())
+            + "; $ per call "
             + ", ".join(f"{t} {usd:.7f}" for t, usd in first["usd_per_call"].items())
         )
         for k, c in by_k.items():
             parts = ", ".join(f"{t} ${usd:.4f}" for t, usd in c["usd_by_task"].items())
             lines.append(f"    k = {k}: ${c['usd']:.4f} ({parts})")
+    if all(arm in costs and SEALED_K in costs[arm] for arm in SEALED_ARMS):
+        total = sum(costs[arm][SEALED_K]["usd"] for arm in SEALED_ARMS)
+        lines.append(f"  the sealed run ({' + '.join(SEALED_ARMS)}, k = {SEALED_K}): ${total:.4f}")
     return "\n".join(lines)
 
 
@@ -794,6 +871,34 @@ def check_unseal(set_name: str, final_test: str | None, seed: int) -> str | None
             )
         if seed != DEFAULT_SEEDS[set_name]:
             return f"{set_name} runs only at its fixed seed {DEFAULT_SEEDS[set_name]}, not {seed}"
+    return None
+
+
+def check_sealed_plan(
+    set_name: str,
+    setup: Setup,
+    *,
+    picker: str,
+    picker_prompt: str | None,
+    own_model_picker: bool,
+    k: int,
+) -> str | None:
+    """A reason to refuse, or None. A sealed set's one final run is frozen: its two arms, the
+    Sonnet picker with its frozen prompt and no override, and k = 3 (R26 (a), ADR-048)."""
+    if set_name not in SEALED_SETS:
+        return None
+    if setup.name not in SEALED_ARMS:
+        return (
+            f"{set_name} runs only on its frozen arms, {' and '.join(SEALED_ARMS)} (ADR-048), "
+            f"not {setup.name}"
+        )
+    if picker != "knowledge" or picker_prompt is not None or own_model_picker:
+        return (
+            f"{set_name} runs only with --picker knowledge ({PICKER_PROMPT} on {PICKER_MODEL}) "
+            "and no picker override"
+        )
+    if k != SEALED_K:
+        return f"{set_name} runs only at k = {SEALED_K}, not {k}"
     return None
 
 
@@ -862,15 +967,27 @@ def render(result: dict[str, Any], command: str) -> str:
     w = s["wrongly_answered"]
     rep = s["repeats"]
     sealed = c["sealed"]
+    tier_c = bool(c.get("tier_c"))
+    sig = s.get("reset_signal") or {}
     lines = [
         f"# Realistic month: {c['set']}, {c['setup']}, k = {c['k']}",
         "",
         f"Generated by `{command}`. Do not edit by hand.",
         "",
-        "**A routing-level eval.** Each ticket runs through triage, the role signal, the "
-        "own-account check and the second stage (picker: "
-        f"{_picker_label(c)}), and is graded on where it ends up. It does not run the mocks, the "
-        "tokens, the MCP server, the directory mention check or the reply templates.",
+        (
+            "**A routing-level eval.** Each ticket runs through triage, the code-only reset "
+            "signal (3d part 2: a password or MFA reset is prepared for a person), the role "
+            "signal, the own-account check and the second stage (picker: "
+            f"{_picker_label(c)}), and is graded on where it ends up. It does not run the "
+            "mocks, the tokens, the MCP server, the directory mention check, the verification "
+            "ladder or the reply templates."
+            if tier_c
+            else "**A routing-level eval.** Each ticket runs through triage, the role signal, "
+            "the own-account check and the second stage (picker: "
+            f"{_picker_label(c)}), and is graded on where it ends up. It does not run the "
+            "mocks, the tokens, the MCP server, the directory mention check or the reply "
+            "templates."
+        ),
         "",
         (
             "**Final test on the sealed set.** Result files hold ids, kinds and outcomes only."
@@ -902,6 +1019,16 @@ def render(result: dict[str, Any], command: str) -> str:
         f"{rep['username']['runs']} runs |",
         f"| Same-day repeats, password reset: handed off | "
         f"{rep['password']['handed_off_runs']} of {rep['password']['runs']} runs |",
+        *(
+            [
+                f"| Resets handed to a person by the reset signal | {sig['reset_runs']} of "
+                f"{sig['of_reset_runs']} reset runs; it also fired on "
+                f"{sig['runs'] - sig['reset_runs']} other runs, {sig['expected_answer_runs']} "
+                "of them on tickets the answer key wants answered |"
+            ]
+            if tier_c
+            else []
+        ),
         f"| Estimated IT hours saved per month | {_fmt(s['hours_saved'], 1)} h |",
         "",
         "Pass rate per run: " + ", ".join(f"{v:.3f}" for v in s["pass_rate_per_run"]) + ".",
@@ -910,6 +1037,16 @@ def render(result: dict[str, Any], command: str) -> str:
         + ", ".join(f"{k} {v}" for k, v in w["by_reason"].items())
         + ".",
         "",
+        *(
+            [
+                "Reset signal runs by kind: "
+                + (", ".join(f"{k} {v}" for k, v in sig["by_kind"].items()) or "none")
+                + ".",
+                "",
+            ]
+            if tier_c
+            else []
+        ),
         "## Per kind",
         "",
         "| Kind | Expected | Tickets | Templates | pass^1 (interval) | pass^k "
@@ -929,8 +1066,21 @@ def render(result: dict[str, Any], command: str) -> str:
         "- IT minutes saved per correctly answered ticket (assumptions, not measurements): "
         + ", ".join(f"{k} {v}" for k, v in c["minutes_per_kind"].items())
         + ". Hand-offs save nothing here, and a wrong answer's follow-up is not subtracted.",
-        "- Same-day repeats of an own-username request are expected to be answered until "
-        "the verification ladder decides otherwise; they are counted apart above.",
+        *(
+            [
+                "- Same-day repeats of an own-username request are expected to be answered: the "
+                "month plants a second request only, and the verification ladder acts on up to "
+                "3 requests for one account in 24 hours (ADR-043). The ladder is not run here; "
+                "the repeats are counted apart above.",
+                "- The reset signal is code only: it costs no model call and can only send a "
+                "ticket to a person. A reset it misses falls back to triage and the picker.",
+            ]
+            if tier_c
+            else [
+                "- Same-day repeats of an own-username request are expected to be answered "
+                "until the verification ladder decides otherwise; they are counted apart above."
+            ]
+        ),
         "- Every sender is a verified employee: identity binding is not part of this eval.",
         "- Model calls: "
         + (", ".join(f"{task} {n:,}" for task, n in c["calls"].items()) or "none")
@@ -1032,6 +1182,13 @@ def main(
         print(json.dumps(costs, indent=2) if args.json else render_sealed_costs(costs))
         return 0
     setup = ALL_SETUPS[args.setup]
+    if setup.split_prompt is not None:
+        print(
+            f"refused: {setup.name} has the split option, which the month doesn't run: "
+            "messages are not split (ADR-048)",
+            file=sys.stderr,
+        )
+        return 2
     if args.k < 1:
         print("--k must be at least 1", file=sys.stderr)
         return 2
@@ -1047,7 +1204,15 @@ def main(
     args.seed = DEFAULT_SEEDS[args.set] if args.seed is None else args.seed
     refusal = check_unseal(args.set, args.final_test, args.seed)
     if refusal is None and make_model is None:
-        refusal = check_budget_item(setup, os.environ if env is None else env)
+        # A real run only: tests with fake models may still run a sealed set any way they need.
+        refusal = check_sealed_plan(
+            args.set,
+            setup,
+            picker=args.picker,
+            picker_prompt=args.picker_prompt,
+            own_model_picker=args.picker_on_own_model,
+            k=args.k,
+        ) or check_budget_item(setup, os.environ if env is None else env)
     if refusal is not None:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
@@ -1105,6 +1270,7 @@ def main(
         "check_prompt": setup.check_prompt,
         "triage_prompt_sha256": hashlib.sha256((prompts.triage or "").encode()).hexdigest(),
         "check_prompt_sha256": hashlib.sha256((prompts.check or "").encode()).hexdigest(),
+        "tier_c": setup.tier_c,
         "picker": picker.name,
         "picker_model": picker_model,
         "picker_prompt": picker.prompt_version,

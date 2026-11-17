@@ -52,8 +52,10 @@ LEDGERS = {
 def test_the_budget_file_splits_the_credit_as_the_owner_decided():
     raw = json.loads(FILE.read_text(encoding="utf-8"))
     assert raw["credit_usd"] == 100
-    assert raw["projects"] == {"tier0": 55, "access": 30}
-    assert raw["buffer_usd"] == 15
+    # 2026-11-17: $3 moved from the buffer to tier0-3c, for the tuning-month rehearsal and the
+    # sealed month. The split was tier0 55, access 30 and a buffer of 15.
+    assert raw["projects"] == {"tier0": 58, "access": 30}
+    assert raw["buffer_usd"] == 12
     assert raw["paid_until"] == "2026-12-17"
     assert raw["credit_expires"] == "2026-12-18T00:00:00Z"
     assert "oauth-radar" not in json.dumps(raw)  # Shadow AI Radar gets nothing from this credit
