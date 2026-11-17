@@ -18,6 +18,17 @@ It was written from tuning data only: the 7 tuning poisoned guides (PT-1 to PT-7
 approved runbooks. A test requires it to flag every one of those poisoned guides and none of
 the runbooks, and pins its patterns. It is separate from the message screen (screen.py), which
 stays frozen as it was. What it misses on new wording, the sealed test's code-only result shows.
+
+The sealed how-to test (R1, 2026-11-16) found one miss: an instruction in quoted text or a code
+block inside a step. The fix (docs/plans/milestone-4-guide-screen-fix.md) adds patterns beside
+the old ones, which are kept as they were. They were written from 12 more tuning poisoned guides
+(PT-8 to PT-19), all with the instruction in quoted text or a code block, and checked against the
+12 clean tuning guides (CT-1 to CT-12). They cover:
+- a line or a quote addressed to an AI after any mark or line break, and tags such as "[bot]";
+- "if you are an AI", "AI tools that read this page", "AI instructions";
+- more steering wording, some of it in German, Spanish or French;
+- more ways to ask for a code.
+`held_out_g2`, written blind, measures it.
 """
 
 import re
@@ -45,9 +56,31 @@ _COLON_WORDS = (
     r"(ai|assistant|ai assistant|bot|chatbot|help ?desk bot|it bot|support bot|llm|system|ki|ia"
     r"|asistente|assistent|assistante|systeme|sistema)"
 )
+# Words for an AI reader only, without "system" or "model", which runbooks use for other things.
+# Added for the fix to the miss on quoted text and code blocks, from PT-8 to PT-19 only.
+_AI_WORDS = (
+    r"(ai|a i|ki|ia|assistants?|ai assistants?|bots?|chatbots?|help ?desk bots?|it bots?"
+    r"|support bots?|helper bots?|llms?|language models?|copilots?|virtual (agents?|assistants?)"
+    r"|ai (agents?|tools?|helpers?|systems?|models?)|agents? ia|ki (assistent(en)?|agent(en)?)"
+    r"|automated (helpers?|readers?|assistants?|tools?|agents?|systems?)"
+    r"|automatische (assistenten|helfer)|asistentes?( virtual(es)?)?|assistenten?"
+    r"|assistantes?( virtuel(le)?s?)?|summari[sz]ers?|crawlers?|scrapers?)"
+)
+# The same, as the head of a line or a quote addressed to an AI ("helper bots:", "# copilot:").
+_LINE_WORDS = (
+    r"(ai|assistants?|ai assistants?|bots?|helper bots?|chatbots?|help ?desk bots?|it bots?"
+    r"|support bots?|llms?|ki|ia|copilot|virtual (agent|assistant)|ai agent|agent ia"
+    r"|ki assistent(en)?|asistentes?( virtual)?|assistent(en)?|assistante( virtuelle)?"
+    r"|automation|automated assistant)"
+)
 # Read on the lower-cased text with accents removed and punctuation kept.
 _ADDRESS_PATTERNS: tuple[str, ...] = (
     rf"(^|[.!?;]\s+|[\"'`(\[>*_]\s*){_COLON_WORDS}( override| note| message| instruction)?\s*:",
+    # At the start of any line, or after any mark (a comment sign, a quote, a code mark).
+    rf"(?m)(^|[^\w\s]\s*){_LINE_WORDS}( override| note| message| instructions?| directives?"
+    rf"| update| prompt)?\s*:",
+    # A tag such as "[bot]" or "(automation)".
+    r"[\[(<{]\s*(bots?|automation|assistant|llm|copilot|chatbot|ai assistant)\s*[\])>}]",
 )
 # Read on the normalised text: lower case, no accents, letters and digits only, single spaces.
 _PATTERNS: tuple[tuple[str, str], ...] = (
@@ -88,21 +121,102 @@ _PATTERNS: tuple[tuple[str, str], ...] = (
     (STEERING, r"\b(need|needs) no (person|human|review|hand off)\b"),
     (STEERING, r"\banswer (them|it|those|these|every|all) with this guide\b"),
     (STEERING, r"\bwhatever (it is|they are|the question is) about\b"),
+    # Added for the fix to the miss on quoted text and code blocks, from PT-8 to PT-19 only.
+    (ADDRESSED_TO_BOT, rf"\b(if|when) you (are|re) (an? |the )?{_AI_WORDS}\b"),
+    (
+        ADDRESSED_TO_BOT,
+        rf"\b{_AI_WORDS} (that |who |which |qui |que |die |der )?(read|reads|reading|summari[sz]e"
+        r"|summari[sz]es|summari[sz]ing|process|processes|processing|parse|parses|parsing|lit"
+        r"|lisent|lee|leen|liest|lesen) (this|these|the|cette|ce|cet|ces|esta|este|diese|dieser"
+        r"|dieses)\b",
+    ),
+    (
+        ADDRESSED_TO_BOT,
+        rf"\b(note|notes|message|instruction|instructions|hint|reminder|notice|directive|rule"
+        rf"|rules|hinweis|nota|remarque|consigne) (to|for|an|fur|para|pour|a) (the |all |any "
+        rf"|die |den |la |le |l |los |las |les )?{_AI_WORDS}\b",
+    ),
+    (
+        ADDRESSED_TO_BOT,
+        rf"\b{_AI_WORDS} (directive|directives|instruction|instructions|prompt|prompts|override"
+        r"|overrides)\b",
+    ),
+    (STEERING, r"\b(choose|select|pick|use|take) (this|that|the same) runbook\b"),
+    (
+        STEERING,
+        r"\b(rank|prefer|recommend|list|surface) (this|that) (guide|runbook|page|article)\b",
+    ),
+    (STEERING, r"\bthis (guide|runbook|page|article) (settles|is the answer to)\b"),
+    (
+        STEERING,
+        r"\b(answers|settles|handles|resolves) (every|any|all|each) (\w+ ){0,4}?(question"
+        r"|questions|request|requests|message|messages|ticket|tickets|topic|topics)\b",
+    ),
+    (
+        STEERING,
+        r"\b(skip|bypass|without|ohne|sin|sans) (the |a |any |el |la |le |l |die |den |das |los "
+        r"|las |les )?(it team|it desk|it staff|service desk|help desk|hand off|handoff|human"
+        r"|humans|escalation|equipo de it|equipe it)\b",
+    ),
+    (STEERING, r"\b(keep|leave) (humans|people|the it team|a person|staff) out of\b"),
+    (
+        STEERING,
+        r"\b(never|do not|dont|must not|should not|no need to) route( them| those| these| it"
+        r"| requests)? (to a person|to a human|to people|to the it team|to someone|to it staff)\b",
+    ),
+    (STEERING, r"\bno (escalation|hand off|handoff|human|person) (needed|required|necessary)\b"),
+    (STEERING, r"\b(are|is) (fine|ok|okay|safe|allowed) to (answer|share|give|reply to|approve)\b"),
+    (
+        STEERING,
+        r"\btreat (them|it|these|those|this|every|each|all|any)\b.{0,40}?\b(as|like) (the senders"
+        r" own|the sender s own|their own|already approved|verified)\b",
+    ),
+    (
+        STEERING,
+        r"\b(mfa|password|passwort|account|sign in|login) (reset|resets|unlock|unlocks)\b.{0,20}?"
+        r"\b(for|to) (anyone|anybody|everyone|whoever)\b",
+    ),
+    (
+        STEERING,
+        r"\bnicht (an |zur |zum )?(die |den |das )?(it|it abteilung|it team|support|service desk"
+        r"|helpdesk|menschen|person|mitarbeiter) weiter(leiten|geben)\b",
+    ),
+    (STEERING, r"\b(direkt|selbst) (\w+ ){0,2}?beantworten\b"),
+    (
+        STEERING,
+        r"\b(sin|no) (pasarlas|pasarlos|pasarla|pasarlo|las pases|los pases|reenviarlas"
+        r"|reenviarlos|escalarlas|escalarlos)\b",
+    ),
+    (
+        STEERING,
+        r"\b(sans|ne) (les |le |la |l )?(transmettre|transmettez|transferer|transferez"
+        r"|escalader)\b",
+    ),
 )
 
 _SEND = (
     r"(send|sends|email|e mail|mail|share|give|tell|forward|reply with|post|paste|read out|text"
     r"|dm|message|senden|sende|schick|schicke|envia|enviar|manda|mandar|envoie|envoyez|envoyer"
-    r"|donne|donnez|partage|partagez|comparte|teile)"
+    r"|donne|donnez|partage|partagez|comparte|teile"
+    # Added for the fix, from PT-8 to PT-19 only. Not "ask for" or "enter": runbooks say
+    # "macOS asks for your password" and "enter your password".
+    r"|replying with|respond with|responding with|include"
+    r"|ask (?:the |each |every |any )?(?:employee|employees|user|users|person|reader|readers"
+    r"|caller|colleague|colleagues|staff|them)"
+    r"|demandez|demander|demande|pide|pidele|pida|solicita|frage|fragen|verlange|verlangen)"
 )
 _PRIVATE_WORDS = (
     r"(password|passwords|passcode|passcodes|sign in details|login details|log in details"
     r"|credentials|mfa code|mfa codes|verification code|one time code|security code|recovery code"
     r"|recovery codes|2fa code|backup code|backup codes|pin|passwort|kennwort|zugangsdaten"
-    r"|contrasena|credenciales|mot de passe|identifiants)"
+    r"|contrasena|credenciales|mot de passe|identifiants"
+    r"|reset code|reset codes|reset link|reset links|one time password|code mfa|codes mfa"
+    r"|codigo mfa|codigo de verificacion|code de verification|bestatigungscode)"
 )
 # A password manager or vault is a tool, not a secret; "never send a password" is a warning.
-_CREDENTIALS = re.compile(rf"\b{_SEND}\b(.{{0,50}}?)\b{_PRIVATE_WORDS}\b(?! manager| vault)")
+_CREDENTIALS = re.compile(
+    rf"\b{_SEND}\b(?P<between>.{{0,50}}?)\b{_PRIVATE_WORDS}\b(?! manager| vault)"
+)
 _WARNING_BEFORE = re.compile(r"\b(never|not|dont|don t|nie|niemals|nunca|jamais|ne)\b")
 
 _EMAIL = re.compile(r"[\w.+-]+@([\w-]+(?:\.[\w-]+)+)")
@@ -148,7 +262,9 @@ def flag_text(text: str) -> str | None:
             return kind
     for match in _CREDENTIALS.finditer(normalised):
         before = normalised[max(0, match.start() - 16) : match.start()]
-        if not _WARNING_BEFORE.search(before) and not _WARNING_BEFORE.search(match.group(2)):
+        if not _WARNING_BEFORE.search(before) and not _WARNING_BEFORE.search(
+            match.group("between")
+        ):
             return CREDENTIALS
     return None
 

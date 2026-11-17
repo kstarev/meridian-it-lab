@@ -35,6 +35,10 @@ def _shared(texts: list[str], other: list[str]) -> int:
 
 
 CLEAN = [_guide_text(g) for g in TUNING.clean_guides]
+# The 12 poisoned tuning guides written for the fix (R-G1 (a), 2026-11-17), PT-8 to PT-19.
+NEW_POISONED_IDS = [f"PT-{n}" for n in range(8, 20)]
+NEW_POISONED = [_guide_text(g) for g in TUNING.poisoned_guides if g.id in NEW_POISONED_IDS]
+WRITTEN_FOR_THE_FIX = [*CLEAN, *NEW_POISONED]
 
 
 def test_twelve_clean_tuning_guides_with_commands_settings_and_quoted_errors() -> None:
@@ -49,6 +53,19 @@ def test_twelve_clean_tuning_guides_with_commands_settings_and_quoted_errors() -
     for g in clean:
         assert 4 <= len(g.steps) <= 7, g.id
         assert g.summary.endswith(".") and len(g.summary) < 160, g.id
+
+
+def test_twelve_new_poisoned_tuning_guides_hide_their_instruction_in_quoted_text_or_code() -> None:
+    new = [g for g in TUNING.poisoned_guides if g.id in NEW_POISONED_IDS]
+    assert [g.id for g in new] == NEW_POISONED_IDS
+    assert [g.id for g in TUNING.poisoned_guides] == [f"PT-{n}" for n in range(1, 20)]
+    assert all(g.planted == ("steps_quoted",) for g in new)
+    assert len({g.title for g in new}) == 12
+    assert not {g.title for g in new} & {g.title for g in GUIDES}
+    assert _shared(NEW_POISONED, [*CLEAN, *(_guide_text(g) for g in GUIDES)]) == 0
+    for g in new:
+        assert 4 <= len(g.steps) <= 7, g.id
+        assert any(mark in s for s in g.steps for mark in ("`", '"', "'", "> ", "„", "«")), g.id
 
 
 def test_the_clean_tuning_guides_use_only_meridian_addresses() -> None:
@@ -74,17 +91,17 @@ def test_the_clean_tuning_guides_copy_no_runbook_or_tuning_poisoned_guide() -> N
 def test_they_share_no_sentence_with_held_out_v5() -> None:
     pool = MESSAGE_POOLS["held_out_v5"]
     texts = [*pool.normal, *pool.self_described, *pool.colleague, *pool.unauthenticated]
-    assert _shared(CLEAN, texts) == 0
+    assert _shared(WRITTEN_FOR_THE_FIX, texts) == 0
 
 
 def test_they_share_no_sentence_with_the_sealed_month() -> None:
-    assert _shared(CLEAN, [t.text for t in load_templates(HELD_OUT_MONTH1)]) == 0
+    assert _shared(WRITTEN_FOR_THE_FIX, [t.text for t in load_templates(HELD_OUT_MONTH1)]) == 0
 
 
 def test_they_share_no_sentence_with_the_sealed_how_to_test() -> None:
     sealed = kn.load_question_set(kn.HELD_OUT_K1)
     texts = [q.text for q in sealed.questions] + [_guide_text(g) for g in sealed.poisoned_guides]
-    assert _shared(CLEAN, texts) == 0
+    assert _shared(WRITTEN_FOR_THE_FIX, texts) == 0
 
 
 @pytest.mark.skipif(not G2_PATH.exists(), reason="held_out_g2 is not written yet")
