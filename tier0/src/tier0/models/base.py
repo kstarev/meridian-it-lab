@@ -30,7 +30,10 @@ OWN_ACCOUNT_CHECK_SCHEMA: dict[str, Any] = {
 
 # The model only classifies; replies come from code templates (ADR-028). "guide_pick" is
 # milestone 4: the model picks which approved guide answers a how-to question (ADR-035).
-type Task = Literal["triage", "own_account_check", "guide_pick"]
+# "guide_draft" is milestone 4's weekly job: the model drafts a guide from resolved tickets with
+# personal details removed. The draft is never a reply: it goes to a pull request, and nobody
+# sees its steps until a person on the IT team approves it (ADR-005, ADR-035).
+type Task = Literal["triage", "own_account_check", "guide_pick", "guide_draft"]
 
 
 @dataclass(frozen=True, slots=True)

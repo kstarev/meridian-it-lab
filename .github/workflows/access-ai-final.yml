@@ -12,7 +12,7 @@
 # outside the checkout and uploaded as the `access-final-score` artifact, and they are not for
 # publishing until every disagreement has the owner's ruling (AAC-010).
 # The cap holds across runs through the ledger artifact (`access-ai-ledger`): the run first
-# downloads the newest one from this workflow or the compare workflow.
+# downloads the newest one from this workflow, the compare workflow or the red-team workflow.
 # The owner's steps and rulings: access/docs/m7-prep.md.
 name: Access final score
 
@@ -68,7 +68,7 @@ jobs:
         run: |
           mkdir -p out
           runs=$(
-            for wf in access-ai-final.yml access-ai-compare.yml; do
+            for wf in access-ai-final.yml access-ai-compare.yml access-red-team.yml; do
               gh run list --workflow "$wf" --status completed --limit 5 \
                 --json databaseId,createdAt --jq '.[] | "\(.createdAt) \(.databaseId)"'
             done | sort -r | cut -d' ' -f2

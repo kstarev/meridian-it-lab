@@ -1,6 +1,6 @@
 # Milestone 7 prep: frozen prompts, the owner's rulings and the run steps
 
-**Date:** 2026-11-15 · **Status:** Prepared overnight under the owner's "pick and log" rule. Nothing has run and nothing is paid. **Updated 2026-11-16:** M7-R16 decided as (a) and built, and the prompts re-frozen with a new digest (sections 1 and 5). Follows [AAC-005](adr/005-sealed-answer-key.md), [AAC-006](adr/006-model-choice-and-spend-cap.md), [AAC-010](adr/010-human-rulings-before-publishing.md), [AAC-011](adr/011-blind-referee-against-shared-mistakes.md) and lab [ADR-037](../../docs/decisions.md).
+**Date:** 2026-11-15 · **Status:** Prepared overnight under the owner's "pick and log" rule. Nothing has run and nothing is paid. **Updated 2026-11-16:** M7-R16 decided as (a) and built, and the prompts re-frozen with a new digest (sections 1 and 5). M7-R14 decided as (a) and built: the four safety counts (sections 2, 5 and 7). Follows [AAC-005](adr/005-sealed-answer-key.md), [AAC-006](adr/006-model-choice-and-spend-cap.md), [AAC-010](adr/010-human-rulings-before-publishing.md), [AAC-011](adr/011-blind-referee-against-shared-mistakes.md) and lab [ADR-037](../../docs/decisions.md).
 
 Milestone 7 scores the sealed held-out world once, with the chosen model (Haiku 5.5) and frozen prompts, in a GitHub Actions run the owner approves. Then the owner rules on every disagreement, and only then is anything published. This file covers:
 
@@ -88,11 +88,11 @@ freeze digest    e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24c
 
 **What it writes,** to `$RUNNER_TEMP/access-final` (outside the checkout), uploaded as the `access-final-score` artifact for 30 days:
 
-- `report.json`: the scores. These are plan precision and recall per finding type, matching for rules only and for rules plus AI, title accuracy (all titles, and titles the reviewed map doesn't cover), the AI's matches right and made, false matches repeated in every repeat, the summaries' pass or fail, calls, cost and the prompt hashes. It is marked "unruled: not for publishing".
+- `report.json`: the scores. These are plan precision and recall per finding type, matching for rules only and for rules plus AI, title accuracy (all titles, and titles the reviewed map doesn't cover), the AI's matches right and made, false matches repeated in every repeat, the summaries' pass or fail, calls, cost and the prompt hashes. Apart from the scores, it holds the four safety counts, each with its target of 0 (M7-R14). It is marked "unruled: not for publishing".
 - `details.json`: every disagreement in full. This is held-out content.
 - `rulings-template.md`: the rulings log, one row per disagreement, with the Ruling and Reason columns blank.
 
-**What the log shows:** counts only: calls made and planned, cost, and how many disagreements of each kind. No score, no name and no account. If anything fails after the start, the log gives only the error's type, because the message could quote held-out data.
+**What the log shows:** counts only: calls made and planned, cost, how many disagreements of each kind, and the four safety counts. No score, no name and no account. If anything fails after the start, the log gives only the error's type, because the message could quote held-out data.
 
 **The disagreement lists** match exactly how the score counts, so each ruling maps to one change in a published number:
 
@@ -129,7 +129,7 @@ The upper cost is what the spend ledger checks before each call: the request's s
 - **D7. No answer counts as a miss for titles.** The comparison left failed calls out of the count. It had none, so the numbers agree.
 - **D8. Three disagreement lists**, matched exactly as the score counts (section 2).
 - **D9. Output outside the checkout, counts only in the log,** error messages withheld.
-- **D10. A new workflow,** `Access final score`. It is manual only, from `main` only, in the `access-ai` environment, and uses the same pinned actions as the compare workflow. It has a `k` choice of 3 or 1, a free freeze check first, and the spend ledger continued from the newest run of either AI workflow. A test locks each of these.
+- **D10. A new workflow,** `Access final score`. It is manual only, from `main` only, in the `access-ai` environment, and uses the same pinned actions as the compare workflow. It has a `k` choice of 3 or 1, a free freeze check first, and the spend ledger continued from the newest run of any of the three paid workflows (this one, the compare and, since R22, the red team). A test locks each of these.
 - **D11. Small refactors, no change in behaviour:** the client's request is built by one function (`request_params`), the summary's token limit is a named constant, and `score_titles` shares its majority-role lookup with the new title disagreements. Every existing test passes unchanged.
 - **D12. Boxes not ticked here.** The milestone 4 box "The chosen prompts are frozen by hash" and milestone 5's GitHub setup box are outside the lines this change may edit. The owner can tick them on merge. The evidence is `test_the_prompts_are_frozen_by_hash`, and M7-R7 for the setup.
 
@@ -304,6 +304,20 @@ These came from a red-team reading of the code on 2026-11-15, not from any held-
 
 **M7-R14. The safety counts: before the run or after.**
 
+- **Decided on 2026-11-16: option (a), and built in this pull request.** What was built:
+  - `access/src/meridian_access/safety.py` counts the four from the plan, its two parts, the approvals each part has, what apply would send, the owner links with their rule, and the policy. No model is called.
+  - `run_world` counts them before the first paid call, so a bug in them shows before money is spent. `report.json` holds them under `safety`, apart from the scores: each count with its target, 0, and how many changes it checked. The log prints the four counts only.
+  - How the run counts them: both parts go to apply in a dry run on fresh mocks, with one approval each. The main part is merged with one, so apply would apply it. The held part needs two, so it is not merged, and apply must refuse it.
+  - What each count is:
+    - **break-glass:** a change, planned or applied, that names a break-glass account by any of its names. The report-only entry doesn't count.
+    - **merged plan:** a change applied from a part without the approvals it needs, or not listed in that part.
+    - **over the limit:** a removal or suspension applied from a part with fewer than two approvals, that is in a cause-day bucket over the limit or held by a bulk import. Buckets are counted on the whole plan, so a bucket split across both parts is still seen whole.
+    - **unreviewed AI match:** a removal or suspension with an owner that no rule and no reviewed map entry links to that account.
+  - On the tuning world all four are 0, and each one checked changes. Two are 0 by construction. Break-glass: matching never gives such an account an owner, the diff drops any row that names one, and apply drops it again. AI match: the plan is built before any call and never reads an answer. The other two are 0 because apply refuses the held part with one approval.
+  - Tests (fake data only, `access/tests/test_safety.py`): 0 on the tuning world with a fake client; each count fails on a small case built to break it, and on the real plan made unsafe; the report and the log carry the four counts with target 0 and no name or email.
+
+  What follows is the ruling as it was written on 2026-11-15.
+
 - **Context:** the brief and AAC-005 report four safety counts, each with a target of 0: changes to break-glass accounts, changes without a merged plan, removals over the limit without two approvals, and removals that rest on an unreviewed AI match. No code counts them yet. They need no paid call.
 - **Options:**
   - (a) build them in a code-only pull request before the run, so the one run writes every scored number;
@@ -347,7 +361,7 @@ These came from a red-team reading of the code on 2026-11-15, not from any held-
 
 ## 7. Still to build (no paid call)
 
-- **Before the run, if M7-R14 is (a):** the four safety counts, added to `run_world` and its report, tested on the tuning world.
+- **Before the run, M7-R14 (a): built in this pull request.** The four safety counts, added to `run_world` and its report, tested on the tuning world (section 5).
 - **Before the run, if the owner chooses so:** the summary claims check or saved paragraphs (M7-R17). The line-break handling (M7-R16) is built.
 - **After the run:** the report generator. It reads `report.json`, `details.json` and the rulings log, takes out key errors (and "both acceptable", per M7-R11), and writes `docs/evals/<date>-access-held-out-a1.md` with intervals, the key errors listed apart with their count, and a test that keeps the numbers in step.
 - **After the run:** `site/access/`, the honest limits and the compliance mapping, with every number checked against the report by a test.
@@ -355,20 +369,20 @@ These came from a red-team reading of the code on 2026-11-15, not from any held-
 
 ## Owner's answers
 
-Filled in by the owner, in the M7-R1 pull request.
+Filled in from the owner's answers of 2026-11-16, recorded in [AAC-013](adr/013-m7-frozen-prompts-and-the-owners-answers.md), in the M7-R1 pull request. The owner confirms them by merging it.
 
 | Ruling | Answer | Date |
 |---|---|---|
-| M7-R2 | | |
-| M7-R3 | | |
-| M7-R4 | | |
-| M7-R5 | | |
-| M7-R6 | | |
-| M7-R7 | | |
-| M7-R8 | | |
-| M7-R11 | | |
-| M7-R12 | | |
-| M7-R13 | | |
-| M7-R14 | | |
-| M7-R16 | | |
-| M7-R17 | | |
+| M7-R2 | Re-freeze after the M7-R16 fix (AAC-014). New digest `e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24cf`, merged in #54; merging this pull request confirms it | 2026-11-16 |
+| M7-R3 | Send titles, owners and the two plan summaries; the summaries are reported as "passed n of 2" | 2026-11-16 |
+| M7-R4 | k = 3, with the lowest repeat as each model-dependent headline, and all three shown | 2026-11-16 |
+| M7-R5 | Any false match the key confirms after the rulings, in any repeat, reopens the Haiku pick (AAC-006). The held-out score is never re-run | 2026-11-16 |
+| M7-R6 | Raw results stay in the run's artifact for 30 days, marked "unruled" | 2026-11-16 |
+| M7-R7 | The GitHub setup as found on 2026-11-15, with "prevent self-review" left off on `access-ai` | 2026-11-16 |
+| M7-R8 | A run that wrote no `report.json` is not the score. The bug is fixed without opening held-out content, and the run goes again once | 2026-11-16 |
+| M7-R11 | "Both acceptable" counts as right for the tool, listed apart with its count | 2026-11-16 |
+| M7-R12 | One ruling may cover a group with one cause, with every id still listed | 2026-11-16 |
+| M7-R13 | A helper copies and groups the rows; it never writes a ruling | 2026-11-16 |
+| M7-R14 | (a): the four safety counts are built in code before the run, in their own pull request | 2026-11-16 |
+| M7-R16 | (a): fixed now; line breaks are flattened before any prompt (AAC-014, #54) | 2026-11-16 |
+| M7-R17 | Measured first by the red-team run (AAC-015), then fixed. The report calls a passing summary "passed the code check" and states the limit | 2026-11-16 |

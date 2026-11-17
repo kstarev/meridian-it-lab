@@ -11,6 +11,11 @@ Three things live here, all fake:
 - **Question sets** (`load_question_set`): "tuning" (the resolved tickets) and the sealed
   held-out how-to test, which a blind helper wrote and nobody on the tuning side reads
   (`pools/held_out_k1.json`, sealed by SHA-256 in `seal.py`).
+- **Guide sets** for the guide screen alone: poisoned guides and **clean guides** (guides with
+  no planted instruction, standing for new runbooks a person approved). The tuning pool holds
+  12 clean guides; `held_out_g2` (the guide screen fix's sealed set, holding guides and no
+  questions) is registered here before it is written, and sealed in the commit that adds it
+  (docs/plans/milestone-4-guide-screen-fix.md).
 
 A question belongs to one group:
 
@@ -43,6 +48,11 @@ LANGUAGES = ("en", "de", "es", "fr")
 TUNING = "tuning"
 HELD_OUT_K1 = "held_out_k1"
 QUESTION_SETS = (TUNING, HELD_OUT_K1)
+# Sets that hold guides only, no questions: the guide screen's own sealed set. It is registered
+# before it is written; its file and its seal are added together, in one commit.
+HELD_OUT_G2 = "held_out_g2"
+GUIDE_SETS = (HELD_OUT_G2,)
+ALL_SETS = (*QUESTION_SETS, *GUIDE_SETS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +88,21 @@ class PoisonedGuide:
 
 
 @dataclass(frozen=True, slots=True)
+class CleanGuide:
+    """A guide with no planted instruction, standing for a new runbook a person approved. The
+    guide screen should not flag it; if it does, that is a false flag.
+
+    `quoted` says whether it holds a code block, inline code, a settings snippet or quoted text
+    (an error message, a chat or an email)."""
+
+    id: str
+    title: str
+    summary: str
+    steps: tuple[str, ...]
+    quoted: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class Question:
     id: str
     group: str
@@ -95,6 +120,7 @@ class QuestionSet:
     name: str
     questions: tuple[Question, ...]
     poisoned_guides: tuple[PoisonedGuide, ...]
+    clean_guides: tuple[CleanGuide, ...] = ()
 
     def poisoned_guide(self, guide_id: str) -> PoisonedGuide:
         return next(g for g in self.poisoned_guides if g.id == guide_id)
@@ -167,6 +193,19 @@ def _poisoned(raw: dict[str, Any]) -> tuple[PoisonedGuide, ...]:
             planted=tuple(g.get("planted", ())),
         )
         for g in raw.get("poisoned_guides", ())
+    )
+
+
+def _clean(raw: dict[str, Any]) -> tuple[CleanGuide, ...]:
+    return tuple(
+        CleanGuide(
+            id=g["id"],
+            title=g["title"],
+            summary=g["summary"],
+            steps=tuple(g["steps"]),
+            quoted=g["quoted"],
+        )
+        for g in raw.get("clean_guides", ())
     )
 
 
@@ -246,25 +285,32 @@ def resolved_tickets(seed: int = KNOWLEDGE_SEED) -> tuple[ResolvedTicket, ...]:
     return tuple(tickets)
 
 
+def is_written(name: str) -> bool:
+    """Whether a set's pool file exists. A registered guide set may not be written yet."""
+    return name == TUNING or (POOLS / f"{name}.json").exists()
+
+
 def load_question_set(name: str) -> QuestionSet:
-    """A question set by name. The tuning set is the resolved tickets' questions; the sealed
-    set is read from its pool file as the blind helper wrote it."""
+    """A question set by name. The tuning set is the resolved tickets' questions; a sealed set
+    is read from its pool file as the blind helper wrote it. A guide set has no questions."""
     if name == TUNING:
         raw = json.loads((POOLS / "tuning.json").read_text(encoding="utf-8"))
         return QuestionSet(
             name=TUNING,
             questions=tuple(t.question for t in resolved_tickets()),
             poisoned_guides=_poisoned(raw),
+            clean_guides=_clean(raw),
         )
-    if name not in QUESTION_SETS:
-        raise ValueError(
-            f"unknown question set {name!r}; choose one of: {', '.join(QUESTION_SETS)}"
-        )
+    if name not in ALL_SETS:
+        raise ValueError(f"unknown question set {name!r}; choose one of: {', '.join(ALL_SETS)}")
+    if not is_written(name):
+        raise FileNotFoundError(f"{name} is registered but not written yet")
     raw = json.loads((POOLS / f"{name}.json").read_text(encoding="utf-8"))
     return QuestionSet(
         name=name,
-        questions=tuple(_question(q, q["id"]) for q in raw["questions"]),
+        questions=tuple(_question(q, q["id"]) for q in raw.get("questions", ())),
         poisoned_guides=_poisoned(raw),
+        clean_guides=_clean(raw),
     )
 
 
@@ -304,4 +350,16 @@ def problems(questions: QuestionSet, guides: tuple[Guide, ...]) -> list[str]:
             out.append(f"{g.id}: says nowhere, or somewhere unknown, that its instruction sits")
         if not 3 <= len(g.steps) <= 9:
             out.append(f"{g.id}: a poisoned guide needs 3 to 9 steps")
+    clean_ids = [g.id for g in questions.clean_guides]
+    if len(set(clean_ids)) != len(clean_ids):
+        out.append("a clean guide id is used twice")
+    if set(clean_ids) & (ids | poisoned):
+        out.append("a clean guide reuses an approved or a poisoned guide's id")
+    for c in questions.clean_guides:
+        if not c.title.strip() or not c.summary.strip():
+            out.append(f"{c.id}: a clean guide needs a title and a summary")
+        if not 3 <= len(c.steps) <= 9 or not all(s.strip() for s in c.steps):
+            out.append(f"{c.id}: a clean guide needs 3 to 9 steps, none empty")
+        if not isinstance(c.quoted, bool):
+            out.append(f"{c.id}: quoted must be true or false")
     return out

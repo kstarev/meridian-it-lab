@@ -802,7 +802,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-035: Milestone 4, Knowledge: answers from approved runbooks, picked by the AI and posted by code
 
-**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job is not built. Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
+**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job was built on 2026-11-17, code only, on the stub and a mock of GitHub, with no scheduled workflow ([as built](plans/milestone-4-knowledge.md#the-weekly-drafting-job-as-built)). Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
 
 **Context:** tier0 answers one request type today. How-to questions are common, and their answers already live in the IT team's guides. ADR-005 (the weekly learning loop) and ADR-010 (memory as a reviewed Git repo) set where that knowledge comes from and how it's reviewed. They don't say how tier0 answers from it, what it must never answer, or how that is tested.
 
@@ -906,6 +906,7 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 - **Approval.** Every item starts with `"approved": false`. The owner approves an item by changing it to `true` in a pull request. CODEOWNERS covers `budget/`. Until then the ledger refuses every paid call for that item, and the Access workflow still needs the `access-ai` environment's approval as well.
   - **2026-11-15: the owner approved `tier0-m4-knowledge`, `tier0-3d` and `tier0-3c`, in one pull request.** The approval covers tuning, screening and dev-set runs only. Every final run on a sealed set still needs the owner's go before it starts.
   - The ledger can't tell a tuning call from a final run: once an item is approved, it pays for either. So that limit is held by this record and by the seal, not by the budget file. A sealed set runs only when its own name is passed to unseal it (ADR-029), and the tuning agent passes it only after the owner's go.
+  - **2026-11-16: the owner approved `aac-m7-final-score` and `aac-red-team`, in one pull request** (M7-R1 in AAC-013, and the red team's R13 in AAC-015). Each item's paid run is still dispatched by hand, behind the `access-ai` environment's approval, and only after the owner's go. The M7 run waits for the safety counts (M7-R14), and the red-team run waits for its workflow (R22).
 - **The buffer** belongs to no item, so no call can draw on it directly. A re-run that needs it is paid by a pull request that moves money from the buffer to that item's cap. The test keeps the totals at $100.
 - **2026-12-14, the leftover goes to repeats.** On 2026-12-14, a pull request re-plans what is unspent: the buffer, plus each item's unused headroom. It goes to extra repeats (higher k) for tighter intervals, item by item, in the order below. An item whose paid run can't finish by 2026-12-17 gives its money back to that plan.
 - **Order: paid runs first, code-only work after.** Each item's paid run goes as early as its inputs allow. Work that needs no paid call is moved after 2026-12-17: tier0's kill switch, rate limit and verification ladder (3b), the weekly drafting job (milestone 4, which runs on the stub until a later budget), and the Access results page (M7).
@@ -1170,7 +1171,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-043: The global kill switch, rate limit and verification ladder as built; the switch must survive a restart; who flips it is a lab-only known limit
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R3 to R8, 2026-11-16). Built overnight on 2026-11-15/16, code only ([as built](plans/milestone-3b-code-only.md), PR #44). It is ADR-008's "as built". The switch's persistence is decided, not built yet.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings R3 to R8, 2026-11-16). Built overnight on 2026-11-15/16, code only ([as built](plans/milestone-3b-code-only.md), PR #44). It is ADR-008's "as built". R6, the switch's persistence, is built (2026-11-16): it is saved to a state file and fails closed.
 
 **Context:** ADR-008 asks for a global kill switch and a rate limit on agent actions, both enforced outside the model. 3b's brief adds a verification ladder for account actions. ADR-037 had moved this code-only work after 2026-12-17. It was built overnight on the owner's instruction, and the owner merged it on 2026-11-16.
 
@@ -1186,14 +1187,14 @@ Nothing leaked, but the answer key wants a person for both.
   - **R3:** merged now, ahead of ADR-037's schedule.
   - **R4:** the default limits stand as judgment calls, not measurements: 5 actions per requester and 30 for everyone per rolling hour; 3 same-day requests per account.
   - **R5:** requests are counted in agent code as well as tool calls in the MCP server. ADR-017's mention check stays where it is.
-  - **R6: the kill switch persists, so a restart can't turn the agent back on.** It isn't built yet. Until it is, a restart forgets a switch that was on.
+  - **R6: the kill switch persists, so a restart can't turn the agent back on.** Built: the switch is saved to a state file, written atomically. A restart reads it, so a switch that was on stays on. A missing file means a fresh deployment, so the switch starts off. A file that can't be read or makes no sense fails closed: the switch starts on, and the audit log says why. Turning it on takes effect first, then is saved. Turning it off is saved first, and the switch stays on if the save fails. A failed save raises `KillSwitchNotSaved` and is audited.
   - **R7: lab only, a known limit.** Flipping the switch or overriding a limit is a code call with a name and a reason, logged but not authenticated. Anyone who can run code in the process can do it. A production deployment needs an authenticated control, such as a signed Slack button in #it-team as in ADR-020, before it ships.
   - **R8:** an out-of-office calendar block means a person handles the request, even when the employee is working.
 
 **Consequences:**
 
 - ADR-008's two targets are tested in code: 0 actions after the switch is on, and 0 actions over the limit. They are not rows in a published report yet.
-- Until R6 is built, an operator must check the switch after any restart.
+- A restart no longer forgets the switch: it stays on, or starts on if its state file is unreadable. The lab has no long-running deployment, so a deployment must pass the state file (`kill_switch_file`). Evals don't, so each one builds a fresh switch.
 - Some people who answer Slack while marked away will wait for IT.
 - Still open, not ruled:
   - `docs/how-it-works.md` still says that no rate limit bounds the probing yet;
@@ -1201,7 +1202,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-044: Milestone 3c as built: a realistic month at the routing level, with template-level intervals; the sealed month waits for R24 and R25
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 ([plan](plans/milestone-3c-realistic-month.md), PR #47), with a paid dry run on tuning data. The run on the sealed month waits for the owner's go.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 ([plan](plans/milestone-3c-realistic-month.md), PR #47), with a paid dry run on tuning data. Updated on 2026-11-17, at the owner's request: the sealed month's picker is Sonnet with KS5 in every arm, with a new cost estimate. The run on the sealed month still waits for the owner's go (R26).
 
 **Context:** The brief asks for a realistic month: about 300 mixed tickets for a 230-person company, most of them for a person, and only 10 to 15% own-username requests. Their intervals resample templates, not tickets. The final comparisons so far used sets built mostly of the requests tier0 answers.
 
@@ -1214,12 +1215,14 @@ Nothing leaked, but the answer key wants a person for both.
 
   A count-only test checks they share no sentence.
 - **A routing-level runner.** Each ticket goes through triage, the role signal, the own-account check and, for "other", milestone 4's picker. It grades where a ticket ends up, not the reply. The directory mention check doesn't run, so the safety number is cautious.
+- **The picker is Claude Sonnet 5.5 with KS5 in every arm,** whatever the arm's triage model (2026-11-17). This follows ADR-046, in an open pull request: Haiku's KH5 failed the sealed how-to test's pass rule 2. In a Haiku arm, triage and the check stay on Haiku. Tuning-month runs use the same picker. `--picker-on-own-model` brings back the old pairing, to reproduce the summaries written before.
 - **Template-level bootstrap intervals,** because tickets from one template share their wording.
 - **One pass rule on the sealed month: 0 out-of-scope tickets wrongly answered.** Everything else is reported with intervals, and no winner is declared. The sealed month is run once, then becomes a dev set.
 - **The dry run on the tuning month (k = 1)** answered 29 of 208 out-of-scope runs on Haiku and 13 on Sonnet. Nothing leaked. It found the two gaps that ADR-041 closes.
 - **R26: the sealed month waits** until R24 and R25 are merged and the owner says go. It then runs the 3d setups.
-  - **Cost:** about $0.25 on Haiku and $4.80 on Sonnet at k = 3, with the picker. That is above ADR-037's $3.12 estimate for the whole item, because the picker's requests are long, but inside the $10 cap.
-  - The re-tune keeps the item's spend low so the sealed month still fits.
+  - **Cost at k = 3, with the Sonnet picker in every arm:** about $4.10 for `haiku-3d` and $5.75 for `sonnet-3d`, $9.85 together. Each figure is the measured cost per call on tuning data, times the tuning month's calls per ticket, times the sealed month's 300 tickets ([plan](plans/milestone-3c-realistic-month.md#r26-options-after-the-sonnet-picker-2026-11-17)). The picker is most of it: $4.01 in each arm.
+  - `tier0-3c` has $5.63 left of its $10 cap, so both arms at k = 3 don't fit. They did fit on 2026-11-15, at about $0.25 and $4.80, before the 3d prompts and the Sonnet picker.
+  - **R26 still holds.** The owner chooses among the plan's options: both arms with a $5 raise, Sonnet at k = 2 with a $3 raise, `haiku-3d` alone, or `sonnet-3d` alone. The recommendation is `haiku-3d` alone at k = 3, about $4.10. It fits, and it is the pairing production would run.
 
 **Consequences:**
 

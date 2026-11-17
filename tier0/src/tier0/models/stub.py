@@ -71,6 +71,8 @@ class StubModel:
             text = json.dumps({"category": self._triage(request.user)})
         elif request.task == "own_account_check":
             text = json.dumps({"own_account_only": self._own_account_only(request.user)})
+        elif request.task == "guide_draft":
+            text = json.dumps(self._draft(request.user), ensure_ascii=False)
         else:
             raise ModelError(f"the stub has no task {request.task!r}")
         # Word counts are only an estimate, so cost spans still carry numbers.
@@ -90,6 +92,44 @@ class StubModel:
         # (a real model's check is). The stub only proves the wiring.
         lowered = user_text.lower()
         return not any(marker in lowered for marker in _ELSE_MARKERS)
+
+    @staticmethod
+    def _draft(user_text: str) -> dict[str, object]:
+        """A placeholder guide in the runbook format (tier0.knowledge.drafting).
+
+        It never copies a word of the employees' questions: an update returns the existing
+        guide with one closing step, and a new guide is three generic steps on the topic. It
+        only proves the wiring; a real draft needs a real model and a later budget (ADR-037)."""
+        start, end = user_text.find("<guide>"), user_text.find("</guide>")
+        if 0 <= start < end:
+            guide = json.loads(user_text[start + len("<guide>") : end])
+            closing = (
+                "If these steps don't answer your question, post in #it-help and say which "
+                "step you are on."
+            )
+            steps = [*[s for s in guide["steps"] if s != closing][:8], closing]
+            return {
+                "title": guide["title"],
+                "summary": guide["summary"],
+                "steps": steps,
+                "tags": guide["tags"],
+            }
+        lines = {
+            key.strip(): value.strip()
+            for key, _, value in (line.partition(":") for line in user_text.splitlines())
+            if key.strip() in ("Topic", "Tag")
+        }
+        topic, tag = lines.get("Topic", "this topic"), lines.get("Tag", "general")
+        return {
+            "title": f"Get started with {topic}",
+            "summary": f"First answers to common {topic} questions that no guide covered yet.",
+            "steps": [
+                f"Open the help page of the app you use for {topic} and search for your question.",
+                "Search #it-help in Slack: someone may have asked the same thing.",
+                f"Still stuck? Post in #it-help, say that it is about {topic}, and what you tried.",
+            ],
+            "tags": [tag],
+        }
 
     @staticmethod
     def _triage(user_text: str) -> str:

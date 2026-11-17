@@ -20,7 +20,9 @@ Two commands (`python -m meridian_access.ai ...`):
 
 The output (`report.json`, `details.json`, `rulings-template.md`) holds held-out numbers and,
 in the details, held-out content. It is not for publishing until every disagreement has the
-owner's ruling (AAC-010). The command prints counts only.
+owner's ruling (AAC-010). `report.json` also holds the four safety counts (AAC-005, M7-R14),
+each with target 0, apart from the scores (`meridian_access.safety`). The command prints
+counts only.
 """
 
 import json
@@ -33,9 +35,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from meridian_access import summary
+from meridian_access import safety, summary
 from meridian_access.ai import compare, frozen
 from meridian_access.ai.client import ClaudeClient, worst_case_input_tokens
+from meridian_access.ai.maps import load_entries
 from meridian_access.ai.matching import MatchSuggestion, shortlist, suggest_owner
 from meridian_access.ai.pricing import PRICES_PER_MTOK, worst_case_usd
 from meridian_access.ai.spend import ITEM_ENV, SpendCapReached, SpendLedger, repo_root
@@ -326,6 +329,23 @@ def _match_rates(score: Any) -> dict[str, Any]:
     return {"precision": _rate(score.precision), "recall": _rate(score.recall)}
 
 
+def safety_section(world_dir: Path, inputs: Inputs, policy: Policy) -> dict[str, Any]:
+    """The four safety counts (`meridian_access.safety`), on a copy of the world without its
+    answer key: the plan's two parts given to apply in a dry run on fresh mocks, with one
+    approval each. Code only: no model is called. The plan never reads an answer, so the counts
+    are the same for every repeat."""
+    with tempfile.TemporaryDirectory(prefix="access-final-safety-") as tmp:
+        clean = _copy_without_key(world_dir, Path(tmp) / "world")
+        return safety.measure(
+            clean,
+            inputs.plan,
+            inputs.parts,
+            policy,
+            matches=inputs.work.result,
+            map_entries=load_entries(),
+        )
+
+
 def rulings_template(details: dict[str, Any]) -> str:
     """The rulings log, ready for the owner: one row per disagreement, ruling left blank."""
     lines = [
@@ -397,7 +417,8 @@ def run_world(
     it): a rehearsal with the fake client, the spend check for all `k` repeats, the calls,
     then the scores and every disagreement, written to `out_dir`. Raises SpendCapReached,
     before any call, if the worst case doesn't fit. The CLI passes the sealed world only after
-    every guard; tests pass the tuning world with a fake client."""
+    every guard; tests pass the tuning world with a fake client. The report also holds the four
+    safety counts, counted before the first call (`safety_section`)."""
     if not 1 <= k <= MAX_K:
         raise ValueError(f"k must be 1 to {MAX_K}, got {k}")
     if not isinstance(client, frozen.FrozenClaudeClient):
@@ -411,6 +432,9 @@ def run_world(
     # A dress rehearsal of the scoring and the files, so a bug shows before money is spent.
     with tempfile.TemporaryDirectory(prefix="access-final-rehearsal-") as tmp:
         write_outputs(Path(tmp), {"rehearsal": True}, score_run(inputs, key, [dry])[1])
+    # The safety counts need no answer: counted before the first paid call, so a bug in them
+    # also shows before money is spent.
+    safe = safety_section(world_dir, inputs, policy)
     worst = round(k * sum(request_worst_case_usd(r) for r in requests), 6)
     ledger.check(worst)  # SpendCapReached here: nothing has been sent
     repeats: list[Answers] = []
@@ -435,6 +459,7 @@ def run_world(
         "worst_case_usd": worst,
         "cost_usd": round(ledger.run_spent_usd, 6),
         "scores": scores,
+        "safety": safe,  # apart from precision and recall (AAC-005): each count's target is 0
         "disagreements": {name: len(items) for name, items in details.items()},
     }
     write_outputs(out_dir, report, details)
@@ -566,5 +591,7 @@ def final_main(
     )
     for name, n in report["disagreements"].items():
         print(f"  disagreements, {name}: {n}")
+    for line in safety.log_lines(report["safety"]):
+        print(line)
     print(f"written to {out} (unruled: not for publishing, AAC-010)")
     return 0

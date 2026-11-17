@@ -25,7 +25,16 @@ IN_WINDOW = datetime(2026, 12, 17, 23, 59, tzinfo=UTC)
 # 3b's tuning and paired run, and was set back to unapproved the same day (ADR-039).
 # tier0-m4-knowledge, tier0-3d and tier0-3c were approved together on 2026-11-15, for tuning,
 # screening and dev-set runs only: a final run on a sealed set still needs the owner's go.
-APPROVED = {"tier0-m4-knowledge", "tier0-3d", "tier0-3c"}
+# aac-m7-final-score and aac-red-team were approved together on 2026-11-16, in one pull request
+# (M7-R1 and the red team's R13): each paid run still needs the owner's go and the access-ai
+# environment's approval.
+APPROVED = {
+    "tier0-m4-knowledge",
+    "tier0-3d",
+    "tier0-3c",
+    "aac-m7-final-score",
+    "aac-red-team",
+}
 AFTER = datetime(2026, 12, 18, 0, 0, tzinfo=UTC)
 
 LEDGERS = {

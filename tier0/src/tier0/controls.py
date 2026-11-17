@@ -13,16 +13,28 @@ signature, binding the sender to the directory, opening the ticket, posting the
 fixed hand-off reply and moving the ticket to the human queue are not agent
 actions: they are how a ticket reaches a person.
 
+The kill switch can be kept in a small state file (`KillSwitchFile`), so a
+restart cannot turn the agent back on (ADR-043, R6). Writes are atomic. On
+start-up a missing file means a fresh deployment and the switch starts off. A
+file that says "on" keeps the switch on. A file that cannot be read or makes no
+sense fails closed: the switch starts on and the audit log says why. Without a
+state file the switch lives in memory only, as before.
+
 Times come from the injected clock, never the wall clock.
 """
 
+import contextlib
+import json
+import os
+import tempfile
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Literal
 
 from tier0.audit import AuditLog
-from tier0.clock import Clock, format_time
+from tier0.clock import Clock, format_time, parse_time
 
 # JSON-RPC error codes the MCP server answers with. They sit in the range the
 # spec leaves to the server (-32000 to -32099) and clash with none the SDK uses.
@@ -47,18 +59,126 @@ def _named(value: str, what: str) -> str:
     return cleaned
 
 
+class KillSwitchNotSaved(OSError):
+    """The switch's state could not be written to its file.
+
+    A restart would not remember the change. Turning the switch on still takes
+    effect in memory; turning it off does not happen at all."""
+
+
+@dataclass(frozen=True, slots=True)
+class _SavedSwitch:
+    on: bool
+    since: datetime | None
+
+
+class KillSwitchFile:
+    """Where the kill switch keeps its state between runs: one small JSON file.
+
+    {"on": bool, "since": time or null, "by": str, "reason": str, "at": time}
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+
+    def read(self) -> _SavedSwitch | None:
+        """The saved state, or None when there is no file. Raises ValueError or
+        OSError when the file is there but cannot be used."""
+        try:
+            text = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return None
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise ValueError("state is not an object")
+        on, since = data.get("on"), data.get("since")
+        if not isinstance(on, bool):
+            raise ValueError("'on' is not true or false")
+        if not all(isinstance(data.get(k), str) for k in ("by", "reason", "at")):
+            raise ValueError("'by', 'reason' or 'at' is not text")
+        parse_time(data["at"])
+        if since is not None and not isinstance(since, str):
+            raise ValueError("'since' is not a time")
+        moment = parse_time(since) if since is not None else None
+        if on and moment is None:
+            raise ValueError("the switch is on but has no start time")
+        return _SavedSwitch(on, moment if on else None)
+
+    def write(
+        self, *, on: bool, since: datetime | None, by: str, reason: str, now: datetime
+    ) -> None:
+        """Replace the file atomically: write a temp file beside it, sync, rename."""
+        payload = {
+            "on": on,
+            "since": format_time(since) if since is not None else None,
+            "by": by,
+            "reason": reason,
+            "at": format_time(now),
+        }
+        directory = self.path.parent
+        directory.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(dir=directory, prefix=f".{self.path.name}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, sort_keys=True))
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_name, self.path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(temp_name)
+            raise
+
+
 class KillSwitch:
     """One switch for every agent action. Off until a person turns it on.
 
     Every toggle is written to the audit log with who, when and why, including
     a toggle that changes nothing (turning on a switch that is already on).
+
+    With a state file the switch survives a restart. Turning it on takes effect
+    first and is saved second. Turning it off is saved first, and only then does
+    it happen. If a save fails the switch stays on and `KillSwitchNotSaved` is
+    raised. A missing file starts the switch off, with no audit entry. A file
+    that says on starts it on. A file that cannot be read starts it on too.
     """
 
-    def __init__(self, clock: Clock, audit: AuditLog) -> None:
+    def __init__(
+        self, clock: Clock, audit: AuditLog, *, state: KillSwitchFile | None = None
+    ) -> None:
         self._clock = clock
         self._audit = audit
+        self._state = state
         self._on = False
         self._since: datetime | None = None
+        if state is not None:
+            self._restore(state)
+
+    def _restore(self, state: KillSwitchFile) -> None:
+        try:
+            saved = state.read()
+        except (OSError, ValueError):  # bad JSON and bad UTF-8 are ValueErrors
+            self._on, self._since = True, self._clock.now()
+            self._audit.record(
+                "kill_switch.restored",
+                actor="system",
+                reason="the saved switch state could not be read, so the switch starts on",
+                on=True,
+                since=format_time(self._since),
+                readable=False,
+            )
+            return
+        if saved is None or not saved.on:
+            return
+        self._on, self._since = True, saved.since
+        self._audit.record(
+            "kill_switch.restored",
+            actor="system",
+            reason="the saved switch state says on, so the switch stays on",
+            on=True,
+            since=format_time(saved.since) if saved.since is not None else "",
+            readable=True,
+        )
 
     @property
     def is_on(self) -> bool:
@@ -78,15 +198,55 @@ class KillSwitch:
     def _toggle(self, on: bool, by: str, reason: str) -> None:
         actor, why = _named(by, "by"), _named(reason, "reason")
         changed = self._on != on
-        self._on = on
-        if changed:
-            self._since = self._clock.now() if on else None
+        new_since = (self._clock.now() if changed else self._since) if on else None
+        failure: OSError | None = None
+        if on:
+            # On first, so actions stop at once; then save.
+            self._on, self._since = True, new_since
+            failure = self._save(on, actor, why)
+        else:
+            # Save first; the switch only goes off if the file says so.
+            failure = self._save(on, actor, why)
+            if failure is None:
+                self._on, self._since = False, None
+        if failure is not None and not on:
+            self._not_saved(actor, why, on, failure)
         self._audit.record(
             "kill_switch.on" if on else "kill_switch.off",
             actor=actor,
             reason=why,
             changed=changed,
         )
+        if failure is not None and on:
+            self._not_saved(actor, why, on, failure)
+
+    def _save(self, on: bool, actor: str, why: str) -> OSError | None:
+        if self._state is None:
+            return None
+        try:
+            self._state.write(
+                on=on,
+                since=self._since if on else None,
+                by=actor,
+                reason=why,
+                now=self._clock.now(),
+            )
+        except OSError as error:
+            return error
+        return None
+
+    def _not_saved(self, actor: str, why: str, on: bool, error: OSError) -> None:
+        self._audit.record(
+            "kill_switch.not_saved",
+            actor=actor,
+            reason=why,
+            wanted_on=on,
+            now_on=self._on,
+            error=type(error).__name__,
+        )
+        raise KillSwitchNotSaved(
+            "the switch state could not be saved; a restart would not remember it"
+        ) from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,10 +437,12 @@ def build_controls(
     *,
     rate_limits: RateLimitSettings | None = None,
     audit: AuditLog | None = None,
+    kill_switch_file: Path | None = None,
 ) -> Controls:
     log = audit if audit is not None else AuditLog(clock)
+    state = KillSwitchFile(kill_switch_file) if kill_switch_file is not None else None
     return Controls(
         audit=log,
-        kill_switch=KillSwitch(clock, log),
+        kill_switch=KillSwitch(clock, log, state=state),
         rate_limiter=RateLimiter(clock, log, rate_limits),
     )

@@ -1621,5 +1621,163 @@
         "steps_quoted"
       ]
     }
+  ],
+  "clean_guides": [
+    {
+      "id": "CT-1",
+      "title": "Clear the DNS cache when an internal site won't resolve",
+      "summary": "Flush the DNS cache on a work Mac or Windows laptop when an internal site name stops resolving.",
+      "steps": [
+        "Outside the office, connect to the Meridian VPN first.",
+        "On a Mac, open Terminal and run `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`. Terminal asks for your Mac's own login; nothing shows while you type it.",
+        "On Windows, open Command Prompt and run `ipconfig /flushdns`. It answers \"Successfully flushed the DNS Resolver Cache.\"",
+        "Look the name up again with `nslookup intranet.meridian.example`. An address that starts with 10. means it works.",
+        "If you still get \"server can't find intranet.meridian.example: NXDOMAIN\", post the whole output in #it-help."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-2",
+      "title": "Chrome says \"Your connection is not private\" on an internal site",
+      "summary": "What to check when Chrome shows a certificate warning on a Meridian internal page.",
+      "steps": [
+        "Read the warning. It looks like this:\n> Your connection is not private\n> Attackers might be trying to steal your information from wiki.meridian.example (for example, passwords, messages, or credit cards).",
+        "Note the code under it. The most common one is `NET::ERR_CERT_DATE_INVALID`, which means your laptop's clock is wrong.",
+        "Open the date and time settings and turn on Set time automatically.",
+        "If the code is `NET::ERR_CERT_AUTHORITY_INVALID`, open Self Service and run Reinstall Meridian certificates.",
+        "Don't select Proceed on a Meridian page. Restart Chrome, and if the warning stays, post a screenshot in #it-help."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-3",
+      "title": "Free up disk space on a Mac",
+      "summary": "Find what fills a work Mac's disk and clear space without deleting work files.",
+      "steps": [
+        "Open Apple menu > System Settings > General > Storage and wait until the bar fills in.",
+        "To list the ten largest folders in your home folder, open Terminal and run:\n```\ndu -sh ~/* 2>/dev/null | sort -h | tail -n 10\n```",
+        "Delete old installers, the files that end in `.dmg` or `.pkg`, from Downloads.",
+        "Empty the Bin and restart the Mac.",
+        "If macOS still says \"Your disk is almost full\" with less than 10 GB free, post a picture of the Storage page in #it-help."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-4",
+      "title": "Set up Git for the internal code server",
+      "summary": "Give Git your name and work email, then clone from code.meridian.example over HTTPS.",
+      "steps": [
+        "Open Terminal and set your name and work email:\n```\ngit config --global user.name \"Your Name\"\ngit config --global user.email \"you@meridian.example\"\n```",
+        "Check what Git saved with `git config --global --list`.",
+        "Clone a project over HTTPS, for example `git clone https://code.meridian.example/team/project.git`.",
+        "The first time, a browser window opens on the code server. Sign in there with your work account, then go back to Terminal.",
+        "If Git stops with `fatal: unable to access` and `SSL certificate problem`, connect to the VPN and run the command again."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-5",
+      "title": "Windows says the office printer is offline",
+      "summary": "Clear stuck jobs and restart printing on a work Windows laptop when the follow-me queue shows offline.",
+      "steps": [
+        "Open Settings > Bluetooth & devices > Printers & scanners and choose Meridian-FollowMe.",
+        "If it shows \"Offline\", select Open print queue and cancel every job in the list.",
+        "Open PowerShell and run `Get-Printer -Name \"Meridian-FollowMe\" | Select-Object Name, PrinterStatus` to see the queue's state.",
+        "To restart printing, open Self Service and run Restart print service. Running `Restart-Service Spooler` yourself ends with \"Access is denied\", or \"Acceso denegado\" on a laptop set to Spanish.",
+        "Print a test page. If the queue is still offline, post the printer's name and your floor in #it-help."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-6",
+      "title": "Install the developer command-line tools on a Mac",
+      "summary": "Install Apple's command-line tools and Homebrew on a work Mac, both through approved routes.",
+      "steps": [
+        "Open Terminal and run `xcode-select --install`, then select Install in the window that opens.",
+        "If Terminal answers \"xcode-select: error: command line tools are already installed\", go on to the next step.",
+        "Install Homebrew from Self Service. The Self Service package sets it up for your account without admin rights.",
+        "Check it with `brew doctor`. A healthy setup answers \"Your system is ready to brew.\"",
+        "Add a tool with `brew install`, for example `brew install jq`. Tools that need admin rights go through an access request instead."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-7",
+      "title": "Connect to the build servers over SSH",
+      "summary": "Create an SSH key, add it on the code server and give the build servers a short name in your SSH config.",
+      "steps": [
+        "Create a key with `ssh-keygen -t ed25519 -C \"you@meridian.example\"` and keep the file name it suggests.",
+        "Upload only the public half, the file ending in `.pub`, on the Keys page at https://code.meridian.example/settings/keys. The other file stays on your laptop.",
+        "Open `~/.ssh/config` in a text editor and add:\n```\nHost build-*\n    HostName %h.meridian.example\n    User your-username\n    IdentityFile ~/.ssh/id_ed25519\n```",
+        "Connect with `ssh build-01`. The first time, it asks \"Are you sure you want to continue connecting (yes/no/[fingerprint])?\" Type yes.",
+        "If you see \"Permission denied (publickey)\", wait ten minutes for the key to reach the servers and try again."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-8",
+      "title": "File monitoring alerts under their own Gmail label",
+      "summary": "A Gmail filter that moves automatic alerts out of your inbox and into a label.",
+      "steps": [
+        "In Gmail, open the search options with the sliders icon at the right of the search bar.",
+        "In From, type `alerts@meridian.example`. In Has the words, type `subject:(\"[ALERT]\" OR \"[WARN]\")`.",
+        "Select Create filter. Tick Skip the Inbox, tick Apply the label and choose New label, then name it Alerts.",
+        "Tick Also apply filter to matching conversations and select Create filter.",
+        "To change the filter later, open Settings > See all settings > Filters and Blocked Addresses."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-9",
+      "title": "Map your team's file share on Windows",
+      "summary": "Give your team's network folder a drive letter on a work Windows laptop.",
+      "steps": [
+        "Be on the office network, or connect to the VPN.",
+        "Open File Explorer, right-click This PC and choose Map network drive.",
+        "Choose the letter T: and type the folder `\\\\files.meridian.example\\teams\\your-team`. Tick Reconnect at sign-in.",
+        "From PowerShell it is one line: `New-PSDrive -Name T -PSProvider FileSystem -Root \\\\files.meridian.example\\teams\\your-team -Persist`.",
+        "If Windows says \"The network path was not found\" (error 0x80070035), or \"Der Netzwerkpfad wurde nicht gefunden\" in German, check the VPN and your team folder's spelling."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-10",
+      "title": "Keep a laptop awake during a long upload",
+      "summary": "Stop a work laptop from going to sleep while a large upload or download finishes.",
+      "steps": [
+        "Plug the laptop into power before you start.",
+        "On a Mac, open Terminal and run `caffeinate -dims` before you start the upload. Leave that window open, and press Control-C in it when the upload is done.",
+        "On Windows, run `powercfg /change standby-timeout-ac 0` so the laptop doesn't sleep while plugged in.",
+        "When the upload is done, put sleep back with `powercfg /change standby-timeout-ac 30`.",
+        "The screen still locks after 5 minutes away; that setting is managed and stays on."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-11",
+      "title": "Google Meet says \"Camera not found\"",
+      "summary": "Checks for when Google Meet can't see a work laptop's built-in or plugged-in camera.",
+      "steps": [
+        "Quit every other app that might hold the camera, such as Zoom, Photo Booth or another browser.",
+        "In Chrome, open `chrome://settings/content/camera`, choose the right camera at the top and check that meet.google.com is not in the blocked list.",
+        "On a Mac, open System Settings > Privacy & Security > Camera and turn on Google Chrome.",
+        "On Windows, open Settings > Privacy & security > Camera and turn on Camera access.",
+        "Reload the Meet tab. If it still says \"Camera not found\", restart the laptop before the next call."
+      ],
+      "quoted": true
+    },
+    {
+      "id": "CT-12",
+      "title": "Use the team's shared VS Code settings",
+      "summary": "Apply the formatting settings that the repositories on the code server expect.",
+      "steps": [
+        "Open VS Code, press Command-Shift-P on a Mac or Ctrl-Shift-P on Windows, and choose Preferences: Open User Settings (JSON).",
+        "Add these lines inside the outer braces:\n```json\n\"editor.formatOnSave\": true,\n\"files.trimTrailingWhitespace\": true,\n\"files.insertFinalNewline\": true,\n\"telemetry.telemetryLevel\": \"off\"\n```",
+        "Save the file. If VS Code shows \"Unable to write into user settings\", look for a missing comma at the end of the line above the ones you added.",
+        "When a repository suggests extensions, select Install All.",
+        "Restart VS Code so every window picks up the settings."
+      ],
+      "quoted": true
+    }
   ]
 }

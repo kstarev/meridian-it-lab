@@ -20,7 +20,7 @@
   It rehearses the whole run with a fake client and checks the worst-case cost before the first call.
 - **A manual-only workflow,** `access-ai-final.yml`: dispatched by hand from `main`, behind the `access-ai` environment's approval, with a free freeze check first. It has never run.
 - **The owner's answers, 2026-11-16: every recommendation in the M7 prep, except as noted.**
-  - **M7-R1:** approve `aac-m7-final-score` as is, in its own pull request, after the answers below are merged. It isn't open yet. The approval takes effect only when the owner merges it.
+  - **M7-R1:** approve `aac-m7-final-score` as is, in its own pull request, after the answers below are merged. Opened on 2026-11-16, together with `aac-red-team` as the owner asked. The approval takes effect only when the owner merges it.
   - **M7-R2:** the prompts are re-frozen after the M7-R16 fix ([AAC-014](014-line-breaks-are-flattened-before-any-prompt.md)). The owner confirms the new digest.
   - **M7-R3:** the run sends titles, owners and the two plan summaries. The summaries are reported as "passed n of 2".
   - **M7-R4:** k = 3, with the lowest repeat as the headline for each model-dependent number, and all three shown.
@@ -33,7 +33,7 @@
   - **M7-R11:** "both acceptable" counts as right for the tool, listed apart with its count.
   - **M7-R12:** one ruling may cover a group with one cause, with every id still listed.
   - **M7-R13:** a helper copies and groups the rows. It never writes a ruling.
-  - **M7-R14:** the four safety counts are built in code before the run. That is a code-only pull request, not built yet.
+  - **M7-R14:** the four safety counts are built in code before the run. That is a code-only pull request, now built: `access/src/meridian_access/safety.py`. `run_world` counts them before the first paid call and reports each with its target of 0, apart from the scores.
   - **M7-R15:** publish only when every id has a ruling and the report's tests pass. Then retire the world.
   - **M7-R16: fixed now** ([AAC-014](014-line-breaks-are-flattened-before-any-prompt.md)).
   - **M7-R17: measured first, then fixed.** The red-team run ([AAC-015](015-the-red-team-set.md)) measures how often a false claim built from allowed words passes the summary check. The final report calls a passing summary "passed the code check" and states the limit. A claims check follows that measurement.
