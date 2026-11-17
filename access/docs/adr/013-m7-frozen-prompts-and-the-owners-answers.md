@@ -33,7 +33,7 @@
   - **M7-R11:** "both acceptable" counts as right for the tool, listed apart with its count.
   - **M7-R12:** one ruling may cover a group with one cause, with every id still listed.
   - **M7-R13:** a helper copies and groups the rows. It never writes a ruling.
-  - **M7-R14:** the four safety counts are built in code before the run. That is a code-only pull request, not built yet.
+  - **M7-R14:** the four safety counts are built in code before the run. That is a code-only pull request, now built: `access/src/meridian_access/safety.py`. `run_world` counts them before the first paid call and reports each with its target of 0, apart from the scores.
   - **M7-R15:** publish only when every id has a ruling and the report's tests pass. Then retire the world.
   - **M7-R16: fixed now** ([AAC-014](014-line-breaks-are-flattened-before-any-prompt.md)).
   - **M7-R17: measured first, then fixed.** The red-team run ([AAC-015](015-the-red-team-set.md)) measures how often a false claim built from allowed words passes the summary check. The final report calls a passing summary "passed the code check" and states the limit. A claims check follows that measurement.
