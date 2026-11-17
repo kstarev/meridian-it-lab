@@ -802,7 +802,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-035: Milestone 4, Knowledge: answers from approved runbooks, picked by the AI and posted by code
 
-**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); the weekly drafting job is not built. Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
+**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job is not built. Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
 
 **Context:** tier0 answers one request type today. How-to questions are common, and their answers already live in the IT team's guides. ADR-005 (the weekly learning loop) and ADR-010 (memory as a reviewed Git repo) set where that knowledge comes from and how it's reviewed. They don't say how tier0 answers from it, what it must never answer, or how that is tested.
 
@@ -1273,4 +1273,4 @@ Nothing leaked, but the answer key wants a person for both.
 - A how-to question costs about $5.69 per 1,000 on Sonnet, against $0.29 on Haiku, by R1's measured cost. This is the picker call only.
 - Haiku stays where it passed: triage and the checks in the Haiku setups are not changed by this ADR.
 - **Open, for R26:** the month runner (3c) still pairs each Haiku setup with Haiku's picker, KH5. Whether the sealed month uses KS5 for every setup is the owner's call when R26 is ruled. Using KS5 in the Haiku setups would raise the month's cost.
-- The picker is still not wired into the Slack flow (ADR-035).
+- The picker is wired into the Slack flow behind the agent option `guide_picker`, off by default, on mock adapters only (ADR-035). With the option on, only `claude-sonnet-5-5` with KS5 can be wired.
