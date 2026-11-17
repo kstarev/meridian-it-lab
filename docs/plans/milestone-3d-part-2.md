@@ -1,6 +1,6 @@
 # Plan: milestone 3d, part 2: password and MFA resets, same-day repeats, and messages with several questions (budget item `tier0-3d`)
 
-**Date:** 2026-11-17 · **Status:** Phase A (no paid call) written overnight on 2026-11-16/17. Sealing, tuning and the final run wait. · **Builds on:** [part 1's plan](milestone-3d-injection-relayed.md) (R2's result), [ADR-026](../decisions.md), [ADR-029](../decisions.md), [ADR-030](../decisions.md), [ADR-032](../decisions.md), [ADR-041](../decisions.md), [ADR-043](../decisions.md), [ADR-045](../decisions.md)
+**Date:** 2026-11-17 · **Status:** Built, sealed and tuned overnight on 2026-11-16/17: phase A with no paid call; held-out v6 sealed; tuning on tuning data for $1.26. The final run on v6 waits for the owner's go. · **Builds on:** [part 1's plan](milestone-3d-injection-relayed.md) (R2's result), [ADR-026](../decisions.md), [ADR-029](../decisions.md), [ADR-030](../decisions.md), [ADR-032](../decisions.md), [ADR-041](../decisions.md), [ADR-043](../decisions.md), [ADR-045](../decisions.md)
 
 Part 1 measured prompt injection and relayed or forwarded requests on held-out v5. This part covers the rest of 3d ([brief](../brief.md#delivery), items 1, 3 and 4):
 
