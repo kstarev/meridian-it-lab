@@ -68,3 +68,5 @@ Areas from the OWASP GenAI Security Project's *A Practical Guide for Secure MCP 
 | SBOM | meridian-it-lab | Generated for every release |
 | Memory PR scan | meridian-memory | Prompt injection, secrets, PII (Presidio), size anomalies, provenance, tools or scopes above tier, PRs not opened by the bot |
 | Evals | meridian-it-lab | Smoke eval on every PR; full k = 3 suite nightly and on main |
+
+The workflow controls that are built today, the test that checks each one, and the settings that live in GitHub: [github-actions-hardening.md](github-actions-hardening.md).

@@ -1,0 +1,39 @@
+# Dependabot opens pull requests that update the pinned GitHub Actions and the locked Python
+# dependencies (ADR-011). Each setting is explained in docs/github-actions-hardening.md.
+# Workflows started by its pull requests are treated like a fork's: a read-only token and none
+# of the repository's secrets.
+version: 2
+
+updates:
+  # The actions in .github/workflows/. Each is pinned to a commit SHA with the version in a
+  # comment; Dependabot moves the SHA and the comment together.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The Python dependencies. The repo is a uv workspace: several pyproject.toml files, one
+  # uv.lock, installed with `uv sync --locked` (ADR-012). The `uv` ecosystem changes the
+  # pyproject.toml pins and uv.lock together. The `pip` ecosystem would leave uv.lock as it
+  # is, so every one of its pull requests would fail the `--locked` install in CI.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      python-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    # The workspace's own packages are not on any package index and must never be looked up
+    # there (tests/test_workflow_hardening.py keeps this list equal to the workspace members).
+    ignore:
+      - dependency-name: "meridian-access"
+      - dependency-name: "meridian-dataset"
+      - dependency-name: "meridian-oauth-radar"
+      - dependency-name: "tier0"
