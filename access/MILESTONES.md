@@ -101,7 +101,7 @@ The sealed final score and a page that explains it. The prep is in [docs/m7-prep
 
 **Done when:**
 
-- [ ] The held-out world is scored once, with the frozen prompts and the chosen model, in an owner-approved GitHub Actions run.
+- [x] The held-out world is scored once, with the frozen prompts and the chosen model, in an owner-approved GitHub Actions run. Done on 2026-11-17: [the run record](../docs/evals/2026-11-17-access-held-out-a1-run.md), counts and cost only.
 - [ ] Every disagreement between the tool and the key has the owner's ruling in the rulings log before any number is published; key errors are reported separately and not counted against the tool ([AAC-010](docs/adr/010-human-rulings-before-publishing.md)).
 - [ ] The report is published in `docs/evals/`.
 - [ ] Precision and recall per problem type (target ≥ 0.90 each), identity matching rules only vs rules + AI, the safety counts (target 0) and cost, with intervals.
@@ -110,9 +110,9 @@ The sealed final score and a page that explains it. The prep is in [docs/m7-prep
 - [ ] The page states the honest limits from the brief and the compliance mapping as a mapping, not a claim.
 - [ ] The held-out world becomes a dev set.
 
-## What's left (2026-11-15)
+## What's left (2026-11-15, counts updated 2026-11-17)
 
-38 of 54 boxes are ticked, each with its evidence. The 16 open ones:
+40 of 54 boxes are ticked, each with its evidence. The 14 open ones:
 
 - **Milestone 4:** the comparison is done and Haiku 5.5 is chosen. The summary's pass rate was not part of the comparison and is not measured yet, and no prompts are frozen.
 - **Milestone 5:**
@@ -123,4 +123,4 @@ The sealed final score and a page that explains it. The prep is in [docs/m7-prep
 - **Milestone 6:**
   - The held plan's required check blocks a merge only once the ruleset makes **Plan approvals** a required check.
   - Drift is in `PLAN.md` and the Slack message ([`test_drift_is_in_plan_md_and_the_slack_message_with_the_plan_json_count`](tests/test_apply.py)), but it hasn't been seen in a live plan pull request yet.
-- **Milestone 7:** prepared, not run. The prompts are frozen by hash, and the final run (`python -m meridian_access.ai final`, workflow **Access final score**) and its free dry check are built and tested with fake clients. The run needs the owner's rulings before it (`M7-R1` to `M7-R9`, `M7-R16` and `M7-R17`: the budget item, the hashes, the repeats, the false-match rule, two red-team findings and more), and after it every disagreement's ruling ([AAC-010](docs/adr/010-human-rulings-before-publishing.md)) before anything is published. The four safety counts are built and counted before the first paid call (M7-R14 (a), `meridian_access.safety`); the report generator and the page are still to build ([docs/m7-prep.md](docs/m7-prep.md)).
+- **Milestone 7:** the final run happened on 2026-11-17, once, with the frozen prompts and Haiku 5.5 ([the run record](../docs/evals/2026-11-17-access-held-out-a1-run.md): counts and cost from the run's log). All four safety counts are 0. 214 disagreements wait for the owner's rulings ([AAC-010](docs/adr/010-human-rulings-before-publishing.md)); nothing is published before them. The report generator and the page are still to build ([docs/m7-prep.md](docs/m7-prep.md)).

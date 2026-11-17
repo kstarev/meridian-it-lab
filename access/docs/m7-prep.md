@@ -1,6 +1,6 @@
 # Milestone 7 prep: frozen prompts, the owner's rulings and the run steps
 
-**Date:** 2026-11-15 · **Status:** Prepared overnight under the owner's "pick and log" rule. Nothing has run and nothing is paid. **Updated 2026-11-16:** M7-R16 decided as (a) and built, and the prompts re-frozen with a new digest (sections 1 and 5). M7-R14 decided as (a) and built: the four safety counts (sections 2, 5 and 7). Follows [AAC-005](adr/005-sealed-answer-key.md), [AAC-006](adr/006-model-choice-and-spend-cap.md), [AAC-010](adr/010-human-rulings-before-publishing.md), [AAC-011](adr/011-blind-referee-against-shared-mistakes.md) and lab [ADR-037](../../docs/decisions.md).
+**Date:** 2026-11-15 · **Status:** Prepared overnight under the owner's "pick and log" rule. Nothing has run and nothing is paid. **Updated 2026-11-16:** M7-R16 decided as (a) and built, and the prompts re-frozen with a new digest (sections 1 and 5). M7-R14 decided as (a) and built: the four safety counts (sections 2, 5 and 7). **Updated 2026-11-17:** the final run happened, once, in the owner's approved run. Its counts and cost are in [the run record](../../docs/evals/2026-11-17-access-held-out-a1-run.md). The rulings come next (step 9), and nothing is published before them. Follows [AAC-005](adr/005-sealed-answer-key.md), [AAC-006](adr/006-model-choice-and-spend-cap.md), [AAC-010](adr/010-human-rulings-before-publishing.md), [AAC-011](adr/011-blind-referee-against-shared-mistakes.md) and lab [ADR-037](../../docs/decisions.md).
 
 Milestone 7 scores the sealed held-out world once, with the chosen model (Haiku 5.5) and frozen prompts, in a GitHub Actions run the owner approves. Then the owner rules on every disagreement, and only then is anything published. This file covers:
 
@@ -12,7 +12,7 @@ Milestone 7 scores the sealed held-out world once, with the chosen model (Haiku 
 6. the run steps, in order, with the cost;
 7. what is still to build.
 
-The budget item `aac-m7-final-score` is still **not approved**. Until the owner approves it, the ledger refuses every paid call of the final run.
+The owner approved the budget item `aac-m7-final-score` on 2026-11-16 ([ADR-037](../../docs/decisions.md)), and the final run was made on 2026-11-17. It is never re-run.
 
 ## 1. What is frozen
 
