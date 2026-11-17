@@ -890,7 +890,7 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 | `tier0-m4-knowledge` | Milestone 4: tuning the guide picker, then the sealed blind how-to test (ADR-035) | $8.23 | $20 | Picker call ~2,500 in / 60 out: Sonnet $0.0056, Haiku $0.00028. Tuning 200 tickets × 5 versions = $5.88; test 80 questions × k=5 = $2.35 |
 | `tier0-3d` | 3d's new ticket types, prompt injection included, tuning then the test set | $2.86 | $10 | Messages 1.5× longer, $0.0026 per ticket-run. Tuning 120 × 5 = $1.56; test 100 × k=5 = $1.30 |
 | `tier0-3c` | 3c, the realistic month, ~300 tickets | $3.12 | $18 | $0.0026 per ticket-run. Month 300 × k=3 = $2.34; tuning 100 templates × 3 = $0.78 |
-| `aac-model-comparison` | Haiku, Sonnet and Opus 5.5 on the tuning world at k=3 (AAC-006) | $2.03 | $3 | 3 × the measured $0.677 |
+| `aac-model-comparison` | Haiku, Sonnet and Opus 5.5 on the tuning world at k=3 (AAC-006) | $2.03 | $4 | 3 × the measured $0.677 |
 | `aac-m7-final-score` | The final held-out score, once, with the chosen model and frozen prompts (AAC-010) | $1.37 | $8 | Up to 3× the tuning world's 91 calls on the dearest model (Opus, $0.00495 each) = $1.35, + the two plan summaries |
 | `aac-red-team` | A red-team set reusing 3d's prompt-injection cases inside titles, names and exports | $1.34 | $10 | 60 cases × k=3 × all three models at $0.00744 per case-run |
 
@@ -1402,10 +1402,10 @@ Nothing leaked, but the answer key wants a person for both.
 - **The month runner charges `tier0-3e`** from now on. A Claude month run charged to any other item is refused.
 - **Before the total across all items passes $85, work stops and the owner is asked.** With `tier0-3e` spent in full the total would be $68.06.
 - **Where the $15 comes from** (the credit still adds up to $100):
-  - $9 from `aac-model-comparison`, whose cap goes from $12 to $3. It ran once, spent $2.02 and is unapproved, so the rest could not be spent;
+  - $8 from `aac-model-comparison`, whose cap goes from $12 to $4. It ran once, spent $2.02 and is unapproved, so the rest could not be spent. $4 is the compare workflow's run limit, and a guard test keeps that limit at or under the item's cap;
   - $1 from `tier0-3b`, whose cap goes from $10 to $9. It spent $8.48 and is unapproved;
-  - $5 from the buffer, which goes from $12 to $7.
-  - The projects become tier0 $72 and Access $21.
+  - $6 from the buffer, which goes from $12 to $6.
+  - The projects become tier0 $72 and Access $22.
   - ADR-037's table shows the two lowered caps. The new item's row is below.
 
 
@@ -1418,4 +1418,4 @@ Nothing leaked, but the answer key wants a person for both.
   - With the prompt cache off for the sealed run, as it is today, that run costs about $9.04, as the first sealed month did. The plan then comes to about $14.40, close to the cap.
   - With the cache on for the sealed run, it costs about $1.10, and the plan comes to about $6.50. Whether a sealed run may use the cache is the owner's ruling; until then it is off.
 - **No planned work loses money.** The two items that give up cap are finished and unapproved. Access keeps $18 of cap in its two approved items, of which $3.14 is spent.
-- **The buffer is $7.** A new blind red-team set for Access, if the owner chooses that option, would need its own item from it.
+- **The buffer is $6.** A new blind red-team set for Access, if the owner chooses that option, would need its own item from it.

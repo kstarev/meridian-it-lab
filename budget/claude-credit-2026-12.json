@@ -3,10 +3,10 @@
   "credit_usd": 100,
   "credit_expires": "2026-12-18T00:00:00Z",
   "paid_until": "2026-12-17",
-  "buffer_usd": 7,
+  "buffer_usd": 6,
   "projects": {
     "tier0": 72,
-    "access": 21
+    "access": 22
   },
   "items": [
     {
@@ -52,7 +52,7 @@
     {
       "id": "aac-model-comparison",
       "project": "access",
-      "cap_usd": 3,
+      "cap_usd": 4,
       "estimate_usd": 2.03,
       "what": "Haiku, Sonnet and Opus 5.5 compared on the tuning world at k=3 (AAC-006)",
       "approved": false

@@ -57,10 +57,11 @@ def test_the_budget_file_splits_the_credit_as_the_owner_decided():
     assert raw["credit_usd"] == 100
     # 2026-11-17: $3 moved from the buffer to tier0-3c, for the tuning-month rehearsal and the
     # sealed month. The split was tier0 55, access 30 and a buffer of 15, then 58, 30 and 12.
-    # 2026-11-17, later (ADR-050): tier0-3e gets $15: $9 of aac-model-comparison's unspent cap
-    # (12 to 3), $1 of tier0-3b's (10 to 9) and $5 from the buffer (12 to 7).
-    assert raw["projects"] == {"tier0": 72, "access": 21}
-    assert raw["buffer_usd"] == 7
+    # 2026-11-17, later (ADR-050): tier0-3e gets $15: $8 of aac-model-comparison's unspent cap
+    # (12 to 4, the compare workflow's run limit, which a guard test keeps under the cap), $1
+    # of tier0-3b's (10 to 9) and $6 from the buffer (12 to 6).
+    assert raw["projects"] == {"tier0": 72, "access": 22}
+    assert raw["buffer_usd"] == 6
     assert raw["paid_until"] == "2026-12-17"
     assert raw["credit_expires"] == "2026-12-18T00:00:00Z"
     assert "oauth-radar" not in json.dumps(raw)  # Shadow AI Radar gets nothing from this credit
