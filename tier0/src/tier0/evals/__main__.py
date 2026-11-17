@@ -17,6 +17,7 @@ from meridian_dataset.generator import (
     HOLDOUT_V4_SEED,
     HOLDOUT_V4B_SEED,
     HOLDOUT_V5_SEED,
+    HOLDOUT_V6_SEED,
 )
 from tier0 import roles
 from tier0.agent import Prompts, own_account_check_request, triage_request
@@ -58,6 +59,7 @@ def split_label(seed: int) -> str:
         HOLDOUT_V4_SEED: "held-out-v4",
         HOLDOUT_V4B_SEED: "held-out-v4b",
         HOLDOUT_V5_SEED: "held-out-v5",
+        HOLDOUT_V6_SEED: "held-out-v6",
     }.get(seed, "tuning")
 
 
@@ -122,7 +124,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         metavar="SET",
         help="unseal exactly this held-out set for its final comparison, by its pool name "
-        "(ADR-015, ADR-029): held_out_v5 (milestone 3d part 1), only with the owner's go",
+        "(ADR-015, ADR-029): held_out_v5 (milestone 3d part 1) or held_out_v6 (part 2), only "
+        "with the owner's go",
     )
     parser.add_argument(
         "--tkt004-fix",

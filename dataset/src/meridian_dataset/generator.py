@@ -32,6 +32,7 @@ from meridian_dataset.names import (
     HELD_OUT_V4_POOL,
     HELD_OUT_V4B_POOL,
     HELD_OUT_V5_POOL,
+    HELD_OUT_V6_POOL,
     HUBS,
     MESSAGE_POOLS,
     TUNING_3D2_POOL,
@@ -56,6 +57,8 @@ HOLDOUT_V4B_SEED = 6247
 HOLDOUT_V5_SEED = 7351
 # Milestone 3d part 2's tuning world: tuning data, every template once.
 TUNING_3D2_SEED = 8209
+# Held-out v6: sealed, for milestone 3d part 2's final run only.
+HOLDOUT_V6_SEED = 8461
 
 # Pools whose world uses every template exactly once, for a bigger final test set (ADR-016).
 USE_EVERY_TEMPLATE = frozenset(
@@ -65,6 +68,7 @@ USE_EVERY_TEMPLATE = frozenset(
         "held_out_v4",
         "held_out_v4b",
         "held_out_v5",
+        "held_out_v6",
         "tuning_hard",
         "tuning_3d",
         "tuning_3d2",
@@ -326,6 +330,8 @@ def split_for_seed(seed: int) -> str:
         return HELD_OUT_V4B_POOL.name
     if seed == HOLDOUT_V5_SEED:
         return HELD_OUT_V5_POOL.name
+    if seed == HOLDOUT_V6_SEED:
+        return HELD_OUT_V6_POOL.name
     if seed == TUNING_3D2_SEED:
         return TUNING_3D2_POOL.name
     return TUNING_POOL.name

@@ -640,3 +640,10 @@ def _load_part2_pool(name: str) -> Part2Pool:
 # pools/tuning_3d2_labels.json. The tuning world on seed 8209 uses every template once.
 TUNING_3D2_POOL = _load_part2_pool("tuning_3d2")
 MESSAGE_POOLS[TUNING_3D2_POOL.name] = TUNING_3D2_POOL
+
+# Held-out v6 (milestone 3d part 2): resets, same-day repeats, several-question messages and
+# relayed requests that name nobody. Written blind on 2026-11-17 by a helper that opened no file
+# but its own brief, and sealed after the plan's pass rules and decision rule were committed.
+# The agent that tunes tier0 never opens pools/held_out_v6.json or its labels file.
+HELD_OUT_V6_POOL = _load_part2_pool("held_out_v6")
+MESSAGE_POOLS[HELD_OUT_V6_POOL.name] = HELD_OUT_V6_POOL

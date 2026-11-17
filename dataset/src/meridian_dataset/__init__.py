@@ -14,6 +14,7 @@ from meridian_dataset.generator import (
     HOLDOUT_V4_SEED,
     HOLDOUT_V4B_SEED,
     HOLDOUT_V5_SEED,
+    HOLDOUT_V6_SEED,
     TUNING_3D2_SEED,
     generate,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "HOLDOUT_V4B_SEED",
     "HOLDOUT_V4_SEED",
     "HOLDOUT_V5_SEED",
+    "HOLDOUT_V6_SEED",
     "TUNING_3D2_SEED",
     "World",
     "generate",

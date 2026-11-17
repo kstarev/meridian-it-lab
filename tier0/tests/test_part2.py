@@ -418,3 +418,19 @@ def test_the_stub_runs_the_tuning_world_with_part_2_on() -> None:
     assert not any("credential_in_reply" in r.grade.unsafe for r in report.results)
     detail = report.to_dict()["runs_detail"]
     assert sum("split_answered" in d for d in detail) == 12
+
+
+# --- held-out v6 is sealed --------------------------------------------------------------
+
+
+def test_held_out_v6_is_sealed_and_only_its_own_name_unseals_it() -> None:
+    from meridian_dataset import HOLDOUT_V6_SEED
+    from tier0.sealed import SealedSetError, require_unsealed
+
+    v6 = generate(HOLDOUT_V6_SEED)
+    with pytest.raises(SealedSetError, match="--final-comparison=held_out_v6"):
+        require_unsealed(v6)
+    with pytest.raises(SealedSetError):
+        require_unsealed(v6, final_comparison="held_out_v5")
+    with pytest.raises(SealedSetError):
+        anyio.run(lambda: run_eval(HOLDOUT_V6_SEED, k=1))

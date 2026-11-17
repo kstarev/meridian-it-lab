@@ -37,3 +37,10 @@ for Haiku's triage prompt was committed and before any model ran on the set."""
 
 HELD_OUT_V5_LABELS_SHA256 = "f3974f84b06f376699f92503971e9002297ac82129c55f56dfeab9dcea80eca6"
 """The seal on v5's sub-group labels (pools/held_out_v5_labels.json), in canonical JSON."""
+
+HELD_OUT_V6_SHA256 = "6a859018b50f2f9e5247d9aa0a307448ef9676ce3cc9cda9368fbe214086ff94"
+"""Held-out v6's seal (milestone 3d part 2); set on 2026-11-17, after the plan's pass rules and
+decision rule were committed and before any real model ran on part 2's tuning world."""
+
+HELD_OUT_V6_LABELS_SHA256 = "670960a0284361382e8b852309c33579a131785de6daab502741ea3a53c0d904"
+"""The seal on v6's sub-group labels (pools/held_out_v6_labels.json), in canonical JSON."""

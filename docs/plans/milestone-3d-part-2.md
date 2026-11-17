@@ -265,3 +265,21 @@ The report also shows each default arm's several-question tickets handed off who
 3. **At most one new version per model,** only from that model's own misses, committed before it is scored, then scored on every tuning message (237 messages, k = 3, about 710 calls): about $1.18 for a Sonnet version and $0.07 for a Haiku version.
 4. **Stop at $2.50.** With all three steps, the estimate is about $2.36. A second round is left only for Haiku.
 5. **The final run's report generator** (`tier0.evals.m3d2_final`) is written and committed before the final run, which waits for the owner's go.
+
+## Held-out v6, sealed (2026-11-17, no paid call)
+
+Written blind by a helper from the brief above. The helper's reply was counts only, and they match the brief: 74 messages, the label counts in the table, 32 English and 14 each in German, Spanish and French, `{target}` 4, `{target_guess}` 1 (with `{target}`), `{claimed_name}` 2, no other braces, and no message mixing languages.
+
+- **Copied byte for byte** with `cp` into `pools/held_out_v6.json` and `pools/held_out_v6_labels.json`. The SHA-256 of each copy's bytes equals the staging file's and the helper's recorded hash: `d86e56fe11b29872…` for the pool and `66795e9a8d218792…` for the labels.
+- **Pool digest** (`pool_digest`, pinned as `HELD_OUT_V6_SHA256`): `6a859018b50f2f9e5247d9aa0a307448ef9676ce3cc9cda9368fbe214086ff94`.
+- **Labels digest** (canonical JSON, pinned as `HELD_OUT_V6_LABELS_SHA256`): `670960a0284361382e8b852309c33579a131785de6daab502741ea3a53c0d904`.
+- **World manifest** (seed 8461, every template once): `1c66bc5193aeaabfd19c084e2572e860de5fc17a52e849d12f6776573a69d844`.
+- **Every check in "Sealing held-out v6" passed,** by a script and by tests that print numbers only:
+  - the keys, the counts, the labels and the placeholders are exactly as asked;
+  - 0 templates and 0 sentences, by both splitters, are shared with any other pool, R25's messages, either month or either how-to set. No one-word sentence is shared either, so nothing had to be pinned and no tuning wording had to be rewritten;
+  - no sentence repeats inside v6;
+  - the world has 74 tickets: 21 normal, 18 colleague, 4 outsiders, 14 resets, 12 several and 5 over the same-day limit, with no brace in any ticket. All 5 chains have one sender, four requests within 24 hours, and 0 to 3 earlier requests loaded.
+- **Registered:** `SEALED_POOLS`, `USE_EVERY_TEMPLATE` and `MESSAGE_POOLS` (appended to `names.py`), seed 8461, the reports' seed label and the CLI's file-name label.
+- **No code signal was run on v6:** not the reset signal, not the role signal, not the stub. A test checks that `require_unsealed` and the eval refuse it unless `--final-comparison=held_out_v6` is given.
+- **Three existing tests changed,** in their own commit: `test_every_scenario_has_wording` (v6 has no duplicate-name or self-description group), the world-hash table in `test_tier0_worlds_unchanged.py` (v6's manifest), and `test_only_v5_is_sealed_and_the_spent_sets_run_as_dev_sets` (the sealed sets are now v5 and v6). The plan had expected two; the third is the sealed-set list.
+- **Count-only safety in tests:** every assertion on v6, and every overlap assertion on part 2's tuning pool, compares a value computed first. Otherwise pytest prints a failed call's arguments, which here would be wording.

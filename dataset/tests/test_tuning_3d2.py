@@ -1,6 +1,8 @@
 """Milestone 3d part 2's tuning messages and tuning world (docs/plans/milestone-3d-part-2.md).
 
-Checks against other sets are counts only: no sealed wording is printed or read by eye.
+Checks against other sets are counts only: no sealed wording is printed or read by eye. Each
+count is put in a variable before it is asserted, so a failure prints a number, never the
+texts pytest would otherwise show as a call's arguments.
 """
 
 import collections
@@ -78,27 +80,32 @@ def test_part_2s_groups_have_no_placeholders() -> None:
 
 @pytest.mark.parametrize("split", SPLITTERS, ids=lambda s: s.__name__)
 def test_no_sentence_repeats_inside_the_pool(split) -> None:  # type: ignore[no-untyped-def]
-    assert repeated_count(MINE, split) == 0
+    repeated = repeated_count(MINE, split)
+    assert repeated == 0
 
 
 @pytest.mark.parametrize("split", SPLITTERS, ids=lambda s: s.__name__)
 @pytest.mark.parametrize("name", sorted(set(MESSAGE_POOLS) - {"tuning_3d2"}))
 def test_no_sentence_is_shared_with_another_pool(name: str, split) -> None:  # type: ignore[no-untyped-def]
-    assert shared_count(MINE, pool_texts(MESSAGE_POOLS[name]), split) == 0
+    shared = shared_count(MINE, pool_texts(MESSAGE_POOLS[name]), split)
+    assert shared == 0
 
 
 @pytest.mark.parametrize("split", SPLITTERS, ids=lambda s: s.__name__)
 def test_no_sentence_is_shared_with_r25s_messages_or_the_months(split) -> None:  # type: ignore[no-untyped-def]
-    assert shared_count(MINE, SEVERAL_R25, split) == 0
+    shared = shared_count(MINE, SEVERAL_R25, split)
+    assert shared == 0
     for name in (TUNING_MONTH, HELD_OUT_MONTH1):
-        assert shared_count(MINE, [t.text for t in load_templates(name)], split) == 0, name
+        shared = shared_count(MINE, [t.text for t in load_templates(name)], split)
+        assert shared == 0, name
 
 
 @pytest.mark.parametrize("split", SPLITTERS, ids=lambda s: s.__name__)
 def test_no_sentence_is_shared_with_the_how_to_questions(split) -> None:  # type: ignore[no-untyped-def]
     for name in (kn.TUNING, kn.HELD_OUT_K1):
         questions = [q.text for q in kn.load_question_set(name).questions]
-        assert shared_count(MINE, questions, split) == 0, name
+        shared = shared_count(MINE, questions, split)
+        assert shared == 0, name
 
 
 # --- the tuning world ------------------------------------------------------------------
