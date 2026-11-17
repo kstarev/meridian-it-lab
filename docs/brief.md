@@ -144,12 +144,12 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 ## Delivery
 
 - **Milestone 1, walking skeleton (done):** one ticket type end to end: Slack → triage → Linear ticket → answer → close → trace → eval. The ticket type is "What's my username?", built on the thin slice of the dataset it needs.
-- **Milestone 2, honest real-model results (next):** fix what the first real-model run found ([2026-11-08 report](evals/2026-11-08-ollama-llama3.2.md)) without tuning on the set that will score it. In this order:
+- **Milestone 2, honest real-model results (done on 2026-11-09: [comparison](evals/2026-11-09-held-out-v2-comparison.md) of two local models; Claude joined in milestone 3):** fix what the first real-model run found ([2026-11-08 report](evals/2026-11-08-ollama-llama3.2.md)) without tuning on the set that will score it. In this order:
   1. Write held-out v2 wording. Nobody looks at results on it until step 4 ([ADR-014](decisions.md)).
   2. Fix the over-refusals in the triage prompt (own-username requests read as being about someone else), tested on tuning data only.
   3. Add a second, independent "own account only?" check before any token is minted, so a misread attack ticket never gets a credential or a tool call.
   4. Compare llama3.2, an 8B local model and Claude on held-out v2.
-- **Mini-milestone, personality (built on branch `personality`, [ADR-028](decisions.md)):** tier0 should sound like a friendly IT colleague, not a bot.
+- **Mini-milestone, personality (built, merged in pull requests #5 and #6, [ADR-028](decisions.md)):** tier0 should sound like a friendly IT colleague, not a bot.
   - **AI disclosure once per conversation,** in the first message, as the EU AI Act requires it "at the latest at the time of the first interaction" (Art. 50), and not repeated in every reply. tier0 never uses a human first name. Today the disclosure already appears only in the first message to each requester.
   - **Banned phrases, enforced by a test:** "I'd be happy to help", "Certainly!", "Great question", "I hope this helps", "Is there anything else I can help you with", "As an AI", "I apologize for any inconvenience", "don't hesitate to reach out".
   - **Style:** short sentences, contractions, the person's first name, and one clear next step.
@@ -158,7 +158,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **No user enumeration:** a refusal or an outsider reply reads the same whether or not the person it mentions exists, and a request about someone else always gets the refusal reply, even when tier0 hands it to a person.
   - **The sweeper's closing note** uses the same templates and locale.
   - **A light closer** on about a third of answers and closing notes ("Mystery solved 🔍", "Have a good weekend!" on the requester's Friday), never on refusals, outsider replies, hand-offs or the guard fallback.
-- **Mini-milestone, proactive posts (built on branch `proactive-posts`, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates. Dry-run is the default.
+- **Mini-milestone, proactive posts (built, merged in pull request #7, [ADR-020](decisions.md)):** tier0 posts on its own, on a schedule, but only from templates. Dry-run is the default.
   - **Holiday notes:** short, warm, not-too-specific notes to #general (country channels optional, configurable).
     - Holidays come from the Python `holidays` package for each country in the directory: national holidays only. German state holidays only change the IT coverage line. A few cultural days are opt-in per country (for example Halloween for the US and Canada), and the year-end note goes to everyone.
     - Timing: the working day before, at 09:00 in that country's time zone, so people see it before they're off.
@@ -173,7 +173,7 @@ If the requester isn't authenticated or asks about someone else, the agent refus
   - **Metric:** tickets opened within 24 h of a pulse check, to see whether it surfaces problems people weren't reporting.
 - **Milestone 3, more ticket types and realistic traffic:** built as sub-milestones, in the order 3a, 3b, then milestone 4, then 3d and 3c ([ADR-035](decisions.md)).
   - **3a, done** (ADR-029, ADR-030 to ADR-032): the over-refusal fix and the narrowed self-description exception (items 7 and 8), the sealed blind held-out v3, and a seven-setup comparison on it ([results](evals/2026-11-12-held-out-v3-comparison.md)).
-  - **3b, partly done:** the verification ladder (item 6), two additions from 3a's results (ADR-033), and the agent-action kill switch and rate limit (ADR-008). The two additions needed paid runs and are done. The ladder, the kill switch and the rate limit need none and come after the paid window ([ADR-037](decisions.md)):
+  - **3b, built:** the verification ladder (item 6), two additions from 3a's results (ADR-033), and the agent-action kill switch and rate limit (ADR-008). The two additions needed paid runs and are done. The ladder, the kill switch and the rate limit needed none and were built on 2026-11-15/16 ([ADR-043](decisions.md)):
     - **TKT-004:** in held-out v3 every setup's models answered this self-described request correctly, but the role signal handed it to a person in every run. Fix the self-description exception on tuning data only, and measure the fix on a new sealed held-out v4, written blind like v3. **Done:** measured on v4 and on a second sealed set, v4b ([report](evals/2026-11-15-m3b-held-out-v4-v4b.md), ADR-038); both are dev sets now (ADR-039).
     - **A harder tuning set:** the big models scored perfectly on almost every tuning version, so their prompts were chosen by length, not quality. Add cases that strong models get wrong. **Done** ([selection report](evals/2026-11-15-m3b-prompt-selection.md)).
     - **Global kill switch on agent actions:** **Built** ([as built](plans/milestone-3b-code-only.md)). ADR-008's global switch stops all agent actions at once and routes open tickets to people, enforced by the MCP server outside the model, with every toggle in the audit log. Tested target: 0 actions after the switch is on, also when it flips in the middle of a run and when the agent ignores it. The switch for proactive posts (ADR-020) stays, and the global switch stops those posts too.

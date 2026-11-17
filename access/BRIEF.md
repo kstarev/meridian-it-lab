@@ -2,7 +2,7 @@
 
 "terraform plan" for people: who should have access to what is written down as code, a bot shows every night what it would change, and a person approves before anything changes.
 
-Project 2 of the Meridian IT lab. Milestone 1 is this brief, the [decisions](docs/adr/README.md) and the [milestone plan](MILESTONES.md). **No code yet.**
+Project 2 of the Meridian IT lab. Milestone 1 was this brief, the [decisions](docs/adr/README.md) and the [milestone plan](MILESTONES.md). Code for milestones 2 to 6 is on main, and milestone 7's sealed score ran once on 2026-11-17; what is left is in [MILESTONES.md](MILESTONES.md).
 
 **All the data is fake.** Meridian is a made-up company. Every person, account and app export is generated, every email address is `@meridian.example`, and the APIs are mocks shaped like Okta, the Google Admin SDK and Slack. Nothing touches a real tenant, and nothing comes from a real employer.
 

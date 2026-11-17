@@ -1,6 +1,6 @@
 # AAC-001: `access/` in the lab repo, with its own package and the shared dataset
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built.
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md).
 
 **Context:** Access-as-Code is the lab's second project (lab brief, "In scope"). It needs the same fake Meridian, the same standards (pinned dependencies, one lockfile, offline tests, CI on every pull request) and its own space, so tier0's code, tests and published results stay untouched.
 

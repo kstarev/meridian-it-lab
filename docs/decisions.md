@@ -359,7 +359,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-020: Proactive posts come only from templates, with a preview and strict limits
 
-**Date:** 2026-11-09 · **Status:** Accepted; built 2026-11-10 on branch `proactive-posts` (see "As built" below)
+**Date:** 2026-11-09 · **Status:** Accepted; built 2026-11-10, merged in pull request #7 (see "As built" below)
 
 **Context:** tier0 only answers people today. Two proactive posts would help: holiday notes that say what IT coverage looks like before people are off, and a pulse check when #it-help has been quiet, which may surface problems nobody reported. But a bot that can message the whole company is a high-impact channel: a wrong, repeated or manipulated broadcast reaches everyone at once, and company-wide messages from IT are what phishing imitates.
 
@@ -722,7 +722,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-031: Two more local candidates, gpt-oss:20b and qwen3.6:27b, added before v3
 
-**Date:** 2026-11-11 · **Status:** Accepted; neither model has run yet (both still downloading). Amends ADR-030.
+**Date:** 2026-11-11 · **Status:** Accepted; both ran on held-out v3 on 2026-11-12 ([report](evals/2026-11-12-held-out-v3-comparison.md)). Amends ADR-030.
 
 **Context:** Nothing has run on held-out v3. The user asked for two larger local models as candidates, on the same 32 GB Mac. Either one takes most of that memory, so two can't be loaded together.
 
@@ -752,7 +752,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-032: Claude Sonnet 5.5 as a seventh setup, k = 5 for Claude on v3, a $4 cap
 
-**Date:** 2026-11-11 · **Status:** Accepted; no Sonnet call yet (waiting for the user's go on the estimate). Amends ADR-030 and ADR-031. Its $4 cap is replaced by ADR-037's per-item budget (2026-11-15).
+**Date:** 2026-11-11 · **Status:** Accepted; Sonnet ran on held-out v3 on 2026-11-12 ([report](evals/2026-11-12-held-out-v3-anthropic-sonnet.md)). Amends ADR-030 and ADR-031. Its $4 cap is replaced by ADR-037's per-item budget (2026-11-15).
 
 **Context:** The user raised the Claude budget to $4 of a $5 credit, before anything ran on v3, to add Sonnet and to give the Claude setups more runs per ticket. Claude has no seed, so more runs per ticket are the only way to tighten its numbers.
 
@@ -1204,7 +1204,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-044: Milestone 3c as built: a realistic month at the routing level, with template-level intervals; the sealed month waits for R24 and R25
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 ([plan](plans/milestone-3c-realistic-month.md), PR #47), with a paid dry run on tuning data. Updated on 2026-11-17, at the owner's request: the sealed month's picker is Sonnet with KS5 in every arm, with a new cost estimate. **Updated again on 2026-11-17, after held-out v6:** the sealed month's arms are `haiku-3d2` and `sonnet-3d2`, with part 2's reset check before the picker; both were rehearsed on the tuning month, and the sealed run is frozen at about $8.65 ([plan](plans/milestone-3c-realistic-month.md)). The run on the sealed month still waits for the owner's go (R26).
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 ([plan](plans/milestone-3c-realistic-month.md), PR #47), with a paid dry run on tuning data. Updated on 2026-11-17, at the owner's request: the sealed month's picker is Sonnet with KS5 in every arm, with a new cost estimate. **Updated again on 2026-11-17, after held-out v6:** the sealed month's arms are `haiku-3d2` and `sonnet-3d2`, with part 2's reset check before the picker; both were rehearsed on the tuning month, and the sealed run is frozen at about $8.65 ([plan](plans/milestone-3c-realistic-month.md)). The sealed month ran once on 2026-11-17, and its safety pass rule failed on both arms ([result](plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17)).
 
 **Context:** The brief asks for a realistic month: about 300 mixed tickets for a 230-person company, most of them for a person, and only 10 to 15% own-username requests. Their intervals resample templates, not tickets. The final comparisons so far used sets built mostly of the requests tier0 answers.
 

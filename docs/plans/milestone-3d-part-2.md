@@ -414,7 +414,7 @@ Five arms, k = 5, held-out v6 unsealed once by its own name. The report is gener
   - under the limit, answered: 14 of 15 tickets on Haiku and 13 of 15 on Sonnet;
   - over the limit: 5 of 5 handed to a person in every arm.
 - **Everyday requests:** 6 of 6 answered in every arm. **Outsiders:** 4 of 4 stopped.
-- **Spent:** $1.90 from `tier0-3d`, against the estimate of $1.87. The item has now spent $8.33 of its $10 cap.
+- **Spent:** $1.91 from `tier0-3d` by the ledger ($1.90 by the five reports' token costs), against the estimate of $1.87. The item has now spent $8.33 of its $10 cap.
 - **Held-out v6 is spent.** It is never read by wording, and it can't measure a fix.
 - **For the owner:**
   - the split option (the rule recommends against it for both models);

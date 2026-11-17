@@ -58,7 +58,7 @@ Reading actual state from the three mocks and the 95 exports, and matching every
 - [x] Collectors hold read-only tokens, and a test shows a write with one fails. Evidence: [`test_a_collector_token_cannot_write`](tests/test_collect.py).
 - [x] All 95 exports parse: every column layout and date format, with a report of rows that can't be read (none silently dropped). Evidence: [`test_a_bad_row_is_listed_never_dropped`](tests/test_exports.py), [`test_every_line_is_accounted_for`](tests/test_exports.py).
 - [x] Rules-only matching is scored on the tuning world: precision and recall on account-to-person pairs, with intervals. Evidence: [matching report](../docs/evals/2026-11-15-access-tuning-matching.md), [`test_rules_only_precision_and_recall_on_the_tuning_world`](tests/test_match.py).
-- [x] The AI's title and match suggestions run through the spend ledger and cap ($3, `ACCESS_CLAUDE_SPEND_CAP_USD`), with structured outputs validated by code; a refusal or malformed answer counts as no suggestion. Evidence: [`test_a_call_that_would_cross_the_cap_is_not_made`](tests/test_ai.py), [`test_every_failure_is_no_suggestion`](tests/test_ai.py).
+- [x] The AI's title and match suggestions run through the spend ledger and cap ($3 and `ACCESS_CLAUDE_SPEND_CAP_USD` then; the per-item caps of lab ADR-037 since 2026-11-15), with structured outputs validated by code; a refusal or malformed answer counts as no suggestion. Evidence: [`test_a_call_that_would_cross_the_cap_is_not_made`](tests/test_ai.py), [`test_every_failure_is_no_suggestion`](tests/test_ai.py).
 - [x] Haiku 5.5, Sonnet 5.5 and Opus 5.5 are compared on the tuning world only, in a GitHub Actions run approved by the owner; the report shows accuracy, precision, recall and cost, and the user picks a model ([AAC-006](docs/adr/006-model-choice-and-spend-cap.md)). Evidence: [the k=3 report](../docs/evals/2026-11-15-access-model-comparison-k3.md); the owner picked Haiku 5.5 on 2026-11-15.
 - [ ] The chosen prompts are frozen by hash.
 
@@ -114,7 +114,7 @@ The sealed final score and a page that explains it. The prep is in [docs/m7-prep
 
 40 of 54 boxes are ticked, each with its evidence. The 14 open ones:
 
-- **Milestone 4:** the comparison is done and Haiku 5.5 is chosen. The summary's pass rate was not part of the comparison and is not measured yet, and no prompts are frozen.
+- **Milestone 4:** the comparison is done and Haiku 5.5 is chosen. The summary's pass rate was not part of the comparison and is not measured yet. The prompts were frozen by hash for milestone 7 (AAC-013, AAC-014).
 - **Milestone 5:**
   - The 5-minute leaver plan: `timing.json` and a local test time the whole plan build, but nothing measures it from an HRIS change in the workflow.
   - The owner's GitHub App, ruleset and secrets: the steps are in [docs/SETUP.md](docs/SETUP.md).

@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-15 · **Status:** Done on 2026-11-15, checkpoints A to D ([report](../evals/2026-11-15-m3b-held-out-v4-v4b.md), [ADR-039](../decisions.md)) · **Decisions:** [ADR-033](../decisions.md), [ADR-029](../decisions.md), [ADR-037](../decisions.md)
 
-This plan covers the three parts of 3b that need paid Claude calls: the TKT-004 fix, the harder tuning set, and the new sealed held-out v4. The code-only parts of 3b (verification ladder, kill switch, rate limit) come after 2026-12-17, as ADR-037 orders.
+This plan covers the three parts of 3b that need paid Claude calls: the TKT-004 fix, the harder tuning set, and the new sealed held-out v4. The code-only parts of 3b (verification ladder, kill switch, rate limit) were built on 2026-11-15/16 ([as built](milestone-3b-code-only.md)).
 
 ## Rules that hold throughout
 
@@ -115,7 +115,7 @@ This is ADR-037's window for the item (11-17 to 11-30), starting a day early wit
 ## Not in this plan
 
 - The local Ollama setups. They cost no credit but take hours each, and the two big ones wait for the owner's "models ready". Whether they are re-tuned and run on v4 is the owner's choice below.
-- The verification ladder, the kill switch and the rate limit: code-only, after 2026-12-17.
+- The verification ladder, the kill switch and the rate limit: code-only, built separately ([as built](milestone-3b-code-only.md)).
 
 ## What the owner decides
 

@@ -1,6 +1,6 @@
 # AAC-015: A red-team set, written blind and sealed, measures attacks through the AI's three jobs; it runs after the line-break fix
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 with no paid call ([red team](../red-team.md), PR #49), and its workflow (R22) on 2026-11-16. The paid run waits for its budget item (`aac-red-team`, approved in its own pull request) and the owner's go.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Built overnight on 2026-11-15/16 with no paid call ([red team](../red-team.md), PR #49), and its workflow (R22) on 2026-11-16. The paid run happened once on 2026-11-17 ([run record](../../../docs/evals/2026-11-17-access-red-team-run.md)).
 
 **Context:** In Access-as-Code, attacker text reaches the AI only through world fields, in three jobs: job title to role, account to person, and the plan's summary paragraph. The data has no free-text notes. AAC-006 keeps the model summary off until its pass rate is measured, and the summary check stops echoed words but not false claims built from allowed words (M7-R17).
 

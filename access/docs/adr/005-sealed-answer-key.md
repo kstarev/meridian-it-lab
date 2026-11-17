@@ -1,6 +1,6 @@
 # AAC-005: Planted problems with a sealed held-out answer key, scored by precision and recall
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. Follows lab ADR-001, ADR-013 and ADR-029.
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md). Follows lab ADR-001, ADR-013 and ADR-029.
 
 **Context:** The lab's target for every project is precision and recall of at least 0.90 on planted problems, scored on a held-out seed (lab brief). If the problems are planted by code that the builder can read, a detector can be shaped by the exact cases it will be scored on. tier0 solved this for its messages: held-out wording written blind, sealed by hash and unsealed only by name (lab ADR-029).
 

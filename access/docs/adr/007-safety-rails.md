@@ -1,6 +1,6 @@
 # AAC-007: Dry-run by default, a blast-radius limit, a break-glass allowlist, no stale plans
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built.
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md).
 
 **Context:** A tool that removes access across a whole company can do a lot of damage quickly: a bad HRIS export can make everyone look like a leaver, and removing the last admin account locks IT out. Review alone isn't enough if a reviewer approves a huge plan without reading it. Each rail below is enforced by code or GitHub settings, not by the model or by care.
 
