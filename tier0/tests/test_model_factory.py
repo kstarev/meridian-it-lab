@@ -36,3 +36,13 @@ def test_ollama_temperature_from_env() -> None:
 
     assert build_model("ollama", env={"TIER0_OLLAMA_TEMPERATURE": "0.9"}).temperature == 0.9
     assert build_model("ollama", env={}).temperature == 0.5
+
+
+def test_claude_prompt_cache_is_on_only_for_exactly_1() -> None:
+    def describe(env: dict[str, str]) -> dict[str, str]:
+        return build_model(env={"TIER0_MODEL": "claude", **env}).describe()
+
+    assert "prompt_cache" in describe({"TIER0_CLAUDE_PROMPT_CACHE": "1"})
+    for value in ("0", "", "true"):
+        assert "prompt_cache" not in describe({"TIER0_CLAUDE_PROMPT_CACHE": value})
+    assert "prompt_cache" not in describe({})

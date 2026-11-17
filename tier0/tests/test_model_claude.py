@@ -274,3 +274,255 @@ def test_the_cap_stops_a_call_whose_worst_case_would_cross_it(tmp_path: Path) ->
     ledger.check(0.005)  # a cheaper call would still fit
     with pytest.raises(SpendCapReached):
         ledger.check(0.011)
+
+
+# --- prompt caching: opt-in, priced at its own rates ---------------------------------
+
+
+class FakeMessages:
+    def __init__(self, owner: "FakeClient") -> None:
+        self._owner = owner
+
+    def create(self, **kwargs: Any) -> Any:
+        return self._owner.reply(kwargs)
+
+
+class FakeClient:
+    """Records every request's keyword arguments and answers with a fixed usage."""
+
+    def __init__(self, usage: Any) -> None:
+        self.usage = usage
+        self.calls: list[dict[str, Any]] = []
+        self.messages = FakeMessages(self)
+        self.beta = type("Beta", (), {"messages": self.messages})()
+
+    def reply(self, kwargs: dict[str, Any]) -> Any:
+        from types import SimpleNamespace
+
+        self.calls.append(kwargs)
+        return SimpleNamespace(
+            id="msg_fake",
+            model=kwargs["model"],
+            stop_reason="end_turn",
+            content=[SimpleNamespace(type="text", text="ok")],
+            usage=self.usage,
+        )
+
+
+def usage(**fields: Any) -> Any:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(**fields)
+
+
+def cached_model(
+    model_id: str,
+    ledger: Any,
+    *,
+    cache_system: bool,
+    client_usage: Any = None,
+) -> tuple[ClaudeModel, FakeClient]:
+    client = FakeClient(client_usage or usage(input_tokens=5, output_tokens=2))
+    return (
+        ClaudeModel(model=model_id, client=client, ledger=ledger, cache_system=cache_system),
+        client,
+    )
+
+
+@pytest.fixture
+def ledger(tmp_path: Path) -> Any:
+    from tier0.models.spend import SpendLedger
+
+    return SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=10.0)
+
+
+def read_lines(ledger: Any) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in ledger.path.read_text().splitlines()]
+
+
+REQUEST = ModelRequest(
+    task="triage", system="the system prompt", user="u", json_schema=TRIAGE_SCHEMA
+)
+
+
+def test_caching_is_off_by_default_and_the_system_prompt_is_a_plain_string(ledger: Any) -> None:
+    model, client = cached_model("claude-haiku-5-5", ledger, cache_system=False)
+    assert ClaudeModel()._cache_system is False
+    model.complete(REQUEST)
+    assert client.calls[0]["system"] == "the system prompt"
+
+
+@pytest.mark.parametrize("model_id", ["claude-haiku-5-5", "claude-sonnet-5-5"])
+def test_caching_marks_only_the_system_block(model_id: str, ledger: Any) -> None:
+    on, on_client = cached_model(model_id, ledger, cache_system=True)
+    off, off_client = cached_model(model_id, ledger, cache_system=False)
+    on.complete(REQUEST)
+    off.complete(REQUEST)
+    sent_on, sent_off = dict(on_client.calls[0]), dict(off_client.calls[0])
+    assert sent_on.pop("system") == [
+        {"type": "text", "text": "the system prompt", "cache_control": {"type": "ephemeral"}}
+    ]
+    sent_off.pop("system")
+    assert sent_on == sent_off
+    if model_id == "claude-sonnet-5-5":
+        assert sent_on["fallbacks"] == "default" and sent_on["betas"]
+    else:
+        assert sent_on["thinking"] == {"type": "disabled"} and "betas" not in sent_on
+
+
+@pytest.mark.parametrize(
+    ("fields", "expected"),
+    [
+        ({"cache_creation_input_tokens": 700, "cache_read_input_tokens": 0}, (700, 0)),
+        ({"cache_creation_input_tokens": 0, "cache_read_input_tokens": 2600}, (0, 2600)),
+        ({"cache_creation_input_tokens": None, "cache_read_input_tokens": None}, (0, 0)),
+        ({}, (0, 0)),
+    ],
+)
+def test_cache_usage_maps_onto_the_response(
+    fields: dict[str, Any], expected: tuple[int, int], ledger: Any
+) -> None:
+    model, _ = cached_model(
+        "claude-haiku-5-5",
+        ledger,
+        cache_system=True,
+        client_usage=usage(input_tokens=90, output_tokens=12, **fields),
+    )
+    response = model.complete(REQUEST)
+    assert response.input_tokens == 90
+    assert (response.cache_write_tokens, response.cache_read_tokens) == expected
+
+
+def test_a_cache_write_is_ledgered_at_1_25x_the_input_rate(ledger: Any) -> None:
+    model, _ = cached_model(
+        "claude-haiku-5-5",
+        ledger,
+        cache_system=True,
+        client_usage=usage(
+            input_tokens=100,
+            output_tokens=10,
+            cache_creation_input_tokens=800,
+            cache_read_input_tokens=0,
+        ),
+    )
+    model.complete(REQUEST)
+    line = read_lines(ledger)[0]
+    assert line["cost_usd"] == pytest.approx(0.000115)
+    assert line["cache_write_tokens"] == 800
+    assert "cache_read_tokens" not in line
+
+
+def test_a_cache_read_is_ledgered_at_the_read_rate(ledger: Any) -> None:
+    model, _ = cached_model(
+        "claude-sonnet-5-5",
+        ledger,
+        cache_system=True,
+        client_usage=usage(
+            input_tokens=90,
+            output_tokens=12,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=2600,
+        ),
+    )
+    model.complete(REQUEST)
+    line = read_lines(ledger)[0]
+    assert line["cost_usd"] == pytest.approx(0.00056)
+    assert line["cache_read_tokens"] == 2600
+    assert "cache_write_tokens" not in line
+
+
+def test_a_call_without_cache_tokens_writes_the_same_keys_as_before(ledger: Any) -> None:
+    model, _ = cached_model("claude-haiku-5-5", ledger, cache_system=False)
+    model.complete(REQUEST)
+    assert set(read_lines(ledger)[0]) == {
+        "at",
+        "model",
+        "input_tokens",
+        "output_tokens",
+        "cost_usd",
+    }
+
+
+def test_the_cap_counts_a_possible_cache_write(tmp_path: Path) -> None:
+    from tier0.models.claude import INPUT_OVERHEAD_TOKENS
+    from tier0.models.pricing import worst_case_usd
+    from tier0.models.spend import SpendCapReached, SpendLedger
+
+    model_id = "claude-haiku-5-5"
+    input_bound = (
+        len(json.dumps([REQUEST.system, REQUEST.user, REQUEST.json_schema]).encode("utf-8"))
+        + INPUT_OVERHEAD_TOKENS
+    )
+    plain = worst_case_usd(model_id, input_bound, REQUEST.max_tokens)
+    with_write = worst_case_usd(model_id, input_bound, REQUEST.max_tokens, cache_write=True)
+    assert with_write > plain
+    cap = (plain + with_write) / 2
+    ledger = SpendLedger(path=tmp_path / "spend.jsonl", cap_usd=cap)
+    on, on_client = cached_model(model_id, ledger, cache_system=True)
+    with pytest.raises(SpendCapReached):
+        on.complete(REQUEST)
+    assert on_client.calls == []
+    off, off_client = cached_model(model_id, ledger, cache_system=False)
+    off.complete(REQUEST)
+    assert len(off_client.calls) == 1
+
+
+def test_an_unknown_model_with_cache_tokens_is_priced_at_the_highest_rates(
+    ledger: Any,
+) -> None:
+    from tier0.models.pricing import CACHE_WRITE_MULTIPLIER, highest_rate
+
+    ledger.record(
+        "claude-fable-5-2-20261101",
+        100,
+        10,
+        cache_write_tokens=800,
+        cache_read_tokens=2600,
+    )
+    line = read_lines(ledger)[0]
+    per_in, per_out = highest_rate()
+    expected = (
+        100 * per_in + 800 * per_in * CACHE_WRITE_MULTIPLIER + 2600 * per_in + 10 * per_out
+    ) / 1e6
+    assert line["cost_usd"] == pytest.approx(expected)
+    assert line["priced_as"] == "highest known rate (unknown model id)"
+    assert line["cache_write_tokens"] == 800 and line["cache_read_tokens"] == 2600
+
+
+def test_cache_prices_cover_every_priced_model() -> None:
+    from tier0.models.pricing import (
+        CACHE_READ_PER_MTOK,
+        CACHE_WRITE_MULTIPLIER,
+        PRICES_PER_MTOK,
+        cost_usd,
+        worst_case_usd,
+    )
+
+    assert set(CACHE_READ_PER_MTOK) == set(PRICES_PER_MTOK)
+    assert CACHE_WRITE_MULTIPLIER == 1.25
+    for model_id, (per_in, _) in PRICES_PER_MTOK.items():
+        cost = cost_usd(
+            "anthropic",
+            model_id,
+            1_000_000,
+            0,
+            cache_write_tokens=1_000_000,
+            cache_read_tokens=1_000_000,
+        )
+        assert cost == pytest.approx(per_in + 1.25 * per_in + CACHE_READ_PER_MTOK[model_id])
+        assert cost_usd(
+            "ollama", model_id, 1, 1, cache_write_tokens=5, cache_read_tokens=5
+        ) == pytest.approx(0.0)
+        extra = worst_case_usd(model_id, 1000, 100, cache_write=True) - worst_case_usd(
+            model_id, 1000, 100
+        )
+        assert extra == pytest.approx(0.25 * 1000 * per_in / 1e6)
+    with pytest.raises(KeyError):
+        cost_usd("anthropic", "claude-unknown", 1, 1, cache_write_tokens=1)
+
+
+def test_describe_names_the_prompt_cache_only_when_it_is_on() -> None:
+    assert "prompt_cache" not in ClaudeModel().describe()
+    assert ClaudeModel(cache_system=True).describe()["prompt_cache"] == (
+        "system prompt, 5-minute entries"
+    )

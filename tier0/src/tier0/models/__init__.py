@@ -53,7 +53,10 @@ def build_model(name: str | None = None, *, env: Mapping[str, str] | None = None
     if name == "stub":
         return StubModel()
     if name == "claude":
-        return ClaudeModel(model=env.get("TIER0_CLAUDE_MODEL", DEFAULT_CLAUDE_MODEL))
+        return ClaudeModel(
+            model=env.get("TIER0_CLAUDE_MODEL", DEFAULT_CLAUDE_MODEL),
+            cache_system=env.get("TIER0_CLAUDE_PROMPT_CACHE") == "1",
+        )
     if name == "ollama":
         temperature = env.get("TIER0_OLLAMA_TEMPERATURE")
         return OllamaModel(
