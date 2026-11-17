@@ -424,4 +424,5 @@ Five arms, k = 5, held-out v6 unsealed once by its own name. The report is gener
 
 This branch merges #62 and #64 to settle `docs/brief.md` and `tier0/src/tier0/agent.py`, which those pull requests also edit. Both new paths run at the point where triage says "other", and both are off by default; no setup turns both on.
 - **When both are on, part 2's path runs first.** A reset is prepared for a person before any guide is considered, and the picker is not asked. A test pins this.
-- **A known limit:** with part 2 on, a how-to question also goes to a person, because part 2's path hands off whatever isn't a reset or a split. A test pins this too. Running both together needs its own change.
+- **A known limit, until 2026-11-17:** with part 2 on, a how-to question also went to a person, because part 2's path handed off whatever wasn't a reset or a split.
+- **Combined on 2026-11-17, for the sealed month's arms** ([the month's plan](milestone-3c-realistic-month.md#the-shipping-arms-rehearsed-on-the-tuning-month-2026-11-17)): the reset check still runs first, and a message triage really called "other" that isn't a reset now goes to the picker, as it does with part 2 off. The split option and the picker are refused together, because messages are not split. Tests pin all three.

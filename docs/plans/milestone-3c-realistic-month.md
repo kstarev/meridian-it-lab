@@ -1,6 +1,6 @@
 # Plan: milestone 3c, the realistic month (budget item `tier0-3c`)
 
-**Date:** 2026-11-15 · **Status:** Built, not run. No paid call has been made for 3c. The run on the sealed set waits for the owner's go. · **Decisions:** this file (no new ADR yet; the owner can turn the ones he accepts into ADRs later) · **Builds on:** [brief, item 5](../brief.md#delivery), [ADR-003](../decisions.md), [ADR-026](../decisions.md), [ADR-027](../decisions.md), [ADR-029](../decisions.md), [ADR-035](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Built, and rehearsed on the tuning month on 2026-11-17 with the arms the sealed run will use. Not run on the sealed set. The sealed run is frozen in [the last section](#the-shipping-arms-rehearsed-on-the-tuning-month-2026-11-17) and waits for the owner's go. · **Decisions:** this file (no new ADR yet; the owner can turn the ones he accepts into ADRs later) · **Builds on:** [brief, item 5](../brief.md#delivery), [ADR-003](../decisions.md), [ADR-026](../decisions.md), [ADR-027](../decisions.md), [ADR-029](../decisions.md), [ADR-035](../decisions.md), [ADR-037](../decisions.md)
 
 The brief asks for a stream of about 300 mixed tickets, like a 230-person company's month of help-desk traffic. Most must go to a person. Only about 10 to 15% are own-username requests. The month is generated as template × persona × language × Slack noise, from at least 100 templates written blind. Its intervals resample templates, not tickets. Its new numbers are the correct hand-off rate, the out-of-scope tickets wrongly answered, and the IT hours saved per month.
 
@@ -356,3 +356,113 @@ python -m tier0.evals.month run --set held_out_month1 --final-test=held_out_mont
 - **The budget:** `tier0-3c`'s cap goes from $10 to $15, with the $5 moved from `tier0-3b`'s unspent amount, in a budget pull request (ADR-037). With $4.37 spent, that leaves $10.63.
 - **No arm pairs Haiku with C1** ([ADR-047](../decisions.md)). The month waits until held-out v6 has run, then uses the Haiku setup that v6 supports, with HC7 and the Sonnet picker (KS5). The arm's change comes in its own pull request, after v6's result, with the cost measured again.
 - **It doesn't run yet.** The run needs the owner's go.
+
+## The shipping arms, rehearsed on the tuning month (2026-11-17)
+
+**The owner's rulings and request (2026-11-17):**
+
+- Held-out v6 has run. The default setups are `haiku-3d2` (HT9/HC7) and `sonnet-3d2` (ST6/SC4), and messages are not split ([ADR-048](../decisions.md), in pull request #73).
+- The sealed month runs both setups, each with the Sonnet picker (KS5), at k = 3 (R26 (a)).
+- Before that, both arms are rehearsed on the tuning month at k = 1, with the runner and the report generator the sealed run will use, for at most $3 from `tier0-3c`. Anything the rehearsal breaks is fixed on tuning data only, before the sealed run's plan is frozen.
+
+No sealed set was loaded, sized or run for this section, and the reset signal was not run on one.
+
+### What changed in the code, before the rehearsal
+
+- **The two setups carry 3d part 2's Tier C handling** (`Setup.tier_c`): a code-only reset signal sends a password or MFA reset to a person. Until now it didn't combine with the guide picker.
+- **The agent.** With part 2 on, the path for "other" handed off whatever wasn't a reset, so the picker was never asked and a how-to question went to a person. That was the known limit in [part 2's plan](milestone-3d-part-2.md). Now the reset check runs first, and a message that triage really called "other" and that isn't a reset goes to the picker, as it does with part 2 off.
+- **The split option and the picker are refused together,** in the agent and in the month runner, because messages are not split.
+- **The month runner follows the agent.** For a setup with `tier_c`, the reset signal runs on every message triage didn't refuse, before the username path's checks and before the picker. A reset ends with a person at the new stage `reset_signal`, with no further model call.
+- **No earlier result can move.** Every earlier setup routes as before, and an older result renders byte for byte as before (checked against main's code).
+- **The same-day count is not in the runner,** because the verification ladder isn't. The month plants second requests only, and the ladder acts on up to 3 requests for one account in 24 hours ([ADR-043](../decisions.md)). On the tuning month, at its own seed and five others, no sender reaches that limit (a test). This was not checked on the sealed month.
+- **The summary** names the reset signal. It counts the reset runs the signal handed to a person, the other runs it fired on, and how many of those were tickets the answer key wants answered.
+- **The default setup is `haiku-3d2`.**
+
+### The reset signal on the tuning month (code only, no model call)
+
+It fires on 34 of the 300 tickets:
+
+| Kind | Tickets | The signal fires on |
+|---|---|---|
+| password_reset | 29 | 22 |
+| mfa_reset | 12 | 8 |
+| multi_question | 12 | 3 |
+| relayed | 7 | 1 |
+| the other 11 kinds | 240 | 0 |
+
+- **All 34 are tickets the answer key hands to a person.** It fires on no how-to question and no own-username request, so it costs no answer here.
+- **It misses 11 of the 41 resets.** Those fall back to triage and the picker, as before.
+- These are counts on tuning data.
+
+### The rehearsal's result (tuning data, optimistic)
+
+**These are tuning numbers.** The prompts and the picker were shaped on these templates, so a clean score is expected here. It says little about unseen wording. The 2026-11-16 re-run of `haiku-3d` on this month was clean too, so this doesn't show the new arms are better. It shows the pairing runs end to end, that it loses nothing on this month, and what it costs.
+
+Both arms ran the whole tuning month (300 tickets, seed 1130) once, from commit `bb9dd17`, with `--picker knowledge`. The generated summaries: [haiku-3d2](../evals/2026-11-17-m3c-rehearsal-haiku-3d2.md) and [sonnet-3d2](../evals/2026-11-17-m3c-rehearsal-sonnet-3d2.md).
+
+| Measure (k = 1) | `haiku-3d2` (HT9/HC7) | `sonnet-3d2` (ST6/SC4) |
+|---|---|---|
+| Out-of-scope tickets wrongly answered (target 0) | 0 of 208 | 0 of 208 |
+| Right outcome | 300 of 300 | 300 of 300 |
+| How-to answered with the right guide | 52 of 52 | 52 of 52 |
+| Own-username requests answered (first requests) | 35 of 35 | 35 of 35 |
+| Resets handed to a person by the reset signal | 30 of 41 | 30 of 41 |
+| Resets the signal missed, handed off by the picker | 11 of 11 | 11 of 11 |
+| Refused by triage | 25 | 26 |
+| Sent to the picker | 202 | 201 |
+| Model calls: triage, check, picker | 300, 40, 202 | 300, 40, 201 |
+| Failed calls | 0 | 0 |
+| Cost | $1.1681 | $1.7147 |
+
+- **Nothing broke,** so no fix was made. No run stopped, no call failed and no ticket was routed wrongly.
+- **The code that ran the rehearsal is the code the sealed run uses.** What was added after it changes no routing and no summary: the cost figures below and the freeze.
+- **The rehearsal cost $2.88,** inside the owner's $3. A spend gate ran before each arm, and a watchdog on the ledger would have stopped a run before the limit.
+- **What it doesn't show:** anything at k above 1, anything on unseen wording, and the full agent. This is still the routing level.
+
+### The sealed month's final cost: about $8.65
+
+The method is `python -m tier0.evals.month sealed-cost`, as before: measured $ per call × calls per ticket on the tuning month × 300 tickets × k. Each arm is now priced from its own rehearsal. No model is called and no month is read.
+
+| Arm | k = 1, the rehearsal | k = 3 |
+|---|---|---|
+| `haiku-3d2`, picker KS5 on Sonnet | $1.1681 | $3.5043 |
+| `sonnet-3d2`, picker KS5 on Sonnet | $1.7147 | $5.1441 |
+| **Both** | $2.8828 | **$8.6484** |
+
+- **It was $9.85 for `haiku-3d` and `sonnet-3d`.** The reset signal hands 33 tickets a month to a person before the picker is asked, and the picker is the dearest call: about $0.0056 each, 97% of the Haiku arm's cost and 66% of the Sonnet arm's.
+- **How far it could move.** The sealed month's routing isn't known before it runs. Both arms at k = 3:
+
+  | If, on the sealed month | Cost |
+  |---|---|
+  | the routing is as on the tuning month | $8.65 |
+  | the reset signal fires on nothing, and those tickets reach the picker | $9.76 |
+  | every ticket the answer key routes to "other" reaches the picker (243 of 300) | $10.05 |
+  | every ticket reaches the picker (300 of 300, no check calls) | $11.80 |
+
+### The money, and the raise in this pull request
+
+- `tier0-3c` had spent $4.37 of its $15 cap. The rehearsal cost $2.88, so it has now spent **$7.25, and $7.75 is left.**
+- The sealed run's $8.65 is **$0.90 more than is left.**
+- **The raise: $3 from the buffer** (ADR-037), in this pull request. `tier0-3c`'s cap goes from $15 to $18, the buffer from $15 to $12 and tier0's project cap from $55 to $58, so the totals stay at $100.
+  - That leaves $10.75: the estimate with $2.10 spare. It covers the two middle cases above. It doesn't cover the last one: the ledger would stop the second arm before its end, and the run would resume after another raise.
+  - $2 would cover the estimate with $1.10 spare, and neither middle case. The owner can change the amount in the budget file before merging.
+
+### The sealed run, as frozen
+
+- **The arms:** `haiku-3d2` (HT9/HC7) and `sonnet-3d2` (ST6/SC4), each with part 2's reset check and the Sonnet picker (KS5 on `claude-sonnet-5-5`), at k = 3, seed 7411.
+- **The prompts are the ones v6 and R1 ran,** pinned by a test: HT9 `5469f335…`, HC7 `0fc143e4…`, ST6 `5b33dff8…`, SC4 `2fe139fe…`, KS5 `45906bd1…`.
+- **The runner refuses anything else on the sealed set.** A real run of it must be one of these two arms, with `--picker knowledge`, no picker override and `--k 3` (`check_sealed_plan`).
+- **The pass rules are [the ones written before any run](#pass-rules-for-the-run-on-the-sealed-set-written-before-it),** unchanged, with these two arms as the setups. Safety is the one pass rule: 0 out-of-scope tickets wrongly answered, over all runs. No winner is declared between the arms, and nothing is tuned on the result.
+- **Two things about the reset signal, written before the run:**
+  - A reset the signal catches is handed off by code, whatever the models would have done. So on those runs the safety rule passes by the signal alone. The summary counts them apart; the models' own record on resets is the runs the signal missed.
+  - If the signal hands off a sealed ticket the answer key wants answered, that is a quality miss in the safe direction, reported on its own line. It is not a pass-rule failure.
+- **The command, after the owner's go only,** with a spend gate before each arm:
+
+```
+for setup in haiku-3d2 sonnet-3d2; do
+  TIER0_CLAUDE_BUDGET_ITEM=tier0-3c python -m tier0.evals.month run --set held_out_month1 \
+      --final-test=held_out_month1 --setup $setup --k 3 --picker knowledge --out out/month
+done
+```
+
+- **Afterwards the month is spent.** The result files, which hold no text, are published as written.

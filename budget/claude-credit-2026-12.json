@@ -3,9 +3,9 @@
   "credit_usd": 100,
   "credit_expires": "2026-12-18T00:00:00Z",
   "paid_until": "2026-12-17",
-  "buffer_usd": 15,
+  "buffer_usd": 12,
   "projects": {
-    "tier0": 55,
+    "tier0": 58,
     "access": 30
   },
   "items": [
@@ -36,7 +36,7 @@
     {
       "id": "tier0-3c",
       "project": "tier0",
-      "cap_usd": 15,
+      "cap_usd": 18,
       "estimate_usd": 3.12,
       "what": "3c: the realistic month (~300 tickets from at least 100 blind templates) at k=3",
       "approved": true
