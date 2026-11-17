@@ -1,6 +1,6 @@
 # Plan: the guide screen's miss on quoted text and code blocks (milestone 4)
 
-**Date:** 2026-11-16 · **Status:** Built on 2026-11-17 up to the seal of `held_out_g2`, after the owner's rulings that day (below). The code-only run on `held_out_g2` waits for the owner's go. · **Decisions:** [ADR-040](../decisions.md), [ADR-046](../decisions.md)
+**Date:** 2026-11-16 · **Status:** Built on 2026-11-17 up to the brief for `held_out_g2`, after the owner's rulings that day (below). The blind writer was stopped by a safety classifier, so `held_out_g2` is neither written nor sealed; that waits for the owner (R-G2). · **Decisions:** [ADR-040](../decisions.md), [ADR-046](../decisions.md)
 
 ## Why
 
@@ -53,7 +53,7 @@ The run calls no model, so no budget item is needed. It happens once, with the o
 ## Decisions made overnight (2026-11-16/17), for the owner to confirm
 
 1. **Rule 2's ceiling is at most 3 false flags of the 60 unseen clean guides (5%).** It was my proposal; the owner could not set it tonight. It applies to `held_out_g2` only. On tuning, nothing is scaled: the false-flag count is reported, with its interval, and is not a pass rule.
-2. **Paused for the owner: step 1's 12 poisoned tuning guides, step 2 (the fix) and the poisoned part of step 4's brief.** A safety check stopped the helper when it began writing guides with planted instructions. The owner decides that part. The clean-guide part is built, and `guide_screen.py` is unchanged.
+2. **Paused for the owner, then ruled (R-G1 (a), 2026-11-17; see below): step 1's 12 poisoned tuning guides, step 2 (the fix) and the poisoned part of step 4's brief.** A safety check stopped the helper when it began writing guides with planted instructions. The owner decides that part. The clean-guide part is built, and `guide_screen.py` is unchanged.
 3. **The 12 clean tuning guides** are `clean_guides` CT-1 to CT-12 in `pools/tuning.json`, beside the poisoned guides. Each holds commands, a settings snippet or quoted error messages, two of them in Spanish or German. The screen as it is flags none of them (a tuning count). A count-only test checks that they share no sentence with held-out v5, the sealed month, `held_out_k1` (questions and poisoned guides) or, once written, `held_out_g2`. Access's red-team set is left out: it is stored compressed and opened by its own name only.
 4. **`held_out_g2`'s format:** a guide set with no questions. `poisoned_guides` have `id`, `title`, `summary`, `steps` and `planted`, as in `held_out_k1`. `clean_guides` have `id`, `title`, `summary`, `steps` and `quoted` (true when the guide holds a code block, inline code, a settings snippet or quoted text). Ids are PG-01 to PG-24 and CG-01 to CG-60. The seal commit's test checks: 24 poisoned guides, one position each (12 in quoted text or a code block, 3 in each other position); 60 clean guides, 30 of them quoted. The brief, when it is written, must ask for exactly this.
 5. **The seal:** the commit that adds `pools/held_out_g2.json` also sets `HELD_OUT_G2_SHA256` in `seal.py`, the canonical-JSON SHA-256 used for `held_out_k1`. A test fails if only one of the two is there. `held_out_g2` is already a sealed name: only `--final-test=held_out_g2` opens it.
@@ -108,6 +108,19 @@ Choices made in the brief:
 - **The 12 `steps_quoted` guides use at least six forms.** The brief lists the plan's forms "for example", plus any other form, and at most 3 of the 12 use another language. So the set measures new wording in the forms the plan names, more than new forms.
 - **Clean guides are written as real runbooks are,** with the ordinary mentions of passwords, codes, system settings, bots or AI features that real runbooks have. About 5 of them quote a short line in German, Spanish or French.
 - **Every guide is in English**, as the plan's "Left out" says.
+
+### The blind writer: stopped (2026-11-17)
+
+**`held_out_g2` is not written.** A helper started from the brief alone, as for every sealed set. A safety classifier stopped it while it was writing the file. None of its file writes ran, and the staging folder was never created.
+- I didn't retry it, reword the brief, or split it to get past the check.
+- I didn't write the set myself: I wrote the fix, so the set would no longer be blind.
+
+**This needs the owner's ruling, R-G2.** Until then:
+- nothing is sealed;
+- `HELD_OUT_G2_SHA256` stays `None`;
+- the three `held_out_g2` tests still skip.
+
+The fix is built and tested on tuning data only. Its false-flag rate on unseen clean guides, and its misses on unseen poisoned guides, are not measured.
 
 ## Left out
 
