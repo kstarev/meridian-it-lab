@@ -19,7 +19,7 @@
 - **Order:** the line-break fix ([AAC-014](014-line-breaks-are-flattened-before-any-prompt.md)) is merged first, so the run measures the fixed code. The summary's false-claim gap is measured by this run before any claims check is written (M7-R17).
 - **Before the paid run:**
   - **R22:** a workflow following the comparison's dispatch-by-hand pattern: the `access-ai` environment's approval, the ledger artifact and a run limit set to at most the item's cap. Built: **Access red team** (`.github/workflows/access-red-team.yml`), with an $8.00 run limit. Before the first call, the harness refuses a run limit above the item's cap, and a run whose worst case could cross the item's cap, the project's cap or the run limit.
-  - **R13:** `aac-red-team` approved in its own pull request. Not approved yet.
+  - **R13:** `aac-red-team` approved in its own pull request. Opened on 2026-11-16, together with `aac-m7-final-score`, as the owner asked. It takes effect when the owner merges it.
   - The owner's go.
   - **Cost:** about $2.20 likely and $6.39 worst case for all three models at k = 3 (756 calls), against a $10 cap. ADR-037 planned $1.34 for 60 cases; the set has 84.
 

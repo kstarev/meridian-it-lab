@@ -369,20 +369,20 @@ These came from a red-team reading of the code on 2026-11-15, not from any held-
 
 ## Owner's answers
 
-Filled in by the owner, in the M7-R1 pull request.
+Filled in from the owner's answers of 2026-11-16, recorded in [AAC-013](adr/013-m7-frozen-prompts-and-the-owners-answers.md), in the M7-R1 pull request. The owner confirms them by merging it.
 
 | Ruling | Answer | Date |
 |---|---|---|
-| M7-R2 | | |
-| M7-R3 | | |
-| M7-R4 | | |
-| M7-R5 | | |
-| M7-R6 | | |
-| M7-R7 | | |
-| M7-R8 | | |
-| M7-R11 | | |
-| M7-R12 | | |
-| M7-R13 | | |
-| M7-R14 | | |
-| M7-R16 | | |
-| M7-R17 | | |
+| M7-R2 | Re-freeze after the M7-R16 fix (AAC-014). New digest `e48df22324a83c66e69b6cd4f7d695a842e9fa75eba7c7da1c6cfe0c90eb24cf`, merged in #54; merging this pull request confirms it | 2026-11-16 |
+| M7-R3 | Send titles, owners and the two plan summaries; the summaries are reported as "passed n of 2" | 2026-11-16 |
+| M7-R4 | k = 3, with the lowest repeat as each model-dependent headline, and all three shown | 2026-11-16 |
+| M7-R5 | Any false match the key confirms after the rulings, in any repeat, reopens the Haiku pick (AAC-006). The held-out score is never re-run | 2026-11-16 |
+| M7-R6 | Raw results stay in the run's artifact for 30 days, marked "unruled" | 2026-11-16 |
+| M7-R7 | The GitHub setup as found on 2026-11-15, with "prevent self-review" left off on `access-ai` | 2026-11-16 |
+| M7-R8 | A run that wrote no `report.json` is not the score. The bug is fixed without opening held-out content, and the run goes again once | 2026-11-16 |
+| M7-R11 | "Both acceptable" counts as right for the tool, listed apart with its count | 2026-11-16 |
+| M7-R12 | One ruling may cover a group with one cause, with every id still listed | 2026-11-16 |
+| M7-R13 | A helper copies and groups the rows; it never writes a ruling | 2026-11-16 |
+| M7-R14 | (a): the four safety counts are built in code before the run, in their own pull request | 2026-11-16 |
+| M7-R16 | (a): fixed now; line breaks are flattened before any prompt (AAC-014, #54) | 2026-11-16 |
+| M7-R17 | Measured first by the red-team run (AAC-015), then fixed. The report calls a passing summary "passed the code check" and states the limit | 2026-11-16 |
