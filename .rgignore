@@ -1,0 +1,3 @@
+# Sealed sets; see tools/sealed_paths.py. A test keeps this file and that one in step.
+held_out_*
+/dataset/src/meridian_dataset/names.py
