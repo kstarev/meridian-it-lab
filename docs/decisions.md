@@ -894,7 +894,7 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 | `aac-m7-final-score` | The final held-out score, once, with the chosen model and frozen prompts (AAC-010) | $1.37 | $8 | Up to 3× the tuning world's 91 calls on the dearest model (Opus, $0.00495 each) = $1.35, + the two plan summaries |
 | `aac-red-team` | A red-team set reusing 3d's prompt-injection cases inside titles, names and exports | $1.34 | $10 | 60 cases × k=3 × all three models at $0.00744 per case-run |
 
-- **The estimates add up to $22.26 of the $85 in items.** The measured costs are small, so most of each cap is headroom. That headroom, with the buffer, is what the 2026-12-14 re-plan below spends.
+- **The estimates added up to $22.26 of the $85 in items when this was written.** With `tier0-3e` (ADR-050) they add up to $36.66 of the $94 now in items. The measured costs are small, so most of each cap is headroom. That headroom, with the buffer, is what the 2026-12-14 re-plan below spends.
 - **The ledgers enforce it.** Every paid call names an item: `TIER0_CLAUDE_BUDGET_ITEM` or `ACCESS_CLAUDE_BUDGET_ITEM`. Before sending, the ledger refuses the call when:
   - no item is named;
   - the item is unknown, or belongs to the other project;
