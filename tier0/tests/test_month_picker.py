@@ -5,6 +5,7 @@ Fake models and the tuning month only: no paid call, and no test here loads, siz
 sealed month.
 """
 
+import hashlib
 import json
 from collections import Counter
 from collections.abc import Callable
@@ -261,7 +262,8 @@ def test_the_sealed_months_cost_comes_from_tuning_calls_and_reads_no_month(
 
     monkeypatch.setattr(mo, "month_for", no_month)
     assert MONTH_SIZE == 300
-    assert all(arm["guide_pick"] is mo.MEASURED["picker_KS5"] for arm in mo.MEASURED_ARMS.values())
+    for name in ("haiku-3d", "sonnet-3d"):
+        assert mo.MEASURED_ARMS[name]["guide_pick"] is mo.MEASURED["picker_KS5"]
     assert mo.MEASURED["picker_KS5"].usd_per_call == pytest.approx(2.5021 / 440)
     costs = mo.sealed_month_costs()
     usd = {arm: {k: c["usd"] for k, c in by_k.items()} for arm, by_k in costs.items()}
@@ -269,6 +271,8 @@ def test_the_sealed_months_cost_comes_from_tuning_calls_and_reads_no_month(
     assert usd == {
         "haiku-3d": {1: 1.3662, 2: 2.7324, 3: 4.0985},
         "sonnet-3d": {1: 1.9182, 2: 3.8363, 3: 5.7545},
+        "haiku-3d2": {1: 1.1681, 2: 2.3362, 3: 3.5043},
+        "sonnet-3d2": {1: 1.7147, 2: 3.4294, 3: 5.1441},
     }
     assert costs["haiku-3d"][3]["calls"] == {
         "triage": 900,
@@ -278,5 +282,51 @@ def test_the_sealed_months_cost_comes_from_tuning_calls_and_reads_no_month(
     assert mo.main(["sealed-cost", "--k", "3"]) == 0
     out = capsys.readouterr().out
     assert "$4.0985" in out and "$5.7545" in out and "k = 2" not in out
+    assert "$3.5043" in out and "$5.1441" in out
+    assert "the sealed run (haiku-3d2 + sonnet-3d2, k = 3): $8.6484" in out
     assert mo.main(["sealed-cost", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["sonnet-3d"]["2"]["usd"] == 3.8363
+
+
+def test_the_shipping_arms_are_priced_from_their_own_rehearsal() -> None:
+    assert mo.ARM_ROUTE["haiku-3d2"] == {"triage": 300, "own_account_check": 40, "guide_pick": 202}
+    assert mo.ARM_ROUTE["sonnet-3d2"] == {
+        "triage": 300,
+        "own_account_check": 40,
+        "guide_pick": 201,
+    }
+    assert mo.ARM_ROUTE["haiku-3d"] is mo.TUNING_ROUTE
+    costs = mo.sealed_month_costs((1,))
+    assert costs["haiku-3d2"][1]["usd"] == pytest.approx(1.1681, abs=1e-4)
+    assert costs["sonnet-3d2"][1]["usd"] == pytest.approx(1.7147, abs=1e-4)
+    haiku_picker = mo.MEASURED["picker_KS5_haiku_3d2"].usd_per_call
+    sonnet_picker = mo.MEASURED["picker_KS5_sonnet_3d2"].usd_per_call
+    assert haiku_picker == pytest.approx(sonnet_picker, rel=0.01)
+    assert haiku_picker == pytest.approx(mo.MEASURED["picker_KS5"].usd_per_call, rel=0.02)
+    assert sonnet_picker == pytest.approx(mo.MEASURED["picker_KS5"].usd_per_call, rel=0.02)
+
+
+def test_the_sealed_run_is_frozen_to_the_prompts_v6_and_r1_ran() -> None:
+    assert mo.SEALED_ARMS == ("haiku-3d2", "sonnet-3d2")
+    assert mo.SEALED_K == 3
+    hashes = {
+        "haiku-3d2": (
+            "5469f3352b35f9e034eaeaf32c616d484f656a335f4a128e896f1b3ddc4df737",
+            "0fc143e4f36cb40f2657be891419eb367899d40a664feccad069487d5fdeaf91",
+        ),
+        "sonnet-3d2": (
+            "5b33dff857664e31b22eefe76b69fc09587dc5f6840cfb3419434770b4177ce2",
+            "2fe139fe68417c92bd53f8dcdf93668e3b15e911538268a2c68bd92f86838666",
+        ),
+    }
+    ks5 = "45906bd1b29e19d18c3ff282c4fb0e68b83d0d09e50998d7b28ef82ff1415cdf"
+    for arm, (triage, check) in hashes.items():
+        setup = ALL_SETUPS[arm]
+        assert setup.tier_c is True
+        assert setup.split_prompt is None
+        prompts = setup.prompts()
+        assert hashlib.sha256(prompts.triage.encode("utf-8")).hexdigest() == triage
+        assert hashlib.sha256(prompts.check.encode("utf-8")).hexdigest() == check
+        assert mo.picker_model_for(setup) == SONNET
+        assert mo.picker_prompt_for(setup) == "KS5"
+        assert hashlib.sha256(PICKER_VERSIONS["KS5"].encode("utf-8")).hexdigest() == ks5

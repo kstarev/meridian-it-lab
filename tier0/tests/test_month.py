@@ -759,3 +759,51 @@ def test_no_sender_reaches_the_ladders_same_day_limit_on_the_tuning_month() -> N
             for i, start in enumerate(times):
                 inside = [x for x in times[i:] if x - start < timedelta(hours=24)]
                 assert len(inside) <= 3, (month.seed, persona, len(inside))
+
+
+# --- the sealed run's frozen plan ---------------------------------------------------------------
+
+_SEALED_OK = {"picker": "knowledge", "picker_prompt": None, "own_model_picker": False, "k": 3}
+
+
+def _plan(set_name: str, setup: str, **changes: Any) -> str | None:
+    return mo.check_sealed_plan(set_name, ALL_SETUPS[setup], **{**_SEALED_OK, **changes})
+
+
+def test_the_sealed_plan_allows_only_its_two_arms_the_picker_and_k_3() -> None:
+    assert _plan(TUNING_MONTH, "haiku-3b", picker="none", k=1) is None
+    assert _plan(TUNING_MONTH, "haiku-3d2", picker_prompt="KS2", own_model_picker=True) is None
+    assert _plan(HELD_OUT_MONTH1, "haiku-3d2") is None
+    assert _plan(HELD_OUT_MONTH1, "sonnet-3d2") is None
+    for arm in ("haiku-3d", "haiku-3d2-c1", "haiku-3b"):
+        refusal = _plan(HELD_OUT_MONTH1, arm)
+        assert refusal is not None and "haiku-3d2" in refusal and arm in refusal
+    for changes in ({"picker": "none"}, {"picker_prompt": "KS2"}, {"own_model_picker": True}):
+        refusal = _plan(HELD_OUT_MONTH1, "haiku-3d2", **changes)
+        assert refusal is not None and "--picker knowledge" in refusal
+    for k in (1, 5):
+        refusal = _plan(HELD_OUT_MONTH1, "haiku-3d2", k=k)
+        assert refusal is not None and "k = 3" in refusal
+
+
+def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_load(name: str) -> Any:
+        raise AssertionError("a refused run must not load a month")
+
+    monkeypatch.setattr(mo, "month_for", no_load)
+
+    def run(setup: str, k: str) -> tuple[int, str]:
+        argv = ["run", "--set", HELD_OUT_MONTH1, f"--final-test={HELD_OUT_MONTH1}"]
+        argv += ["--setup", setup, "--k", k, "--picker", "knowledge", "--out", str(tmp_path)]
+        code = mo.main(argv, env={})
+        return code, capsys.readouterr().err
+
+    code, err = run("haiku-3d", "3")
+    assert code == 2 and "haiku-3d2" in err
+    code, err = run("haiku-3d2", "1")
+    assert code == 2 and "k = 3" in err
+    code, err = run("haiku-3d2", "3")
+    assert code == 2 and "tier0-3c" in err
+    assert list(tmp_path.iterdir()) == []

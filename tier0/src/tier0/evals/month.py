@@ -23,7 +23,9 @@ a username or a guide); its target is 0. Intervals resample whole templates, bec
 tickets made from one template are not independent (stats.template_bootstrap).
 
 The sealed set (held_out_month1) runs only with `--final-test=held_out_month1`, its own
-name, at its fixed seed, and its result files hold ids, kinds and outcomes, never text.
+name, at its fixed seed, and its result files hold ids, kinds and outcomes, never text. A
+real run of it is also refused unless it is one of the two frozen arms (haiku-3d2, sonnet-3d2)
+with `--picker knowledge` and `--k 3`.
 """
 
 import argparse
@@ -694,6 +696,7 @@ class Measured:
         return self.usd / self.calls
 
 
+_REHEARSAL = "the tuning month rehearsal, 2026-11-17"
 # Each line is a paid run's reported calls and tokens (its result's config), or R1's cost line.
 MEASURED: dict[str, Measured] = {
     "haiku_triage_HT8": Measured.from_tokens(
@@ -709,6 +712,24 @@ MEASURED: dict[str, Measured] = {
         SONNET, 46, 28_408, 552, "sonnet-3b (SC4), the tuning month dry run, 2026-11-15"
     ),
     "picker_KS5": Measured(440, 2.5021, "KS5 on Sonnet, the sealed how-to test R1, 88 x k = 5"),
+    # The rehearsal on the tuning month (2026-11-17): both shipping arms, whole, at k = 1, with
+    # part 2's reset signal before the picker. Each line is that run's reported calls and tokens.
+    "haiku_triage_HT9": Measured.from_tokens(
+        HAIKU, 300, 276_156, 2_905, f"haiku-3d2, {_REHEARSAL}"
+    ),
+    "haiku_check_HC7": Measured.from_tokens(HAIKU, 40, 29_796, 440, f"haiku-3d2, {_REHEARSAL}"),
+    "picker_KS5_haiku_3d2": Measured.from_tokens(
+        SONNET, 202, 547_243, 4_133, f"haiku-3d2's picker, {_REHEARSAL}"
+    ),
+    "sonnet_triage_ST6_month": Measured.from_tokens(
+        SONNET, 300, 249_156, 3_210, f"sonnet-3d2, {_REHEARSAL}"
+    ),
+    "sonnet_check_SC4_month": Measured.from_tokens(
+        SONNET, 40, 24_636, 480, f"sonnet-3d2, {_REHEARSAL}"
+    ),
+    "picker_KS5_sonnet_3d2": Measured.from_tokens(
+        SONNET, 201, 544_539, 4_115, f"sonnet-3d2's picker, {_REHEARSAL}"
+    ),
 }
 # Calls per task over the tuning month's 300 tickets at k = 1, from haiku-3d's re-run
 # (2026-11-16): every ticket is triaged, 40 reach the own-account check and 235 the picker.
@@ -716,8 +737,9 @@ MEASURED: dict[str, Measured] = {
 # tickets to the picker as haiku-3d did, so both arms take haiku-3d's shares.
 TUNING_ROUTE: dict[str, int] = {"triage": 300, "own_account_check": 40, "guide_pick": 235}
 TUNING_ROUTE_TICKETS = 300
-# The month's arms and the measurement each task is priced from. The picker is KS5 on Sonnet
-# in both (PICKER_MODEL, PICKER_PROMPT).
+# The month's arms and the measurement each task is priced from. The 3d arms are kept to
+# reproduce R26's figures; the 3d2 arms are the sealed run's. The picker is KS5 on Sonnet in
+# all of them (PICKER_MODEL, PICKER_PROMPT).
 MEASURED_ARMS: dict[str, dict[str, Measured]] = {
     "haiku-3d": {
         "triage": MEASURED["haiku_triage_HT8"],
@@ -729,7 +751,30 @@ MEASURED_ARMS: dict[str, dict[str, Measured]] = {
         "own_account_check": MEASURED["sonnet_check_SC4"],
         "guide_pick": MEASURED["picker_KS5"],
     },
+    "haiku-3d2": {
+        "triage": MEASURED["haiku_triage_HT9"],
+        "own_account_check": MEASURED["haiku_check_HC7"],
+        "guide_pick": MEASURED["picker_KS5_haiku_3d2"],
+    },
+    "sonnet-3d2": {
+        "triage": MEASURED["sonnet_triage_ST6_month"],
+        "own_account_check": MEASURED["sonnet_check_SC4_month"],
+        "guide_pick": MEASURED["picker_KS5_sonnet_3d2"],
+    },
 }
+# Calls per task over the tuning month's 300 tickets at k = 1, per arm. The 3d arms take
+# TUNING_ROUTE. The shipping arms take their own rehearsal's calls: there the reset signal
+# hands 33 tickets to a person before the picker is asked.
+ARM_ROUTE: dict[str, dict[str, int]] = {
+    "haiku-3d": TUNING_ROUTE,
+    "sonnet-3d": TUNING_ROUTE,
+    "haiku-3d2": {task: m.calls for task, m in MEASURED_ARMS["haiku-3d2"].items()},
+    "sonnet-3d2": {task: m.calls for task, m in MEASURED_ARMS["sonnet-3d2"].items()},
+}
+# The sealed month's one final run, as frozen (the owner's rulings R26 (a) and ADR-048): these
+# two arms, each with the Sonnet picker (PICKER_MODEL, PICKER_PROMPT), at this k.
+SEALED_ARMS = ("haiku-3d2", "sonnet-3d2")
+SEALED_K = 3
 
 
 def measured_month_cost(
@@ -759,12 +804,13 @@ def measured_month_cost(
 
 def sealed_month_costs(ks: Sequence[int] = (1, 2, 3)) -> dict[str, dict[int, dict[str, Any]]]:
     """Every arm's sealed-month cost at each k, scaled from the tuning month's measured calls
-    to the sealed month's ticket count (MONTH_SIZE). Reads no month."""
+    to the sealed month's ticket count (MONTH_SIZE). Each arm takes its own route (ARM_ROUTE).
+    Reads no month."""
     return {
         arm: {
             k: measured_month_cost(
                 per_call,
-                TUNING_ROUTE,
+                ARM_ROUTE[arm],
                 route_tickets=TUNING_ROUTE_TICKETS,
                 tickets=MONTH_SIZE,
                 k=k,
@@ -779,18 +825,21 @@ def render_sealed_costs(costs: Mapping[str, Mapping[int, dict[str, Any]]]) -> st
     lines = [
         f"The sealed month's cost from measured calls ({MONTH_SIZE} tickets; the picker is "
         f"{PICKER_PROMPT} on {PICKER_MODEL} in every arm; no model is called, no month is read)",
-        "  calls per ticket, from the tuning month: "
-        + ", ".join(f"{t} {n}/{TUNING_ROUTE_TICKETS}" for t, n in TUNING_ROUTE.items()),
     ]
     for arm, by_k in costs.items():
         first = next(iter(by_k.values()))
         lines.append(
-            f"  {arm}: $ per call "
+            f"  {arm}: calls per {TUNING_ROUTE_TICKETS} tuning tickets: "
+            + ", ".join(f"{t} {n}" for t, n in ARM_ROUTE[arm].items())
+            + "; $ per call "
             + ", ".join(f"{t} {usd:.7f}" for t, usd in first["usd_per_call"].items())
         )
         for k, c in by_k.items():
             parts = ", ".join(f"{t} ${usd:.4f}" for t, usd in c["usd_by_task"].items())
             lines.append(f"    k = {k}: ${c['usd']:.4f} ({parts})")
+    if all(arm in costs and SEALED_K in costs[arm] for arm in SEALED_ARMS):
+        total = sum(costs[arm][SEALED_K]["usd"] for arm in SEALED_ARMS)
+        lines.append(f"  the sealed run ({' + '.join(SEALED_ARMS)}, k = {SEALED_K}): ${total:.4f}")
     return "\n".join(lines)
 
 
@@ -822,6 +871,34 @@ def check_unseal(set_name: str, final_test: str | None, seed: int) -> str | None
             )
         if seed != DEFAULT_SEEDS[set_name]:
             return f"{set_name} runs only at its fixed seed {DEFAULT_SEEDS[set_name]}, not {seed}"
+    return None
+
+
+def check_sealed_plan(
+    set_name: str,
+    setup: Setup,
+    *,
+    picker: str,
+    picker_prompt: str | None,
+    own_model_picker: bool,
+    k: int,
+) -> str | None:
+    """A reason to refuse, or None. A sealed set's one final run is frozen: its two arms, the
+    Sonnet picker with its frozen prompt and no override, and k = 3 (R26 (a), ADR-048)."""
+    if set_name not in SEALED_SETS:
+        return None
+    if setup.name not in SEALED_ARMS:
+        return (
+            f"{set_name} runs only on its frozen arms, {' and '.join(SEALED_ARMS)} (ADR-048), "
+            f"not {setup.name}"
+        )
+    if picker != "knowledge" or picker_prompt is not None or own_model_picker:
+        return (
+            f"{set_name} runs only with --picker knowledge ({PICKER_PROMPT} on {PICKER_MODEL}) "
+            "and no picker override"
+        )
+    if k != SEALED_K:
+        return f"{set_name} runs only at k = {SEALED_K}, not {k}"
     return None
 
 
@@ -1127,7 +1204,15 @@ def main(
     args.seed = DEFAULT_SEEDS[args.set] if args.seed is None else args.seed
     refusal = check_unseal(args.set, args.final_test, args.seed)
     if refusal is None and make_model is None:
-        refusal = check_budget_item(setup, os.environ if env is None else env)
+        # A real run only: tests with fake models may still run a sealed set any way they need.
+        refusal = check_sealed_plan(
+            args.set,
+            setup,
+            picker=args.picker,
+            picker_prompt=args.picker_prompt,
+            own_model_picker=args.picker_on_own_model,
+            k=args.k,
+        ) or check_budget_item(setup, os.environ if env is None else env)
     if refusal is not None:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
