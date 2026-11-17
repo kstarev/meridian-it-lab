@@ -203,6 +203,8 @@ class Picker:
     stage: SecondStage
     prompt_version: str | None = None
     prompt_sha256: str | None = None
+    mode: str = "plain"  # "plain", "asks" or "fit" (milestone 3e)
+    pointer: str | None = None
 
 
 NONE_PICKER = Picker("none", no_picker)
@@ -218,7 +220,8 @@ def knowledge_picker(setup: Setup, model: ModelAdapter, prompt: str | None = Non
     try:
         load_runbooks = importlib.import_module("meridian_dataset.knowledge").load_runbooks
         answer_question = importlib.import_module("tier0.knowledge.answer").answer_question
-        PICKER_VERSIONS = importlib.import_module("tier0.knowledge.prompts").PICKER_VERSIONS
+        prompts_module = importlib.import_module("tier0.knowledge.prompts")
+        PICKER_VERSIONS = prompts_module.PICKER_VERSIONS
     except (ImportError, AttributeError) as exc:
         raise PickerUnavailable(
             "--picker knowledge needs milestone 4 (tier0.knowledge.answer, "
@@ -233,15 +236,35 @@ def knowledge_picker(setup: Setup, model: ModelAdapter, prompt: str | None = Non
     if version not in PICKER_VERSIONS:
         raise PickerUnavailable(f"milestone 4 has no picker prompt {version!r}")
     system = PICKER_VERSIONS[version]
+    mode = getattr(prompts_module, "PICKER_MODES", {}).get(version, "plain")
+    fit_system = getattr(prompts_module, "FIT_CHECKS", {}).get(version)
+    pointer = (
+        getattr(prompts_module, "POINTER_GUIDE", None)
+        if version in getattr(prompts_module, "POINTER_VERSIONS", frozenset())
+        else None
+    )
     guides = load_runbooks()
 
     def stage(text: str) -> tuple[str, str | None]:
-        outcome = answer_question(text, model=model, guides=guides, system=system)
+        outcome = answer_question(
+            text,
+            model=model,
+            guides=guides,
+            system=system,
+            mode=mode,
+            fit_system=fit_system,
+            pointer=pointer,
+        )
         if outcome.kind == GUIDE and outcome.guide:
             return GUIDE, outcome.guide
         return STAGE_HAND_OFF, None
 
-    return Picker("knowledge", stage, version, hashlib.sha256(system.encode()).hexdigest())
+    if mode == "plain":
+        digest = hashlib.sha256(system.encode()).hexdigest()
+    else:
+        whole = {"system": system, "mode": mode, "fit": fit_system, "pointer": pointer}
+        digest = hashlib.sha256(json.dumps(whole, sort_keys=True).encode()).hexdigest()
+    return Picker("knowledge", stage, version, digest, mode, pointer)
 
 
 class CountedModel:
@@ -1376,6 +1399,10 @@ def main(
         "bootstrap_samples": samples,
         "bootstrap_seed": BOOTSTRAP_SEED,
     }
+    if picker.mode != "plain":
+        config["picker_mode"] = picker.mode
+    if picker.pointer is not None:
+        config["picker_pointer"] = picker.pointer
     if cache:
         config["prompt_cache"] = True
     header = {key: config[key] for key in ("set", "seed", "month_sha256", "setup", "picker", "k")}
@@ -1418,7 +1445,7 @@ def main(
         for task in m.calls:
             if task == "own_account_check":
                 name = setup.check_model
-            elif task == "guide_pick" and picker_model is not None:
+            elif task in ("guide_pick", "guide_fit") and picker_model is not None:
                 name = picker_model
             else:
                 name = setup.triage_model
