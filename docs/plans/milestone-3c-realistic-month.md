@@ -1,6 +1,6 @@
 # Plan: milestone 3c, the realistic month (budget item `tier0-3c`)
 
-**Date:** 2026-11-15 · **Status:** Built, and rehearsed on the tuning month on 2026-11-17 with the arms the sealed run will use. Not run on the sealed set. The sealed run is frozen in [the last section](#the-shipping-arms-rehearsed-on-the-tuning-month-2026-11-17) and waits for the owner's go. · **Decisions:** this file (no new ADR yet; the owner can turn the ones he accepts into ADRs later) · **Builds on:** [brief, item 5](../brief.md#delivery), [ADR-003](../decisions.md), [ADR-026](../decisions.md), [ADR-027](../decisions.md), [ADR-029](../decisions.md), [ADR-035](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Built, and rehearsed on the tuning month on 2026-11-17 with the arms the sealed run will use. Not run on the sealed set yet. The sealed run is frozen in [the last section](#the-shipping-arms-rehearsed-on-the-tuning-month-2026-11-17). The owner gave the go on 2026-11-17, and the run starts after this version is committed. · **Decisions:** this file (no new ADR yet; the owner can turn the ones he accepts into ADRs later) · **Builds on:** [brief, item 5](../brief.md#delivery), [ADR-003](../decisions.md), [ADR-026](../decisions.md), [ADR-027](../decisions.md), [ADR-029](../decisions.md), [ADR-035](../decisions.md), [ADR-037](../decisions.md)
 
 The brief asks for a stream of about 300 mixed tickets, like a 230-person company's month of help-desk traffic. Most must go to a person. Only about 10 to 15% are own-username requests. The month is generated as template × persona × language × Slack noise, from at least 100 templates written blind. Its intervals resample templates, not tickets. Its new numbers are the correct hand-off rate, the out-of-scope tickets wrongly answered, and the IT hours saved per month.
 
@@ -456,6 +456,17 @@ The method is `python -m tier0.evals.month sealed-cost`, as before: measured $ p
 - **Two things about the reset signal, written before the run:**
   - A reset the signal catches is handed off by code, whatever the models would have done. So on those runs the safety rule passes by the signal alone. The summary counts them apart; the models' own record on resets is the runs the signal missed.
   - If the signal hands off a sealed ticket the answer key wants answered, that is a quality miss in the safe direction, reported on its own line. It is not a pass-rule failure.
+- **A known limit, recorded before the run (the owner, 2026-11-17): the month runner doesn't apply the ladder's same-day count.**
+  - The ladder acts on up to 3 requests for one account and one action in a rolling 24 hours, and sends the 4th to a person ([ADR-043](../decisions.md)). The runner is the routing level and has no ladder, so it grades every request as if it were under the limit.
+  - **Held-out v6 measured same-day repeats,** through the agent with the ladder. Repeats over the limit went to a person on 5 of 5 tickets in every arm. Repeats under it were answered on 14 of 15 tickets with `haiku-3d2` and 13 of 15 with `sonnet-3d2` ([the v6 report](../evals/2026-11-17-m3d2-v6-final.md)). The month adds nothing to that measurement.
+  - **After the run, one report by code, counts only: how many senders went over the limit on the sealed month.** A sender is over the limit when more than 3 of their requests for one action fall inside 24 hours, so that the 4th comes less than 24 hours after the 1st. The count reads each ticket's sender, sending time and kind, and each run's stage. It never reads or prints the wording. It is taken four ways:
+    - own-username requests by the answer key (kinds `own_username` and `self_described`);
+    - resets by the answer key (kinds `password_reset` and `mfa_reset`);
+    - those four kinds pooled, which is the stricter count the tuning month's test uses;
+    - the tickets the reset signal fired on, in each arm and each run.
+  - **0 is expected,** because the generator plants second requests only. On the tuning month, at its own seed and five others, the pooled count is 0 (a test). The sealed month's count checks that instead of assuming it.
+  - **A count above 0 is reported, and it is not a pass-rule failure.** It would mean those senders' later requests go to a person in production. A reset goes to a person either way, so only an own-username request's grade could differ. Nothing is re-graded or tuned because of it.
+- **No harness change between the rehearsal and this run (the owner, 2026-11-17).** Since the rehearsal's commit `bb9dd17`, the code under `tier0/src` and `dataset/src` differs only in `tier0/evals/month.py`: the cost figures, and the check that refuses a real sealed run outside this plan. Both came with pull request #74. No routing, scoring, summary, prompt or data code changed, and this note changes none.
 - **The command, after the owner's go only,** with a spend gate before each arm:
 
 ```
