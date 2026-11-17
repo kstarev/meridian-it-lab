@@ -33,4 +33,5 @@ def test_the_report_renders_from_a_saved_report(tmp_path) -> None:  # type: igno
     n = by_arm["haiku-3d2"]
     assert (n["reset_prepared"].of, n["repeat_over"].of, n["duplicate"].of) == (14, 4, 3)
     md = tun.render(by_arm)
-    assert "| haiku-3d2 (HT8/HC7) |" in md and "tuning score, and optimistic" in md
+    # Named by the prompts the report says ran: the stub run used the defaults, T1 and C1.
+    assert "| haiku-3d2 (T1/C1) |" in md and "tuning score, and optimistic" in md

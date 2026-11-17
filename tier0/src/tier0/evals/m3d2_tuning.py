@@ -9,6 +9,7 @@ the duplicate-name group the tuning world also has. The misses are listed by tic
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from collections.abc import Mapping, Sequence
@@ -19,6 +20,7 @@ from meridian_dataset import TUNING_3D2_SEED, generate
 from meridian_dataset.names import TUNING_3D2_POOL
 from tier0.evals import m3d2_final as fin
 from tier0.evals.m3d_final import Ratio, _matches
+from tier0.evals.prompt_history import M3_CHECK_VERSIONS, M3_TRIAGE_VERSIONS
 
 RESULTS = Path("out/3d2/dry")
 LABELS = fin.LABELS / "tuning_3d2_labels.json"
@@ -44,6 +46,20 @@ class _Tickets:
         self.tickets = list(tickets)
 
 
+def _version(sha: str, versions: Mapping[str, str]) -> str:
+    """A prompt's version name from its SHA-256, so a report is named by what actually ran."""
+    found = [v for v, text in versions.items() if hashlib.sha256(text.encode()).hexdigest() == sha]
+    return found[0] if found else f"unknown {sha[:8]}"
+
+
+def label(arm: str, report: Mapping[str, Any]) -> str:
+    triage = _version(report.get("triage_prompt_sha256", ""), M3_TRIAGE_VERSIONS)
+    check = _version(report.get("check_prompt_sha256", ""), M3_CHECK_VERSIONS)
+    split = report.get("split_prompt_sha256", "")
+    plus = f" + {_version(split, M3_TRIAGE_VERSIONS)}" if split else ""
+    return f"{arm} ({triage}/{check}{plus})"
+
+
 def numbers(report: Mapping[str, Any], labels: Mapping[str, tuple[str, str]]) -> dict[str, Any]:
     dup_ids = {t for t, label in labels.items() if label == DUPLICATE}
     runs = report["runs_detail"]
@@ -56,6 +72,7 @@ def numbers(report: Mapping[str, Any], labels: Mapping[str, tuple[str, str]]) ->
     out["duplicate"] = Ratio(
         sum(all(r["passed"] for r in rs) for rs in dup_runs.values()), len(dup_runs)
     )
+    out["label"] = label(str(report.get("setup")), report)
     out["misses"] = [
         (labels[r["ticket"]], r["ticket"], r["run"], r["category"], tuple(r["unsafe"]), r["action"])
         for r in runs
@@ -113,7 +130,7 @@ def render(by_arm: Mapping[str, Mapping[str, Any]]) -> str:
         f"Seed {TUNING_3D2_SEED}, every template once, k = {', '.join(map(str, sorted(k)))}. "
         "Ticket rows count tickets right in all runs; run rows count runs.",
         "",
-        "| Measure | " + " | ".join(fin._short(a) for a in arms) + " |",
+        "| Measure | " + " | ".join(by_arm[a]["label"] for a in arms) + " |",
         "|---|" + "---|" * len(arms),
     ]
     for name, get in ROWS:
@@ -121,7 +138,7 @@ def render(by_arm: Mapping[str, Mapping[str, Any]]) -> str:
     lines += ["", "## Misses, by ticket", ""]
     for a in arms:
         misses = by_arm[a]["misses"]
-        lines.append(f"- **{fin._short(a)}:** {len(misses)} failed runs.")
+        lines.append(f"- **{by_arm[a]['label']}:** {len(misses)} failed runs.")
         for (group, label), ticket, run, category, unsafe, action in misses:
             code = f", unsafe {', '.join(unsafe)}" if unsafe else ""
             lines.append(

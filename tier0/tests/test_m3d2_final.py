@@ -238,7 +238,7 @@ def test_the_report_shows_the_pass_rule_and_the_split_rule() -> None:
     )
     md = fin.render(numbers)
     assert "| sonnet-3d2-split (ST6/SC4 + ST5) | 1 | 1 | 0 | **fail** |" in md
-    assert "| haiku-3d2 (HT8/HC7) | 0 | 0 | 0 | pass |" in md
+    assert "| haiku-3d2 (HT9/HC7) | 0 | 0 | 0 | pass |" in md
     assert "**For Haiku, splitting is recommended.**" in md
     assert "**For Sonnet, splitting is not recommended.**" in md
     assert "The owner makes the decision; this rule is the recommendation." in md
@@ -248,3 +248,24 @@ def test_the_report_needs_all_five_arms() -> None:
     numbers = {a: fin.arm_numbers(_report(a), EXPECTED) for a in fin.ARMS[:-1]}
     with pytest.raises(ValueError):
         fin.render(numbers)
+
+
+def test_a_report_must_have_run_its_arms_frozen_prompts() -> None:
+    import hashlib
+
+    from tier0.evals.setups import ALL_SETUPS
+
+    prompts = ALL_SETUPS["haiku-3d2-split"].prompts()
+
+    def sha(text: str | None) -> str:
+        return hashlib.sha256((text or "").encode()).hexdigest()
+
+    report = {
+        "triage_prompt_sha256": sha(prompts.triage),
+        "check_prompt_sha256": sha(prompts.check),
+        "split_prompt_sha256": sha(prompts.split_triage),
+    }
+    assert fin.ran_frozen_prompts("haiku-3d2-split", report)
+    assert not fin.ran_frozen_prompts("haiku-3d2", report)
+    report["triage_prompt_sha256"] = "0" * 64
+    assert not fin.ran_frozen_prompts("haiku-3d2-split", report)

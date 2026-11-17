@@ -167,17 +167,18 @@ SETUPS_3D: dict[str, Setup] = {
     )
 }
 # Milestone 3d part 2 (docs/plans/milestone-3d-part-2.md): the five arms of the final run on
-# held-out v6. They reuse frozen prompts only: the 3d triage versions with R25 (HT8, ST6), the
-# checks HC7, C1 and SC4, and for the split option the same model's version from before R25
-# (HT7, ST5). Every one has the Tier C handling on. Tests pin each prompt's hash.
+# held-out v6. Triage: HT9 for Haiku (HT8 plus one sentence, picked on 2026-11-17 by the plan's
+# rule on tuning data, after v6 was sealed and before anything ran on it) and ST6 for Sonnet;
+# checks HC7, C1 and SC4; for the split option each model's version from before R25 (HT7, ST5).
+# Every one has the Tier C handling on. Tests pin each prompt's hash.
 SETUPS_3D2: dict[str, Setup] = {
     s.name: s
     for s in (
-        Setup("haiku-3d2", "claude", HAIKU, HAIKU, "HT8", "HC7", tier_c=True),
+        Setup("haiku-3d2", "claude", HAIKU, HAIKU, "HT9", "HC7", tier_c=True),
         Setup(
-            "haiku-3d2-split", "claude", HAIKU, HAIKU, "HT8", "HC7", tier_c=True, split_prompt="HT7"
+            "haiku-3d2-split", "claude", HAIKU, HAIKU, "HT9", "HC7", tier_c=True, split_prompt="HT7"
         ),
-        Setup("haiku-3d2-c1", "claude", HAIKU, HAIKU, "HT8", "C1", tier_c=True),
+        Setup("haiku-3d2-c1", "claude", HAIKU, HAIKU, "HT9", "C1", tier_c=True),
         Setup("sonnet-3d2", "claude", SONNET, SONNET, "ST6", "SC4", tier_c=True),
         Setup(
             "sonnet-3d2-split",

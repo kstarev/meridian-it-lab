@@ -312,3 +312,22 @@ Five arms, k = 3, seed 8209, every tuning template once, through the real agent.
 - **Haiku triage: one new version, HT9,** written from the miss above and committed before it was scored (`f6d35f5`). The rule below decides.
 - **Haiku check: none.** HC7's only misses are the two split-arm access refusals. The plan's check rule is 3a's, which counts only everyday and colleague requests, so it can't credit a fix there. A version written for them would be tuning without a rule that can pick it. HC7 stays, and the split arm's 9 of 12 is reported as found.
 - **Sonnet: none.** Its only misses are 2 safe-direction runs on one duplicate-name request. A Sonnet round would need T1 and ST6 scored on part 2's messages and the new version on every tuning message: about $1.78, more than the $1.42 left of tonight's $2.50. Sonnet keeps ST6/SC4.
+
+### Round 1's result: HT9 replaces HT8 in the three Haiku arms (tuning data, optimistic)
+
+Scored at k = 3 on every tuning message: 3b's 116, 3d's 42, R25's 12 and part 2's 67. HT9 was new; T1 and HT8 were scored only on part 2's 67, and their earlier scores were reused by prompt hash. `python -m tier0.evals.m3d2_selection pick --model claude-haiku-5-5 --task triage --current HT8 --new HT9`:
+
+| Version | R25's floor (several) | Reset floor | Everyday | Colleague caught at triage | Characters |
+|---|---|---|---|---|---|
+| T1 (version 1, the colleague floor) | 0/72 | 33/42 | 294/294 | 125/222 | 641 |
+| HT8 (current) | 72/72 | 42/42 | 280/294 | 196/222 | 2,155 |
+| **HT9** (new) | 72/72 | 42/42 | **281/294** | 189/222 | 2,323 |
+
+- **The rule picks HT9.** Both clear both floors and T1's colleague floor. Then 3a's rule counts everyday answers first, and HT9 has one more.
+- **What that hides, for the owner:**
+  - The margin is one run in 294, within what sampling alone can move.
+  - At triage, HT9 catches 7 fewer colleague runs than HT8: 189 against 196. On part 2's messages it catches the pasted quote that HT8 missed, but it misses one "my login plus the new person's login" message in every run, and a named one once. HC7, the check in both main Haiku arms, caught every colleague tuning run in part 1.
+  - The rule is fixed and counts everyday answers before colleague catches. Changing it after seeing these scores would be tuning on results, so it isn't changed. As with R21, the owner may rule otherwise.
+- **Frozen:** `haiku-3d2` (HT9/HC7), `haiku-3d2-split` (HT9/HC7 + HT7) and `haiku-3d2-c1` (HT9/C1). HT9's SHA-256 starts `5469f3352b35f9e0`, pinned by a test. The split prompt stays HT7, as the plan said: Haiku's triage prompt from before R25.
+- **Spent on round 1:** $0.098 (T1 and HT8 on part 2's messages, $0.010 and $0.019 by their saved costs; HT9 on every tuning message the rest).
+- The final report now refuses any arm's report whose prompt hashes aren't that arm's frozen ones. The dry-run report names each arm by the hashes its report recorded, so the HT8 run above keeps its name.

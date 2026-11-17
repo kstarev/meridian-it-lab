@@ -14,6 +14,7 @@ template, and nothing from either is printed.
 """
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -235,6 +236,20 @@ def decide_split(model: str, default: Mapping[str, Any], split: Mapping[str, Any
     return {"recommended": recommended, "bar": bar, "steps": steps}
 
 
+def ran_frozen_prompts(arm: str, report: Mapping[str, Any]) -> bool:
+    """Whether a report ran exactly the prompts its arm is frozen with, split prompt included."""
+    prompts = ALL_SETUPS[arm].prompts()
+
+    def sha(text: str | None) -> str:
+        return hashlib.sha256(text.encode()).hexdigest() if text else ""
+
+    return (
+        report.get("triage_prompt_sha256") == sha(prompts.triage)
+        and report.get("check_prompt_sha256") == sha(prompts.check)
+        and report.get("split_prompt_sha256", "") == sha(prompts.split_triage)
+    )
+
+
 def _short(name: str) -> str:
     setup = ALL_SETUPS[name]
     split = f" + {setup.split_prompt}" if setup.split_prompt else ""
@@ -383,6 +398,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         report = json.loads(path.read_text())
         if report["seed"] != HOLDOUT_V6_SEED or report.get("setup") != arm:
             print(f"refused: {path} is not {arm} on seed {HOLDOUT_V6_SEED}", file=sys.stderr)
+            return 2
+        if not ran_frozen_prompts(arm, report):
+            print(f"refused: {path} did not run {arm}'s frozen prompts", file=sys.stderr)
             return 2
         numbers[arm] = arm_numbers(report, labels)
     args.out.write_text(render(numbers))

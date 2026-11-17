@@ -359,15 +359,16 @@ def test_every_earlier_setup_runs_with_part_2_off() -> None:
 def test_part_2s_setups_reuse_frozen_prompts_only() -> None:
     frozen = {
         "HT8": "ca6cffbc5b32a8fd",
+        "HT9": "5469f3352b35f9e0",
         "ST6": "5b33dff857664e31",
         "HC7": "0fc143e4f36cb40f",
         "C1": "eb1037ddaed10c7b",
         "SC4": "2fe139fe68417c92",
     }
     want = {
-        "haiku-3d2": ("HT8", "HC7", None),
-        "haiku-3d2-split": ("HT8", "HC7", "HT7"),
-        "haiku-3d2-c1": ("HT8", "C1", None),
+        "haiku-3d2": ("HT9", "HC7", None),
+        "haiku-3d2-split": ("HT9", "HC7", "HT7"),
+        "haiku-3d2-c1": ("HT9", "C1", None),
         "sonnet-3d2": ("ST6", "SC4", None),
         "sonnet-3d2-split": ("ST6", "SC4", "ST5"),
     }
