@@ -860,10 +860,56 @@ def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_held_out_month2_is_refused_until_its_plan_is_frozen() -> None:
+def test_held_out_month2_runs_only_as_frozen_on_2026_11_18() -> None:
+    """The owner's pick (KS6A-H, by the dev rule committed before the runs) and R-3E-3."""
+    import hashlib
+
+    from meridian_dataset.month import HELD_OUT_MONTH2
+    from tier0.knowledge.prompts import PICKER_VERSIONS
+
+    plan = mo.SEALED_PLANS[HELD_OUT_MONTH2]
+    assert (plan.picker_prompt, plan.prompt_cache) == ("KS6A-H", True)
+    assert hashlib.sha256(PICKER_VERSIONS["KS6A-H"].encode()).hexdigest() == (
+        plan.picker_prompt_sha256
+    )
+    for arm in ("haiku-3d2", "sonnet-3d2"):
+        assert _plan(HELD_OUT_MONTH2, arm, picker_prompt="KS6A-H") is None
+        for other in (None, "KS5", "KS6B-H", "KS6C-H", "KS6A-P"):
+            refusal = _plan(HELD_OUT_MONTH2, arm, picker_prompt=other)
+            assert refusal is not None and "KS6A-H" in refusal
+        assert _plan(HELD_OUT_MONTH2, arm, picker_prompt="KS6A-H", k=1) is not None
+    assert _plan(HELD_OUT_MONTH2, "haiku-3d", picker_prompt="KS6A-H") is not None
+    # The first sealed month's plan is unchanged: KS5, no override, no cache.
+    month1 = mo.SEALED_PLANS["held_out_month1"]
+    assert (month1.picker_prompt, month1.prompt_cache) == (None, False)
+
+
+def test_held_out_month2_runs_with_the_cache_and_refuses_it_off() -> None:
+    from meridian_dataset.month import HELD_OUT_MONTH1, HELD_OUT_MONTH2
+
+    setup = ALL_SETUPS["haiku-3d2"]
+    assert mo.check_prompt_cache(HELD_OUT_MONTH2, setup, True) is None
+    assert mo.sealed_cache_default(HELD_OUT_MONTH2) is True
+    assert mo.sealed_cache_default(HELD_OUT_MONTH1) is False
+
+
+def test_a_frozen_prompt_whose_text_changed_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    from meridian_dataset.month import HELD_OUT_MONTH2
+    from tier0.knowledge import prompts
+
+    monkeypatch.setitem(prompts.PICKER_VERSIONS, "KS6A-H", prompts.PICKER_VERSIONS["KS6A-H"] + " ")
+    refusal = _plan(HELD_OUT_MONTH2, "haiku-3d2", picker_prompt="KS6A-H")
+    assert refusal is not None and "SHA-256" in refusal
+
+
+def test_a_real_month2_run_refuses_the_cache_off_before_anything_is_built(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     from meridian_dataset.month import HELD_OUT_MONTH2
 
-    assert HELD_OUT_MONTH2 in mo.SEALED_SETS
-    for arm in ("haiku-3d2", "sonnet-3d2"):
-        refusal = _plan(HELD_OUT_MONTH2, arm)
-        assert refusal is not None and "frozen plan" in refusal
+    argv = ["run", "--set", HELD_OUT_MONTH2, f"--final-test={HELD_OUT_MONTH2}", "--setup"]
+    argv += ["haiku-3d2", "--k", "3", "--picker", "knowledge", "--picker-prompt", "KS6A-H"]
+    argv += ["--no-prompt-cache", "--out", str(tmp_path)]
+    assert mo.main(argv, env={"TIER0_CLAUDE_BUDGET_ITEM": mo.BUDGET_ITEM}) == 2
+    assert "frozen plan runs with the prompt cache on" in capsys.readouterr().err
+    assert list(tmp_path.iterdir()) == []

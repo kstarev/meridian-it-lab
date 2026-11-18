@@ -811,10 +811,37 @@ ARM_ROUTE: dict[str, dict[str, int]] = {
 # two arms, each with the Sonnet picker (PICKER_MODEL, PICKER_PROMPT), at this k.
 SEALED_ARMS = ("haiku-3d2", "sonnet-3d2")
 SEALED_K = 3
-# The sealed sets whose one run has a frozen plan above. held_out_month1's ran on 2026-11-17.
-# held_out_month2 (milestone 3e) gets its plan when the owner picks its picker prompt: until
-# then every real run of it is refused (docs/plans/milestone-3e-month2-rules.md).
-FROZEN_PLAN_SETS: frozenset[str] = frozenset({"held_out_month1"})
+
+
+@dataclass(frozen=True)
+class SealedPlan:
+    """What a sealed set's one run is frozen to, beyond the arms and k above."""
+
+    picker_prompt: str | None  # None: the setup's default (PICKER_PROMPT)
+    picker_prompt_sha256: str | None  # pinned when the prompt is named
+    prompt_cache: bool
+
+
+# Each sealed set's frozen plan. A sealed set with no plan here is refused.
+# - held_out_month1 ran on 2026-11-17 with KS5 and no cache (R26 (a), ADR-048).
+# - held_out_month2 (milestone 3e): the owner picked KS6A-H on 2026-11-18, by the dev rule
+#   committed before the runs, and allowed the cache for the system prompt only (R-3E-3)
+#   (docs/plans/milestone-3e-month2-rules.md). Its prompt is pinned by SHA-256 here.
+SEALED_PLANS: dict[str, SealedPlan] = {
+    "held_out_month1": SealedPlan(None, None, prompt_cache=False),
+    "held_out_month2": SealedPlan(
+        "KS6A-H",
+        "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888",
+        prompt_cache=True,
+    ),
+}
+FROZEN_PLAN_SETS: frozenset[str] = frozenset(SEALED_PLANS)
+
+
+def sealed_cache_default(set_name: str) -> bool | None:
+    """The cache a sealed set's frozen plan runs with; None for a set with no plan."""
+    plan = SEALED_PLANS.get(set_name)
+    return None if plan is None else plan.prompt_cache
 
 
 def measured_month_cost(
@@ -937,11 +964,19 @@ def check_sealed_plan(
             f"{set_name} runs only on its frozen arms, {' and '.join(SEALED_ARMS)} (ADR-048), "
             f"not {setup.name}"
         )
-    if picker != "knowledge" or picker_prompt is not None or own_model_picker:
-        return (
-            f"{set_name} runs only with --picker knowledge ({PICKER_PROMPT} on {PICKER_MODEL}) "
-            "and no picker override"
+    plan = SEALED_PLANS[set_name]
+    frozen = plan.picker_prompt or PICKER_PROMPT
+    if picker != "knowledge" or picker_prompt != plan.picker_prompt or own_model_picker:
+        how = (
+            f"--picker-prompt {plan.picker_prompt}" if plan.picker_prompt else "no picker override"
         )
+        return (
+            f"{set_name} runs only with --picker knowledge ({frozen} on {PICKER_MODEL}) and {how}"
+        )
+    if plan.picker_prompt_sha256 is not None:
+        text = importlib.import_module("tier0.knowledge.prompts").PICKER_VERSIONS[frozen]
+        if hashlib.sha256(text.encode()).hexdigest() != plan.picker_prompt_sha256:
+            return f"{frozen}'s text no longer matches the SHA-256 frozen for {set_name}"
     if k != SEALED_K:
         return f"{set_name} runs only at k = {SEALED_K}, not {k}"
     return None
@@ -954,7 +989,7 @@ def check_prompt_cache(set_name: str, setup: Setup, prompt_cache: bool) -> str |
         return None
     if setup.provider != "claude":
         return f"--prompt-cache is for Claude setups; {setup.name} runs on {setup.provider}"
-    if set_name in SEALED_SETS:
+    if set_name in SEALED_SETS and not sealed_cache_default(set_name):
         return f"{set_name} was run without the prompt cache; it never runs with --prompt-cache"
     return None
 
@@ -1210,8 +1245,13 @@ def _command(args: argparse.Namespace) -> str:
     if getattr(args, "kinds", None):
         parts.append(f"--kinds {','.join(sorted(set(args.kinds.split(','))))}")
     # The cache flag the run used, only when it isn't the default for this set and setup.
-    default = caching.default_prompt_cache(
-        provider=ALL_SETUPS[args.setup].provider, sealed=args.set in SEALED_SETS
+    frozen = sealed_cache_default(args.set) if args.set in SEALED_SETS else None
+    default = (
+        frozen
+        if frozen is not None
+        else caching.default_prompt_cache(
+            provider=ALL_SETUPS[args.setup].provider, sealed=args.set in SEALED_SETS
+        )
     )
     used = getattr(args, "prompt_cache", None)
     if used is not None and used != default:
@@ -1328,10 +1368,19 @@ def main(
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
     sealed = args.set in SEALED_SETS
-    # The default is on for a Claude setup on a set that isn't sealed (evals/caching.py).
-    args.prompt_cache, refusal = caching.resolve(
-        args.prompt_cache, provider=setup.provider, sealed=sealed
-    )
+    frozen_cache = sealed_cache_default(args.set) if sealed else None
+    if frozen_cache and setup.provider == "claude":
+        # A sealed set whose frozen plan runs with the cache (held_out_month2, R-3E-3): it runs
+        # exactly so, and --no-prompt-cache is refused.
+        if args.prompt_cache is False:
+            refusal = f"{args.set}'s frozen plan runs with the prompt cache on"
+        else:
+            args.prompt_cache, refusal = True, None
+    else:
+        # The default is on for a Claude setup on a set that isn't sealed (evals/caching.py).
+        args.prompt_cache, refusal = caching.resolve(
+            args.prompt_cache, provider=setup.provider, sealed=sealed
+        )
     if refusal is not None:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
