@@ -19,6 +19,9 @@ HELD_OUT_MONTH2_SHA256 = "39175f9cf35532fece58182f93e52ccbf0c4683f9e453d6bce437b
 before any model ran on it. Nobody tuning tier0 reads its wording; every check on it prints
 counts, ids, kinds, languages and booleans only."""
 
+HELD_OUT_MONTH2B_SHA256 = "f4fbe811f071c92ca0d5a93b643de573d7707210336989ce7e2292efa8402a86"
+"""Set on 2026-11-18, the same way as HELD_OUT_MONTH2_SHA256, before any model ran on it."""
+
 
 def file_digest(name: str) -> str:
     """SHA-256 hex digest of a template set's file, byte for byte."""

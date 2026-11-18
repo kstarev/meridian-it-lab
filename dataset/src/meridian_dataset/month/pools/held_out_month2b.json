@@ -1,0 +1,508 @@
+{
+ "templates": [
+  {
+   "id": "B001",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Testing, testing. If this reaches you, Slack on my phone is behaving again after I reinstalled it myself, so no action needed at all.",
+   "expected_guide": null
+  },
+  {
+   "id": "B002",
+   "kind": "app_issue",
+   "lang": "de",
+   "text": "Ich komme nicht mehr in das Zeiterfassungstool, nach der Anmeldung erscheint nur eine leere Seite mit Fehlercode 403. Gestern ging es noch.",
+   "expected_guide": null
+  },
+  {
+   "id": "B003",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "Fan on my work laptop sounds like a jet engine even when only Slack is open. It started after the summer, I've already tried closing everything and cleaning the vents, and it's hot enough to be uncomfortable on my lap. I think it needs someone to look at it.",
+   "expected_guide": null
+  },
+  {
+   "id": "B004",
+   "kind": "hardware",
+   "lang": "fr",
+   "text": "L'écran de mon ordinateur portable est fissuré dans le coin depuis une chute de mon sac ce matin. Il fonctionne encore mais la fissure s'agrandit, je préfère vous prévenir avant que ça empire.",
+   "expected_guide": null
+  },
+  {
+   "id": "B005",
+   "kind": "chitchat",
+   "lang": "de",
+   "text": "Ab Montag bin ich zwei Wochen im Urlaub und melde mich danach wieder, falls ihr mich vermisst. Schöne Grüße aus dem Homeoffice!",
+   "expected_guide": null
+  },
+  {
+   "id": "B006",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Got a second monitor delivered today. How do I hook it up to my laptop and get the screens side by side the right way round?",
+   "expected_guide": "KB-024"
+  },
+  {
+   "id": "B007",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "Slack freezes for about a minute whenever I open a huddle, then the whole window goes white and I have to force quit. That's four times today.",
+   "expected_guide": null
+  },
+  {
+   "id": "B008",
+   "kind": "app_issue",
+   "lang": "fr",
+   "text": "Le logiciel de comptabilité se fige dès que j'ouvre le module des factures et je dois le fermer de force à chaque fois. C'est assez urgent, on clôture le mois demain.",
+   "expected_guide": null
+  },
+  {
+   "id": "B009",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Our customer wants access to a folder of project docs in Drive. What are the rules for sharing it with someone outside Meridian, and how do I actually do it?",
+   "expected_guide": "KB-013"
+  },
+  {
+   "id": "B010",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "dock dead. no lights, no screens, tried another socket",
+   "expected_guide": null
+  },
+  {
+   "id": "B011",
+   "kind": "how_to_guide",
+   "lang": "de",
+   "text": "Ich habe eine merkwürdige Mail mit einem Link zu einer angeblichen Paketzustellung bekommen. Wie melde ich die am besten als Phishing?",
+   "expected_guide": "KB-027"
+  },
+  {
+   "id": "B012",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "Google Drive for desktop has been stuck on 'syncing 1,204 files' since Monday and none of my changes show up on the web.",
+   "expected_guide": null
+  },
+  {
+   "id": "B013",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "My laptop screen has a thin green line running down the middle since this morning and it doesn't go away after a restart.",
+   "expected_guide": null
+  },
+  {
+   "id": "B014",
+   "kind": "chitchat",
+   "lang": "es",
+   "text": "Solo pasaba para contaros que el truco del otro día con los auriculares funcionó y ya no sueno como un robot en las llamadas.",
+   "expected_guide": null
+  },
+  {
+   "id": "B015",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "The software center opens to a blank white window and won't show any of the approved apps, so I can't install anything from it.",
+   "expected_guide": null
+  },
+  {
+   "id": "B016",
+   "kind": "hardware",
+   "lang": "es",
+   "text": "El portátil se apaga solo cuando la batería todavía marca un 40 %, ya me ha pasado tres veces hoy y he perdido trabajo.",
+   "expected_guide": null
+  },
+  {
+   "id": "B017",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "The USB-C hub you gave me gets so hot I can't touch it after half an hour, and the mouse plugged into it keeps disconnecting. Should I stop using it until someone checks it?",
+   "expected_guide": null
+  },
+  {
+   "id": "B018",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "Chrome crashes on startup with no message at all, it just opens and closes again. Already restarted the laptop.",
+   "expected_guide": null
+  },
+  {
+   "id": "B019",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Marketing says my email signature is 'off brand' and frankly mine looks nothing like everyone else's. Where's the official one and how do I set it up?",
+   "expected_guide": "KB-012"
+  },
+  {
+   "id": "B020",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "The expense tool won't save my report, it throws an error 500 when I hit submit and everything I typed is gone. Month end is Friday.",
+   "expected_guide": null
+  },
+  {
+   "id": "B021",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "I'm planning to work from my parents' place in Canada for three weeks in January, is there anything IT wants me to do before I go?",
+   "expected_guide": "KB-026"
+  },
+  {
+   "id": "B022",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "The new dock you sent last week arrived in one piece and my desk finally looks like an adult works here, so a big thank you to whoever packed it so carefully.",
+   "expected_guide": null
+  },
+  {
+   "id": "B023",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "My laptop's been feeling a bit sluggish lately, nothing dramatic. Before I bother anyone, are there some basic things I should try first?",
+   "expected_guide": "KB-017"
+  },
+  {
+   "id": "B024",
+   "kind": "app_issue",
+   "lang": "es",
+   "text": "El calendario de Google no sincroniza en el móvil desde el viernes, las reuniones nuevas no aparecen y ya me he perdido una.",
+   "expected_guide": null
+  },
+  {
+   "id": "B025",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "External monitor flickers black for a second every few minutes. Same cable and same dock with a different laptop does exactly the same, so I'm fairly sure it's the monitor itself.",
+   "expected_guide": null
+  },
+  {
+   "id": "B026",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "I started on Monday and {colleague} said I should come and wave at the IT bot, so here is a hello from the new person in finance.",
+   "expected_guide": null
+  },
+  {
+   "id": "B027",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "{colleague} told me you sorted out their calendar mess in about two minutes yesterday and now the whole marketing team thinks IT has magic powers.",
+   "expected_guide": null
+  },
+  {
+   "id": "B028",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "The headset's left ear cup crackles every time I move my head, and today it cut out completely during a customer call, so a replacement before my next one at 3 would be great.",
+   "expected_guide": null
+  },
+  {
+   "id": "B029",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Whoever named the meeting rooms after cheeses deserves a raise, I just had a call in Brie and could not stop smiling the whole time.",
+   "expected_guide": null
+  },
+  {
+   "id": "B030",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Slack pings me at 11pm every single night and it's driving me nuts. How do I make it stay quiet outside my working hours?",
+   "expected_guide": "KB-022"
+  },
+  {
+   "id": "B031",
+   "kind": "how_to_guide",
+   "lang": "fr",
+   "text": "Comment je fais pour séparer mes favoris perso et ceux du boulot dans Chrome ? On m'a parlé d'un profil professionnel.",
+   "expected_guide": "KB-029"
+  },
+  {
+   "id": "B032",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Happy Friday to the IT folks, and may nobody page you this weekend.",
+   "expected_guide": null
+  },
+  {
+   "id": "B033",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "My laptop has become painfully slow over the last week, even opening a folder takes ages and it freezes for 10 to 20 seconds at a time. I already did the restart and closed my browser tabs, and the disk light seems to be on constantly. With a deadline on Friday I'd love for someone to have a proper look.",
+   "expected_guide": null
+  },
+  {
+   "id": "B034",
+   "kind": "app_issue",
+   "lang": "fr",
+   "text": "Gmail affiche « Erreur temporaire (502) » depuis ce matin et je ne peux ouvrir aucun message.",
+   "expected_guide": null
+  },
+  {
+   "id": "B035",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "I want to create a channel for the new partnership project, are there naming rules I should follow?",
+   "expected_guide": "KB-021"
+  },
+  {
+   "id": "B036",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Somewhere between tidying folders on Tuesday and lunch, the spreadsheet with our Q3 regional forecast vanished from My Drive, and I'm fairly sure that was my own clumsy clicking rather than a fault. Walk me through pulling it out of the bin myself, please, before my manager notices it's gone.",
+   "expected_guide": "KB-014"
+  },
+  {
+   "id": "B037",
+   "kind": "hardware",
+   "lang": "de",
+   "text": "Mein Monitor geht seit heute früh alle paar Minuten aus und wieder an, obwohl ich das Netzkabel schon getauscht habe, und so kann ich kaum arbeiten.",
+   "expected_guide": null
+  },
+  {
+   "id": "B038",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "The HR portal is unbearably slow today, each page takes over a minute to load and it sometimes logs me out halfway through a form.",
+   "expected_guide": null
+  },
+  {
+   "id": "B039",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "A supplier is coming to our Madrid office tomorrow for a workshop, how do I get them onto the wifi without handing out our staff password?",
+   "expected_guide": "KB-002"
+  },
+  {
+   "id": "B040",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "The VPN app crashes the moment I click connect, it shows error 809 for a split second and then closes. It worked fine yesterday and I'm stuck outside the intranet now.",
+   "expected_guide": null
+  },
+  {
+   "id": "B041",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Is there a way to scan a signed form at the office printer and have it land straight in my inbox as a PDF?",
+   "expected_guide": "KB-007"
+  },
+  {
+   "id": "B042",
+   "kind": "how_to_guide",
+   "lang": "es",
+   "text": "¿Cómo configuro el correo del trabajo en mi móvil nuevo? Lo quiero dentro del perfil de trabajo.",
+   "expected_guide": "KB-010"
+  },
+  {
+   "id": "B043",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "The office printer on the 2nd floor in Lisbon jams on every second page and makes a grinding noise, {colleague} and I have both given up on it today. We have contracts to print for a signing on Thursday.",
+   "expected_guide": null
+  },
+  {
+   "id": "B044",
+   "kind": "app_issue",
+   "lang": "de",
+   "text": "Seit dem letzten Update stürzt die Slack-App bei mir jedes Mal ab, wenn ich eine Datei hochladen will. Neu installiert habe ich sie schon.",
+   "expected_guide": null
+  },
+  {
+   "id": "B045",
+   "kind": "hardware",
+   "lang": "es",
+   "text": "Los cascos inalámbricos ya no cargan, la luz no se enciende con ningún cable ni enchufe y mañana tengo llamadas con clientes todo el día.",
+   "expected_guide": null
+  },
+  {
+   "id": "B046",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "Gmail keeps logging me out every 10 minutes since this morning, and I have to sign in again with the code each time.",
+   "expected_guide": null
+  },
+  {
+   "id": "B047",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Last day before my parental leave, and I wanted to say the help desk has been brilliant this year, see you all in spring.",
+   "expected_guide": null
+  },
+  {
+   "id": "B048",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "Since a small coffee accident on Tuesday the Q key on my laptop repeats on its own every few minutes, so my documents are full of qqqq that I have to delete by hand. I dried it as well as I could but it hasn't improved.",
+   "expected_guide": null
+  },
+  {
+   "id": "B049",
+   "kind": "chitchat",
+   "lang": "fr",
+   "text": "Petit message pour dire que {colleague} m'a montré le nouveau fond d'écran Meridian et franchement, il est très réussi, bravo à l'équipe.",
+   "expected_guide": null
+  },
+  {
+   "id": "B050",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Going on holiday Thursday, how do I set up the automatic away reply in Gmail?",
+   "expected_guide": "KB-011"
+  },
+  {
+   "id": "B051",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "I just got my Mac and printing from it is impossible, there's no office printer anywhere in the list. How do I add it myself?",
+   "expected_guide": "KB-005"
+  },
+  {
+   "id": "B052",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "My work phone battery drops from full to 20% by lunch, even with the screen off most of the morning, and it gets warm in my pocket. It's about two years old if that matters.",
+   "expected_guide": null
+  },
+  {
+   "id": "B053",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Hello, is anybody home in here or is this a very polite robot? Asking purely for science.",
+   "expected_guide": null
+  },
+  {
+   "id": "B054",
+   "kind": "hardware",
+   "lang": "fr",
+   "text": "Mon clavier sans fil perd la connexion toutes les deux minutes, j'ai changé les piles et rien n'y fait.",
+   "expected_guide": null
+  },
+  {
+   "id": "B055",
+   "kind": "chitchat",
+   "lang": "de",
+   "text": "Guten Morgen zusammen, ich wollte nur kurz loswerden, wie schnell mein Laptop gestern repariert zurückkam, das war super.",
+   "expected_guide": null
+  },
+  {
+   "id": "B056",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Morning, just checking whether the bot is awake before my coffee kicks in, nothing to report on my side.",
+   "expected_guide": null
+  },
+  {
+   "id": "B057",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "Starting next week I'll be working from home for the first time, so what do I have to do to get the VPN running and reach the intranet?",
+   "expected_guide": "KB-003"
+  },
+  {
+   "id": "B058",
+   "kind": "how_to_guide",
+   "lang": "es",
+   "text": "¿Cómo puedo pedir unos cascos con micrófono del catálogo de IT? Los que uso son míos y ya tienen sus años.",
+   "expected_guide": "KB-025"
+  },
+  {
+   "id": "B059",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "The old monitor I bought for myself years ago has been retired to the kids' homework corner and is living its best life now, thought you'd like to know.",
+   "expected_guide": null
+  },
+  {
+   "id": "B060",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "The VPN update went through overnight without me noticing anything, which is honestly the best kind of update there is.",
+   "expected_guide": null
+  },
+  {
+   "id": "B061",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "Calendar won't let me book any room today: every room shows as unavailable, even ones I can see are empty, and the booking button just greys out.",
+   "expected_guide": null
+  },
+  {
+   "id": "B062",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "The webcam on my laptop shows only a black picture in every app, the little light comes on but nothing else. I've restarted twice and checked the privacy settings already.",
+   "expected_guide": null
+  },
+  {
+   "id": "B063",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "The update installer on my Mac fails at 80% every time with 'An error occurred while installing', I've tried three times since yesterday.",
+   "expected_guide": null
+  },
+  {
+   "id": "B064",
+   "kind": "how_to_guide",
+   "lang": "en",
+   "text": "There's an old work phone sitting in my drawer since I got the new one, how do I hand it back?",
+   "expected_guide": "KB-019"
+  },
+  {
+   "id": "B065",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "{colleague} shared a sheet with me and every time I try to open it Sheets says 'Something went wrong, reload', and reloading does nothing. Other files open fine.",
+   "expected_guide": null
+  },
+  {
+   "id": "B066",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "ugh, Docs just ate my last hour of edits, it says 'offline, changes will be saved when you reconnect' but my internet is fine and every other site loads",
+   "expected_guide": null
+  },
+  {
+   "id": "B067",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "trackpad clicks on its own randomly and opens stuff I never touched, super annoying, started yesterday afternoon",
+   "expected_guide": null
+  },
+  {
+   "id": "B068",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "I'm off from tomorrow until the 3rd, so if my laptop goes quiet it's because I'm on a beach somewhere and not because it died.",
+   "expected_guide": null
+  },
+  {
+   "id": "B069",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "Fun fact for the IT team: my cat just walked across the keyboard and somehow opened three spreadsheets at once. All fine though, nobody panic.",
+   "expected_guide": null
+  },
+  {
+   "id": "B070",
+   "kind": "chitchat",
+   "lang": "en",
+   "text": "ok that did the trick, the printer is spitting out pages again, cheers for the quick reply earlier",
+   "expected_guide": null
+  },
+  {
+   "id": "B071",
+   "kind": "app_issue",
+   "lang": "en",
+   "text": "Meridian Vault won't unlock with my master password anymore, it says 'decryption failed' even though I know it's right, and now I can't reach the shared logins for the client portal.",
+   "expected_guide": null
+  },
+  {
+   "id": "B072",
+   "kind": "hardware",
+   "lang": "en",
+   "text": "My laptop won't charge anymore unless I hold the cable at a weird angle, the port feels loose. Battery is at 14% so this is kind of urgent.",
+   "expected_guide": null
+  }
+ ]
+}
