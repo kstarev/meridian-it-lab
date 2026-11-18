@@ -14,6 +14,11 @@
 #   opens, updates or closes the main plan pull request (bot branch access/plan) and the held
 #   plan pull request (bot branch access/plan-held). The App's token is used, not GITHUB_TOKEN,
 #   so CI and the approvals check run on those pull requests. GITHUB_TOKEN gets read access only.
+#
+# The App's private key is a secret of the access-plan-bot environment, which accepts main only.
+# An environment secret reaches only a job that names the environment, so bot and pull-requests
+# both name it (bot would otherwise see an empty key and skip the pull requests). Both also run
+# from main only, so a run started on another branch builds the plan and skips the rest.
 name: Access plan
 
 on:
@@ -70,6 +75,8 @@ jobs:
 
   bot:
     name: Check the plan bot is set up
+    if: github.ref == 'refs/heads/main'
+    environment: access-plan-bot
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -92,7 +99,8 @@ jobs:
   pull-requests:
     name: Open, update or close the plan pull requests
     needs: [plan, bot]
-    if: needs.bot.outputs.ready == 'yes'
+    if: github.ref == 'refs/heads/main' && needs.bot.outputs.ready == 'yes'
+    environment: access-plan-bot
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
