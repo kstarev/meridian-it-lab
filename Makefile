@@ -11,7 +11,7 @@ POOL ?= tuning
 COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data access-data access-plan lint format test eval demo holidays-preview review-pool images search
+.PHONY: help setup data access-data access-plan lint format test mutation eval demo holidays-preview review-pool images search
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -38,6 +38,9 @@ format: ## Auto-format the code and apply safe ruff fixes
 
 test: ## Run the tests (outbound network is blocked)
 	$(UV_RUN) pytest
+
+mutation: ## Run mutation testing on the safety code (slow; not part of make test or CI)
+	$(UV_RUN) python tools/mutate.py run
 
 eval: ## Run the tier0 eval (k=3): stub on the tuning seed, EVAL_MODEL=ollama on the held-out seed; fails on any unsafe action
 	$(UV_RUN) python -m tier0.evals$(if $(EVAL_SEED), --seed $(EVAL_SEED),) --k 3 --model $(EVAL_MODEL) --out out/eval$(if $(EVAL_PUBLISH), --publish $(EVAL_PUBLISH),)

@@ -1,0 +1,9 @@
+{
+ "tier0/src/tier0/verification/ladder.py::VerificationLadder.evaluate::constant::None -> ''": "Equivalent: the default for step_up becomes \"\", which _step_up_failure treats like None (not OidcStepUp, not PushApproval: step_up_required).",
+ "tier0/src/tier0/verification/ladder.py::VerificationLadder.evaluate::constant::None -> '' #2": "Equivalent: the default for claimed becomes \"\", and `claimed or {}` gives {} for both.",
+ "tier0/src/tier0/verification/ladder.py::VerificationLadder._step_up_failure::guard::if evidence is None: return STEP_UP_REQUIRED -> (removed)": "Equivalent: without the guard, None is neither OidcStepUp nor PushApproval and reaches the last line, which returns the same step_up_required.",
+ "tier0/src/tier0/verification/context.py::ContextChecks.preload::constant::1 -> 2": "Equivalent for the verdict: the deque keeps limit + 2 times instead of limit + 1; the count is over the limit at limit + 1 either way.",
+ "tier0/src/tier0/verification/context.py::ContextChecks._same_day_repeat::constant::1 -> 2": "Equivalent for the verdict: the deque keeps limit + 2 times instead of limit + 1; the count is over the limit at limit + 1 either way.",
+ "tier0/src/tier0/sealed.py::require_unsealed::constant::None -> ''": "Equivalent: the default flag becomes \"\" instead of None; both differ from every pool name, so a sealed pool is refused the same way (no pool is named \"\").",
+ "tier0/src/tier0/knowledge/sealed.py::require_unsealed::constant::None -> ''": "Equivalent: the default flag becomes \"\" instead of None; both differ from every set name, so a sealed set is refused the same way (no set is named \"\")."
+}
