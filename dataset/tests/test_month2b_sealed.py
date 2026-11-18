@@ -51,6 +51,16 @@ def test_it_shares_no_sentence_with_any_earlier_month() -> None:
     assert shared == 0
 
 
+def test_the_slowness_tags_are_counted() -> None:
+    # Tagged by the set's writer (2026-11-18). Its count and this one agree: 1 template, a
+    # how-to question keyed to the slowness guide, in English. No fault report is tagged.
+    tagged = [t for t in load_templates(HELD_OUT_MONTH2B) if t.slowness_only]
+    assert len(tagged) == 1
+    assert Counter(t.kind for t in tagged) == {"how_to_guide": 1}
+    assert Counter(t.lang for t in tagged) == {"en": 1}
+    assert sum(t.expected_guide == "KB-017" for t in tagged) == 1
+
+
 def test_the_month_is_pinned() -> None:
     month = month_for(HELD_OUT_MONTH2B)
     assert month.seed == 3141

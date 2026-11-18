@@ -19,8 +19,11 @@ HELD_OUT_MONTH2_SHA256 = "39175f9cf35532fece58182f93e52ccbf0c4683f9e453d6bce437b
 before any model ran on it. Nobody tuning tier0 reads its wording; every check on it prints
 counts, ids, kinds, languages and booleans only."""
 
-HELD_OUT_MONTH2B_SHA256 = "f4fbe811f071c92ca0d5a93b643de573d7707210336989ce7e2292efa8402a86"
-"""Set on 2026-11-18, the same way as HELD_OUT_MONTH2_SHA256, before any model ran on it."""
+HELD_OUT_MONTH2B_SHA256 = "f3fd0b58f43f4174c5fa539d7d3ede25d67d157983dba8434c9c421fbe666949"
+"""Set on 2026-11-18, the same way as HELD_OUT_MONTH2_SHA256, before any model ran on it. Sealed
+again the same day, before any model ran on it: its writer added the slowness_only tag to each
+template and changed nothing else (first seal f4fbe811…8402a86; the owner's ruling and
+docs/plans/milestone-3e-month2b-rules.md)."""
 
 
 def file_digest(name: str) -> str:
