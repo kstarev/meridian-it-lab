@@ -36,6 +36,15 @@ from meridian_dataset.month.templates import PLACEHOLDER, check_templates
 # The tuning month at its fixed seed. If this moves, every tuning result made on it moves.
 TUNING_MONTH_SHA256 = "edadc0a8bf9c964c7f5ed763acd4a7e697425e0d2d296ef90497fd890579d9f4"
 USERNAME_KINDS = ("own_username", "self_described")
+# held_out_month2b holds only 4 kinds on purpose (docs/plans/milestone-3e-month2b-rules.md): it
+# tests the picker fix, not a realistic month, so the brief's mix and the planted repeat callers
+# (own-username and password requests) don't apply to it.
+FOCUSED_SETS = frozenset({"held_out_month2b"})
+
+
+def _realistic(month: Month) -> None:
+    if month.template_set in FOCUSED_SETS:
+        pytest.skip(f"{month.template_set} is a focused set, not a realistic month")
 
 
 @pytest.fixture(scope="module", params=TEMPLATE_SETS)
@@ -134,6 +143,7 @@ def test_kind_weights_add_up_and_counts_are_exact() -> None:
 
 
 def test_the_mix_is_in_the_briefs_range(month: Month) -> None:
+    _realistic(month)
     tickets = month.tickets
     assert len(tickets) == month.size == MONTH_SIZE
     username = sum(t.kind in USERNAME_KINDS for t in tickets) / len(tickets)
@@ -182,6 +192,7 @@ def test_senders_write_the_templates_language(month: Month) -> None:
 
 
 def test_repeat_callers_are_planted_and_marked(month: Month) -> None:
+    _realistic(month)
     by_id = {t.id: t for t in month.tickets}
     repeats = [t for t in month.tickets if t.repeat]
     assert Counter(t.kind for t in repeats) == {"own_username": 5, "password_reset": 3}
