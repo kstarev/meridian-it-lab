@@ -879,6 +879,8 @@ def test_held_out_month2_runs_only_as_frozen_on_2026_11_18() -> None:
             assert refusal is not None and "KS6A-H" in refusal
         assert _plan(HELD_OUT_MONTH2, arm, picker_prompt="KS6A-H", k=1) is not None
     assert _plan(HELD_OUT_MONTH2, "haiku-3d", picker_prompt="KS6A-H") is not None
+    # month2b runs back to back with month2 on the same frozen system (2026-11-18).
+    assert mo.SEALED_PLANS["held_out_month2b"] == plan
     # The first sealed month's plan is unchanged: KS5, no override, no cache.
     month1 = mo.SEALED_PLANS["held_out_month1"]
     assert (month1.picker_prompt, month1.prompt_cache) == (None, False)

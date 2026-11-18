@@ -827,13 +827,16 @@ class SealedPlan:
 # - held_out_month2 (milestone 3e): the owner picked KS6A-H on 2026-11-18, by the dev rule
 #   committed before the runs, and allowed the cache for the system prompt only (R-3E-3)
 #   (docs/plans/milestone-3e-month2-rules.md). Its prompt is pinned by SHA-256 here.
+# - held_out_month2b: the second blind month the owner asked for on 2026-11-18, run back to
+#   back with month2 on the same frozen system. Its plan is frozen here before the set exists,
+#   so the harness doesn't change between the rehearsal and the two sealed runs.
+_KS6A_H = SealedPlan(
+    "KS6A-H", "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888", prompt_cache=True
+)
 SEALED_PLANS: dict[str, SealedPlan] = {
     "held_out_month1": SealedPlan(None, None, prompt_cache=False),
-    "held_out_month2": SealedPlan(
-        "KS6A-H",
-        "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888",
-        prompt_cache=True,
-    ),
+    "held_out_month2": _KS6A_H,
+    "held_out_month2b": _KS6A_H,
 }
 FROZEN_PLAN_SETS: frozenset[str] = frozenset(SEALED_PLANS)
 
