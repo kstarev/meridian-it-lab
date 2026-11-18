@@ -10,10 +10,10 @@ dependencies = ["meridian-access", "meridian-dataset", "meridian-oauth-radar", "
 
 [dependency-groups]
 dev = [
-    "anthropic==2.6.0",
+    "anthropic==2.8.0",
     "hypothesis==6.170.15",
     "pytest==9.2.0",
-    "ruff==0.17.4",
+    "ruff==0.17.5",
 ]
 
 [tool.uv]
