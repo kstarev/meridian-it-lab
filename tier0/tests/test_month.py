@@ -858,3 +858,12 @@ def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
     code, err = run("haiku-3d2", "3")
     assert code == 2 and "tier0-3e" in err
     assert list(tmp_path.iterdir()) == []
+
+
+def test_held_out_month2_is_refused_until_its_plan_is_frozen() -> None:
+    from meridian_dataset.month import HELD_OUT_MONTH2
+
+    assert HELD_OUT_MONTH2 in mo.SEALED_SETS
+    for arm in ("haiku-3d2", "sonnet-3d2"):
+        refusal = _plan(HELD_OUT_MONTH2, arm)
+        assert refusal is not None and "frozen plan" in refusal
