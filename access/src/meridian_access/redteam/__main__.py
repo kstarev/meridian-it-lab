@@ -14,6 +14,7 @@ import argparse
 import os
 from pathlib import Path
 
+from meridian_access.ai.client import SEALED_NO_CACHE
 from meridian_access.ai.pricing import model_id
 from meridian_access.ai.spend import ITEM_ENV
 from meridian_access.redteam import harness
@@ -28,9 +29,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models", default=DEFAULT_MODELS)
     parser.add_argument("--k", type=int, default=3, help="repeats of the whole set")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--prompt-cache", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--report", type=Path, default=None, help="ids, enums and numbers")
     parser.add_argument("--details", type=Path, default=None, help="outside the repository")
     args = parser.parse_args(argv)
+    if args.prompt_cache:
+        print(SEALED_NO_CACHE)
+        return 2
     if args.unseal != SET_NAME:
         print(f"refusing: the red-team set is sealed; pass --unseal {SET_NAME}")
         return 2

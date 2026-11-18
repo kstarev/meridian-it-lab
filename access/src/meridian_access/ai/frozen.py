@@ -213,11 +213,16 @@ class FrozenClaudeClient(ClaudeClient):
     so nothing is sent."""
 
     def __init__(
-        self, model: str, client: Any | None = None, ledger: SpendLedger | None = None
+        self,
+        model: str,
+        client: Any | None = None,
+        ledger: SpendLedger | None = None,
+        *,
+        cache_system: bool = False,
     ) -> None:
         if model != FROZEN_MODEL or pricing.CHOSEN_MODEL != FROZEN_MODEL:
             raise PromptsNotFrozen(f"the final run uses {FROZEN_MODEL} only, not {model}")
-        super().__init__(model, client=client, ledger=ledger)
+        super().__init__(model, client=client, ledger=ledger, cache_system=cache_system)
         self._limits = {k: p["max_tokens"] for k, p in prompt_parts().items()}
 
     def complete_json(
