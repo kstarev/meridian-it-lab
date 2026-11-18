@@ -358,3 +358,61 @@ def test_workflow_inputs_only_in_env():
     for line in text.splitlines():
         if "${{ inputs." in line:
             assert re.match(r"^\s+[A-Z_]+_RUN_ID: \$\{\{ inputs\.\w+ \}\}$", line), line
+
+
+# ------------------------------------------------- the owner's rulings R-A1 and R-A3 (2026-11-18)
+
+
+def test_the_sample_seed_and_rule_are_pinned():
+    """Committed before anyone read the disagreements; never changed after."""
+    assert (R.SAMPLE_SEED, R.SAMPLE_SIZE, R.SAMPLE_FROM) == (20261118, 3, 10)
+
+
+def test_a_group_of_ten_or_more_gets_a_seeded_sample_of_three():
+    ids = [f"M{n:03d}" for n in range(1, 41)]
+    first = R.to_read("matches", ("slack", "left unmatched", "agree 3 of 3"), ids)
+    again = R.to_read("matches", ("slack", "left unmatched", "agree 3 of 3"), list(reversed(ids)))
+    assert first == again  # the same seed and group always give the same sample
+    assert len(first) == 3 and set(first) <= set(ids) and first == sorted(first)
+    other = R.to_read("matches", ("google", "left unmatched", "agree 3 of 3"), ids)
+    assert len(other) == 3  # another group has its own draw
+    assert first != ids[:3] or other != ids[:3]  # not simply the lowest ids
+
+
+def test_small_groups_and_every_title_are_read_in_full():
+    nine = [f"F{n:03d}" for n in range(1, 10)]
+    assert R.to_read("findings", ("missed",), nine) == nine
+    many_titles = [f"T{n:03d}" for n in range(1, 15)]
+    assert R.to_read("titles", ("key has a role", "right 2 of 3"), many_titles) == many_titles
+
+
+def test_every_group_lists_what_to_read():
+    out = R.final_groups(_details())
+    assert all(set(g["to_read"]) <= set(g["ids"]) for g in out["groups"])
+    assert R.self_check(out)
+
+
+def test_only_known_model_ids_pass_the_allow_list():
+    assert R.self_check({"models": {"claude-haiku-5-5": 1}})
+    assert not R.self_check({"models": {"claude-marta-nowak": 1}})
+
+
+def test_free_text_in_any_field_never_reaches_the_output():
+    """R-A1: a fuzz over the inputs' free-text fields. Every string the inputs carry is random
+    text; none may appear in the output, and the output passes the allow-list."""
+    rng = __import__("random").Random(7)
+    letters = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ-.'"
+    for _ in range(200):
+        words = ["".join(rng.choice(letters) for _ in range(rng.randint(5, 20))) for _ in range(6)]
+        d = {
+            "findings": [
+                _finding(1, "missed", None, _key(account=words[0], app_name=words[1])),
+                _finding(2, "extra", _tool(account=words[2], reason=words[3]), None),
+            ],
+            "matches": [_match(1, {"rules only": "agree", "r1": "agree"}, account=words[4])],
+            "titles": [_title(1, {"r1": words[5]}, role=words[5], title=words[1])],
+        }
+        out = R.final_groups(d)
+        dump = json.dumps(out)
+        assert all(w not in dump for w in words if len(w.strip()) >= 5)
+        assert R.self_check(out)
