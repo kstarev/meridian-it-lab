@@ -14,6 +14,7 @@ never content).
 
 import argparse
 import json
+import random
 import re
 import sys
 from collections import Counter
@@ -21,6 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from meridian_access.ai.pricing import PRICES_PER_MTOK
 from meridian_access.redteam import cases as cases_mod
 from meridian_access.redteam import harness
 from meridian_access.redteam.cases import FIELDS, GOALS, SET_NAME, SET_SHA256, SHAPES, TASKS, Case
@@ -45,6 +47,7 @@ _ENUM = re.compile(r"^[a-z][a-z0-9_ -]{0,39}$")
 _ID = re.compile(r"^[FMT]\d{3,}$")
 _RT_ID = re.compile(r"^rt-\d{3}$")
 _MODEL = re.compile(r"^claude-[a-z0-9-]+$")
+KNOWN_MODELS = frozenset(PRICES_PER_MTOK)  # only these may be printed
 _LANG = re.compile(r"^[a-z]{2}$")
 REFUSED = "refused: output held a string outside the allow-list"
 
@@ -119,6 +122,23 @@ def _title_pattern(item: Mapping[str, Any]) -> tuple[str, ...]:
     return (has_role, _kinds_pattern(answers, TITLE_ANSWERS))
 
 
+# The owner's ruling R-A3 (2026-11-18): in a group of SAMPLE_FROM ids or more, the owner reads a
+# seeded random sample of SAMPLE_SIZE ids and rules on the group; in a smaller group, and for job
+# titles, every id is read. The seed was committed before anyone read the disagreements, and is
+# never changed after: a test pins it.
+SAMPLE_SEED = 20261118
+SAMPLE_SIZE = 3
+SAMPLE_FROM = 10
+
+
+def to_read(list_name: str, pattern: Sequence[str], ids: Sequence[str]) -> list[str]:
+    """The ids the owner reads for one group: all of them, or the seeded sample."""
+    if list_name == "titles" or len(ids) < SAMPLE_FROM:
+        return sorted(ids)
+    rng = random.Random(f"{SAMPLE_SEED}|{list_name}|{'|'.join(pattern)}")  # noqa: S311 (a reproducible sample, not a secret)
+    return sorted(rng.sample(sorted(ids), SAMPLE_SIZE))
+
+
 def final_groups(details: dict) -> dict:
     """Group the final score's disagreements by pattern. Counts, ids and enums only."""
     lists = (
@@ -133,7 +153,13 @@ def final_groups(details: dict) -> dict:
             totals[name] += 1
             groups.setdefault((name, pattern_of(item)), []).append(_id(item.get("id")))
     rows = [
-        {"list": name, "pattern": list(p), "count": len(ids), "ids": sorted(ids)}
+        {
+            "list": name,
+            "pattern": list(p),
+            "count": len(ids),
+            "ids": sorted(ids),
+            "to_read": to_read(name, p, ids),
+        }
         for (name, p), ids in groups.items()
     ]
     rows.sort(key=lambda r: (-r["count"], r["list"], tuple(r["pattern"])))
@@ -233,7 +259,7 @@ def redteam_groups(report: dict, cases: Sequence[Case]) -> dict:
     """Per model, over finished runs and attack cases: attempts and attack successes in cells."""
     models: dict[str, Any] = {}
     for model, data in sorted(report["models"].items()):
-        name = model if isinstance(model, str) and _MODEL.match(model) else OTHER
+        name = model if model in KNOWN_MODELS else OTHER
         models[name] = _one_model(cases, data["runs"])
     return {"models": models}
 
@@ -267,6 +293,7 @@ FIXED = frozenset(
         "pattern",
         "count",
         "ids",
+        "to_read",
         "final",
         "redteam",
         "models",
@@ -296,7 +323,7 @@ _PHRASE_WORDS = frozenset((*MATCH_KINDS, *TITLE_ANSWERS, OTHER))
 
 
 def _string_ok(s: str) -> bool:
-    if s in FIXED or _ID.match(s) or _RT_ID.match(s) or _MODEL.match(s) or _LANG.match(s):
+    if s in FIXED or _ID.match(s) or _RT_ID.match(s) or s in KNOWN_MODELS or _LANG.match(s):
         return True
     if "/" in s:
         return all(part in FIXED for part in s.split("/"))
@@ -339,6 +366,7 @@ def render(out: Mapping[str, Any]) -> str:
         for g in final["groups"]:
             lines.append(f"{g['count']:>4}  {g['list']}  {' | '.join(g['pattern'])}")
             lines.append(f"      ids: {' '.join(g['ids'])}")
+            lines.append(f"      to read: {' '.join(g['to_read'])}")
     for model, m in (out.get("redteam") or {}).get("models", {}).items():
         lines.append(f"red team, {model}: finished repeats {m['repeats_finished']}")
         lines.append(f"  all attacks: {_cell_line(m['total'])}")
