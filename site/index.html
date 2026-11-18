@@ -114,7 +114,7 @@ html{scroll-behavior:smooth}
 <div style="max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px">
 <div style="display: flex; flex-direction: column; gap: 6px">
 <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; color: #1D4ED8">0</div>
-<div style="font-size: 15px; color: #3A4356; line-height: 1.45">unsafe actions, across every AI model tested</div>
+<div style="font-size: 15px; color: #3A4356; line-height: 1.45">unsafe actions in the first sealed comparison, across 7 AI models</div>
 </div>
 <div style="display: flex; flex-direction: column; gap: 6px">
 <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 44px; line-height: 1; color: #141A26">98%</div>
@@ -208,7 +208,7 @@ html{scroll-behavior:smooth}
 <div style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px">
 <div style="display: flex; flex-direction: column; gap: 12px; max-width: 760px">
 <p style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #1D4ED8">What the testing showed</p>
-<h2 id="results-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em">7 AI models. None broke a safety rule.</h2>
+<h2 id="results-h" style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(30px, 4vw, 40px); line-height: 1.1; letter-spacing: -0.01em">First sealed comparison: 7 AI models, 54 requests, no safety rule broken.</h2>
 <p style="margin: 0; font-size: 17px; line-height: 1.6; color: #3A4356">Someone who never saw the code wrote 54 requests, and they stayed locked away until the final run. Each request ran 3 times on every setup, and only counted if all 3 tries were right.</p>
 </div>
 
@@ -429,12 +429,12 @@ html{scroll-behavior:smooth}
 <div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">01</span>
 <h3 style="margin: 0; font-size: 18px; font-weight: 600">Learn from the IT team's guides</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Answer how-to questions from approved guides. Tested once on a sealed set: nothing reached a person, but two safety rules failed, so Claude Sonnet picks the guides and the guide check gets a fix. Next, new guides drafted from solved tickets, each approved by a person.</p>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Answer how-to questions from approved guides. Tested once on a sealed set: nothing reached a person, but two safety rules failed, so Claude Sonnet picks the guides and the guide check gets a fix. Then a realistic month of 300 requests, sealed until its one run on 17 November, failed its safety rule on both Claude setups: the Sonnet guide picker they share answered requests meant for a person with a guide, in 10 of 624 runs of such requests on one setup and 9 of 624 on the other. No username was given out. The picker's fix will be tested on a new sealed month. Next, new guides drafted from solved tickets, each approved by a person.</p>
 </div>
 <div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">02</span>
 <h3 style="margin: 0; font-size: 18px; font-weight: 600">Measure passed-on requests</h3>
-<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Measured once on a locked-away set: Claude Sonnet stopped every passed-on request, and three of four Claude Haiku setups let one through. Next, password and MFA resets, repeated requests and messages with several questions.</p>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A4356">Measured once on a locked-away set: Claude Sonnet stopped every passed-on request, and three of four Claude Haiku setups let one through. A second locked-away set added password and MFA resets, repeated requests and messages with several questions: the two default setups had 0 unsafe runs, and the two setups that split several-question messages and the Haiku setup with the old check had 5 each, so those three failed.</p>
 </div>
 <div style="background: #FFFFFF; border: 1px solid #E3E7EE; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 8px">
 <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1D4ED8">03</span>

@@ -139,7 +139,12 @@ def _answered(models: dict[str, Any]) -> int:
 
 def test_headline_how_the_test_ran() -> None:
     (claude_k,) = {r["k"] for r in _claude()}
-    _readme_says(f"someone who never saw the code wrote {_n_tickets()} requests")
+    # Scoped to its test: four more sealed tests have run since, so it is not "the final test".
+    _readme_says(
+        f"For the first sealed comparison, someone who never saw the code wrote {_n_tickets()} "
+        "requests"
+    )
+    assert "For the final test" not in _readme()
     _readme_says(
         f"Each request ran {_k()} times on each of {len(_views())} AI setups, from small open "
         f"models to Claude (the {WORDS[len(_claude())]} Claude setups ran "
@@ -164,9 +169,15 @@ def test_headline_no_model_cheap_or_expensive_broke_a_rule() -> None:
     for r in _raw():
         assert r["unsafe_runs"] == 0, cm.name(r)
     _readme_says(
-        "The names are different AI models. What matters: none of them, cheap or expensive, "
-        "ever broke a safety rule."
+        f"The names are different AI models. What matters: on these {_n_tickets()} requests, none "
+        "of them, cheap or expensive, broke a safety rule. Later sealed tests did record unsafe "
+        "runs, with Claude Haiku and Claude Sonnet setups ([What's next](#whats-next))."
     )
+    # "Later sealed tests": Haiku on held-out v5, Sonnet's split arm on held-out v6.
+    v5 = json.loads((ROOT / "docs/evals/2026-11-16-m3d-v5-final.json").read_text())
+    assert v5["arms"]["haiku"]["unsafe_runs"] > 0
+    v6 = (ROOT / "docs/evals/2026-11-17-m3d2-v6-final.md").read_text()
+    assert re.search(r"^\| sonnet-3d2-split \([^)]*\) \| [1-9]\d* \|", v6, re.MULTILINE)
 
 
 def test_headline_best_and_weakest_pass_k() -> None:

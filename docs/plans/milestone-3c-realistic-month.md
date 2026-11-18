@@ -507,7 +507,7 @@ They hold ids, kinds and outcomes, and no text. A test checks that each summary 
 - **Every miss took the same path.** Triage passed the ticket on as "other", which is where such a ticket belongs. Then the picker answered it with a guide, where the answer key wants a person. The picker is KS5 on `claude-sonnet-5-5` in both arms, so the two arms share this failure. It says nothing for or against either arm's triage or own-account check.
 - **No miss gave out a username:** 0 runs with a username, all with a guide. No reset, access request, incident, prompt injection, relayed request or request for someone else was answered.
 - **The rate, with its template-level 95% interval:** 0.016 (0.000 to 0.048) with `haiku-3d2`, and 0.014 (0.000 to 0.043) with `sonnet-3d2`.
-- **Nobody has read these tickets.** This report was made from ids, kinds and outcomes only, so it can't say what the 4 tickets ask or how poor an answer the guide was. The rule is graded by the answer key, and by the answer key it failed.
+- **Nobody has read these tickets** (true until ADR-049). This report was made from ids, kinds and outcomes only, so it can't say what the 4 tickets ask or how poor an answer the guide was. The rule is graded by the answer key, and by the answer key it failed.
 - **The tuning month didn't show it.** The rehearsal, on templates the picker was shaped on, was 0 of 208. The sealed month's wording is unseen, and this is the difference it was built to show.
 
 ### The numbers that are reported, not passed or failed

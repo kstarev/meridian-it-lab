@@ -10,8 +10,13 @@ adding a test doesn't make the page wrong.
 The follow-up test's block is checked twice: each claim against the numbers behind it, and the
 block as a whole, so that no text with a number in it can be added there without a check.
 
-Not checked here: og.png (an image) and the design settings under "Under the hood" (the
-5-minute token, the 3-day auto-close), which are settings, not results.
+The key numbers and the results heading are scoped to the test they come from, the first
+sealed comparison (held-out v3). The later sealed tests the "What's next" cards report are
+checked against their own result files: held-out v6's generated report and the sealed month's
+two result files.
+
+Not checked here: og.png (tier0/tests/test_site_og.py checks it) and the design settings under
+"Under the hood" (the 5-minute token, the 3-day auto-close), which are settings, not results.
 """
 
 import json
@@ -31,6 +36,9 @@ SITE = ROOT / "site/index.html"
 COMPARISON = ROOT / "docs/evals/2026-11-12-held-out-v3-comparison.json"
 M2_COMPARISON = ROOT / "docs/evals/2026-11-09-held-out-v2-comparison.json"
 M3B_SUMMARY = ROOT / "docs/evals/2026-11-15-m3b-held-out-v4-v4b.json"
+V6_REPORT = ROOT / "docs/evals/2026-11-17-m3d2-v6-final.md"  # generated; no JSON sibling
+MONTH = ROOT / "docs/evals/2026-11-17-m3c-sealed-month-{arm}.json"
+TILE_UNSAFE = "unsafe actions in the first sealed comparison, across {n} AI models"
 
 # How the site names each setup in its results chart.
 LABELS = {
@@ -128,7 +136,7 @@ def _percent(score: float) -> int:
 def test_key_numbers() -> None:
     for r in _raw():
         assert r["unsafe_runs"] == r["policy_violation_runs"] == r["data_exposed_runs"] == 0
-    _says_in_order("0", "unsafe actions, across every AI model tested")
+    _says_in_order("0", TILE_UNSAFE.format(n=len(_views())))
     scores = [round(v["pass_k"], 9) for v in _views()]
     assert scores.count(max(scores)) > 1  # "best setups", plural
     _says_in_order(
@@ -173,7 +181,14 @@ def test_meridian_facts_come_from_the_brief() -> None:
 
 
 def test_results_heading_and_method() -> None:
-    _says(f"{len(_views())} AI models. None broke a safety rule.")
+    for r in _raw():
+        assert r["unsafe_runs"] == r["policy_violation_runs"] == r["data_exposed_runs"] == 0
+    # The heading itself names its test: people read headings without the paragraph.
+    _says(
+        f"First sealed comparison: {len(_views())} AI models, {_n_tickets()} requests, "
+        "no safety rule broken."
+    )
+    assert "None broke a safety rule." not in " ".join(_chunks())
     _says(
         f"Someone who never saw the code wrote {_n_tickets()} requests, and they stayed locked "
         f"away until the final run. Each request ran {_k()} times on every setup, and only "
@@ -425,8 +440,8 @@ def test_follow_up_nothing_unsafe() -> None:
         "Not in any version, on either Claude setup. Every request for a colleague's login was "
         "refused on every try.",
     )
-    # So the headline still holds with the follow-up's runs counted.
-    _says_in_order("0", "unsafe actions, across every AI model tested")
+    # The headline tile is scoped to the first sealed comparison, not to every test since.
+    assert "across every AI model tested" not in " ".join(_chunks())
 
 
 def test_follow_up_the_fix_helped_with_one_request() -> None:
@@ -481,6 +496,22 @@ def test_follow_up_cost() -> None:
     _says(_follow_up_cost())
 
 
+def _v6_unsafe() -> dict[str, int]:
+    """Unsafe runs per arm, from held-out v6's generated report (its pass-rule table)."""
+    rows = re.findall(
+        r"^\| (\S+) \([^)]*\) \| (\d+) \| \d+ \| \d+ \| (?:pass|\*\*fail\*\*) \|",
+        V6_REPORT.read_text(),
+        re.MULTILINE,
+    )
+    unsafe = {arm: int(n) for arm, n in rows}
+    assert len(unsafe) == len(rows) == 5, rows
+    return unsafe
+
+
+def _month(arm: str) -> dict[str, Any]:
+    return json.loads(Path(str(MONTH).format(arm=arm)).read_text())
+
+
 def test_passed_on_requests_were_measured_on_the_next_set() -> None:
     """Not a number: what milestone 3b did not measure, where the brief said it would be, and
     what the next set (held-out v5, R2) found, in the report's terms."""
@@ -502,18 +533,55 @@ def test_passed_on_requests_were_measured_on_the_next_set() -> None:
         # R1 published (ADR-046): the sealed how-to test's result, as it is.
         "Answer how-to questions from approved guides. Tested once on a sealed set: nothing "
         "reached a person, but two safety rules failed, so Claude Sonnet picks the guides and "
-        "the guide check gets a fix. Next, new guides drafted from solved tickets, each "
-        "approved by a person.",
+        f"the guide check gets a fix. {_month_sentence()} Next, new guides drafted from solved "
+        "tickets, each approved by a person.",
         "02",
         "Measure passed-on requests",
-        # R2 published: held-out v5's result, as it is.
+        # R2 published: held-out v5's result, as it is. Then held-out v6's (ADR-048).
         "Measured once on a locked-away set: Claude Sonnet stopped every passed-on request, and "
-        "three of four Claude Haiku setups let one through. Next, password and MFA resets, "
-        "repeated requests and messages with several questions.",
+        f"three of four Claude Haiku setups let one through. {_v6_sentence()}",
         "03",
     )
     page = " ".join(_chunks())
     assert "Fix the new-starter case" not in page and "A fix is planned" not in page
+
+
+def _month_sentence() -> str:
+    """The sealed month's result (milestone 3c, ADR-049), rebuilt from its two result files."""
+    haiku, sonnet = (_month(arm) for arm in ("haiku-3d2", "sonnet-3d2"))
+    (tickets,) = {m["scores"]["tickets"] for m in (haiku, sonnet)}
+    (of_runs,) = {m["scores"]["wrongly_answered"]["of_runs"] for m in (haiku, sonnet)}
+    for m in (haiku, sonnet):
+        wrong = m["scores"]["wrongly_answered"]
+        assert m["config"]["sealed"] and m["config"]["set"] == "held_out_month1"
+        assert m["config"]["picker_model"] == "claude-sonnet-5-5"  # the picker both share
+        assert wrong["runs"] > 0  # the pass rule is 0: it failed
+        assert wrong["with_guide"] == wrong["runs"] and wrong["with_username"] == 0
+    return (
+        f"Then a realistic month of {tickets} requests, sealed until its one run on 17 November, "
+        "failed its safety rule on both Claude setups: the Sonnet guide picker they share "
+        "answered requests meant for a person with a guide, in "
+        f"{haiku['scores']['wrongly_answered']['runs']} of {of_runs} runs of such requests on one "
+        f"setup and {sonnet['scores']['wrongly_answered']['runs']} of {of_runs} on the other. No "
+        "username was given out. The picker's fix will be tested on a new sealed month."
+    )
+
+
+def _v6_sentence() -> str:
+    """Held-out v6's pass rule per arm (ADR-048), rebuilt from its generated report."""
+    unsafe = _v6_unsafe()
+    defaults = ("haiku-3d2", "sonnet-3d2")
+    failed = ("haiku-3d2-split", "sonnet-3d2-split", "haiku-3d2-c1")
+    assert set(unsafe) == {*defaults, *failed}
+    (zero,) = {unsafe[a] for a in defaults}
+    (each,) = {unsafe[a] for a in failed}
+    assert zero == 0 < each
+    return (
+        "A second locked-away set added password and MFA resets, repeated requests and messages "
+        f"with several questions: the two default setups had {zero} unsafe runs, and the two "
+        "setups that split several-question messages and the Haiku setup with the old check had "
+        f"{each} each, so those three failed."
+    )
 
 
 def test_every_number_in_the_follow_up_is_checked() -> None:

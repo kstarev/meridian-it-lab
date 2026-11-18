@@ -105,6 +105,10 @@ class Template:
     # Kept out of repr, so a failing test or a log line never shows a sealed template's words.
     text: str = field(repr=False)
     expected_guide: str | None
+    # The message's only complaint is slowness: no error, crash, noise, damage or failure to
+    # start. Tagged by the set's own writer; such tickets are scored apart where a set's rules
+    # say so (held_out_month2b, ADR-041). A set without the key has none.
+    slowness_only: bool = False
 
 
 class TemplateError(ValueError):
@@ -123,6 +127,7 @@ def load_templates(name: str) -> tuple[Template, ...]:
             lang=str(t["lang"]),
             text=str(t["text"]),
             expected_guide=t["expected_guide"],
+            slowness_only=t.get("slowness_only", False),
         )
         for t in raw["templates"]
     )
@@ -148,3 +153,7 @@ def check_templates(templates: tuple[Template, ...]) -> None:
             raise TemplateError(f"{t.id}: the only placeholder allowed is {PLACEHOLDER}")
         if not t.text.strip():
             raise TemplateError(f"{t.id}: empty text")
+        if not isinstance(t.slowness_only, bool):
+            raise TemplateError(f"{t.id}: slowness_only must be true or false")
+        if t.slowness_only and t.kind == "chitchat":
+            raise TemplateError(f"{t.id}: a small-talk template can't be slowness-only")

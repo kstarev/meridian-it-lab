@@ -174,7 +174,7 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 
 ## ADR-011: Security baseline
 
-**Date:** 2026-11-08 · **Status:** Accepted
+**Date:** 2026-11-08 · **Status:** Accepted; partly built (see "As built" below: CodeQL, gitleaks, zizmor and the SBOM are planned, not built)
 
 **Context:** tier0 is an agent with tools and credentials, and its supply chain (actions, dependencies, the MCP server) is part of the attack surface (ASI04, LLM03). Controls are only credible if each one traces to a framework item and a check.
 
@@ -186,6 +186,12 @@ Short records of choices that shape the lab, newest last. To change a decision, 
 - With both repos public, CodeQL, secret scanning and push protection cost nothing.
 - Pinned SHAs go stale, so Dependabot opens PRs to update them.
 - Each PR takes longer in CI.
+
+**As built (2026-11-18, after pull request #83):**
+
+- **In place:** every action is pinned to a commit SHA, checked by `tests/test_workflow_hardening.py` (not by zizmor); workflow tokens get the least they need (`permissions: {}` by default, with per-job grants); pull requests from forks get no secrets; paid jobs wait for the owner's approval in the `access-ai` environment; Dependabot version updates are configured for `github-actions` and `uv` (`.github/dependabot.yml`); secret scanning and push protection are on ([github-actions-hardening.md](github-actions-hardening.md)).
+- **Planned, not built:** CodeQL, gitleaks, zizmor and an SBOM.
+- **A setting for the owner:** Dependabot alerts and security updates are off until the owner turns them on in GitHub; github-actions-hardening.md lists the clicks.
 
 ## ADR-012: Stack and pinned versions for milestone 1
 
