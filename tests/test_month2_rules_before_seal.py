@@ -1,7 +1,8 @@
-"""held_out_month2's pass rules and selection rule are committed before its seal (the owner's
-ruling, 2026-11-17, item 3). This test fails if the commit that first added the rules file is
-not a strict ancestor of the commit that first added the sealed set, or if the rules section has
-changed since. It reads git history and file names only: never the sealed set's bytes.
+"""held_out_month2's and held_out_month2b's pass rules are committed before each seal (the
+owner's rulings of 2026-11-17 and 2026-11-18). This test fails if the commit that first added a
+set's rules file is not a strict ancestor of the commit that first added the sealed set, or if
+the rules section or the brief has changed since. It reads git history and file names only:
+never a sealed set's bytes.
 """
 
 import subprocess
@@ -10,9 +11,17 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-RULES = "docs/plans/milestone-3e-month2-rules.md"
-BRIEF = "docs/plans/briefs/held_out_month2-brief.md"
-SEALED = "dataset/src/meridian_dataset/month/pools/held_out_month2.json"
+SETS = {
+    "held_out_month2": (
+        "docs/plans/milestone-3e-month2-rules.md",
+        "docs/plans/briefs/held_out_month2-brief.md",
+    ),
+    "held_out_month2b": (
+        "docs/plans/milestone-3e-month2b-rules.md",
+        "docs/plans/briefs/held_out_month2b-brief.md",
+    ),
+}
+POOLS = "dataset/src/meridian_dataset/month/pools"
 START, END = "<!-- pass-rules:start -->", "<!-- pass-rules:end -->"
 
 
@@ -42,34 +51,42 @@ def history() -> None:
         pytest.fail("a shallow clone can't show the commit order: CI checks out the full history")
 
 
-def test_the_rules_and_the_brief_are_committed(history: None) -> None:
-    assert _first_commit(RULES), f"{RULES} is not committed"
-    assert _first_commit(BRIEF), f"{BRIEF} is not committed"
+@pytest.mark.parametrize("name", sorted(SETS))
+def test_the_rules_and_the_brief_are_committed(history: None, name: str) -> None:
+    rules, brief = SETS[name]
+    assert _first_commit(rules), f"{rules} is not committed"
+    assert _first_commit(brief), f"{brief} is not committed"
 
 
-def test_the_rules_section_is_unchanged_since_its_first_commit(history: None) -> None:
-    first = _first_commit(RULES)
-    then = _git("show", f"{first}:{RULES}")
-    now = (ROOT / RULES).read_text(encoding="utf-8")
+@pytest.mark.parametrize("name", sorted(SETS))
+def test_the_rules_section_is_unchanged_since_its_first_commit(history: None, name: str) -> None:
+    rules = SETS[name][0]
+    then = _git("show", f"{_first_commit(rules)}:{rules}")
+    now = (ROOT / rules).read_text(encoding="utf-8")
     assert _rules(now) == _rules(then)
 
 
-def test_the_brief_is_unchanged_since_its_first_commit(history: None) -> None:
-    first = _first_commit(BRIEF)
-    assert (ROOT / BRIEF).read_text(encoding="utf-8") == _git("show", f"{first}:{BRIEF}") + "\n"
+@pytest.mark.parametrize("name", sorted(SETS))
+def test_the_brief_is_unchanged_since_its_first_commit(history: None, name: str) -> None:
+    brief = SETS[name][1]
+    then = _git("show", f"{_first_commit(brief)}:{brief}")
+    assert (ROOT / brief).read_text(encoding="utf-8") == then + "\n"
 
 
-def test_the_rules_commit_comes_before_the_seal(history: None) -> None:
-    seal = _first_commit(SEALED)
+@pytest.mark.parametrize("name", sorted(SETS))
+def test_the_rules_commit_comes_before_the_seal(history: None, name: str) -> None:
+    rules, brief = SETS[name]
+    sealed = f"{POOLS}/{name}.json"
+    seal = _first_commit(sealed)
     if not seal:
-        assert not (ROOT / SEALED).exists(), "the sealed set exists but is not committed"
-        pytest.skip("held_out_month2 is not sealed yet")
-    rules = _first_commit(RULES)
-    assert rules != seal, "the rules and the sealed set were added in the same commit"
+        assert not (ROOT / sealed).exists(), "the sealed set exists but is not committed"
+        pytest.skip(f"{name} is not sealed yet")
+    first = _first_commit(rules)
+    assert first != seal, "the rules and the sealed set were added in the same commit"
     done = subprocess.run(  # noqa: S603
-        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", rules, seal],  # noqa: S607
+        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", first, seal],  # noqa: S607
         check=False,
     )
     assert done.returncode == 0, "the rules commit is not an ancestor of the seal's commit"
-    for path in (RULES, BRIEF):
+    for path in (rules, brief):
         assert _git("cat-file", "-e", f"{seal}:{path}") == ""  # both are in the sealed commit
