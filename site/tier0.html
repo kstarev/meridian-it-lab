@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Tier0 case study · Design, tests and results</title>
+<meta name="description" content="A plain-language case study of Tier0, an IT help-desk agent for Slack, built on fake data: the problem, the design, how it was tested, what failed, what passed and what comes next.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Tier0 case study · Design, tests and results">
+<meta property="og:description" content="A plain-language case study of Tier0, an IT help-desk agent for Slack, built on fake data: the problem, the design, how it was tested, what failed, what passed and what comes next.">
+<meta property="og:url" content="https://kstarev.dev/meridian-it-lab/tier0.html">
+<meta property="og:image" content="https://kstarev.dev/meridian-it-lab/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://kstarev.dev/meridian-it-lab/tier0.html">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B1220'/%3E%3Ctext x='32' y='42' font-family='Arial,sans-serif' font-weight='700' font-size='26' text-anchor='middle' fill='%23F3F6FB'%3ET%3Ctspan fill='%2360A5FA'%3E0%3C/tspan%3E%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="top">
+<nav aria-label="Main">
+<a class="brand" href="index.html" aria-label="Tier0 home page">
+<span class="brand-mark" aria-hidden="true">T<span>0</span></span>
+<span class="brand-name">Tier0</span>
+</a>
+<div class="navlinks">
+<a class="navl" href="index.html">Home</a>
+<a class="navl" href="tier0.html" aria-current="page">Tier0 case study</a>
+<a class="navl" href="access-as-code.html">Access-as-Code case study</a>
+<a class="gh" href="https://github.com/kstarev/meridian-it-lab">View on GitHub</a>
+</div>
+</nav>
+</header>
+
+<main>
+<div class="hero">
+<div class="wrap">
+<p class="eyebrow"><a href="index.html">Home</a> / Case study</p>
+<h1>Tier0: an IT help-desk agent for Slack</h1>
+<p class="lead">Tier0 answers a narrow set of IT requests in Slack and hands everything else to a person. This page describes the problem, the design, the tests, the results and the next steps. In the results, the failed tests come first.</p>
+<p class="fake"><strong>All the data is fake.</strong> Meridian is a made-up company, and nothing comes from a real employer.</p>
+<ul class="toc" aria-label="On this page">
+<li><a href="#problem">The problem</a></li>
+<li><a href="#design">The design</a></li>
+<li><a href="#testing">How it was tested</a></li>
+<li><a href="#results">Results</a></li>
+<li><a href="#next">What comes next</a></li>
+</ul>
+</div>
+</div>
+
+<section id="problem" aria-labelledby="problem-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">01</span></p>
+<h2 id="problem-h">The problem</h2>
+</div>
+<div class="prose col">
+<p>Meridian is a made-up company. It has <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#meridian-fact-sheet">230 people</a> in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#meridian-fact-sheet">14 countries</a>. Its IT team has <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#meridian-fact-sheet">3 people</a>, in Berlin and Toronto. Nobody on the IT team works in the Asia-Pacific region.</p>
+<p>People ask the IT team for help in Slack, a workplace chat tool. A person who asks while the IT team is off work has to wait.</p>
+<p>Sign-in help is number <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#top-10-it-ticket-types">2</a> in the company's list of its <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#top-10-it-ticket-types">10</a> most common kinds of IT request, with an estimated <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#top-10-it-ticket-types">15%</a> of all requests. Sign-in help covers a username lookup, a password reset and a reset of multi-factor authentication. Multi-factor authentication, or MFA, is a second sign-in step, such as a code from a phone app. The shares are made up, like the rest of the data.</p>
+<p>A help desk is also a target for misuse. A person can ask for a colleague's login details and give a reason that sounds urgent. A tool that answers by itself must not give one person's details to another person.</p>
+<p>The project's question: can software answer the simplest requests at any hour, and hand every other request to a person?</p>
+</div>
+</div>
+</section>
+
+<section id="design" aria-labelledby="design-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">02</span></p>
+<h2 id="design-h">The design</h2>
+</div>
+<div class="prose col">
+<p>Tier0 is an <dfn>agent</dfn>: software that uses an AI model to carry out a task. It reads a message that a person sends it in Slack. It answers a narrow set of requests itself. It hands everything else to a person on the IT team.</p>
+<p>The AI model does not write replies and does not decide what happens. It picks from fixed lists: a label for the request, a yes or a no, or the name of a guide. <dfn>Code</dfn> means fixed program rules that a person wrote. Code decides what happens after each pick. Code also writes every reply, from fixed templates.</p>
+<p>The AI models are Claude models, made by Anthropic. Two are used: Claude Haiku 5.5, the cheaper one, and Claude Sonnet 5.5.</p>
+</div>
+
+<figure class="figure">
+<div class="scroll">
+<svg viewBox="0 0 720 620" role="img" aria-labelledby="flow-title flow-desc">
+<title id="flow-title">How Tier0 handles a message</title>
+<desc id="flow-desc">A flow chart, read from top to bottom. A person sends a message in Slack. Code checks who sent it, and a sender who cannot be verified goes to a person. The AI model picks one label from a fixed list. Code looks the label up in a fixed table. For the label own username, the AI model answers whether the message is only about the sender's own account. If yes, code looks up the sender's own username. If no, the request is refused or handed to a person. For the label about someone else, the request is refused or handed to a person. For any other label, the AI model picks an approved guide, or none. With a guide, code posts its steps word for word. With none, the request goes to a person. At the end, code checks the reply and sends it in Slack.</desc>
+<defs>
+<marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="tip" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+
+<rect class="start" x="220" y="14" width="280" height="44" rx="10"/>
+<text x="360" y="41" text-anchor="middle">A person sends a message in Slack</text>
+<path class="arrow" d="M360 58V90" marker-end="url(#tip)"/>
+
+<rect class="box" x="220" y="92" width="280" height="44" rx="10"/>
+<text x="360" y="119" text-anchor="middle"><tspan class="who">Code:</tspan> checks who sent it</text>
+<path class="arrow" d="M500 114H588" marker-end="url(#tip)"/>
+<text class="lbl" x="544" y="106" text-anchor="middle">not verified</text>
+<rect class="person" x="590" y="86" width="116" height="56" rx="10"/>
+<text x="648" y="110" text-anchor="middle"><tspan class="who">Person:</tspan> checks</text>
+<text x="648" y="129" text-anchor="middle">identity</text>
+<path class="arrow" d="M360 136V168" marker-end="url(#tip)"/>
+
+<rect class="ai" x="220" y="170" width="280" height="56" rx="10"/>
+<text x="360" y="194" text-anchor="middle"><tspan class="who">AI model:</tspan> picks one label</text>
+<text x="360" y="213" text-anchor="middle">from a fixed list</text>
+<path class="arrow" d="M360 226V258" marker-end="url(#tip)"/>
+
+<rect class="box" x="220" y="260" width="280" height="56" rx="10"/>
+<text x="360" y="284" text-anchor="middle"><tspan class="who">Code:</tspan> looks the label up</text>
+<text x="360" y="303" text-anchor="middle">in a fixed table</text>
+
+<path class="arrow" d="M360 316V340H125V374" marker-end="url(#tip)"/>
+<path class="arrow" d="M360 340V374" marker-end="url(#tip)"/>
+<path class="arrow" d="M360 340H595V374" marker-end="url(#tip)"/>
+<text class="lbl" x="133" y="362">own username</text>
+<text class="lbl" x="368" y="362">about someone else</text>
+<text class="lbl" x="603" y="362">any other request</text>
+
+<rect class="ai" x="27" y="376" width="196" height="56" rx="10"/>
+<text x="125" y="400" text-anchor="middle"><tspan class="who">AI model:</tspan> only about the</text>
+<text x="125" y="419" text-anchor="middle">sender's own account?</text>
+
+<rect class="person" x="262" y="376" width="196" height="56" rx="10"/>
+<text x="360" y="400" text-anchor="middle">Refused, or handed to a</text>
+<text x="360" y="419" text-anchor="middle"><tspan class="who">person</tspan> on the IT team</text>
+
+<rect class="ai opt" x="497" y="376" width="196" height="56" rx="10"/>
+<text x="595" y="400" text-anchor="middle"><tspan class="who">AI model:</tspan> picks an</text>
+<text x="595" y="419" text-anchor="middle">approved guide, or none</text>
+
+<path class="arrow" d="M223 404H260" marker-end="url(#tip)"/>
+<text class="lbl" x="242" y="396" text-anchor="middle">no</text>
+<path class="arrow" d="M497 404H460" marker-end="url(#tip)"/>
+<text class="lbl" x="478" y="396" text-anchor="middle">none</text>
+
+<path class="arrow" d="M125 432V468" marker-end="url(#tip)"/>
+<text class="lbl" x="133" y="454">yes</text>
+<path class="arrow" d="M595 432V468" marker-end="url(#tip)"/>
+<text class="lbl" x="603" y="454">a guide</text>
+
+<rect class="box" x="27" y="470" width="196" height="56" rx="10"/>
+<text x="125" y="494" text-anchor="middle"><tspan class="who">Code:</tspan> looks up the</text>
+<text x="125" y="513" text-anchor="middle">sender's own username</text>
+
+<rect class="box opt" x="497" y="470" width="196" height="56" rx="10"/>
+<text x="595" y="494" text-anchor="middle"><tspan class="who">Code:</tspan> posts the guide's</text>
+<text x="595" y="513" text-anchor="middle">steps word for word</text>
+
+<path class="arrow" d="M125 526V560" marker-end="url(#tip)"/>
+<path class="arrow" d="M595 526V560" marker-end="url(#tip)"/>
+
+<rect class="box" x="27" y="562" width="666" height="44" rx="10"/>
+<text x="360" y="589" text-anchor="middle"><tspan class="who">Code:</tspan> checks the reply and sends it in Slack</text>
+</svg>
+</div>
+<figcaption>
+<ul class="key" aria-label="Key to the diagram">
+<li><span class="swatch" aria-hidden="true"></span>Code</li>
+<li><span class="swatch ai" aria-hidden="true"></span>AI model</li>
+<li><span class="swatch person" aria-hidden="true"></span>Person</li>
+<li><span class="swatch opt" aria-hidden="true"></span>Dashed border: built, and switched off by default</li>
+</ul>
+<p class="hint">On a narrow screen, scroll the diagram sideways.</p>
+<p>The same steps in words:</p>
+<ol>
+<li>A person sends Tier0 a message in Slack.</li>
+<li>Code checks who sent it. It uses Slack's signed record of the sender, never the text of the message. A sender who cannot be verified as a current employee goes to a person for an identity check. No AI model is called for that sender.</li>
+<li>The AI model picks one label for the message from a fixed list.</li>
+<li>Code looks the label up in a fixed table. The table sets what happens next.</li>
+<li>Label "own username": the AI model answers one more question with yes or no. Is the message only about the sender's own account? This question is the second check. If yes, code looks up the sender's own username. The lookup takes no input, so it can return only the sender's own username. If no, the request is refused or handed to a person.</li>
+<li>Label "about someone else": the request is refused or handed to a person. Nothing about the other person is given out.</li>
+<li>Any other label: the AI model picks one guide that the IT team approved, or none. This step is called the guide picker. With a guide, code posts that guide's steps word for word. With none, the request goes to a person on the IT team. This guide step is built and is switched off by default. With the switch off, every such request goes to a person.</li>
+<li>Code checks every reply and sends it in Slack. A reply that contains another person's address or username is blocked.</li>
+</ol>
+</figcaption>
+</figure>
+
+<div class="prose col">
+<h3>Approval tiers</h3>
+<p>Each kind of request belongs to a tier. The tier sets who must approve the action. The tiers come from the <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#tier0-design">project brief</a>.</p>
+</div>
+<div class="tablewrap col">
+<table class="plain">
+<thead>
+<tr><th scope="col">Tier</th><th scope="col">Covers</th><th scope="col">Approval</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row">A</th><td>Reading and answering: how-to questions, policy questions, the status of a ticket or a device</td><td>Automatic</td></tr>
+<tr><th scope="row">B</th><td>A low-risk change, such as joining a Slack channel or installing software that is already approved</td><td>Automatic, and logged</td></tr>
+<tr><th scope="row">C</th><td>A privileged action: an MFA reset, an admin role, closing the accounts of a person who leaves</td><td>A person approves first. Then a credential, a temporary permission to act, is issued for that one task.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="prose col">
+<h3>What is built</h3>
+<ul>
+<li>By default, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#honest-limits">1 request type</a> is answered from start to finish: the sender's own username. It runs against <dfn>mocks</dfn>: stand-in programs shaped like Slack, the ticket system and the staff directory.</li>
+<li>Answers from approved guides are built and tested. They are switched off by default (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-046-the-guide-picker-runs-on-claude-sonnet-ks5-because-haiku-failed-the-sealed-how-to-tests-pass-rule-2">ADR-046</a>).</li>
+<li>Tier B and Tier C actions are designed and not built. A password or MFA reset request is prepared for a person. Tier0 has no tool that resets anything (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-048-messages-are-not-split-on-either-model-and-a-several-request-message-still-goes-to-a-person-whole-the-default-setups-are-haiku-3d2-ht9hc7-and-sonnet-3d2-st6sc4-v6s-rulings">ADR-048</a>).</li>
+<li>A <dfn>kill switch</dfn> is one setting that stops every agent action at once. A <dfn>rate limit</dfn> caps the agent's actions at <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#delivery">5 per person</a> and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#delivery">30 for everyone</a>, per hour. Both are built and tested. IT staff have no button for them yet.</li>
+<li>Tier0 has not run in a real Slack workspace. A real Slack app is optional and not planned (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned">ADR-036</a>).</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section id="testing" aria-labelledby="testing-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">03</span></p>
+<h2 id="testing-h">How it was tested</h2>
+</div>
+<div class="prose col">
+<p>The tests measure safety first: does Tier0 ever do something the rules forbid? They also measure how often it does the right thing.</p>
+</div>
+<div class="grid">
+<div class="rule">
+<h3>Tuning data and sealed sets</h3>
+<p><dfn>Tuning data</dfn> is example requests that the builder reads and adjusts the tool on. A <dfn>sealed set</dfn> is test data that nobody building the tool has read.</p>
+<p>A separate helper wrote each sealed set from a written brief. The helper saw no code and no tuning data. The reports call this writing a set blind (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-045-sealed-sets-are-written-blind-by-a-separate-helper-and-checked-by-counts-only-paid-runs-from-any-checkout-share-one-ledger">ADR-045</a>).</p>
+</div>
+<div class="rule">
+<h3>Each sealed set runs once</h3>
+<p>The file of a sealed set is locked by a hash: a short string of characters computed from the file's contents. If the file changes, the string changes and a test fails.</p>
+<p>A sealed set runs once, after the owner approves the run. It is then <dfn>spent</dfn>: it becomes practice data and cannot measure a later fix.</p>
+</div>
+<div class="rule">
+<h3>Pass rules come first</h3>
+<p>A <dfn>pass rule</dfn> states the count a run must reach to pass. The rules are written before the run. The safety rule is the same in every test: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#success-metrics">0 unsafe actions</a>.</p>
+<p>An <dfn>unsafe action</dfn> is a change or a disclosure that the answer key forbids. An <dfn>answer key</dfn> lists the expected outcome for every test request.</p>
+</div>
+<div class="rule">
+<h3>Every request runs several times</h3>
+<p>An AI model can answer the same message differently each time. So each test request runs <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#how-evaluation-works">3</a> or <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#how-evaluation-works">5</a> times. A request counts as right only when every run is right. The reports call this measure pass^k.</p>
+</div>
+<div class="rule">
+<h3>Code does the grading</h3>
+<p>Code compares where each request ended up with the answer key. No AI model grades the results (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-003-grade-tier0-by-final-system-state-with-passk">ADR-003</a>).</p>
+</div>
+<div class="rule">
+<h3>Result files hold no message text</h3>
+<p>The result files of the sealed month hold ticket ids, ticket kinds and outcomes. They hold no message text. The reports on the sealed how-to test, the passed-on requests and the reset requests give counts only.</p>
+</div>
+<div class="rule">
+<h3>Rates come with a range</h3>
+<p>The test sets are small. So each rate is reported with a <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#how-evaluation-works">95%</a> interval: the range the rate could fall in if the test were repeated with other requests of the same kind.</p>
+</div>
+<div class="rule">
+<h3>Spending is capped</h3>
+<p>The lab has <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/budget/claude-credit-2026-12.json">$100</a> of credit for paid AI model calls. Code checks every paid call against a cap before it is sent. The cap for the realistic month is <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/budget/claude-credit-2026-12.json">$18</a>.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section id="results" aria-labelledby="results-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">04</span></p>
+<h2 id="results-h">Results</h2>
+</div>
+<div class="prose col">
+<p>Failures come first. Every number links to the file it comes from. Each date is the day the test ran.</p>
+</div>
+
+<article class="result failed">
+<span class="status failed">Failed</span>
+<h3>The sealed realistic month (2026-11-17)</h3>
+<p>The realistic month is a set of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">300 tickets</a> that imitates a month of help-desk requests at Meridian. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">208 of the 300 tickets</a> are out of scope: the answer key wants a person to handle them. The tickets were generated from <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">124 templates</a>. A <dfn>template</dfn> is one wording of a request.</p>
+<p>The month ran once, on 2026-11-17. Each ticket ran <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">3 times</a> in each of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">2 setups</a>. A <dfn>setup</dfn> is a fixed choice of AI models and instructions. In the Haiku setup, Claude Haiku 5.5 labels the request. In the Sonnet setup, Claude Sonnet 5.5 labels it. In both setups, Claude Sonnet 5.5 picks the guides.</p>
+<p>The run had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#pass-rules-for-the-run-on-the-sealed-set-written-before-it">1 pass rule</a>: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#pass-rules-for-the-run-on-the-sealed-set-written-before-it">0 out-of-scope tickets</a> answered, over all runs.</p>
+<p><strong>The rule failed in both setups.</strong> In the Haiku setup, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">10 of 624 runs</a> on out-of-scope tickets were answered. In the Sonnet setup, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">9 of 624 runs</a> were answered.</p>
+<ul>
+<li>The failures are on the same <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">4 tickets</a> in both setups.</li>
+<li>Each of them was answered with a help guide. The guide picker chose a guide where the answer key wanted a person. Both setups use the same guide picker, so they share this failure.</li>
+<li>No username was given out: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">0 runs</a> in the Haiku setup and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">0 runs</a> in the Sonnet setup.</li>
+<li>The <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">4 tickets</a> come from <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">2 templates</a>. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">3</a> are of the kind the answer key calls chitchat, where Tier0 has nothing to do. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">1</a> is a hardware problem.</li>
+<li>The result was reported from ticket ids, kinds and outcomes only. Nobody read the tickets before the result was published.</li>
+<li>The share of out-of-scope runs that were answered is <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">0.016 (0.000 to 0.048)</a> in the Haiku setup and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">0.014 (0.000 to 0.043)</a> in the Sonnet setup. The brackets give the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.md">95%</a> interval.</li>
+<li>The tuning month, a second month built from tuning data, did not show the failure. There, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">0 of 208</a> out-of-scope tickets were answered. That figure was measured on data the guide picker's instructions were tuned on.</li>
+</ul>
+<p><strong>The result stands as a fail.</strong> It is not scored again, the answer key is not changed and the rule is not softened. The month is spent. After the run, the owner made it a <dfn>dev set</dfn>: data that may now be read and tuned on. A number measured on it from now on is labelled dev, not blind (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-049-the-sealed-month-held_out_month1-is-spent-and-is-a-dev-set-its-result-stands-as-a-fail">ADR-049</a>).</p>
+<p><strong>What the failure note found.</strong> After that ruling, the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-month1-failure-note.md">4 tickets</a> were read, and only those <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-month1-failure-note.md">4</a>. The finding: <strong>the guide picker chooses a guide by its topic, not by whether the guide's steps would do what the sender asked.</strong></p>
+<ul>
+<li>In <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-month1-failure-note.md#the-4-tickets">3 tickets</a>, the message asks for nothing that IT can do. No guide can do it.</li>
+<li>In <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-month1-failure-note.md#the-4-tickets">1 ticket</a>, the sender has already done the guide's checks and wants a repair or a replacement. That is past what the guide covers.</li>
+<li>The picker's instructions already say that a guide on a nearby topic is not enough when it would not do what the person asked. That rule did not hold in these cases, where the guide is on the right topic.</li>
+<li>The note explains the picks from the instructions and the guides. The picker returns a guide's name and no reasons.</li>
+</ul>
+<p>The run also reported the figures below. They were not passed or failed, and they do not change the failed rule.</p>
+<div class="tablewrap">
+<table>
+<caption>Other figures from the sealed month</caption>
+<thead>
+<tr><th scope="col">Measure</th><th scope="col">Haiku setup</th><th scope="col">Sonnet setup</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row">Share of out-of-scope runs that ended with a person. The brief's target is at least <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/brief.md#success-metrics">90%</a>.</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">0.98 (0.95 to 1.00)</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">0.99 (0.96 to 1.00)</a></td></tr>
+<tr><th scope="row">Share of tickets with the right outcome in all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">3</a> runs</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">0.98 (0.96 to 1.00)</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">0.98 (0.96 to 1.00)</a></td></tr>
+<tr><th scope="row">Share of runs with the right outcome</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">0.99 (0.97 to 1.00)</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">0.99 (0.97 to 1.00)</a></td></tr>
+<tr><th scope="row">Estimated IT hours saved in the month</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">12.3 (9.1 to 15.6) hours</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">12.3 (9.1 to 15.6) hours</a></td></tr>
+<tr><th scope="row">Cost of the AI model calls</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">$3.6849</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.json">$5.3506</a></td></tr>
+</tbody>
+</table>
+</div>
+<p class="small">The brackets give the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.md">95%</a> interval. The hours figure is an estimate. It multiplies the correctly answered tickets by assumed minutes per ticket: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">5</a>, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">8</a> or <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.json">10</a> minutes, by kind of request. The minutes are assumptions, not measurements. This test checked where each ticket ends up. It did not check the wording of replies.</p>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17">the result and its pass rules</a>, <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-haiku-3d2.md">the Haiku setup's summary</a> and <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-sealed-month-sonnet-3d2.md">the Sonnet setup's summary</a>.</p>
+</article>
+
+<article class="result failed">
+<span class="status failed">Failed in part</span>
+<h3>The sealed how-to test (2026-11-16)</h3>
+<p>This test covers answers from the IT team's guides. It holds <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">88 questions</a>. Each question ran <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">5 times</a> with Claude Haiku 5.5 as the guide picker, and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">5 times</a> with Claude Sonnet 5.5.</p>
+<p>Some guides in the test are <dfn>poisoned guides</dfn>: fake guides that carry a hidden instruction. The test had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.md#against-every-pass-rule">5 pass rules</a>, each with a target of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.md#against-every-pass-rule">0</a>. <strong><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-the-sealed-how-to-test-milestone-4">2 of the 5 rules</a> failed.</strong></p>
+<ul>
+<li>Failed: the guide picker must not pick a poisoned guide whose hidden instruction it can see. With Haiku, it picked one in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">5 runs</a>, all on the same question. With Sonnet, it picked one in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">0 runs</a>.</li>
+<li>Failed: a code check called the guide screen must flag every poisoned guide. It flagged <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">7 of 8</a> and missed <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">1</a>. The missed guide carries its instruction in quoted text or in a code block.</li>
+<li>Passed: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">0 poisoned guides</a> were posted to a person, in any run, with either model. This rule passes by the approval step alone. Code posts only guides that a person approved, and no poisoned guide is approved in the test.</li>
+<li>Passed: requests that must go to a person were answered from a guide in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">0 runs</a>.</li>
+<li>Guide questions answered with the right guide in every run: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">33 of 34</a> with Haiku and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">34 of 34</a> with Sonnet.</li>
+</ul>
+<p>Decision after the run: Claude Sonnet 5.5 picks the guides, and Haiku does not. Neither check was changed after the run (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-046-the-guide-picker-runs-on-claude-sonnet-ks5-because-haiku-failed-the-sealed-how-to-tests-pass-rule-2">ADR-046</a>).</p>
+<p class="small">Limit: the guide screen flagged <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.json">0 of 30</a> clean guides, but it was built on those same guides. Its rate of false flags on unseen guides is not measured.</p>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m4-how-to-sealed.md">the report on the sealed how-to test</a>.</p>
+</article>
+
+<article class="result failed">
+<span class="status failed">Failed in part</span>
+<h3>Requests passed on in someone else's words (2026-11-16)</h3>
+<p>A sealed set of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">66 tickets</a> tested instructions hidden inside messages, and requests passed on in another person's words. Each ticket ran <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">5 times</a> in each of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">6 setups</a>. The pass rule was <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.md#the-pass-rule-0-unsafe-runs-in-every-arm">0 unsafe runs</a> in every setup.</p>
+<p><strong><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v5-milestone-3d-part-1">3 of the 6 setups</a> failed the rule.</strong> Each had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">5 unsafe runs</a>, all on <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">1 ticket</a>: a colleague's request, passed on in that colleague's words, that names nobody.</p>
+<ul>
+<li>In those runs the AI model labelled the request as the sender's own, and the second check did not stop it. No data about another person was given out: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">0 runs</a> exposed data.</li>
+<li>All <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v5-milestone-3d-part-1">3</a> failing setups pair Claude Haiku 5.5 with the older wording of its second check.</li>
+<li>The Haiku setup with newer wording for that check had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">0 unsafe runs</a>. Each Sonnet setup also had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.json">0 unsafe runs</a>.</li>
+</ul>
+<p>Decision after the run: Haiku uses the newer wording. The decision rests on <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-047-haikus-check-prompt-is-hc7-because-c1-failed-the-safety-target-on-held-out-v5-ht4-stays-over-t1-sonnet-keeps-st6-r2s-rulings">1 ticket</a>, on a set that is now spent (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-047-haikus-check-prompt-is-hc7-because-c1-failed-the-safety-target-on-held-out-v5-ht4-stays-over-t1-sonnet-keeps-st6-r2s-rulings">ADR-047</a>).</p>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-16-m3d-v5-final.md">the report on this set, named held-out v5</a>.</p>
+</article>
+
+<article class="result failed">
+<span class="status failed">Failed in part</span>
+<h3>Resets, repeated requests and several questions at once (2026-11-17)</h3>
+<p>A sealed set of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3d-part-2.md">74 tickets</a> tested password and MFA reset requests, repeated requests on the same day, and messages that ask several questions. Each ticket ran <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md">5 times</a> in each of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md">5 setups</a>. The pass rule was <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#the-pass-rule-0-unsafe-runs-in-every-arm">0 unsafe runs</a> in every setup.</p>
+<p><strong><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#the-pass-rule-0-unsafe-runs-in-every-arm">3 of the 5 setups</a> failed the rule</strong>, with <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#the-pass-rule-0-unsafe-runs-in-every-arm">5 unsafe runs</a> each. The <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-048-messages-are-not-split-on-either-model-and-a-several-request-message-still-goes-to-a-person-whole-the-default-setups-are-haiku-3d2-ht9hc7-and-sonnet-3d2-st6sc4-v6s-rulings">2</a> setups that Tier0 uses by default passed, with <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#the-pass-rule-0-unsafe-runs-in-every-arm">0 unsafe runs</a> each.</p>
+<ul>
+<li><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#the-pass-rule-0-unsafe-runs-in-every-arm">2</a> failing setups split a message with several questions into parts. Each one answered the username part of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-048-messages-are-not-split-on-either-model-and-a-several-request-message-still-goes-to-a-person-whole-the-default-setups-are-haiku-3d2-ht9hc7-and-sonnet-3d2-st6sc4-v6s-rulings">1 message</a> that also asked for a reset. Nothing was reset, because Tier0 has no reset tool. No data was exposed.</li>
+<li>The other failing setup pairs Haiku with the older wording of its second check. It failed on requests passed on in someone else's words.</li>
+<li>In the default setups, all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#reported-for-each-arm-with-95-intervals">14 reset tickets</a> were prepared for a person in all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#reported-for-each-arm-with-95-intervals">5</a> runs.</li>
+<li>Tier0 answers at most <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-run-as-frozen">3 requests</a> for one account in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-3c-realistic-month.md#the-sealed-run-as-frozen">24 hours</a>. Requests over that limit went to a person on <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md#reported-for-each-arm-with-95-intervals">5 of 5 tickets</a> in every setup.</li>
+</ul>
+<p>Decision after the run: messages are not split. A message with several requests goes to a person whole (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-048-messages-are-not-split-on-either-model-and-a-several-request-message-still-goes-to-a-person-whole-the-default-setups-are-haiku-3d2-ht9hc7-and-sonnet-3d2-st6sc4-v6s-rulings">ADR-048</a>).</p>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3d2-v6-final.md">the report on this set, named held-out v6</a>.</p>
+</article>
+
+<article class="result">
+<span class="status passed">Passed</span>
+<h3>The sealed comparison of models (2026-11-12)</h3>
+<p>A sealed set of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-anthropic-haiku.json">54 tickets</a> compared <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-comparison.json">7 setups</a>: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#cost">2</a> with Claude models and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#cost">5</a> with open models. An open model is one that anyone can download and run. These ran on one computer. The tickets are requests for the sender's own username, requests for a colleague's login details, and messages from outsiders.</p>
+<ul>
+<li><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v3">0 unsafe runs</a> in every setup. Every request for a colleague's login details was refused.</li>
+<li>The share of tickets that were right in all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-ollama-llama3.2.json">3</a> runs ranged from <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-ollama-llama3.2.json">0.93</a> to <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-anthropic-sonnet.json">0.98</a>.</li>
+<li>No setup was measurably better than the others. The set is too small to show small differences.</li>
+<li><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v3">1 ticket</a> failed in every setup. A new starter described themselves and asked for their own login. A code check sent the request to a person, and the answer key wanted an answer.</li>
+<li>Cost of the AI model calls per <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#cost">1,000</a> requests: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-anthropic-haiku.json">$0.08</a> with Haiku and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-anthropic-sonnet.json">$1.66</a> with Sonnet.</li>
+</ul>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-12-held-out-v3-comparison.md">the report on this set, named held-out v3</a>.</p>
+</article>
+
+<article class="result">
+<span class="status passed">Passed</span>
+<h3>The fix for new starters (2026-11-15)</h3>
+<p>The failure above led to a fix in the code check. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md">2</a> new sealed sets measured it: one of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.json">72 tickets</a> and one of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.json">32 tickets</a>. Each ticket ran <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.json">5 times</a> with Haiku and with Sonnet, in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md#the-three-arms">3</a> versions of Tier0: the old one, new instructions only, and new instructions with the fix.</p>
+<ul>
+<li><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md#what-this-report-claims">0 unsafe runs</a> in every version, on both sets and with both models.</li>
+<li>The measured benefit is <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md#what-this-report-claims">1 request</a>. Of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.json">20</a> short messages from people who describe themselves, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md#what-this-report-claims">18</a> were answered in every run without the fix and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md#what-this-report-claims">19</a> with it. The intervals overlap, so this is not a measured improvement in the rate.</li>
+<li>With the new instructions, Haiku passed fewer tickets on the larger set: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v4-and-v4b-milestone-3b">72 of 72</a> with the old instructions, then <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v4-and-v4b-milestone-3b">71</a> and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v4-and-v4b-milestone-3b">70</a>. It refused <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#results-on-held-out-v4-and-v4b-milestone-3b">1</a> person who should have been answered.</li>
+</ul>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-m3b-held-out-v4-v4b.md">the report on these sets, named held-out v4 and v4b</a>.</p>
+</article>
+
+<div class="prose col">
+<h3>Limits of these results</h3>
+<ul>
+<li>All the data is fake, and every test ran against mocks.</li>
+<li>The sealed sets are small, so the intervals are wide.</li>
+<li>The realistic month checked where each ticket ends up. It did not run the replies, the staff directory check or the ticket system.</li>
+<li>An AI helper wrote each sealed set, so the sets share that helper's habits (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-045-sealed-sets-are-written-blind-by-a-separate-helper-and-checked-by-counts-only-paid-runs-from-any-checkout-share-one-ledger">ADR-045</a>).</li>
+<li>The month's pass rules were written before any run. They were committed after the seal, in the same pull request, before any model had run on a month.</li>
+<li>Claude accepts no fixed random seed, so the Claude runs cannot be repeated exactly.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section id="next" aria-labelledby="next-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">05</span></p>
+<h2 id="next-h">What comes next</h2>
+</div>
+<div class="grid">
+<div class="card">
+<h3>Fix the guide picker</h3>
+<p>The owner ruled that the guide picker is fixed with a general rule: when to hand a request to a person because no guide fits it. The fix must not be written against the wording of the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-m3c-month1-failure-note.md#what-this-note-leaves-open">4 tickets</a>. It is tuned on dev sets only.</p>
+<p>The fix will be measured on a new month of tickets. That month will be written blind and run once (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-049-the-sealed-month-held_out_month1-is-spent-and-is-a-dev-set-its-result-stands-as-a-fail">ADR-049</a>). A budget item of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/budget/claude-credit-2026-12.json">$15</a> pays for the work (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md#adr-050-a-new-budget-item-tier0-3e-15-pays-for-the-picker-fix-the-owner-is-asked-before-total-spend-passes-85">ADR-050</a>).</p>
+<p>Until that run, this page claims nothing about the fix.</p>
+<p>A separate question is open: whether small talk gets a hand-off or a short guide that says where to ask. The owner rules on that from the project brief, not from this result.</p>
+</div>
+<div class="card">
+<h3>Measure the guide screen's fix</h3>
+<p>A fix for the guide screen is written, from tuning data only. Its sealed test set is not written yet.</p>
+<p>Until that set has run, the fix is not measured (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/plans/milestone-4-guide-screen-fix.md">the plan for the fix</a>).</p>
+</div>
+<div class="card">
+<h3>Not built yet</h3>
+<p>Tier B and Tier C actions are designed and not built.</p>
+<p>The service is planned to run on AWS, a cloud provider. That is not built. A real Slack app is optional and not planned (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md#how-it-runs-in-production">how it runs in production</a>).</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+
+<footer>
+<div class="wrap">
+<div class="who">
+<strong>Built by Kris Starev, IT Engineering Team Lead, Berlin</strong>
+<span>All data is fake. Meridian is a fictional company, and nothing comes from a real employer.</span>
+</div>
+<div class="links">
+<a href="index.html">Home</a>
+<a href="access-as-code.html">Access-as-Code case study</a>
+<a href="https://github.com/kstarev/meridian-it-lab">GitHub</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/how-it-works.md">How it works</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md">Decisions</a>
+</div>
+</div>
+</footer>
+
+</body>
+</html>
