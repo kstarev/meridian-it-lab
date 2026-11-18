@@ -57,14 +57,26 @@ Areas from the OWASP GenAI Security Project's *A Practical Guide for Secure MCP 
 
 ## CI baseline
 
+In place today, in meridian-it-lab:
+
+| Control | What it does | Checked by |
+|---|---|---|
+| Actions pinned to a commit SHA | Every `uses:` names a full commit SHA, with its version in a comment, so the code that runs is the code that was looked at | `tests/test_workflow_hardening.py` |
+| Least-privilege workflow tokens | `permissions: {}` by default, with per-job grants; only the site's deploy job can write | `tests/test_workflow_hardening.py` |
+| Fork pull requests get no secrets | No workflow that runs on pull requests names a secret, and none starts on `pull_request_target` or `workflow_run` | `tests/test_workflow_hardening.py` |
+| Paid jobs gated | The jobs that call the Claude API run in the `access-ai` environment, from `main` only, after the owner approves | `tests/test_workflow_hardening.py` |
+| Dependabot version updates | Weekly pull requests for `github-actions` (the pinned SHAs) and `uv` (the Python dependencies and `uv.lock`), in `.github/dependabot.yml` | `tests/test_workflow_hardening.py` |
+| Secret scanning and push protection | GitHub blocks known secret formats at push | A GitHub setting, no test |
+
+Dependabot alerts and Dependabot security updates are GitHub settings, and both were off when last read (2026-11-18): the owner has to turn them on ([github-actions-hardening.md](github-actions-hardening.md) lists the clicks).
+
+Planned, not built:
+
 | Check | Repo | Purpose |
 |---|---|---|
 | CodeQL | meridian-it-lab | Finds code vulnerabilities |
-| Dependabot | Both | Alerts on vulnerable dependencies; opens PRs to update dependencies and pinned action SHAs |
 | gitleaks | Both | Blocks secrets in commits |
-| Secret scanning and push protection | Both | GitHub blocks known secret formats at push |
 | zizmor | Both | Blocks unpinned actions, broad workflow permissions and template injection |
-| Workflow tokens | Both | `permissions: {}` by default, with per-job grants |
 | SBOM | meridian-it-lab | Generated for every release |
 | Memory PR scan | meridian-memory | Prompt injection, secrets, PII (Presidio), size anomalies, provenance, tools or scopes above tier, PRs not opened by the bot |
 | Evals | meridian-it-lab | Smoke eval on every PR; full k = 3 suite nightly and on main |
