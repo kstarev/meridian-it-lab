@@ -886,15 +886,15 @@ So one tier0 ticket-run costs about $0.00166 on Sonnet and $0.00008 on Haiku, $0
 
 | Item | What it pays for | Estimate | Cap | How the estimate is built |
 |---|---|---|---|---|
-| `tier0-3b` | Harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, the new sealed blind held-out v4 (ADR-033) | $3.31 | $10 | 2 tuning rounds × $0.99 (3a's tuning cost × 1.5 for a larger, harder set) + v1–v3 dev sets at 54 × k=3 × $0.00174 = $0.85 + v4 at 54 × k=5 × $0.00174 = $0.47 |
+| `tier0-3b` | Harder tuning set and the TKT-004 fix on tuning data, dev-set regression runs, the new sealed blind held-out v4 (ADR-033) | $3.31 | $9 | 2 tuning rounds × $0.99 (3a's tuning cost × 1.5 for a larger, harder set) + v1–v3 dev sets at 54 × k=3 × $0.00174 = $0.85 + v4 at 54 × k=5 × $0.00174 = $0.47 |
 | `tier0-m4-knowledge` | Milestone 4: tuning the guide picker, then the sealed blind how-to test (ADR-035) | $8.23 | $20 | Picker call ~2,500 in / 60 out: Sonnet $0.0056, Haiku $0.00028. Tuning 200 tickets × 5 versions = $5.88; test 80 questions × k=5 = $2.35 |
 | `tier0-3d` | 3d's new ticket types, prompt injection included, tuning then the test set | $2.86 | $10 | Messages 1.5× longer, $0.0026 per ticket-run. Tuning 120 × 5 = $1.56; test 100 × k=5 = $1.30 |
 | `tier0-3c` | 3c, the realistic month, ~300 tickets | $3.12 | $18 | $0.0026 per ticket-run. Month 300 × k=3 = $2.34; tuning 100 templates × 3 = $0.78 |
-| `aac-model-comparison` | Haiku, Sonnet and Opus 5.5 on the tuning world at k=3 (AAC-006) | $2.03 | $12 | 3 × the measured $0.677 |
+| `aac-model-comparison` | Haiku, Sonnet and Opus 5.5 on the tuning world at k=3 (AAC-006) | $2.03 | $4 | 3 × the measured $0.677 |
 | `aac-m7-final-score` | The final held-out score, once, with the chosen model and frozen prompts (AAC-010) | $1.37 | $8 | Up to 3× the tuning world's 91 calls on the dearest model (Opus, $0.00495 each) = $1.35, + the two plan summaries |
 | `aac-red-team` | A red-team set reusing 3d's prompt-injection cases inside titles, names and exports | $1.34 | $10 | 60 cases × k=3 × all three models at $0.00744 per case-run |
 
-- **The estimates add up to $22.26 of the $85 in items.** The measured costs are small, so most of each cap is headroom. That headroom, with the buffer, is what the 2026-12-14 re-plan below spends.
+- **The estimates added up to $22.26 of the $85 in items when this was written.** With `tier0-3e` (ADR-050) they add up to $36.66 of the $94 now in items. The measured costs are small, so most of each cap is headroom. That headroom, with the buffer, is what the 2026-12-14 re-plan below spends.
 - **The ledgers enforce it.** Every paid call names an item: `TIER0_CLAUDE_BUDGET_ITEM` or `ACCESS_CLAUDE_BUDGET_ITEM`. Before sending, the ledger refuses the call when:
   - no item is named;
   - the item is unknown, or belongs to the other project;
@@ -1373,3 +1373,49 @@ Nothing leaked, but the answer key wants a person for both.
 - **The 4 wrongly answered tickets were read** after this ruling, and only those 4 ([failure note](evals/2026-11-17-m3c-month1-failure-note.md)).
 - **No set is sealed in the month runner until the next one is added.** The runner's checks for a sealed set stay, and their tests stay.
 - **The other sealed sets are untouched.** The how-to sets and held-out v3 to v6 keep their own rules.
+
+## ADR-050: A new budget item, `tier0-3e` ($15), pays for the picker fix; the owner is asked before total spend passes $85
+
+**Date:** 2026-11-17 · **Status:** Accepted (the owner's ruling of 2026-11-17: the item, its cap and the $85 line). Where the $15 comes from is proposed here and merged by the owner. Amends ADR-037. Follows ADR-049.
+
+**Context:**
+- The sealed month failed its safety rule at the guide picker (ADR-049). The owner ruled that the picker is fixed, under rules: a general fix, tuned on dev sets only with the prompt cache on, and a new blind month, `held_out_month2`, run once.
+- `tier0-3c` paid for the sealed month and has $1.37 left of $18. It can't pay for this.
+- **Spent so far, across every budget item: $53.06.**
+
+  | Item | Spent | Cap before |
+  |---|---|---|
+  | `tier0-3b` | $8.48 | $10 |
+  | `tier0-m4-knowledge` | $14.46 | $20 |
+  | `tier0-3d` | $8.33 | $10 |
+  | `tier0-3c` | $16.63 | $18 |
+  | `aac-model-comparison` | $2.02 | $12 |
+  | `aac-m7-final-score` | $0.04 | $8 |
+  | `aac-red-team` | $3.10 | $10 |
+  | **All items** | **$53.06** | |
+
+  - The tier0 figures are sums of the shared ledger. The Access figures are from its run records, which are made from the run logs.
+  - Another $1.81 was spent before the budget existed ($1.14 tier0, $0.68 Access) and belongs to no item.
+
+**Decision:**
+- **A new item, `tier0-3e`, with a cap of $15,** approved for dev and tuning runs. A run on a sealed set still needs the owner's go.
+- **The month runner charges `tier0-3e`** from now on. A Claude month run charged to any other item is refused.
+- **Before the total across all items passes $85, work stops and the owner is asked.** With `tier0-3e` spent in full the total would be $68.06.
+- **Where the $15 comes from** (the credit still adds up to $100):
+  - $8 from `aac-model-comparison`, whose cap goes from $12 to $4. It ran once, spent $2.02 and is unapproved, so the rest could not be spent. $4 is the compare workflow's run limit, and a guard test keeps that limit at or under the item's cap;
+  - $1 from `tier0-3b`, whose cap goes from $10 to $9. It spent $8.48 and is unapproved;
+  - $6 from the buffer, which goes from $12 to $6.
+  - The projects become tier0 $72 and Access $22.
+  - ADR-037's table shows the two lowered caps. The new item's row is below.
+
+
+| Item | What it pays for | Estimate | Cap | How the estimate was made |
+|---|---|---|---|---|
+| `tier0-3e` | The picker fix: candidates compared on dev sets, a rehearsal on the tuning month, then `held_out_month2` once | $14.40 | $15 | $5 for the dev comparison (the owner's limit for the first night), $0.35 for a rehearsal with the cache on, $9.04 for the sealed run with the cache off, as the first sealed month cost |
+
+**Consequences:**
+- **What the $15 has to cover:** the dev comparison of the candidates (the owner's limit for the first night is $5), a rehearsal on the tuning month, and one run of `held_out_month2`.
+  - With the prompt cache off for the sealed run, as it is today, that run costs about $9.04, as the first sealed month did. The plan then comes to about $14.40, close to the cap.
+  - With the cache on for the sealed run, it costs about $1.10, and the plan comes to about $6.50. Whether a sealed run may use the cache is the owner's ruling; until then it is off.
+- **No planned work loses money.** The two items that give up cap are finished and unapproved. Access keeps $18 of cap in its two approved items, of which $3.14 is spent.
+- **The buffer is $6.** A new blind red-team set for Access, if the owner chooses that option, would need its own item from it.

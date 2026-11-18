@@ -576,9 +576,9 @@ def test_a_stopped_run_resumes_without_resending(tmp_path: Path) -> None:
     assert all(len(t["runs"]) == 2 for t in result["tickets"])
 
 
-def test_a_claude_run_must_be_charged_to_the_3c_item(tmp_path: Path) -> None:
+def test_a_claude_run_must_be_charged_to_the_months_item(tmp_path: Path) -> None:
     item = "TIER0_CLAUDE_BUDGET_ITEM"
-    assert "tier0-3c" in (mo.check_budget_item(HAIKU, {item: "tier0-3b"}) or "")
+    assert "tier0-3e" in (mo.check_budget_item(HAIKU, {item: "tier0-3c"}) or "")
     assert "not set" in (mo.check_budget_item(HAIKU, {}) or "")
     assert mo.check_budget_item(HAIKU, {item: mo.BUDGET_ITEM}) is None
     assert mo.check_budget_item(LOCAL, {}) is None
@@ -844,5 +844,5 @@ def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
     code, err = run("haiku-3d2", "1")
     assert code == 2 and "k = 3" in err
     code, err = run("haiku-3d2", "3")
-    assert code == 2 and "tier0-3c" in err
+    assert code == 2 and "tier0-3e" in err
     assert list(tmp_path.iterdir()) == []
