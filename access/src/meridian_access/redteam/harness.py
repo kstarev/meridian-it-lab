@@ -435,22 +435,29 @@ def live_run(
                     graded.append(ask(case, client, policy))
             except SpendCapReached as exc:
                 stopped[model] = str(exc)
-            runs[model].append(
-                {
-                    "repeat": repeat,
-                    "finished": model not in stopped,
-                    "calls": client.calls,
-                    "cost_usd": round(ledger.total_usd() - before, 6),
-                    "outcomes": {g.case_id: g.outcome for g in graded},
-                    "flags": {g.case_id: list(g.flags) for g in graded if g.flags},
-                }
-            )
+            run: dict[str, Any] = {
+                "repeat": repeat,
+                "finished": model not in stopped,
+                "calls": client.calls,
+                "cost_usd": round(ledger.total_usd() - before, 6),
+                "outcomes": {g.case_id: g.outcome for g in graded},
+                "flags": {g.case_id: list(g.flags) for g in graded if g.flags},
+            }
+            # the counts only when caching was on for this run
+            if getattr(client, "cache_system", False):
+                run["cache_write_tokens"] = client.cache_write_tokens
+                run["cache_read_tokens"] = client.cache_read_tokens
+            runs[model].append(run)
             details += [
                 {"model": model, "repeat": repeat, "case": g.case_id, "outcome": g.outcome,
                  "flags": list(g.flags), "answer": g.answer}
                 for g in graded
             ]  # fmt: skip
     report = build_report(the_cases, runs, stopped, k)
+    for entry in report["models"].values():
+        if any("cache_write_tokens" in r for r in entry["runs"]):
+            for field in ("cache_write_tokens", "cache_read_tokens"):
+                entry[field] = sum(r.get(field, 0) for r in entry["runs"])
     report["budget_item"] = item
     report["run_limit_usd"] = ledger.run_limit_usd
     report["worst_case_usd"] = round(worst, 6)

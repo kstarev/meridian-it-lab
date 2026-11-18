@@ -37,7 +37,7 @@ from typing import Any
 
 from meridian_access import safety, summary
 from meridian_access.ai import compare, frozen
-from meridian_access.ai.client import ClaudeClient, worst_case_input_tokens
+from meridian_access.ai.client import SEALED_NO_CACHE, ClaudeClient, worst_case_input_tokens
 from meridian_access.ai.maps import load_entries
 from meridian_access.ai.matching import MatchSuggestion, shortlist, suggest_owner
 from meridian_access.ai.pricing import PRICES_PER_MTOK, worst_case_usd
@@ -166,7 +166,7 @@ class _NoSpendLedger(SpendLedger):
     def check(self, next_call_usd: float = 0.0) -> None:
         return None
 
-    def record(self, model: str, input_tokens: int, output_tokens: int) -> float:
+    def record(self, *args: Any, **kwargs: Any) -> float:
         return 0.0
 
 
@@ -462,6 +462,10 @@ def run_world(
         "safety": safe,  # apart from precision and recall (AAC-005): each count's target is 0
         "disagreements": {name: len(items) for name, items in details.items()},
     }
+    # the counts only when caching was on (never in the planned run)
+    if getattr(client, "cache_system", False):
+        report["cache_write_tokens"] = client.cache_write_tokens
+        report["cache_read_tokens"] = client.cache_read_tokens
     write_outputs(out_dir, report, details)
     return report
 
@@ -535,11 +539,15 @@ def final_main(
     k: int,
     summaries: bool,
     env: Mapping[str, str] | None = None,
+    prompt_cache: bool = False,
 ) -> int:
     """The paid run's command line. Exit 2: refused, nothing built or sent. Exit 1: failed
     after the start (the message is withheld: it could hold held-out content). Exit 0: done.
     `env` is the process environment unless a test passes its own."""
     env = os.environ if env is None else env
+    if prompt_cache:  # first: before anything is checked, built or sent
+        print(SEALED_NO_CACHE)
+        return 2
     if final_score != FINAL_SCORE:
         print(f"refusing: the final score needs --final-score={FINAL_SCORE}")
         return 2

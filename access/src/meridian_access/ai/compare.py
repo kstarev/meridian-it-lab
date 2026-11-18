@@ -131,6 +131,7 @@ def live_run(
     client_factory: Callable[[str, SpendLedger], ClaudeClient] | None = None,
     ledger: SpendLedger | None = None,
     suggestions_path: Path | None = None,
+    prompt_cache: bool = False,
 ) -> dict[str, Any]:
     """Runs every model over the workload `k` times and scores each run against the tuning
     key. The repeats are the outer loop (all models in repeat 1, then repeat 2, ...), so if a
@@ -140,7 +141,11 @@ def live_run(
     Per model, the report keeps one entry per repeat in `runs`, and on top: calls, cost and
     failures added up over the repeats, the first stop reason, title accuracy pooled over the
     repeats, rules-only matching (the same in every repeat) and rules + AI matching averaged
-    over the repeats. The suggested map entries are the first repeat's."""
+    over the repeats. The suggested map entries are the first repeat's.
+
+    `prompt_cache` puts the 5-minute cache marker on the system prompt (tuning world only; the
+    command line turns it on by default). Only when it is on do the report's runs and models
+    carry `cache_write_tokens` and `cache_read_tokens`, and the report `prompt_cache: true`."""
     if os.environ.get("ACCESS_AI_LIVE") != "1":
         raise RuntimeError("a live run needs ACCESS_AI_LIVE=1")
     if k < 1:
@@ -150,7 +155,9 @@ def live_run(
         raise RuntimeError(f"a live run is for the tuning world (seed {TUNING_SEED}), not {seed!r}")
     policy = policy or load_policy()
     ledger = ledger or SpendLedger()
-    factory = client_factory or (lambda m, led: ClaudeClient(m, ledger=led))
+    factory = client_factory or (
+        lambda m, led: ClaudeClient(m, ledger=led, cache_system=prompt_cache)
+    )
     work = build_workload(world_dir, policy)
     key = load_key(world_dir)
     owners = [AccountOwner(**o) for o in key["owners"]]
@@ -167,6 +174,8 @@ def live_run(
             if repeat == 1:
                 entries.extend(found)
     report: dict[str, Any] = {"world": world_dir.name, "k": k, "models": {}}
+    if prompt_cache:
+        report["prompt_cache"] = True
     for model, done in runs.items():
         finished = [r for r in done if not r["stopped"]] or done
         report["models"][model] = {
@@ -186,6 +195,9 @@ def live_run(
             ],
             "runs": done,
         }
+        if prompt_cache:
+            for field in ("cache_write_tokens", "cache_read_tokens"):
+                report["models"][model][field] = sum(r.get(field, 0) for r in done)
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if suggestions_path is not None:
@@ -242,7 +254,7 @@ def _one_run(
         owners,
     )
     title_rate = score_titles(titles, work.records, key["true_roles"])
-    return {
+    run: dict[str, Any] = {
         "calls": client.calls,
         "failed_or_refused": failed,
         "cost_usd": round(ledger.total_usd() - before, 6),
@@ -250,4 +262,8 @@ def _one_run(
         "title_accuracy": [title_rate.successes, title_rate.total],
         "matching_rules_only": [rules_only.precision.value, rules_only.recall.value],
         "matching_rules_plus_ai": [with_ai.precision.value, with_ai.recall.value],
-    }, entries
+    }
+    if getattr(client, "cache_system", False):  # the counts only when caching was on for this run
+        run["cache_write_tokens"] = client.cache_write_tokens
+        run["cache_read_tokens"] = client.cache_read_tokens
+    return run, entries

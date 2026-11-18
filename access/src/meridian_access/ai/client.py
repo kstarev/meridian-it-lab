@@ -26,16 +26,32 @@ INPUT_OVERHEAD_TOKENS = 512
 DEFAULT_MAX_TOKENS = 400
 THINKING_OFF_MODELS = frozenset({HAIKU})
 KEY_NAME = "ANTHROPIC_API_KEY"
+SEALED_NO_CACHE = (
+    "refusing: the sealed run was planned and frozen without the prompt cache; "
+    "it runs with it only after the owner rules"
+)
 
 
 def request_params(
-    model: str, system: str, user: str, schema: dict[str, Any], max_tokens: int
+    model: str,
+    system: str,
+    user: str,
+    schema: dict[str, Any],
+    max_tokens: int,
+    *,
+    cache_system: bool = False,
 ) -> dict[str, Any]:
-    """The exact keyword arguments one call passes to `messages.create`."""
+    """The exact keyword arguments one call passes to `messages.create`. With `cache_system`
+    the system prompt is one text block marked for the 5-minute cache; without it the request
+    is exactly what the frozen prompts pin."""
     params: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
-        "system": system,
+        "system": (
+            [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+            if cache_system
+            else system
+        ),
         "messages": [{"role": "user", "content": user}],
         "output_config": {"format": {"type": "json_schema", "schema": schema}},
     }
@@ -49,6 +65,12 @@ def worst_case_input_tokens(system: str, user: str, schema: dict[str, Any]) -> i
     return len(json.dumps([system, user, schema]).encode("utf-8")) + INPUT_OVERHEAD_TOKENS
 
 
+def _count(usage: Any, name: str) -> int:
+    """A usage count; 0 when the field is absent or None."""
+    value = getattr(usage, name, None)
+    return 0 if value is None else int(value)
+
+
 class MissingKeyError(RuntimeError):
     """No ANTHROPIC_API_KEY in the environment; the message never contains a key."""
 
@@ -59,14 +81,29 @@ class ClaudeClient:
         model: str,
         client: Any | None = None,
         ledger: SpendLedger | None = None,
+        *,
+        cache_system: bool = False,
     ) -> None:
         self.model = model
+        self.cache_system = cache_system
         self._client = client
         self.ledger = ledger if ledger is not None else SpendLedger()
         self.calls = 0
+        self.cache_write_tokens = 0  # totals over this client's calls (0 unless caching is on)
+        self.cache_read_tokens = 0
 
     def __repr__(self) -> str:  # never shows the client, and so never the key
         return f"ClaudeClient(model={self.model!r})"
+
+    def _record(
+        self, model: str, tokens_in: int, tokens_out: int, cache_write: int, cache_read: int
+    ) -> None:
+        self.cache_write_tokens += cache_write
+        self.cache_read_tokens += cache_read
+        if self.cache_system:
+            self.ledger.record(model, tokens_in, tokens_out, cache_write, cache_read, cached=True)
+        else:
+            self.ledger.record(model, tokens_in, tokens_out)
 
     def _sdk_client(self) -> Any:
         if self._client is None:
@@ -88,25 +125,32 @@ class ClaudeClient:
         """The model's JSON answer, or None. Raises SpendCapReached before any call that
         could cross the cap, and MissingKeyError when a real client has no key."""
         worst_in = worst_case_input_tokens(system, user, schema)
-        self.ledger.check(worst_case_usd(self.model, worst_in, max_tokens))
+        self.ledger.check(
+            worst_case_usd(self.model, worst_in, max_tokens, cache_write=self.cache_system)
+        )
         client = self._sdk_client()
-        params = request_params(self.model, system, user, schema, max_tokens)
+        params = request_params(
+            self.model, system, user, schema, max_tokens, cache_system=self.cache_system
+        )
         self.calls += 1
         try:
             response = client.messages.create(**params)
         except Exception:  # any API error is "no suggestion"; its text is never echoed
             # the request may have been sent and billed: ledger the worst case
-            self.ledger.record(self.model, worst_in, max_tokens)
+            self._record(self.model, worst_in, max_tokens, 0, 0)
             return None
         try:
+            usage = response.usage
             used = (
                 str(response.model),
-                int(response.usage.input_tokens),
-                int(response.usage.output_tokens),
+                int(usage.input_tokens),
+                int(usage.output_tokens),
+                _count(usage, "cache_creation_input_tokens") if self.cache_system else 0,
+                _count(usage, "cache_read_input_tokens") if self.cache_system else 0,
             )
         except (AttributeError, TypeError, ValueError):
-            used = (self.model, worst_in, max_tokens)  # usage unreadable: assume the worst
-        self.ledger.record(*used)
+            used = (self.model, worst_in, max_tokens, 0, 0)  # usage unreadable: assume the worst
+        self._record(*used)
         if response.stop_reason in ("refusal", "max_tokens"):
             return None  # on a refusal the content is not read
         try:

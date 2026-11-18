@@ -2,6 +2,9 @@
 python -m meridian_access.ai final-check --world DIR [--k N] [--no-summaries]
 python -m meridian_access.ai final --final-score held_out_a1 --out DIR [--k N] [--no-summaries]
 
+compare: the system prompt is cached by default (--no-prompt-cache turns it off); the final score
+refuses --prompt-cache until the owner rules.
+
 compare: --dry-run is the default: it prints the worst-case cost and the number of calls and
 makes none. `--no-dry-run` needs ACCESS_AI_LIVE=1 and ANTHROPIC_API_KEY, and runs only from the
 approved GitHub workflow.
@@ -31,6 +34,12 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--world", type=Path, required=True)
     c.add_argument("--k", type=int, default=1, help="repeats of the whole comparison")
     c.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=True)
+    c.add_argument(
+        "--prompt-cache",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="cache the system prompt (tuning world; on by default; the dry run ignores it)",
+    )
     d = sub.add_parser("final-check", help="dry check of the final score on the tuning world")
     d.add_argument("--world", type=Path, required=True)
     d.add_argument("--k", type=int, default=1, choices=range(1, final.MAX_K + 1))
@@ -40,9 +49,16 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--out", type=Path, default=None, help="a directory outside the repository")
     f.add_argument("--k", type=int, default=1, choices=range(1, final.MAX_K + 1))
     f.add_argument("--summaries", action=argparse.BooleanOptionalAction, default=True)
+    f.add_argument("--prompt-cache", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args(argv)
     if args.what == "final":
-        return final.final_main(args.final_score, args.out, k=args.k, summaries=args.summaries)
+        return final.final_main(
+            args.final_score,
+            args.out,
+            k=args.k,
+            summaries=args.summaries,
+            prompt_cache=args.prompt_cache,
+        )
     if args.what == "final-check":
         return _final_check(args.world, args.k, args.summaries)
     models = [model_id(m) for m in args.models.split(",") if m.strip()]
@@ -64,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         args.world,
         k=args.k,
         suggestions_path=repo_root() / "out" / "access-ai-suggestions.yaml",
+        prompt_cache=args.prompt_cache,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

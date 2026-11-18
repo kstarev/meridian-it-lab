@@ -14,6 +14,15 @@ PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
     OPUS: (4.00, 20.00),
 }
 
+# Prompt caching with 5-minute entries (the design of tier0's table, copied): a cache write costs
+# 1.25 times the model's input rate, and a cache read has its own rate.
+CACHE_WRITE_MULTIPLIER = 1.25
+CACHE_READ_PER_MTOK: dict[str, float] = {
+    HAIKU: 0.01,
+    SONNET: 0.10,
+    OPUS: 0.20,
+}
+
 
 def model_id(name: str) -> str:
     """`haiku`, `sonnet` or `opus` (or a full id) to a full model id; ValueError if unknown."""
@@ -37,6 +46,32 @@ def rate_for(model: str) -> tuple[tuple[float, float], bool]:
     return highest_rate(), False
 
 
-def worst_case_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+def tokens_usd(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_write_tokens: int = 0,
+    cache_read_tokens: int = 0,
+) -> float:
+    """USD for one call's four kinds of tokens. `input_tokens` is the input billed at the full
+    rate. An unknown model's cache read is priced at the highest full input rate, so it is
+    never under-counted."""
+    (per_in, per_out), known = rate_for(model)
+    per_read = CACHE_READ_PER_MTOK[model] if known else per_in
+    usd = input_tokens * per_in / 1_000_000 + output_tokens * per_out / 1_000_000
+    if cache_write_tokens:
+        usd += cache_write_tokens * per_in * CACHE_WRITE_MULTIPLIER / 1_000_000
+    if cache_read_tokens:
+        usd += cache_read_tokens * per_read / 1_000_000
+    return usd
+
+
+def worst_case_usd(
+    model: str, input_tokens: int, output_tokens: int, *, cache_write: bool = False
+) -> float:
+    """An upper bound on one call. With `cache_write` the whole input is priced as a cache
+    write (the call may write one)."""
     (per_in, per_out), _ = rate_for(model)
+    if cache_write:
+        per_in *= CACHE_WRITE_MULTIPLIER
     return input_tokens * per_in / 1_000_000 + output_tokens * per_out / 1_000_000
