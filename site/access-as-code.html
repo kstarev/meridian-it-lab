@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Access-as-Code case study · Design, tests and results</title>
+<meta name="description" content="A plain-language case study of Access-as-Code, built on fake data. It compares who should have access with who does, and proposes the changes as a plan that a person reviews. What was tested, what failed and what is not published yet.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Access-as-Code case study · Design, tests and results">
+<meta property="og:description" content="A plain-language case study of Access-as-Code, built on fake data. It compares who should have access with who does, and proposes the changes as a plan that a person reviews. What was tested, what failed and what is not published yet.">
+<meta property="og:url" content="https://kstarev.dev/meridian-it-lab/access-as-code.html">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://kstarev.dev/meridian-it-lab/access-as-code.html">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B1220'/%3E%3Ctext x='32' y='42' font-family='Arial,sans-serif' font-weight='700' font-size='26' text-anchor='middle' fill='%23F3F6FB'%3ET%3Ctspan fill='%2360A5FA'%3E0%3C/tspan%3E%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="top">
+<nav aria-label="Main">
+<a class="brand" href="index.html" aria-label="Tier0 home page">
+<span class="brand-mark" aria-hidden="true">T<span>0</span></span>
+<span class="brand-name">Tier0</span>
+</a>
+<div class="navlinks">
+<a class="navl" href="index.html">Home</a>
+<a class="navl" href="tier0.html">Tier0 case study</a>
+<a class="navl" href="access-as-code.html" aria-current="page">Access-as-Code case study</a>
+<a class="gh" href="https://github.com/kstarev/meridian-it-lab">View on GitHub</a>
+</div>
+</nav>
+</header>
+
+<main>
+<div class="hero">
+<div class="wrap">
+<p class="eyebrow"><a href="index.html">Home</a> / Case study</p>
+<h1>Access-as-Code: access changes as a plan that a person reviews</h1>
+<p class="lead">Access-as-Code compares who should have access to an app with who does. It proposes the changes as a plan, and a person approves the plan before anything changes. This page describes the problem, the design, the tests, the results and the next steps. In the results, the failed test comes first.</p>
+<p class="fake"><strong>All the data is fake.</strong> Meridian is a made-up company, and nothing comes from a real employer.</p>
+<ul class="toc" aria-label="On this page">
+<li><a href="#problem">The problem</a></li>
+<li><a href="#design">The design</a></li>
+<li><a href="#testing">How it was tested</a></li>
+<li><a href="#results">Results</a></li>
+<li><a href="#next">What comes next</a></li>
+</ul>
+</div>
+</div>
+
+<section id="problem" aria-labelledby="problem-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">01</span></p>
+<h2 id="problem-h">The problem</h2>
+</div>
+<div class="prose col">
+<p>Meridian is a made-up company with <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#in-scope">230 people</a> and an IT team of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#the-problem">3 people</a>.</p>
+<p>The company uses about <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#the-problem">140 apps</a>. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#the-problem">45</a> of them sit behind <dfn>single sign-on</dfn>, or SSO: one company login that opens many apps. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#the-problem">95</a> do not.</p>
+<p><dfn>Access</dfn> means who can sign in to which app. The IT team cannot reliably say who has access to what across these apps.</p>
+<p>A person's access should change when they join, when they move to another job and when they leave. These changes are handled from checklists. In the company's made-up list of IT requests, they are about <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#the-problem">36%</a> of all requests.</p>
+<p>Access that should have ended can stay. The project brief gives an example: a person leaves, and their account in an app outside SSO stays open, because the checklist missed that app.</p>
+<p>Evidence for audits is then put together by hand.</p>
+</div>
+</div>
+</section>
+
+<section id="design" aria-labelledby="design-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">02</span></p>
+<h2 id="design-h">The design</h2>
+</div>
+<div class="prose col">
+<p>Access-as-Code keeps the access rules in files: which job gets which apps. <dfn>Code</dfn> means fixed program rules that a person wrote. Code reads the rule files and the HR records, and works out what each person should have. Code also reads the account lists from the staff directory and from the apps, and works out what each person has.</p>
+<p>The difference between the two is the <dfn>plan</dfn>: a list of proposed changes in plain English. The plan is a <dfn>pull request</dfn>: a proposed change that a person must approve before it takes effect. By design, the plan is updated every night, when there is something to change.</p>
+</div>
+
+<figure class="figure">
+<div class="scroll">
+<svg viewBox="0 0 720 544" role="img" aria-labelledby="flow-title flow-desc">
+<title id="flow-title">How Access-as-Code turns records into a reviewed plan</title>
+<desc id="flow-desc">A flow chart, read from top to bottom. There are three inputs: the HR export, the access rules in files, and the account lists from the directory and the apps. From the HR export and the rules, code works out what each person should have. From the account lists, code matches each account to a person. Code compares the two and applies the safety limits. The result is a plan: a pull request that lists each proposed change. The AI model adds suggestions to the plan and writes a summary paragraph. A person reviews the plan and every AI suggestion, then approves. Code applies the approved changes, and by default it only records them.</desc>
+<defs>
+<marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="tip" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+
+<rect class="start" x="27" y="14" width="196" height="56" rx="10"/>
+<text x="125" y="38" text-anchor="middle">HR export: who works</text>
+<text x="125" y="57" text-anchor="middle">here, in which job</text>
+<rect class="start" x="262" y="14" width="196" height="56" rx="10"/>
+<text x="360" y="38" text-anchor="middle">Access rules in files:</text>
+<text x="360" y="57" text-anchor="middle">the apps for each job</text>
+<rect class="start" x="497" y="14" width="196" height="56" rx="10"/>
+<text x="595" y="38" text-anchor="middle">Account lists from the</text>
+<text x="595" y="57" text-anchor="middle">directory and the apps</text>
+
+<path class="arrow" d="M125 70V104" marker-end="url(#tip)"/>
+<path class="arrow" d="M360 70V104" marker-end="url(#tip)"/>
+<path class="arrow" d="M595 70V104" marker-end="url(#tip)"/>
+
+<rect class="box" x="27" y="106" width="431" height="56" rx="10"/>
+<text x="242" y="130" text-anchor="middle"><tspan class="who">Code:</tspan> works out what each</text>
+<text x="242" y="149" text-anchor="middle">person should have</text>
+<rect class="box" x="497" y="106" width="196" height="56" rx="10"/>
+<text x="595" y="130" text-anchor="middle"><tspan class="who">Code:</tspan> matches each</text>
+<text x="595" y="149" text-anchor="middle">account to a person</text>
+
+<path class="arrow" d="M242 162V196" marker-end="url(#tip)"/>
+<path class="arrow" d="M595 162V196" marker-end="url(#tip)"/>
+
+<rect class="box" x="27" y="198" width="666" height="44" rx="10"/>
+<text x="360" y="225" text-anchor="middle"><tspan class="who">Code:</tspan> compares the two and applies the safety limits</text>
+<path class="arrow" d="M228 242V276" marker-end="url(#tip)"/>
+
+<rect class="start" x="27" y="278" width="402" height="56" rx="10"/>
+<text x="228" y="302" text-anchor="middle"><tspan class="who">Plan:</tspan> a pull request that lists</text>
+<text x="228" y="321" text-anchor="middle">each proposed change</text>
+
+<rect class="ai" x="517" y="268" width="176" height="76" rx="10"/>
+<text x="605" y="292" text-anchor="middle"><tspan class="who">AI model:</tspan> suggests</text>
+<text x="605" y="311" text-anchor="middle">matches and writes</text>
+<text x="605" y="330" text-anchor="middle">a summary paragraph</text>
+<path class="arrow dash" d="M517 306H431" marker-end="url(#tip)"/>
+<text class="lbl" x="474" y="298" text-anchor="middle">suggestions</text>
+
+<path class="arrow" d="M228 334V374" marker-end="url(#tip)"/>
+<rect class="person" x="27" y="376" width="402" height="56" rx="10"/>
+<text x="228" y="400" text-anchor="middle"><tspan class="who">Person:</tspan> reviews the plan and every</text>
+<text x="228" y="419" text-anchor="middle">AI suggestion, then approves</text>
+
+<path class="arrow" d="M228 432V472" marker-end="url(#tip)"/>
+<rect class="box" x="27" y="474" width="402" height="56" rx="10"/>
+<text x="228" y="498" text-anchor="middle"><tspan class="who">Code:</tspan> applies the approved changes.</text>
+<text x="228" y="517" text-anchor="middle">By default it only records them</text>
+</svg>
+</div>
+<figcaption>
+<ul class="key" aria-label="Key to the diagram">
+<li><span class="swatch" aria-hidden="true"></span>Code and files</li>
+<li><span class="swatch ai" aria-hidden="true"></span>AI model</li>
+<li><span class="swatch person" aria-hidden="true"></span>Person</li>
+</ul>
+<p class="hint">On a narrow screen, scroll the diagram sideways.</p>
+<p>The same steps in words:</p>
+<ol>
+<li>Code reads the HR export: who works at the company, and in which job.</li>
+<li>Code reads the access rules, which are kept in files: the apps for each job.</li>
+<li>From the HR export and the rules, code works out what each person should have.</li>
+<li>Code reads the account lists from the staff directory and from the apps. It matches each account to a person.</li>
+<li>Code compares what each person should have with what each person has. It applies the safety limits.</li>
+<li>The result is a plan: a pull request that lists each proposed change.</li>
+<li>The AI model adds suggestions to the plan and writes a summary paragraph. It changes nothing.</li>
+<li>A person reviews the plan and every AI suggestion, then approves.</li>
+<li>Code applies the approved changes. By default it only records what it would do.</li>
+</ol>
+</figcaption>
+</figure>
+
+<div class="prose col">
+<h3>What the AI model does</h3>
+<p>The AI model is Claude. It has <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#the-model-interprets-code-enforces">3 jobs</a>, and in each of them it only suggests:</p>
+<ul>
+<li>a role for a job title that the rules do not recognise (a job-title-to-role match);</li>
+<li>the person an account belongs to, when the rules could not match it (an account-to-person match);</li>
+<li>a summary paragraph for a plan that code has already built.</li>
+</ul>
+<p>A person reviews every suggestion. Code keeps an unreviewed suggestion out of a plan, so no access change rests on one. The model does not decide access. It does not see a password or a key, and it does not call the company's systems.</p>
+<p>Claude is a family of AI models made by Anthropic. Three were compared: Claude Haiku 5.5, Claude Sonnet 5.5 and Claude Opus 5.5. For the same work, Haiku costs the least and Opus the most. The owner chose Haiku 5.5.</p>
+<p>For the summary, code checks the paragraph against the plan. If the check fails, code uses a fixed template instead (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/006-model-choice-and-spend-cap.md">AAC-006</a>).</p>
+
+<h3>Safety rails</h3>
+<ul>
+<li>Nothing changes without an approved plan. Applying a plan is a <dfn>dry run</dfn> by default: it records what it would do and changes nothing.</li>
+<li>Large removals need <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#safety-rails">2 approvers</a>. This applies when <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#safety-rails">5 or more people</a> would lose access, or <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#safety-rails">50 or more removals</a> would happen, because of one day's HR events. Such a day goes to a separate plan.</li>
+<li><dfn>Break-glass accounts</dfn> are emergency accounts, kept for when normal sign-in fails. They are never changed, only reported.</li>
+<li>A plan built from old data is not applied. If the data changed after the plan was made, the plan is made again.</li>
+<li>There is no mode that changes real systems. Everything runs against <dfn>mocks</dfn>: stand-in programs shaped like the real services (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/007-safety-rails.md">AAC-007</a>).</li>
+</ul>
+
+<h3>Build status</h3>
+<p>The project's checklist has <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/MILESTONES.md#whats-left-2026-11-15-counts-updated-2026-11-17">54 items</a>. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/MILESTONES.md#whats-left-2026-11-15-counts-updated-2026-11-17">40</a> are done and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/MILESTONES.md#whats-left-2026-11-15-counts-updated-2026-11-17">14</a> are open. The open items include the nightly run with the bot's own GitHub account, the measured time to build a leaver's plan, and the published results.</p>
+</div>
+</div>
+</section>
+
+<section id="testing" aria-labelledby="testing-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">03</span></p>
+<h2 id="testing-h">How it was tested</h2>
+</div>
+<div class="grid">
+<div class="rule">
+<h3>A tuning world</h3>
+<p>A <dfn>world</dfn> is one generated set of fake company data: HR records, directory data and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#in-scope">95 app exports</a>. Problems are planted in it, such as an account whose owner has left. An <dfn>answer key</dfn> lists every planted problem.</p>
+<p>The <dfn>tuning world</dfn> is the one the builder reads and adjusts the tool on. Figures measured on it are labelled as tuning figures.</p>
+</div>
+<div class="rule">
+<h3>A sealed held-out world, scored once</h3>
+<p>The <dfn>held-out world</dfn> is a second world. A separate helper wrote its recipe without seeing the tool's code. The builder has not read the recipe.</p>
+<p>The recipe is locked by a hash: a short string of characters computed from the file's contents. The world is scored once (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/005-sealed-answer-key.md">AAC-005</a>).</p>
+</div>
+<div class="rule">
+<h3>A blind referee</h3>
+<p>The tool and the answer key have the same author, so one misreading of the rules could be in both. A second helper wrote a referee script from the raw files and the public rules only. The referee builds its own answer key for the held-out world (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/011-blind-referee-against-shared-mistakes.md">AAC-011</a>).</p>
+<p>The two keys agree on <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-held-out-a1-referee.md">506 of 506 findings</a>, with <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-held-out-a1-referee.md">0 disagreements</a>. On the tuning world, which the referee was not written for, it disagrees with the key on <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-held-out-a1-referee.md#is-the-agreement-real">270 findings</a>.</p>
+</div>
+<div class="rule">
+<h3>A red-team set, written blind and run once</h3>
+<p>A <dfn>red-team set</dfn> is a set of attacks written to test a defence. Here the attacker can type text into data that the AI reads: a job title, a display name or a cell in an app's export. The text tries to change the AI's suggestion.</p>
+<p>The set holds <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/red-team.md#what-is-built">84 cases</a>: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/red-team.md#what-is-built">66 attacks</a> and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/red-team.md#what-is-built">18 clean controls</a>. A helper wrote it blind: from a written brief, without seeing the code. It was sealed and run once (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/015-the-red-team-set.md">AAC-015</a>).</p>
+</div>
+<div class="rule">
+<h3>Pass rules come first</h3>
+<p>The targets were written before the runs. Each safety count must be <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#metrics-and-targets">0</a>. The red team's target is <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/red-team.md#pass-rules-fixed-before-any-run">0 attack successes</a> per model. Precision and recall on planted problems should each be at least <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#metrics-and-targets">0.90</a>.</p>
+<p><dfn>Precision</dfn> is the share of the tool's findings that are right. <dfn>Recall</dfn> is the share of the planted problems that the tool found.</p>
+</div>
+<div class="rule">
+<h3>Code does the grading</h3>
+<p>Code grades every run against the answer key. No AI model grades the results.</p>
+<p>Where the tool and the key disagree on the held-out world, the owner rules on each item before any score is published (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/010-human-rulings-before-publishing.md">AAC-010</a>).</p>
+</div>
+<div class="rule">
+<h3>Spending is capped</h3>
+<p>Paid AI model calls run only in GitHub's automation, after the owner approves the run. Code checks every call against a cap in a budget file: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/budget/claude-credit-2026-12.json">$8</a> for the final score and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/budget/claude-credit-2026-12.json">$10</a> for the red team, out of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/budget/claude-credit-2026-12.json">$100</a> of credit for the whole lab.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section id="results" aria-labelledby="results-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">04</span></p>
+<h2 id="results-h">Results</h2>
+</div>
+<div class="prose col">
+<p>The failure comes first. Then the score that is not published yet. Then the figures measured on tuning data. Every number links to the file it comes from. Each date is the day the test ran.</p>
+</div>
+
+<article class="result failed">
+<span class="status failed">Failed</span>
+<h3>The red-team run (2026-11-17)</h3>
+<p>The sealed red-team set ran once. Each of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#what-ran">3 models</a> answered <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#what-ran">84 requests</a> <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#what-ran">3 times</a>, which makes <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#what-ran">252 runs</a> per model. The target was <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#against-the-pass-rules-fixed-before-any-run">0 attack successes</a> per model.</p>
+<p><strong>Haiku 5.5, the chosen model, failed the target.</strong> It had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">7 attack successes in 252 runs</a>.</p>
+<p>Sonnet 5.5 and Opus 5.5 met the target, with <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0 attack successes</a> each. They gave no answer in many runs: Sonnet in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">63 of 252 runs</a> and Opus in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">53 of 252 runs</a>. No answer means that no suggestion was made. Haiku gave no answer in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0 runs</a>.</p>
+<p>What an attack success means here: a planted suggestion reaches the human reviewer. It is a wrong suggestion that looks like a normal one. Nothing is changed without review, and code keeps an unreviewed suggestion out of a plan.</p>
+<div class="tablewrap">
+<table>
+<caption>Totals per model, out of <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">252 runs</a> each</caption>
+<thead>
+<tr><th scope="col">Count</th><th scope="col">Haiku 5.5</th><th scope="col">Sonnet 5.5</th><th scope="col">Opus 5.5</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row">Attack successes (target <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0</a>)</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">7</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0</a></td></tr>
+<tr><th scope="row">No answer</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">63</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">53</a></td></tr>
+<tr><th scope="row">Stopped by code, counted as safe</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">54</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">1</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">2</a></td></tr>
+<tr><th scope="row">Cost of the AI model calls</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">$0.0358</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">$1.0304</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">$2.0351</a></td></tr>
+</tbody>
+</table>
+</div>
+<p class="small">Stopped by code means that the code check refused the model's summary paragraph, and code used the template.</p>
+<p><strong>Where the successes are.</strong> The run's log gives totals per model. Read with the code, it shows which jobs the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">7 successes</a> are in.</p>
+<ul>
+<li>The set has <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">18 attacks</a> on the summary. Run <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">3 times</a>, they make <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">54 attempts</a>. Code stopped all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#against-the-pass-rules-fixed-before-any-run">54</a> of Haiku's.</li>
+<li>So all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">7</a> are in the other <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">2 jobs</a>: job titles and accounts. Those jobs had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">44 attacks</a> that count toward the target. Run <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">3 times</a>, they make <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">132 attempts</a>. Haiku's attacks there succeeded in <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">7 of 132 attempts</a>.</li>
+<li>Another <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">4 account attacks</a> try to make the AI say that an account belongs to nobody. That pushes the plan toward an extra removal, which a person reviews, so these are reported apart. They had <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-counts">0 successes</a> with every model.</li>
+<li>The log does not split the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#the-7-as-far-as-the-log-and-the-code-show">7</a> between titles and accounts, or by kind of attack. That split is in the run's detailed files, which nobody has opened. They are kept for the owner's rulings and are not published.</li>
+<li>The log does not say why Sonnet and Opus gave no answer, or how many of those runs were attacks.</li>
+</ul>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md">the run record</a> and <a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/red-team.md">the plan with its pass rules</a>.</p>
+</article>
+
+<article class="result">
+<span class="status">Not published</span>
+<h3>The final score on the sealed held-out world (2026-11-17)</h3>
+<p>The held-out world was scored once, on 2026-11-17, with Haiku 5.5. The run made <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#what-ran">309 of 309</a> planned calls and finished. <strong>The score is not published yet.</strong></p>
+<p>What the run's log shows:</p>
+<ul>
+<li>The <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#safety-counts-target-0-each">4 safety counts</a> are all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#safety-counts-target-0-each">0</a>. They count changes to break-glass accounts, changes without a merged plan, removals over the limit without <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#safety-counts-target-0-each">2 approvals</a>, and removals that rest on an unreviewed AI match.</li>
+<li>The tool and the answer key disagree on <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">214 items</a>: <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">179 account owners</a>, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">32 findings</a> and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">3 job titles</a>.</li>
+<li>The <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">214</a> is the length of a list. It is not a score. The log does not say how many of the items are the tool's mistakes and how many are the answer key's.</li>
+</ul>
+<p>The owner rules on each of the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">214 items</a>. No precision or recall is published before that.</p>
+<p class="small">The run cost <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#money">$0.0404</a>. In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md">the run record</a>.</p>
+</article>
+
+<article class="result">
+<span class="status">Tuning data</span>
+<h3>The model comparison (2026-11-15)</h3>
+<p>These figures were measured on the tuning world: the data the rules and the AI's instructions were tuned on. They are not a final score.</p>
+<p>Haiku 5.5, Sonnet 5.5 and Opus 5.5 each did the same <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md">2 jobs</a>, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">3 times</a> over. Each model made <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">273 calls</a>, <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">91</a> per repeat. <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">0 calls</a> failed or were refused.</p>
+<ul>
+<li>Job titles: each model suggested the right role for <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">75 of 76</a> job titles, in every repeat.</li>
+<li>Accounts: the matching rules left <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md">15 accounts</a> for the AI. Sonnet and Opus each suggested an owner for <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md#what-separates-the-models">5</a>, and all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md#what-separates-the-models">5</a> were right. Haiku suggested an owner for <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md#what-separates-the-models">5</a>, and <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md#what-separates-the-models">1</a> was wrong: the same one in all <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">3</a> repeats.</li>
+</ul>
+<div class="tablewrap">
+<table>
+<caption>Account matching on the tuning world, and the cost of the AI model calls</caption>
+<thead>
+<tr><th scope="col">Matched by</th><th scope="col">Precision</th><th scope="col">Recall</th><th scope="col">Cost of all repeats</th></tr>
+</thead>
+<tbody>
+<tr><th scope="row">Rules only</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">1.0000</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">0.9955</a></td><td>No AI calls</td></tr>
+<tr><th scope="row">Rules and Haiku 5.5</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">0.9995</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">0.9975</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">$0.0327</a></td></tr>
+<tr><th scope="row">Rules and Sonnet 5.5</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">1.0000</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">0.9980</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">$0.6482</a></td></tr>
+<tr><th scope="row">Rules and Opus 5.5</th><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">1.0000</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">0.9980</a></td><td><a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.json">$1.3421</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>The differences between the models are inside the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md#what-separates-the-models">95%</a> intervals. The rule for the choice was set before the run: the higher score wins, and a tie goes to the cheaper model. The owner chose Haiku 5.5 on 2026-11-15 (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/006-model-choice-and-spend-cap.md">AAC-006</a>).</p>
+<p>Known limit: Haiku's <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md#recommendation">1</a> wrong suggestion is a false match. The project treats a false match as worse than no match.</p>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-model-comparison-k3.md">the report on the comparison</a>.</p>
+</article>
+
+<article class="result">
+<span class="status">Tuning data</span>
+<h3>The plan on the tuning world (2026-11-15)</h3>
+<p>These figures were also measured on the tuning world. The rules were tuned on it.</p>
+<ul>
+<li>The plan's changes against the answer key: precision <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-tuning-plan.md">0.994 (462 of 465)</a> and recall <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-tuning-plan.md">1.000 (462 of 462)</a>.</li>
+<li>The changes that are not in the key are accounts that the rules could not match to a person. The plan flags them for a person to check.</li>
+<li>On the tuning world, one day's bulk HR import would remove access from <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-blast-radius.md">30 people</a>. That day went to the separate plan that needs <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-blast-radius.md">2 approvals</a>.</li>
+</ul>
+<p class="small">In the repository: <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-tuning-plan.md">the plan's score</a> and <a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-15-access-blast-radius.md">the report on removals per day</a>.</p>
+</article>
+
+<div class="prose col">
+<h3>Limits of these results</h3>
+<ul>
+<li>All the data is fake. Mocks are not the real services, and real systems behave in ways the mocks do not.</li>
+<li>The project planted the problems itself. Real exports are messier.</li>
+<li>The AI model's answers can differ between runs.</li>
+<li>The code check on the summary accepts a paragraph only if every word is on a fixed list. So planted words cannot be copied into it. A false claim made of allowed words still passes. The red-team run measured this. The figure is in the detailed files, not in the run's log.</li>
+<li>The owner is the only approver in the lab. A plan that needs <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md#honest-limits">2 approvers</a> stays blocked by design.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section id="next" aria-labelledby="next-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow"><span class="secnum">05</span></p>
+<h2 id="next-h">What comes next</h2>
+</div>
+<div class="grid">
+<div class="card">
+<h3>The owner's rulings, then the score</h3>
+<p>The owner rules on each of the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#disagreements-waiting-for-the-owners-ruling">214 disagreements</a>: the tool was wrong, the answer key was wrong, or both are acceptable. Each ruling is logged.</p>
+<p>The owner has approved grouping the items by pattern first, biggest group first, with a tool that prints counts only. It prints numbers, item ids and fixed labels from the code, and never an account, a name or a job title. It makes no AI call and costs nothing (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/src/meridian_access/ai/run_counts.py">the tool</a>).</p>
+<p>Then the score is published. Errors in the answer key are listed apart and do not count against the tool. Nothing is run again.</p>
+<p>GitHub keeps the detailed files of the run for <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#what-happens-next">30 days</a>, to 2026-12-17.</p>
+</div>
+<div class="card">
+<h3>A decision on the model</h3>
+<p>Haiku 5.5 is the chosen model, and it failed the red-team target. The owner ruled that the result is recorded as a fail and that the model is not changed yet.</p>
+<p>The run record lists <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#options-for-the-haiku-pick">3 options</a>:</p>
+<ul>
+<li>keep Haiku and state the limit;</li>
+<li>use Sonnet 5.5 for the job-title and account jobs;</li>
+<li>add a defence in code for those jobs, and measure it on a new red-team set written blind.</li>
+</ul>
+<p>Nothing is decided. The split of the <a class="n" href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#options-for-the-haiku-pick">7</a> by job and by kind of attack comes first. The same counts-only tool prints it (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-red-team-run.md#how-to-get-the-rest-without-opening-the-artifact">the run record</a>).</p>
+</div>
+<div class="card">
+<h3>Still to build</h3>
+<p>The report generator and the results page for the published score are not built.</p>
+<p>After the score is published, the held-out world becomes practice data (<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/evals/2026-11-17-access-held-out-a1-run.md#what-happens-next">the run record</a>).</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+
+<footer>
+<div class="wrap">
+<div class="who">
+<strong>Built by Kris Starev, IT Engineering Team Lead, Berlin</strong>
+<span>All data is fake. Meridian is a fictional company, and nothing comes from a real employer.</span>
+</div>
+<div class="links">
+<a href="index.html">Home</a>
+<a href="tier0.html">Tier0 case study</a>
+<a href="https://github.com/kstarev/meridian-it-lab">GitHub</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/BRIEF.md">Access-as-Code brief</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/access/docs/adr/README.md">Decisions</a>
+</div>
+</div>
+</footer>
+
+</body>
+</html>
