@@ -87,6 +87,7 @@ def _run(
     picker_model: Callable[[], ModelAdapter] = _never,
 ) -> int:
     argv = ["run", "--set", TUNING_MONTH, "--setup", setup, "--k", "1", "--picker", "knowledge"]
+    argv.append("--no-prompt-cache")  # these tests are about the uncached run
     return mo.main(
         [*argv, *extra, "--out", str(tmp)],
         make_model=lambda: model,  # type: ignore[arg-type, return-value]

@@ -104,6 +104,10 @@ class RunResult:
     # runs only, None otherwise. Above the threshold, the run measured the Mac, not the
     # model, and its latency is shown as not comparable (ADR-031).
     swapouts: int | None = None
+    # Prompt caching (docs/plans/prompt-caching.md): tokens written to and read from the cache.
+    # Written to the report only when caching was on, so uncached reports keep their shape.
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
     @property
     def swapped(self) -> bool:
@@ -124,6 +128,8 @@ class TicketRow:
     mean_output_tokens: float
     mean_duration_ms: float
     mean_traces: float
+    mean_cache_write_tokens: float = 0.0
+    mean_cache_read_tokens: float = 0.0
 
 
 # Stub-model scores prove the pipeline and the safety controls, not AI quality.
@@ -159,6 +165,23 @@ class EvalReport:
     # Written to the report only when set, so earlier reports keep their shape.
     features: tuple[str, ...] = ()
     split_prompt_sha256: str = ""
+    # Whether the Claude calls used the prompt cache (docs/plans/prompt-caching.md).
+    prompt_cache: bool = False
+
+    @property
+    def cache_on(self) -> bool:
+        """Caching was on for this run, by the flag or by tokens the API reported."""
+        return self.prompt_cache or any(
+            r.cache_write_tokens or r.cache_read_tokens for r in self.results
+        )
+
+    @property
+    def cache_write_tokens(self) -> int:
+        return sum(r.cache_write_tokens for r in self.results)
+
+    @property
+    def cache_read_tokens(self) -> int:
+        return sum(r.cache_read_tokens for r in self.results)
 
     def first_runs(self, n: int) -> "EvalReport":
         """The same report on runs 1..n only, so a k = 5 run can be compared at pass^3
@@ -482,7 +505,14 @@ class EvalReport:
 
     def run_cost_usd(self, r: RunResult) -> float:
         """API cost of one run from its tokens (0 for local models)."""
-        return cost_usd(self.provider, self.model, r.input_tokens, r.output_tokens)
+        return cost_usd(
+            self.provider,
+            self.model,
+            r.input_tokens,
+            r.output_tokens,
+            cache_write_tokens=r.cache_write_tokens,
+            cache_read_tokens=r.cache_read_tokens,
+        )
 
     @property
     def total_cost_usd(self) -> float:
@@ -518,12 +548,26 @@ class EvalReport:
                     mean_output_tokens=sum(r.output_tokens for r in runs) / n,
                     mean_duration_ms=sum(r.duration_ms for r in runs) / n,
                     mean_traces=sum(r.traces for r in runs) / n,
+                    mean_cache_write_tokens=sum(r.cache_write_tokens for r in runs) / n,
+                    mean_cache_read_tokens=sum(r.cache_read_tokens for r in runs) / n,
                 )
             )
         return tuple(rows)
 
     def to_dict(self) -> dict[str, Any]:
         out = self._to_dict()
+        if self.cache_on:
+            out["prompt_cache"] = True
+            out["cache_tokens"] = {
+                "cache_write_tokens": self.cache_write_tokens,
+                "cache_read_tokens": self.cache_read_tokens,
+            }
+            for row, detail in zip(out["tickets"], self.rows, strict=True):
+                row["mean_cache_write_tokens"] = detail.mean_cache_write_tokens
+                row["mean_cache_read_tokens"] = detail.mean_cache_read_tokens
+            for run_row, result in zip(out["runs_detail"], self.results, strict=True):
+                run_row["cache_write_tokens"] = result.cache_write_tokens
+                run_row["cache_read_tokens"] = result.cache_read_tokens
         if self.features:
             out["features"] = list(self.features)
             out["split_prompt_sha256"] = self.split_prompt_sha256
@@ -685,6 +729,7 @@ def build_report(
     setup: str | None = None,
     features: tuple[str, ...] = (),
     split_prompt_sha256: str = "",
+    prompt_cache: bool = False,
 ) -> EvalReport:
     """Pure: turn run results into the report and its metrics."""
     expected = tuple(
@@ -718,6 +763,7 @@ def build_report(
         setup=setup,
         features=features,
         split_prompt_sha256=split_prompt_sha256,
+        prompt_cache=prompt_cache,
     )
 
 
@@ -812,6 +858,8 @@ async def run_ticket(
         tool_calls=sum(s.tool_calls for s in summaries),
         input_tokens=sum(s.input_tokens for s in summaries),
         output_tokens=sum(s.output_tokens for s in summaries),
+        cache_write_tokens=sum(s.cache_write_tokens for s in summaries),
+        cache_read_tokens=sum(s.cache_read_tokens for s in summaries),
         duration_ms=sum(s.duration_ms for s in summaries),
         category=outcome.category,
         action=outcome.action,
@@ -936,6 +984,7 @@ async def run_eval(
     swap_probe: Callable[[], int | None] | None = None,
     setup: str | None = None,
     features: Features | None = None,
+    prompt_cache: bool = False,
 ) -> EvalReport:
     """Run every ticket k times, one after another. A sealed set needs final_comparison
     naming it. swap_probe reads macOS's swap-out count (default: vm_stat, for real models)."""
@@ -988,4 +1037,5 @@ async def run_eval(
         if features is not None
         else (),
         split_prompt_sha256=_sha(prompts.split_triage) if prompts and prompts.split_triage else "",
+        prompt_cache=prompt_cache,
     )

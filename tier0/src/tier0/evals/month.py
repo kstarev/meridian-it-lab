@@ -28,8 +28,10 @@ refused unless it is one of the two frozen arms (haiku-3d2, sonnet-3d2) with
 `--picker knowledge` and `--k 3`. held_out_month1 is spent (2026-11-17) and runs as a dev set:
 its results are named `-dev` and labelled "dev, not blind".
 
-`run --prompt-cache` caches each call's system prompt for 5 minutes on Claude setups, writes
-the result under a name ending in `-cache`, and is refused on a sealed set.
+`run` caches each call's system prompt for 5 minutes on Claude setups by default, except on a
+sealed set (`--no-prompt-cache` turns it off; the default is decided in evals/caching.py). A
+cached result is written under a name ending in `-cache`. `--prompt-cache` is refused on a
+sealed set.
 """
 
 import argparse
@@ -70,6 +72,7 @@ from tier0.agent import (
     triage_off_format,
     triage_request,
 )
+from tier0.evals import caching
 from tier0.evals.setups import ALL_SETUPS, HAIKU, SONNET, Setup
 from tier0.evals.stats import BOOTSTRAP_SAMPLES, BOOTSTRAP_SEED, template_bootstrap
 from tier0.models import ClaudeModel, ModelAdapter, ModelError, ModelRequest, ModelResponse
@@ -1197,8 +1200,13 @@ def _command(args: argparse.Namespace) -> str:
         parts.append(f"--final-test={args.final_test}")
     if getattr(args, "kinds", None):
         parts.append(f"--kinds {','.join(sorted(set(args.kinds.split(','))))}")
-    if getattr(args, "prompt_cache", False):
-        parts.append("--prompt-cache")
+    # The cache flag the run used, only when it isn't the default for this set and setup.
+    default = caching.default_prompt_cache(
+        provider=ALL_SETUPS[args.setup].provider, sealed=args.set in SEALED_SETS
+    )
+    used = getattr(args, "prompt_cache", None)
+    if used is not None and used != default:
+        parts.append("--prompt-cache" if used else "--no-prompt-cache")
     parts.append(f"--out {args.out.as_posix()}")
     return " ".join(parts)
 
@@ -1262,12 +1270,7 @@ def main(
         metavar="SET",
         help="unseal exactly this set for its one final test, by its own name",
     )
-    r.add_argument(
-        "--prompt-cache",
-        action="store_true",
-        help="Claude setups only: cache each call's system prompt for 5 minutes; the result's "
-        "name ends in -cache",
-    )
+    caching.add_flags(r)
     r.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "sealed-cost":
@@ -1301,7 +1304,7 @@ def main(
     args.seed = DEFAULT_SEEDS[args.set] if args.seed is None else args.seed
     refusal = check_unseal(args.set, args.final_test, args.seed)
     if refusal is None:
-        refusal = check_prompt_cache(args.set, setup, args.prompt_cache)
+        refusal = check_prompt_cache(args.set, setup, args.prompt_cache is True)
     if refusal is None and make_model is None:
         # A real run only: tests with fake models may still run a sealed set any way they need.
         refusal = check_sealed_plan(
@@ -1316,6 +1319,13 @@ def main(
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
     sealed = args.set in SEALED_SETS
+    # The default is on for a Claude setup on a set that isn't sealed (evals/caching.py).
+    args.prompt_cache, refusal = caching.resolve(
+        args.prompt_cache, provider=setup.provider, sealed=sealed
+    )
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
     kinds = tuple(sorted(set(args.kinds.split(",")))) if args.kinds else ()
     if kinds and sealed:
         print(f"refused: {args.set} always runs whole; --kinds is for tuning data", file=sys.stderr)

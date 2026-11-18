@@ -152,7 +152,7 @@ class Recorder(AlwaysOwn):
 def test_prompt_option_uses_that_version_and_restores(monkeypatch, tmp_path: Path) -> None:
     live = messages.TRIAGE_SYSTEM
     model = Recorder()
-    monkeypatch.setattr("tier0.evals.triage_check._model_factory", lambda *_: lambda: model)
+    monkeypatch.setattr("tier0.evals.triage_check._model_factory", lambda *_, **__: lambda: model)
     assert (
         main(
             [

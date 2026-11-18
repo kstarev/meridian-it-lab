@@ -36,7 +36,7 @@ from tier0.agent import (
     triage_off_format,
     triage_request,
 )
-from tier0.evals import watch
+from tier0.evals import caching, watch
 from tier0.evals.prompt_history import M3_CHECK_VERSIONS, M3_TRIAGE_VERSIONS
 from tier0.evals.setups import (
     BIG_MODELS,
@@ -159,9 +159,9 @@ def instances() -> list[Instance]:
     return out
 
 
-def make_model(name: str) -> ModelAdapter:
+def make_model(name: str, *, prompt_cache: bool = False) -> ModelAdapter:
     if name in CLAUDE_MODELS:
-        return ClaudeModel(model=name)
+        return ClaudeModel(model=name, cache_system=prompt_cache)
     return OllamaModel(
         model=name,
         temperature=TEMPERATURE,
@@ -183,19 +183,23 @@ def score(
     k: int = K,
     model: ModelAdapter | None = None,
     cases: Sequence[Instance] | None = None,
+    prompt_cache: bool = False,
 ) -> dict[str, Any]:
     """Score one prompt version (T* for triage, C* for the check) on one model. `cases`
     replaces the tuning messages (milestone 3d scores its own tuning messages this way)."""
     task = task_of(version)
     text = (M3_TRIAGE_VERSIONS if task == "triage" else M3_CHECK_VERSIONS)[version]
-    model = model if model is not None else make_model(model_name)
+    if model is None:
+        model = (
+            make_model(model_name, prompt_cache=True) if prompt_cache else make_model(model_name)
+        )
     cases = list(cases) if cases is not None else instances()
     names = (*GROUPS, *sorted({c.group for c in cases} - set(GROUPS)))
     correct = dict.fromkeys(names, 0)
     total = dict.fromkeys(names, 0)
     # Misses that were off-format replies rather than wrong answers (ADR-031).
     off_format = dict.fromkeys(names, 0)
-    tokens_in = tokens_out = 0
+    tokens_in = tokens_out = cache_written = cache_read = 0
     wrong: dict[str, int] = {}
     elapsed = 0.0
     calls = 0
@@ -232,6 +236,8 @@ def score(
                     bad_format = check_off_format(response)
                 tokens_in += response.input_tokens
                 tokens_out += response.output_tokens
+                cache_written += response.cache_write_tokens
+                cache_read += response.cache_read_tokens
             except ModelError:
                 ok = False
             elapsed += time.perf_counter() - started
@@ -245,6 +251,7 @@ def score(
                 key = f"{case.group}: {case.text[:70]}"
                 wrong[key] = wrong.get(key, 0) + 1
     provider = getattr(model, "provider", "")
+    cached = prompt_cache or bool(cache_written or cache_read)
     return {
         "model": model_name,
         "version": version,
@@ -257,7 +264,24 @@ def score(
         "off_format": off_format,
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
-        "cost_usd": cost_usd(provider, model_name, tokens_in, tokens_out),
+        "cost_usd": cost_usd(
+            provider,
+            model_name,
+            tokens_in,
+            tokens_out,
+            cache_write_tokens=cache_written,
+            cache_read_tokens=cache_read,
+        ),
+        # Only for a score that used the prompt cache, so an uncached score keeps its shape.
+        **(
+            {
+                "prompt_cache": True,
+                "cache_write_tokens": cache_written,
+                "cache_read_tokens": cache_read,
+            }
+            if cached
+            else {}
+        ),
         # Wall-clock per call, for estimating how long a held-out run will take; not
         # comparable when the Mac swapped meanwhile.
         "mean_call_ms": round(1000 * elapsed / calls, 1) if calls else 0.0,
@@ -447,6 +471,7 @@ def render(results: Sequence[dict[str, Any]], command: str) -> str:
                 lines.append(f"Not chosen yet: {', '.join(missing)} not scored.")
             lines.append("")
     lines += [
+        *caching.result_note(results),
         "## Chosen per setup",
         "",
         "| Setup | Triage model | Triage version | Check model | Check version |",
@@ -569,6 +594,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     s.add_argument("--versions", nargs="+", required=True)
     s.add_argument("--k", type=int, default=K)
     s.add_argument("--rescore", action="store_true", help="score again even if saved")
+    caching.add_flags(s)
     e = sub.add_parser("estimate")
     e.add_argument("--model", required=True)
     t = sub.add_parser("time", help="time a few calls on a local model and estimate run times")
@@ -616,6 +642,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    # Tuning data only, so never sealed: the cache is on for Claude unless turned off.
+    prompt_cache, refusal = caching.resolve(
+        args.prompt_cache, provider=provider_of(args.model), sealed=False
+    )
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
     RESULTS.mkdir(parents=True, exist_ok=True)
     with guard_for_model(provider_of(args.model)):
         if provider_of(args.model) == "ollama":
@@ -641,7 +674,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if expected is not None:
                     slow = watch.SlowWatch(f"{args.model} {version}", expected, say=print)
                     model = watch.WatchedModel(make_model(args.model), slow)  # type: ignore[assignment]
-            result = score(args.model, version, k=args.k, model=model)
+            result = score(args.model, version, k=args.k, model=model, prompt_cache=prompt_cache)
             # Saved per version, atomically: a crash or restart loses at most the version
             # in progress, and a re-run picks up at the first unsaved one.
             partial = path.with_suffix(".json.partial")
