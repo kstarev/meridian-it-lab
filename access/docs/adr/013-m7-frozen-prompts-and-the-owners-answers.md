@@ -1,6 +1,6 @@
 # AAC-013: Milestone 7's prompts are frozen by hash, the final run is guarded, and the owner's answers to M7-R1 to M7-R17
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's answers, 2026-11-16). Built overnight on 2026-11-15/16, with no paid call ([M7 prep](../m7-prep.md), PR #45). The final score waits for its budget item and the owner's go.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's answers, 2026-11-16). Built overnight on 2026-11-15/16, with no paid call ([M7 prep](../m7-prep.md), PR #45). The final score ran once on 2026-11-17 ([run record](../../../docs/evals/2026-11-17-access-held-out-a1-run.md)); 214 disagreements wait for the owner's rulings.
 
 **Context:** Milestone 7 scores the AI steps once on the sealed held-out world (`held_out_a1`), with Haiku 5.5 ([AAC-006](006-model-choice-and-spend-cap.md)). A score taken once must be taken on exactly the prompts the tuning comparison measured, and the run must not be able to start by accident.
 

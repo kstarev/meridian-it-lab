@@ -1,6 +1,6 @@
 # As built: milestone 3b's code-only parts (kill switch, rate limit, verification ladder)
 
-**Date:** 2026-11-15 · **Status:** Built on branch `tier0-3b-kill-switch-rate-limit-ladder`, one pull request, not merged · **Decisions it builds:** [ADR-008](../decisions.md#adr-008-global-kill-switch-and-rate-limit-on-agent-actions), [brief](../brief.md#delivery) item 6 · **Touches:** [ADR-002](../decisions.md), [ADR-017](../decisions.md), [ADR-020](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Built on branch `tier0-3b-kill-switch-rate-limit-ladder`, merged on 2026-11-16 (pull request #44); the owner's rulings are in [ADR-043](../decisions.md) · **Decisions it builds:** [ADR-008](../decisions.md#adr-008-global-kill-switch-and-rate-limit-on-agent-actions), [brief](../brief.md#delivery) item 6 · **Touches:** [ADR-002](../decisions.md), [ADR-017](../decisions.md), [ADR-020](../decisions.md), [ADR-037](../decisions.md)
 
 This file records what was built, each design decision and why, what needs the owner's ruling, and what is left. It stands in for a new ADR: none was added to `docs/decisions.md`, so parallel pull requests don't clash. If the owner accepts the decisions, they can be folded into ADR-008 and a ladder ADR later.
 
@@ -163,7 +163,7 @@ Attacks stopped with nothing done for them: 7 of 7 (no token, no tool call, no p
 - **State that survives a restart:** the switch, the rate-limit counts, same-day repeat counts, open step-up and push challenges, and the audit log's store.
 - **An operator interface** for the switch and the limits.
 - **Drills in the published evals:** the two ADR-008 targets are tests today, not rows in a published report or the nightly eval.
-- **Held-out measurement of repeats:** 3d's item 3 (same-day repeats) will measure rung 1 on a sealed set.
+- **Held-out measurement of repeats:** done on held-out v6 on 2026-11-17 ([report](../evals/2026-11-17-m3d2-v6-final.md)).
 - **A limit for unverified senders,** who cause no agent action but can still open tickets.
 - **Wiring the global switch into a deployed proactive runner.** The option exists; nothing constructs the runner with the runtime yet.
 

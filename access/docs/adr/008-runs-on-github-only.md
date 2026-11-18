@@ -1,6 +1,6 @@
 # AAC-008: Runs on GitHub only; the summary lives in the plan pull request; Slack is a mock adapter
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. The user's decision (2026-11-14): no real Slack anywhere in Access-as-Code.
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md). The user's decision (2026-11-14): no real Slack anywhere in Access-as-Code.
 
 **Context:** Access-as-Code is a scheduled job: it should run every night without anyone's laptop, and its output must be seen where the IT team reviews it. There is no Slack workspace for the lab and there won't be one, but an IT team's tool would normally post to Slack. So the message should still be built and tested, without being sent anywhere.
 

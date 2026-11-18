@@ -1,6 +1,6 @@
 # AAC-004: The shared Meridian dataset is extended, never changed
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. Builds on lab ADR-001.
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md). Builds on lab ADR-001.
 
 **Context:** Lab ADR-001 says every project uses one shared seeded dataset with planted problems. Today the generator (`meridian_dataset`, version 0.12.0) builds a thin slice for tier0: 10 people, Slack, tickets and an answer key. Access-as-Code needs the whole company: 230 people, HRIS records over a month, about 140 apps and their accounts. tier0's published results depend on its worlds staying byte-identical: its golden hash tests and its sealed held-out sets (lab ADR-015, ADR-029) would break if the existing generator changed.
 

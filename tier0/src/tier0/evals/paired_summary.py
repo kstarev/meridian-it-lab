@@ -44,6 +44,7 @@ RECORDS_DIR = "2026-11-15-m3b-runs"
 V4_START, V4_END = "<!-- results-3b-v4:start -->", "<!-- results-3b-v4:end -->"
 V4B_START, V4B_END = "<!-- results-3b-v4b:start -->", "<!-- results-3b-v4b:end -->"
 COST_START, COST_END = "<!-- cost-3b:start -->", "<!-- cost-3b:end -->"
+CAP_NOW_NOTE = "$10 since 2026-11-17"  # ADR-037: the owner moved $5 from this item to tier0-3c
 README_START, README_END = "<!-- results-3b:start -->", "<!-- results-3b:end -->"
 
 
@@ -277,7 +278,8 @@ def cost_block(summary: Mapping[str, Any], report: str) -> str:
         )
     lines += [
         f"| All of `{spend['item']}`: screening, tuning, the dev-set check and both paired runs "
-        f"| ${spend['spent_usd']:.2f} of its ${spend['cap_usd']:.0f} cap |",
+        f"| ${spend['spent_usd']:.2f} of its cap (${spend['cap_usd']:.0f} when it ran, "
+        f"{CAP_NOW_NOTE}) |",
         "",
         COST_END,
     ]

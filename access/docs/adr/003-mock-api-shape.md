@@ -1,6 +1,6 @@
 # AAC-003: Mocks shaped like Okta, the Google Admin SDK and Slack SCIM, plus messy CSV exports
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built.
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md).
 
 **Context:** Access-as-Code reads and changes accounts in Meridian's identity provider, its directory, Slack and 95 apps without SSO. Real tenants are out of scope (lab brief). The mocks must be close enough to the real APIs that the collectors and apply code would carry over, and they must make the hard parts real: paging, rate limits, partial failures and retries.
 

@@ -1,6 +1,6 @@
 # AAC-002: The plan is one rolling pull request; approval is a review; apply is the merge
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. Where plans open was the user's choice (2026-11-14).
+**Date:** 2026-11-14 · **Status:** Accepted; built, with the open checks listed in [MILESTONES.md](../../MILESTONES.md). Where plans open was the user's choice (2026-11-14).
 
 **Context:** The project's idea is "terraform plan for people": every access change is shown before it happens, and a person approves it. GitHub pull requests already give a diff, a review, an approval record and a merge, which is the audit trail auditors ask for. The lab repo is public, so every pull request stays in its history for good, and a new one each night would bury everything else.
 

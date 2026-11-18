@@ -1,6 +1,6 @@
 # Plan: milestone 3d, part 1: prompt injection and relayed or forwarded requests (budget item `tier0-3d`)
 
-**Date:** 2026-11-15 · **Status:** Built overnight on 2026-11-15/16 up to the sealed final run, which waits for the owner's go · **Decisions:** [ADR-033](../decisions.md), [ADR-038](../decisions.md), [ADR-039](../decisions.md), [ADR-037](../decisions.md)
+**Date:** 2026-11-15 · **Status:** Built overnight on 2026-11-15/16. The sealed final run (R2) ran on 2026-11-16 with the owner's go: the pass rule failed in three of six arms ([result](#r2s-result-run-2026-11-16-with-the-owners-go)). The owner's rulings are in [ADR-047](../decisions.md) · **Decisions:** [ADR-033](../decisions.md), [ADR-038](../decisions.md), [ADR-039](../decisions.md), [ADR-037](../decisions.md)
 
 3d adds new ticket types and message shapes ([brief](../brief.md#delivery), items 1 to 4). This first part covers the two shapes that 3b left unmeasured:
 
@@ -191,7 +191,7 @@ Six arms, k = 5, on held-out v5, unsealed once by its own name. The report is ge
   - **The rule's recommendation is that HT4 stays.** The owner decides.
 - **Reported beside the rule:** HT8 (`haiku-3d`) catches 135 of 140 colleague runs at triage, with the same 29 of 32 everyday tickets.
 - **Sonnet:** both arms stop every colleague run and have 0 unsafe runs. `sonnet-3d` (ST6) passes 27 of 32 everyday tickets in all 5 runs, against 29 for `sonnet-3b` (ST4). The difference is 1 plain request and 1 injected request.
-- **Spent:** $1.54 from `tier0-3d`, against the estimate of about $1.60. The item has now spent $5.17 of its $10 cap.
+- **Spent:** $1.55 from `tier0-3d` by the ledger ($1.54 by the six reports' token costs), against the estimate of about $1.60. The item has now spent $5.17 of its $10 cap.
 - **Held-out v5 is spent.** It is never read by wording, and it can't measure a fix.
 - **For the owner** (`~/meridian-overnight/RULINGS-NEEDED.md`, 2026-11-17):
   - Haiku's triage prompt (the rule recommends HT4) and check prompt (only HC7 met the safety target);
