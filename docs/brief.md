@@ -118,8 +118,8 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 | Page | For | Contents |
 |---|---|---|
-| `docs/site/overview` | Recruiters, non-technical readers | Plain English, no jargon: Mia's story, one illustrated flow diagram, before/after, 3 headline numbers, a simulated-Slack demo (a replay of real tier0 runs on the mocks, labelled "Simulated Slack, fake data"), and skills mapped to IT Engineer, IT Engineering Manager and Head of IT |
-| `docs/site/technical` | IT managers, directors, CTOs | Mermaid architecture diagram, approval tiers, threat model, OWASP and NIST mapping, eval methodology (pass^k, planted needles), results dashboard, links to the ADRs |
+| `site/index.html` (built; Mia's story and the simulated-Slack demo are planned) | Recruiters, non-technical readers | Plain English, no jargon: Mia's story, one illustrated flow diagram, before/after, 3 headline numbers, a simulated-Slack demo (a replay of real tier0 runs on the mocks, labelled "Simulated Slack, fake data"), and skills mapped to IT Engineer, IT Engineering Manager and Head of IT |
+| planned as a site page; today `docs/how-it-works.md` | IT managers, directors, CTOs | Mermaid architecture diagram, approval tiers, threat model, OWASP and NIST mapping, eval methodology (pass^k, planted needles), results dashboard, links to the ADRs |
 | `README.md` | Everyone, first screen | A 2-minute plain-language story in the author's voice: one sentence, why it was built, what it does and what's next, why it's safe, the headline results with a small generated table, a simple flow diagram, links to "How it works (technical)" and "Decisions", a CI badge |
 | `docs/how-it-works.md` | IT managers, engineers | The technical deep dive: architecture, design principles, evaluation method, every generated results table, cost, how it runs in production, known limits, how to run it |
 
@@ -133,13 +133,13 @@ If the requester isn't authenticated or asks about someone else, the agent refus
 
 ## Security baseline
 
-[security.md](security.md) maps tier0's controls to the OWASP Top 10 for Agentic Applications 2026, the OWASP Top 10 for LLM Applications 2025, NIST SSDF (SP 800-218 and 800-218A) and the OWASP secure MCP server guide. CI runs CodeQL, Dependabot, gitleaks and an SBOM per release. Actions are pinned to commit SHAs (checked by zizmor), and workflow tokens are read-only by default, with per-job grants.
+[security.md](security.md) maps tier0's controls to the OWASP Top 10 for Agentic Applications 2026, the OWASP Top 10 for LLM Applications 2025, NIST SSDF (SP 800-218 and 800-218A) and the OWASP secure MCP server guide. In place today: every action is pinned to a commit SHA, checked by `tests/test_workflow_hardening.py`; workflow tokens get the least they need (`permissions: {}` by default, with per-job grants); pull requests from forks get no secrets; paid jobs wait for the owner's approval in the `access-ai` environment; Dependabot version updates are configured for `github-actions` and `uv` (`.github/dependabot.yml`); and secret scanning and push protection are on. Planned, not built: CodeQL, gitleaks, zizmor and an SBOM. Dependabot alerts and security updates are a GitHub setting the owner has to turn on ([github-actions-hardening.md](github-actions-hardening.md) lists it).
 
 ## Reviewer experience
 
-- A devcontainer opens the repo in GitHub Codespaces in one click.
+- Planned: a devcontainer that opens the repo in GitHub Codespaces in one click.
 - `make demo` runs the full demo on mocks and fake data, with no credentials needed. There is no live demo workspace: the shareable demo is a scripted replay of real tier0 runs on the mocks, rendered as a Slack-style HTML transcript (optionally a short screen recording) and labelled "Simulated Slack, fake data" ([ADR-036](decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned)).
-- CI runs a small smoke eval on every pull request and the full k = 3 suite nightly and on main, then publishes the results to the Pages dashboard.
+- Planned: CI runs a small smoke eval on every pull request and the full k = 3 suite nightly and on main, then publishes the results to the Pages dashboard. Today CI runs lint and the tests.
 
 ## Delivery
 

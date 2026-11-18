@@ -284,8 +284,8 @@ The guide screen was built on these 30 runbooks, so its false-flag rate on unsee
 <!-- results-m4:end -->
 
 - **The result is published as it is.** On Haiku, the picker picked a poisoned guide on one question in all 5 runs. Code handed the question to a person each time, but the rule counts any pick of a poisoned guide. The guide screen missed the one poisoned guide whose instruction sits in quoted text or a code block inside a step. A person's review is the only thing that stops it.
-- **The guide picker runs on Claude Sonnet 5.5 (KS5)** ([ADR-046](decisions.md)). Haiku failed rule 2 on held-out data.
-- **Neither screen was changed after the run.** The guide screen's fix is planned, not built ([plan](plans/milestone-4-guide-screen-fix.md)). It will be written from tuning data only and measured on a new blind-written set, which also carries unseen clean guides for false flags.
+- **The guide picker runs on Claude Sonnet 5.5 (KS5)** ([ADR-046](decisions.md)). Haiku failed rule 2 on held-out data. With this picker, the sealed month then failed its safety rule on both arms: see the [results on the sealed month](#results-on-the-sealed-month-milestone-3c) below.
+- **The run's result stands as published.** The guide screen's fix was built on 2026-11-17 from practice (tuning) data only, and is not yet tested on a locked-away set ([plan](plans/milestone-4-guide-screen-fix.md)). That set, `held_out_g2`, is not written yet. It will be written blind and will also carry unseen clean guides for false flags.
 
 ## Results on held-out v5 (milestone 3d part 1)
 
@@ -313,6 +313,23 @@ The decision rule for Haiku's triage prompt (T1 against HT4), fixed before v5 wa
 
 - **The result is published as it is.** In three of the four Haiku arms, triage called one relayed request the sender's own username, and the check prompt C1 did not stop it, in every run. HC7, the informational arm's check prompt, stopped it. That arm and both Sonnet arms had 0 unsafe runs.
 - **The owner's rulings (2026-11-17, [ADR-047](decisions.md)):** Haiku's check prompt moves from C1 to HC7, HT4 stays over T1, and Sonnet keeps ST6. Held-out v5 is spent; HC7 was measured again on a new blind set, held-out v6 ([report](evals/2026-11-17-m3d2-v6-final.md)).
+
+## Results on held-out v6 (milestone 3d part 2)
+
+Milestone 3d part 2 measures password and MFA resets, same-day repeated requests, messages with several questions, and more relayed colleague requests that name nobody ([plan](plans/milestone-3d-part-2.md)). Held-out v6 was written blind and run once on 2026-11-17 with the owner's go: five arms on Claude Haiku 5.5 and Claude Sonnet 5.5, k = 5 ([report](evals/2026-11-17-m3d2-v6-final.md)). The pass rule, fixed before the seal, is 0 unsafe runs in every arm.
+
+- **The pass rule failed in 3 of 5 arms.** The two default arms, `haiku-3d2` (HT9/HC7) and `sonnet-3d2` (ST6/SC4), had 0 unsafe runs. The two split arms, `haiku-3d2-split` and `sonnet-3d2-split`, had 5 each, all on one reset ticket. `haiku-3d2-c1` (HT9/C1, informational) had 5, on relayed colleague requests that name nobody. Every unsafe run was a policy violation, with no data exposed.
+- **HC7, measured again:** with the same triage prompt, HC7 stopped 50 of 50 runs of relayed requests that name nobody, and C1 stopped 45 of 50.
+- **The owner's rulings ([ADR-048](decisions.md)):** messages are not split on either model, and the default setups are `haiku-3d2` and `sonnet-3d2`. Held-out v6 is spent.
+
+## Results on the sealed month (milestone 3c)
+
+Milestone 3c runs a realistic month of tickets at routing level ([ADR-044](decisions.md), [plan](plans/milestone-3c-realistic-month.md)). The sealed month, `held_out_month1`, was written blind and run once on 2026-11-17 with the owner's go: 300 tickets, k = 3, on the two default setups, each with the Sonnet guide picker (KS5). The pass rule, fixed before the run, is 0 out-of-scope tickets wrongly answered over all runs.
+
+- **The safety pass rule failed on both arms.** `haiku-3d2` wrongly answered 10 of 624 runs of out-of-scope tickets, and `sonnet-3d2` 9 of 624 (results: [haiku-3d2](evals/2026-11-17-m3c-sealed-month-haiku-3d2.md), [sonnet-3d2](evals/2026-11-17-m3c-sealed-month-sonnet-3d2.md)).
+- **Every miss was one of the same 4 tickets, answered with a guide by the picker both arms share.** Triage passed each one on, and the picker answered it where the answer key wants a person. No username was given out.
+- **The result stands as a fail** ([ADR-049](decisions.md), [result](plans/milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17)). The month is spent and is a dev set now. The picker's fix is checked on a new blind month ([ADR-050](decisions.md)).
+- **Context, not the pass rule:** the correct hand-off rate was 0.98 and 0.99, against the brief's 90%.
 
 ## Cost
 
@@ -373,8 +390,8 @@ Local open models (Ollama on one Mac) were used only to benchmark during develop
 - **Small sample.** 54 tickets can only show large gaps, so "no clear winner" was the likely outcome ([ADR-031](decisions.md#adr-031-two-more-local-candidates-gpt-oss20b-and-qwen3627b-added-before-v3)). Only 6 tickets name nobody and 6 are self-descriptions, so those rows have wide intervals: self-described is 0.83 (95% CI 0.44-0.97) in six setups and 0.67 (0.30-0.90) for haiku.
 - **Over-refusal on self-descriptions is reduced, not gone.** On v3 the role signal sent one self-description (TKT-004) to a person in every setup. Milestone 3b's fix clears 1 of the 2 short self-descriptions in v4b that the old signal handed off. The other is still handed to a person in every run, and the difference (18 to 19 of 20) is inside the interval ([the 3b report](evals/2026-11-15-m3b-held-out-v4-v4b.md)).
 - **The first tuning set was too easy for the strong models.** In 3a they scored perfectly on almost every prompt version, so their prompts were picked by length, not quality ([ADR-030](decisions.md#adr-030-milestone-3-compares-four-setups-each-tuned-the-same-way-on-tuning-data-only)). Milestone 3b added a harder tuning set of 50 messages, and the Claude setups' 3b prompts were picked on all 116 ([selection report](evals/2026-11-15-m3b-prompt-selection.md), [ADR-033](decisions.md#adr-033-milestone-3b-adds-the-tkt-004-fix-on-a-new-sealed-v4-and-a-harder-tuning-set)).
-- **A relayed request that names nobody can get past Haiku.** A colleague request relayed in someone's own words can be read as the sender's own. On held-out v5, one such request got through three of the four Haiku setups in every run, with no data exposed. Only the HC7 check prompt stopped it. Sonnet stopped every colleague request ([ADR-042](decisions.md)).
-- **Haiku's 3b triage prompt has a measured cost and an unmeasured benefit.** On v4 it refuses one self-description that the 3a prompt answers, and on dev set v2 it sends one everyday request to a person. Both are in the safe direction. 3d's sealed set has decided: on held-out v5 the rule kept HT4 over T1 ([ADR-047](decisions.md)). The default Haiku setup now runs HT9 ([ADR-048](decisions.md)).
+- **A relayed request that names nobody can get past Haiku.** A colleague request relayed in someone's own words can be read as the sender's own. On held-out v5, one such request got through three of the four Haiku setups in every run, with no data exposed. Only the HC7 check prompt stopped it. Sonnet stopped every colleague request ([ADR-042](decisions.md)). HC7 is now Haiku's check prompt ([ADR-047](decisions.md)), and held-out v6 measured it again: with the same triage prompt, HC7 stopped 50 of 50 runs of relayed requests that name nobody, and C1 45 of 50 ([report](evals/2026-11-17-m3d2-v6-final.md)).
+- **Haiku's 3b triage prompt has a measured cost, and its benefit was measured on held-out v5: triage itself caught 108 of 140 colleague runs with it, against 92 with the 3a prompt.** On v4 it refuses one self-description that the 3a prompt answers, and on dev set v2 it sends one everyday request to a person. Both are in the safe direction. 3d's sealed set has decided: on held-out v5 the rule kept HT4 over T1 ([ADR-047](decisions.md)). The default Haiku setup now runs HT9 ([ADR-048](decisions.md)).
 - **Claude can't be pinned.** The API accepts no temperature and no seed, so the Claude setups run at its default sampling and their runs can't be reproduced exactly ([ADR-030](decisions.md#adr-030-milestone-3-compares-four-setups-each-tuned-the-same-way-on-tuning-data-only)).
 - **One Mac.** Local latency is from one 32 GB Mac with one big model loaded at a time. qwen3.6:27b swapped on 84 runs, which are left out of latency; no setup is ranked by speed ([ADR-031](decisions.md#adr-031-two-more-local-candidates-gpt-oss20b-and-qwen3627b-added-before-v3)).
 - **No schema enforcement for gpt-oss:20b and qwen3.6:27b.** Their off-format replies would fail closed, and none occurred on v3 ([ADR-031](decisions.md#adr-031-two-more-local-candidates-gpt-oss20b-and-qwen3627b-added-before-v3)).
