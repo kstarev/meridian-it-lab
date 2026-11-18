@@ -410,7 +410,12 @@ _MEASURES: tuple[tuple[str, Any], ...] = (
 )
 
 
-def render(data: Mapping[str, Any], *, samples: int = BOOTSTRAP_SAMPLES) -> str:
+def render(
+    data: Mapping[str, Any],
+    *,
+    samples: int = BOOTSTRAP_SAMPLES,
+    options: Sequence[str] = OPTIONS,
+) -> str:
     tables = table(data, samples=samples)
     lines = [
         "# Milestone 3e: picker-fix candidates, dev comparison",
@@ -422,7 +427,9 @@ def render(data: Mapping[str, Any], *, samples: int = BOOTSTRAP_SAMPLES) -> str:
         f"as it is. Option P: small-talk tickets are answered with the guide {POINTER_GUIDE}. "
         f"Intervals are 95% intervals that resample whole templates.",
     ]
-    for option in OPTIONS:
+    if tuple(options) != tuple(OPTIONS):
+        lines += ["", f"This report shows option {', '.join(options)} only."]
+    for option in options:
         lines += ["", f"## Option {option}"]
         for set_name in data["sets"]:
             rows = tables[option][set_name]
@@ -467,8 +474,13 @@ def render(data: Mapping[str, Any], *, samples: int = BOOTSTRAP_SAMPLES) -> str:
                 "|---|---|---|---|---|",
             ]
             pooled_rows = []
+            skipped = []
             for v in versions:
-                p = pooled(data, v, option, samples=samples)
+                try:
+                    p = pooled(data, v, option, samples=samples)
+                except ValueError:  # the baseline's two runs had different k: not pooled
+                    skipped.append(v)
+                    continue
                 w = p["wrongly_answered"]
                 pooled_rows.append(
                     {"version": v, "pass1": p["pass1"], "right_guide": p["right_guide"],
@@ -479,6 +491,12 @@ def render(data: Mapping[str, Any], *, samples: int = BOOTSTRAP_SAMPLES) -> str:
                     f"{_f(w['rate'])} | {_f(p['pass1'])} | {_f(p['right_guide'])} |"
                 )
             lines += ["", *_pair_lines(pooled_rows, _MEASURES[:2] + _MEASURES[3:])]
+            if skipped:
+                lines += [
+                    "",
+                    f"Not pooled: {', '.join(skipped)}. Its two runs had a different k, so "
+                    "pooling them would weigh one set more than the other.",
+                ]
         else:
             lines.append("No version was run on both sets for this option.")
         lines += ["", f"### Recommendation by the rule, option {option}", ""]
@@ -490,11 +508,19 @@ def render(data: Mapping[str, Any], *, samples: int = BOOTSTRAP_SAMPLES) -> str:
     lines += ["", "## Cost", ""]
     total = 0.0
     for r in data["runs"]:
+        if r["version"] == BASELINE:
+            continue
         total += r["cost_usd"]
         lines.append(
             f"- {r['version']} on {r['set']}: {r['calls']} calls, {r['cost_usd']:.4f} USD."
         )
-    lines.append(f"- Total: {total:.4f} USD.")
+    lines.append(f"- The candidates' runs: {total:.4f} USD.")
+    base = [r for r in data["runs"] if r["version"] == BASELINE]
+    if base:
+        lines.append(
+            f"- {BASELINE}'s results were not run again: they come from earlier runs "
+            f"({', '.join(f'{r["set"]}, {r["cost_usd"]:.4f} USD' for r in base)})."
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -526,6 +552,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     r = sub.add_parser("report", help="render the data file as Markdown")
     r.add_argument("--data", type=Path, required=True)
     r.add_argument("--out", type=Path, required=True)
+    r.add_argument("--option", action="append", choices=OPTIONS, help="default: every option")
     args = parser.parse_args(argv)
     if args.command == "collect":
         runs: dict[str, Path] = {}
@@ -543,7 +570,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"data: {args.out}")
         return 0
     data = json.loads(args.data.read_text(encoding="utf-8"))
-    args.out.write_text(render(data), encoding="utf-8")
+    args.out.write_text(render(data, options=args.option or OPTIONS), encoding="utf-8")
     print(f"report: {args.out}")
     return 0
 

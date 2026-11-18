@@ -5,6 +5,7 @@ Fake models only: no paid call. The tool is tested on fake runs of the tuning an
 
 import hashlib
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -658,8 +659,25 @@ def test_the_report_is_deterministic_and_names_what_was_run(tmp_path: Path) -> N
     assert "KS6C" in first  # named in the rule's not-run list
     assert "do not edit by hand" in first and "not blind" in first
     assert "Recommended: KS6B" in first or "Recommended: none" in first
-    assert "Total:" in first and "all overlap" in first
+    assert "The candidates' runs:" in first and "all overlap" in first
     out = tmp_path / "data.json"
     out.write_text(json.dumps(data), encoding="utf-8")
     md = tmp_path / "r.md"
     assert p3.main(["report", "--data", str(out), "--out", str(md)]) == 0
+
+
+def test_the_published_dev_comparison_is_what_the_tool_renders_from_its_data() -> None:
+    """docs/evals/2026-11-18-m3e-picker-candidates-dev.md is generated, never hand-typed, and its
+    data holds ids, enums and numbers only."""
+    root = Path(__file__).resolve().parents[2] / "docs" / "evals"
+    data = json.loads((root / "2026-11-18-m3e-picker-candidates-dev.json").read_text("utf-8"))
+    for run in data["runs"]:
+        for record in run["records"]:
+            assert all(
+                s is None or re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", s)
+                for s in record
+                if not isinstance(s, int | bool)
+            )
+    text = (root / "2026-11-18-m3e-picker-candidates-dev.md").read_text("utf-8")
+    assert p3.render(data, options=("H",)) == text
+    assert "Recommended: KS6A. Why: intervals overlap: the simplest." in text
