@@ -42,6 +42,8 @@ def month_seals(sealed: frozenset[str]) -> Iterator[None]:
         patch.setattr(mo, "SEALED_SETS", sealed)
         patch.setattr(mo, "DEFAULT_SEEDS", SEEDS)
         patch.setattr(mo, "SPENT_SETS", {})
+        # Each made-up sealed set has a frozen plan, as the real ones do.
+        patch.setattr(mo, "FROZEN_PLAN_SETS", sealed)
         yield
 
 
