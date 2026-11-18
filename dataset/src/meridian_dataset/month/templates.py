@@ -6,8 +6,9 @@ how-to question a guide answers, and null for every other kind. The only placeho
 {colleague}, filled with another person's full name.
 
 Two sets exist. tuning_month is written by the tuning agent and may be read. held_out_month1
-was written blind by a helper that never saw tier0's code, and is sealed (seal.py): nothing
-reads its wording, and error messages here name ids, never text.
+was written blind by a helper that never saw tier0's code, was sealed until its one final
+test on 2026-11-17 (seal.py), and is a dev set since: it may be read, and numbers measured on
+it are dev, not blind. Error messages here name ids, never text.
 """
 
 import json
@@ -19,8 +20,12 @@ POOLS = Path(__file__).parent / "pools"
 TUNING_MONTH = "tuning_month"
 HELD_OUT_MONTH1 = "held_out_month1"
 TEMPLATE_SETS = (TUNING_MONTH, HELD_OUT_MONTH1)
-# Sets a model may run on only by their own name, at their one final test.
-SEALED_SETS = frozenset({HELD_OUT_MONTH1})
+# Sets a model may run on only by their own name, at their one final test. Empty since
+# held_out_month1 was spent; the next blind month is added here when it is sealed.
+SEALED_SETS: frozenset[str] = frozenset()
+# Sets that had their one final test, with its date. Each is a dev set since: it may be read
+# and tuned on, and every number measured on it from then on is "dev, not blind".
+SPENT_SETS: dict[str, str] = {HELD_OUT_MONTH1: "2026-11-17"}
 # The seed of each set's month, fixed before anything ran on either set
 # (docs/plans/milestone-3c-realistic-month.md).
 DEFAULT_SEEDS = {TUNING_MONTH: 1130, HELD_OUT_MONTH1: 7411}

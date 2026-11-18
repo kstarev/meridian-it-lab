@@ -434,6 +434,7 @@ def _run(tmp: Path, *extra: str, model: Fake | None = None, **kw: object) -> int
     return mo.main(argv, make_model=lambda: model or Fake("other"), samples=FEW, **kw)  # type: ignore[arg-type]
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_sealed_set_is_refused_without_its_own_name(tmp_path: Path) -> None:
     model = Fake("other")
     assert _run(tmp_path, "--set", HELD_OUT_MONTH1, model=model) == 2
@@ -441,6 +442,7 @@ def test_the_sealed_set_is_refused_without_its_own_name(tmp_path: Path) -> None:
     assert not tmp_path.exists() or list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_sealed_set_runs_only_at_its_fixed_seed(tmp_path: Path) -> None:
     model = Fake("other")
     argv = ("--set", HELD_OUT_MONTH1, "--final-test=held_out_month1", "--seed", "1")
@@ -448,6 +450,7 @@ def test_the_sealed_set_runs_only_at_its_fixed_seed(tmp_path: Path) -> None:
     assert sum(model.calls.values()) == 0
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_unseal_flag_opens_only_its_own_set(tmp_path: Path) -> None:
     model = Fake("other")
     assert _run(tmp_path, "--set", TUNING_MONTH, "--final-test=held_out_month1", model=model) == 2
@@ -464,6 +467,7 @@ def _pieces(text: str) -> set[str]:
     return out
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_a_sealed_result_holds_ids_kinds_and_outcomes_never_text(tmp_path: Path) -> None:
     """The fake triages everything "other" and the fake picker answers KB-001, so every
     branch of the result is filled; the role signal never runs on the sealed wording."""
@@ -508,6 +512,38 @@ def test_a_sealed_result_holds_ids_kinds_and_outcomes_never_text(tmp_path: Path)
         "repeat_of",
         "runs",
     }
+
+
+def test_month1_runs_as_a_dev_set_without_a_final_test(tmp_path: Path) -> None:
+    assert _run(tmp_path, "--set", HELD_OUT_MONTH1) in (0, 1)
+    jsons = [f for f in tmp_path.iterdir() if f.suffix == ".json"]
+    assert len(jsons) == 1 and jsons[0].name.endswith("-dev.json")
+    result = json.loads(jsons[0].read_text(encoding="utf-8"))
+    assert result["config"]["sealed"] is False
+    assert result["config"]["spent"] == "2026-11-17"
+    summary = jsons[0].with_suffix(".md").read_text(encoding="utf-8")
+    assert "(dev, not blind)" in summary.splitlines()[0]
+    assert "**Dev set, not blind.**" in summary
+    assert "Final test on the sealed set" not in summary and "**Tuning set.**" not in summary
+
+
+def test_a_tuning_month_result_has_no_spent_key_and_no_dev_stem(tmp_path: Path) -> None:
+    assert _run(tmp_path, "--set", TUNING_MONTH) == 0
+    jsons = [f for f in tmp_path.iterdir() if f.suffix == ".json"]
+    assert len(jsons) == 1 and not jsons[0].stem.endswith("-dev")
+    assert "spent" not in json.loads(jsons[0].read_text(encoding="utf-8"))["config"]
+
+
+def test_final_test_is_rejected_when_nothing_is_sealed(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _run(tmp_path, "--set", HELD_OUT_MONTH1, "--final-test=held_out_month1")
+    assert exc.value.code == 2
+
+
+def test_a_spent_stem_ends_in_dev_before_cache() -> None:
+    args = (HELD_OUT_MONTH1, "haiku-3b", "none", 1, 7411)
+    stem = mo.result_stem(*args, spent=True, prompt_cache=True)
+    assert stem.endswith("-dev-cache")
 
 
 def test_a_tuning_run_writes_results_and_never_replaces_them(tmp_path: Path) -> None:
@@ -655,6 +691,7 @@ def test_a_tuning_run_can_take_only_some_kinds(tmp_path: Path) -> None:
     assert "--kinds hardware,multi_question" in summary
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_sealed_month_always_runs_whole(tmp_path: Path) -> None:
     model = Fake("other")
     argv = ("--set", HELD_OUT_MONTH1, "--final-test=held_out_month1", "--kinds", "hardware")
@@ -770,6 +807,7 @@ def _plan(set_name: str, setup: str, **changes: Any) -> str | None:
     return mo.check_sealed_plan(set_name, ALL_SETUPS[setup], **{**_SEALED_OK, **changes})
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_the_sealed_plan_allows_only_its_two_arms_the_picker_and_k_3() -> None:
     assert _plan(TUNING_MONTH, "haiku-3b", picker="none", k=1) is None
     assert _plan(TUNING_MONTH, "haiku-3d2", picker_prompt="KS2", own_model_picker=True) is None
@@ -786,6 +824,7 @@ def test_the_sealed_plan_allows_only_its_two_arms_the_picker_and_k_3() -> None:
         assert refusal is not None and "k = 3" in refusal
 
 
+@pytest.mark.usefixtures("sealed_month1")
 def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

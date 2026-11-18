@@ -1,8 +1,8 @@
 """How many senders in a month go over the ladder's same-day limit.
 
     python -m tier0.evals.month_same_day --set tuning_month [--results out/month/<result>.json ...]
-    python -m tier0.evals.month_same_day --set held_out_month1 --final-test=held_out_month1
-        --results <result>.json ...
+    python -m tier0.evals.month_same_day --set held_out_month1 --results <result>.json ...
+        (held_out_month1 is a dev set since 2026-11-17; `--final-test=SET` is for a sealed set)
 
 The month runner has no verification ladder, so it grades every request as if it were under
 the limit. ADR-043's limit is 3 requests for one account and one action inside a rolling 24

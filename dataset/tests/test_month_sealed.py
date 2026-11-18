@@ -1,7 +1,9 @@
-"""The blind month templates are sealed (milestone 3c). Count-only: nothing here shows text.
+"""The blind month templates: sealed until 2026-11-17, a dev set since (milestone 3c).
+Count-only: nothing here shows text.
 
 held_out_month1.json was written blind by a helper that never saw tier0's code and copied in
-byte for byte. These tests check its digest, its shape against the counts the helper
+byte for byte. It is still pinned by digest, because the published result was measured on
+these bytes. These tests check its digest, its shape against the counts the helper
 reported, and that the tuning templates share no sentence with it. Every assertion compares
 counts, ids, kinds, languages or booleans, so a failure prints numbers, never wording.
 """
@@ -13,6 +15,7 @@ from meridian_dataset.month import (
     DEFAULT_SEEDS,
     HELD_OUT_MONTH1,
     SEALED_SETS,
+    SPENT_SETS,
     TUNING_MONTH,
     load_templates,
     month_digest,
@@ -43,8 +46,9 @@ KNOWN_KINDS = {
 }
 
 
-def test_the_seal_holds() -> None:
-    assert HELD_OUT_MONTH1 in SEALED_SETS
+def test_month1_is_spent_and_still_pinned() -> None:
+    assert HELD_OUT_MONTH1 not in SEALED_SETS
+    assert SPENT_SETS[HELD_OUT_MONTH1] == "2026-11-17"
     assert file_digest(HELD_OUT_MONTH1) == HELD_OUT_MONTH1_SHA256
 
 

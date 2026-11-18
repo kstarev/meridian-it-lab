@@ -10,7 +10,8 @@ reason. Every ticket records its template, so intervals can resample templates.
     templates.py  the 15 kinds, the expected outcome of each, and loading a template set
     personas.py   the 230 people who send tickets
     generator.py  build_month(): the seeded month
-    seal.py       the SHA-256 seal on the blind set, held_out_month1
+    seal.py       the SHA-256 of held_out_month1's file: sealed until 2026-11-17, a dev set
+                  since, still pinned
 """
 
 from meridian_dataset.month.generator import (
@@ -34,6 +35,7 @@ from meridian_dataset.month.templates import (
     KINDS,
     LANGS,
     SEALED_SETS,
+    SPENT_SETS,
     TEMPLATE_SETS,
     TUNING_MONTH,
     Template,
@@ -65,6 +67,7 @@ __all__ = [
     "MONTH_GENERATOR_VERSION",
     "MONTH_SIZE",
     "SEALED_SETS",
+    "SPENT_SETS",
     "TEMPLATE_SETS",
     "TUNING_MONTH",
     "Month",

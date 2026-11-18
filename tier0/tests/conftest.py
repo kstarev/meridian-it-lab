@@ -3,7 +3,9 @@
 import pytest
 
 from meridian_dataset import DEFAULT_SEED, World, generate
+from meridian_dataset.month import HELD_OUT_MONTH1
 from tier0.clock import MockClock, parse_time
+from tier0.evals import month as month_eval
 from tier0.mocks.directory import MockDirectory
 from tier0.mocks.linear import MockLinear
 from tier0.mocks.slack import MockSlack
@@ -87,3 +89,10 @@ def linear(clock: MockClock) -> MockLinear:
 @pytest.fixture
 def tickets(linear: MockLinear) -> LinearTicketAdapter:
     return LinearTicketAdapter(linear)
+
+
+@pytest.fixture
+def sealed_month1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """held_out_month1 stands in for a sealed set, so the sealed machinery stays tested."""
+    monkeypatch.setattr(month_eval, "SEALED_SETS", frozenset({HELD_OUT_MONTH1}))
+    monkeypatch.setattr(month_eval, "SPENT_SETS", {})

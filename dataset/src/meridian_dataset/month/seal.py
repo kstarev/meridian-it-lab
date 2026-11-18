@@ -1,9 +1,10 @@
-"""The seal on the blind month templates (milestone 3c).
+"""The SHA-256 of the month templates written blind (milestone 3c).
 
 held_out_month1.json was written blind by a helper that never saw tier0's code. It was
-copied here byte for byte and is sealed by the SHA-256 of the file's bytes: a test fails if
-one byte changes. Nobody tuning tier0 reads its wording; every check on it prints counts,
-ids, kinds, languages and booleans only.
+copied here byte for byte and sealed by the SHA-256 of the file's bytes until its one final
+test on 2026-11-17. It is a dev set since (SPENT_SETS) and may be read. The digest still
+pins it, because the published result of 2026-11-17 was measured on exactly these bytes: a
+test fails if one byte changes.
 """
 
 import hashlib
