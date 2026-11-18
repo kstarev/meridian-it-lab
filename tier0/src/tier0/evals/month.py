@@ -808,6 +808,10 @@ ARM_ROUTE: dict[str, dict[str, int]] = {
 # two arms, each with the Sonnet picker (PICKER_MODEL, PICKER_PROMPT), at this k.
 SEALED_ARMS = ("haiku-3d2", "sonnet-3d2")
 SEALED_K = 3
+# The sealed sets whose one run has a frozen plan above. held_out_month1's ran on 2026-11-17.
+# held_out_month2 (milestone 3e) gets its plan when the owner picks its picker prompt: until
+# then every real run of it is refused (docs/plans/milestone-3e-month2-rules.md).
+FROZEN_PLAN_SETS: frozenset[str] = frozenset({"held_out_month1"})
 
 
 def measured_month_cost(
@@ -920,6 +924,11 @@ def check_sealed_plan(
     Sonnet picker with its frozen prompt and no override, and k = 3 (R26 (a), ADR-048)."""
     if set_name not in SEALED_SETS:
         return None
+    if set_name not in FROZEN_PLAN_SETS:
+        return (
+            f"{set_name}'s run has no frozen plan yet: it waits for the owner's pick of its "
+            "picker prompt (docs/plans/milestone-3e-month2-rules.md)"
+        )
     if setup.name not in SEALED_ARMS:
         return (
             f"{set_name} runs only on its frozen arms, {' and '.join(SEALED_ARMS)} (ADR-048), "

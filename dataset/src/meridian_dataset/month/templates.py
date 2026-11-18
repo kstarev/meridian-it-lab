@@ -19,16 +19,18 @@ POOLS = Path(__file__).parent / "pools"
 
 TUNING_MONTH = "tuning_month"
 HELD_OUT_MONTH1 = "held_out_month1"
-TEMPLATE_SETS = (TUNING_MONTH, HELD_OUT_MONTH1)
-# Sets a model may run on only by their own name, at their one final test. Empty since
-# held_out_month1 was spent; the next blind month is added here when it is sealed.
-SEALED_SETS: frozenset[str] = frozenset()
+HELD_OUT_MONTH2 = "held_out_month2"
+TEMPLATE_SETS = (TUNING_MONTH, HELD_OUT_MONTH1, HELD_OUT_MONTH2)
+# Sets a model may run on only by their own name, at their one final test. held_out_month2 was
+# written blind from docs/plans/briefs/held_out_month2-brief.md and sealed on 2026-11-18, after
+# its pass rules were committed (docs/plans/milestone-3e-month2-rules.md).
+SEALED_SETS: frozenset[str] = frozenset({HELD_OUT_MONTH2})
 # Sets that had their one final test, with its date. Each is a dev set since: it may be read
 # and tuned on, and every number measured on it from then on is "dev, not blind".
 SPENT_SETS: dict[str, str] = {HELD_OUT_MONTH1: "2026-11-17"}
 # The seed of each set's month, fixed before anything ran on either set
 # (docs/plans/milestone-3c-realistic-month.md).
-DEFAULT_SEEDS = {TUNING_MONTH: 1130, HELD_OUT_MONTH1: 7411}
+DEFAULT_SEEDS = {TUNING_MONTH: 1130, HELD_OUT_MONTH1: 7411, HELD_OUT_MONTH2: 2718}
 
 KINDS: tuple[str, ...] = (
     "own_username",

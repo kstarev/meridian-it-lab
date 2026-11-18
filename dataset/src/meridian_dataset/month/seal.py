@@ -14,6 +14,11 @@ from meridian_dataset.month.templates import POOLS
 HELD_OUT_MONTH1_SHA256 = "f7d51f670fffac707d99d611d8ab16213bace2bf6bd03190da55144580548e00"
 """Set on 2026-11-15, when the file was copied in, before any model ran on it."""
 
+HELD_OUT_MONTH2_SHA256 = "39175f9cf35532fece58182f93e52ccbf0c4683f9e453d6bce437b5b8059ee0e"
+"""Set on 2026-11-18, when the file was copied in byte for byte from the blind writer's output,
+before any model ran on it. Nobody tuning tier0 reads its wording; every check on it prints
+counts, ids, kinds, languages and booleans only."""
+
 
 def file_digest(name: str) -> str:
     """SHA-256 hex digest of a template set's file, byte for byte."""
