@@ -1,0 +1,2 @@
+# Sealed sets: git prints no line of them in grep, diff, show or log -p (tools/sealed_paths.py).
+held_out_* -diff

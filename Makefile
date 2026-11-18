@@ -11,7 +11,7 @@ POOL ?= tuning
 COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data access-data access-plan lint format test eval demo holidays-preview review-pool images
+.PHONY: help setup data access-data access-plan lint format test eval demo holidays-preview review-pool images search
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -53,3 +53,7 @@ images: ## Regenerate the README's animated flow pictures in docs/img
 
 review-pool: ## Print a message pool's wording for human review (POOL=tuning, held_out_v3, ...)
 	$(UV_RUN) python -m meridian_dataset.review $(POOL)
+
+search: ## Search tracked files, leaving sealed paths out (make search q='pattern')
+	@test -n "$(q)" || { echo "usage: make search q='pattern'" >&2; exit 2; }
+	python3 tools/search.py "$(q)"
