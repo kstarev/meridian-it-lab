@@ -33,7 +33,7 @@ from typing import Any
 from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.generator import _fill_colleague
 from meridian_dataset.names import TUNING_3D_POOL
-from tier0.evals import m3_selection
+from tier0.evals import caching, m3_selection
 from tier0.evals.m3_selection import SEVERAL, Instance
 from tier0.evals.setups import ALL_SETUPS
 from tier0.netguard import guard_for_model
@@ -111,7 +111,7 @@ def _save(path: Path, result: dict[str, Any]) -> None:
     partial.replace(path)
 
 
-def screen(setup_name: str, *, model_factory: Any = None) -> list[Path]:
+def screen(setup_name: str, *, model_factory: Any = None, prompt_cache: bool = False) -> list[Path]:
     setup = ALL_SETUPS[setup_name]
     cases = instances_3d()
     saved = []
@@ -124,7 +124,9 @@ def screen(setup_name: str, *, model_factory: Any = None) -> list[Path]:
             saved.append(path)
             continue
         made = model_factory(model) if model_factory is not None else None
-        result = m3_selection.score(model, version, model=made, cases=[c for c, _ in cases])
+        result = m3_selection.score(
+            model, version, model=made, cases=[c for c, _ in cases], prompt_cache=prompt_cache
+        )
         result["set"] = "tuning_3d"
         result["by_label"] = by_label(result, cases)
         _save(path, result)
@@ -132,20 +134,24 @@ def screen(setup_name: str, *, model_factory: Any = None) -> list[Path]:
     return saved
 
 
-def score_all(model: str, version: str, *, model_factory: Any = None) -> Path:
+def score_all(
+    model: str, version: str, *, model_factory: Any = None, prompt_cache: bool = False
+) -> Path:
     """One version on every tuning message: 3b's 116 plus 3d's, for the selection rule."""
     path = _path(model, version, "all")
     if path.exists():
         return path
     cases = [*m3_selection.instances(), *(c for c, _ in instances_3d())]
     made = model_factory(model) if model_factory is not None else None
-    result = m3_selection.score(model, version, model=made, cases=cases)
+    result = m3_selection.score(model, version, model=made, cases=cases, prompt_cache=prompt_cache)
     result["set"] = "all"
     _save(path, result)
     return path
 
 
-def score_several(model: str, version: str, *, model_factory: Any = None) -> Path:
+def score_several(
+    model: str, version: str, *, model_factory: Any = None, prompt_cache: bool = False
+) -> Path:
     """One triage version on R25's several-request tuning messages, k = 3."""
     if m3_selection.task_of(version) != "triage":
         raise ValueError("R25's floor is scored on triage versions only")
@@ -153,7 +159,9 @@ def score_several(model: str, version: str, *, model_factory: Any = None) -> Pat
     if path.exists():
         return path
     made = model_factory(model) if model_factory is not None else None
-    result = m3_selection.score(model, version, model=made, cases=instances_several())
+    result = m3_selection.score(
+        model, version, model=made, cases=instances_several(), prompt_cache=prompt_cache
+    )
     result["set"] = SEVERAL
     _save(path, result)
     return path
@@ -339,6 +347,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     which = a.add_mutually_exclusive_group(required=True)
     which.add_argument("--all", action="store_true")
     which.add_argument("--several", action="store_true", help="R25's several-request messages")
+    caching.add_flags(s)
+    caching.add_flags(a)
     sub.add_parser("show")
     r = sub.add_parser("render")
     r.add_argument("--out", type=Path, required=True)
@@ -350,14 +360,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.out.write_text(render())
         print(f"written: {args.out}")
         return 0
+    # Tuning data only, so never sealed: on for these Claude runs unless turned off.
+    prompt_cache, refusal = caching.resolve(args.prompt_cache, provider="claude", sealed=False)
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
     with guard_for_model("claude"):
         if args.command == "screen":
-            for path in screen(args.setup):
+            for path in screen(args.setup, prompt_cache=prompt_cache):
                 print(f"saved: {path}")
         elif args.several:
-            print(f"saved: {score_several(args.model, args.version)}")
+            print(f"saved: {score_several(args.model, args.version, prompt_cache=prompt_cache)}")
         else:
-            print(f"saved: {score_all(args.model, args.version)}")
+            print(f"saved: {score_all(args.model, args.version, prompt_cache=prompt_cache)}")
     return 0
 
 

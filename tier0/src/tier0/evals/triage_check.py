@@ -21,6 +21,7 @@ from meridian_dataset.generator import _fill_colleague
 from meridian_dataset.names import MESSAGE_POOLS
 from tier0 import messages
 from tier0.agent import parse_triage, triage_request
+from tier0.evals import caching
 from tier0.evals.__main__ import _model_factory
 from tier0.evals.prompt_history import VERSIONS
 from tier0.evals.runner import describe_model
@@ -97,6 +98,7 @@ def _run_check(model: Any, pool_name: str, k: int, model_seed_base: int) -> dict
     wrong: Counter[tuple[str, int, str, str]] = Counter()
     for scenario, _, _, _ in instances:
         per[scenario]["instances"] += 1
+    cache_written = cache_read = 0
     for run in range(1, k + 1):
         if seeded:
             model.seed = model_seed_base + run
@@ -105,6 +107,9 @@ def _run_check(model: Any, pool_name: str, k: int, model_seed_base: int) -> dict
                 response = model.complete(triage_request(text))
             except ModelError:
                 response = None
+            if response is not None:
+                cache_written += response.cache_write_tokens
+                cache_read += response.cache_read_tokens
             got = parse_triage(response)
             per[scenario]["runs"] += 1
             if got == expected:
@@ -118,7 +123,13 @@ def _run_check(model: Any, pool_name: str, k: int, model_seed_base: int) -> dict
     }
     runs = sum(v["runs"] for v in per.values())
     correct = sum(v["correct"] for v in per.values())
+    cache = (
+        {"prompt_cache": True, "cache_write_tokens": cache_written, "cache_read_tokens": cache_read}
+        if cache_written or cache_read
+        else {}
+    )
     return {
+        **cache,
         "pool": pool_name,
         "label": _LABELS.get(pool_name, "sealed"),
         "provider": model.provider,
@@ -175,6 +186,16 @@ def render_markdown(result: dict[str, Any]) -> str:
         f"temperature {'none' if temp is None else format(temp, 'g')}, k = {result['k']}.",
         "",
         *_provenance_lines(result),
+        *(
+            [
+                "Prompt cache on: each call's system prompt is cached for 5 minutes. Input "
+                f"tokens written to the cache: {result['cache_write_tokens']:,}; read from it: "
+                f"{result['cache_read_tokens']:,}.",
+                "",
+            ]
+            if result.get("prompt_cache")
+            else []
+        ),
         "| Scenario | Instances | Runs | Correct | Score |",
         "| --- | --- | --- | --- | --- |",
     ]
@@ -216,6 +237,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Ollama only: run r uses sampling seed BASE + r (default %(default)s)",
     )
     parser.add_argument("--out", type=Path, default=Path("out/triage_check"))
+    caching.add_flags(parser)
     args = parser.parse_args(argv)
 
     try:
@@ -234,7 +256,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
 
-    model = _model_factory(args.model, args.temperature)()
+    # A sealed pool was refused above, so this run is never sealed (evals/caching.py).
+    prompt_cache, refusal = caching.resolve(args.prompt_cache, provider=args.model, sealed=False)
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
+    model = _model_factory(args.model, args.temperature, prompt_cache=prompt_cache)()
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
     guard = guard_for_model(args.model)
     with guard:
@@ -246,7 +273,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         r"[^A-Za-z0-9._-]",
         "-",
         f"{args.pool}-{result['provider']}-{result['model']}"
-        + ("" if args.prompt is None else f"-prompt-{args.prompt}"),
+        + ("" if args.prompt is None else f"-prompt-{args.prompt}")
+        + ("-cache" if prompt_cache else ""),
     )
     args.out.mkdir(parents=True, exist_ok=True)
     json_path = args.out / f"{name}.json"

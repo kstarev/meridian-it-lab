@@ -430,7 +430,18 @@ def test_template_bootstrap_total_brackets_the_sum() -> None:
 
 
 def _run(tmp: Path, *extra: str, model: Fake | None = None, **kw: object) -> int:
-    argv = ["run", "--setup", "haiku-3b", "--k", "1", "--out", str(tmp), *extra]
+    # These tests are about the uncached run; the cache default has its own tests.
+    argv = [
+        "run",
+        "--setup",
+        "haiku-3b",
+        "--k",
+        "1",
+        "--no-prompt-cache",
+        "--out",
+        str(tmp),
+        *extra,
+    ]
     return mo.main(argv, make_model=lambda: model or Fake("other"), samples=FEW, **kw)  # type: ignore[arg-type]
 
 
@@ -726,6 +737,7 @@ def _picker_run(tmp: Path, setup: str) -> tuple[dict[str, Any], str, _CountingPi
     model = Fake("other")
     picker = _CountingPicker()
     argv = ["run", "--set", TUNING_MONTH, "--setup", setup, "--k", "1", "--picker", "knowledge"]
+    argv.append("--no-prompt-cache")  # these tests are about the uncached run
     code = mo.main(
         [*argv, "--out", str(tmp)],
         make_model=lambda: model,  # type: ignore[arg-type, return-value]

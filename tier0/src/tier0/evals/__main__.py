@@ -21,7 +21,7 @@ from meridian_dataset.generator import (
 )
 from tier0 import roles
 from tier0.agent import Prompts, own_account_check_request, triage_request
-from tier0.evals import watch
+from tier0.evals import caching, watch
 from tier0.evals.report import write_report
 from tier0.evals.runner import PIPELINE_CHECK_LABEL, run_eval
 from tier0.evals.setups import (
@@ -63,7 +63,13 @@ def split_label(seed: int) -> str:
     }.get(seed, "tuning")
 
 
-def _model_factory(name: str, temperature: float | None = None):  # type: ignore[no-untyped-def]
+def _model_factory(  # type: ignore[no-untyped-def]
+    name: str, temperature: float | None = None, *, prompt_cache: bool = False
+):
+    if name == "claude":
+        # This run's own choice (evals/caching.py), not the live agent's environment option.
+        claude_env = {**os.environ, "TIER0_CLAUDE_PROMPT_CACHE": "1" if prompt_cache else "0"}
+        return lambda: build_model(name, env=claude_env)
     if name != "ollama" or temperature is None:
         return lambda: build_model(name)
     env = {**os.environ, "TIER0_OLLAMA_TEMPERATURE": str(temperature)}
@@ -146,6 +152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="skip the untimed warm-up calls real models get before the runs",
     )
+    caching.add_flags(parser)
     args = parser.parse_args(argv)
     setup = ALL_SETUPS[args.setup] if args.setup else None
     roles.TKT004_FIX = args.tkt004_fix == "on"
@@ -186,6 +193,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"refused: {error}", file=sys.stderr)
         return 2
 
+    # A run on a sealed pool keeps the cache off until the owner rules (evals/caching.py).
+    prompt_cache, refusal = caching.resolve(
+        args.prompt_cache, provider=args.model, sealed=args.final_comparison is not None
+    )
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
+
     if args.publish is not None and args.model == "stub":
         print("not published: stub-model results are a pipeline check", file=sys.stderr)
         return 2
@@ -206,11 +221,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     features = None
     if setup is not None:
-        factory = setup.factory(args.temperature if args.temperature is not None else 0.5)
+        temperature = args.temperature if args.temperature is not None else 0.5
+        factory = (
+            setup.factory(temperature, prompt_cache=True)
+            if prompt_cache
+            else setup.factory(temperature)
+        )
         prompts = setup.prompts()
         features = setup.features()
     else:
-        factory, prompts = _model_factory(args.model, args.temperature), None
+        factory = _model_factory(args.model, args.temperature, prompt_cache=prompt_cache)
+        prompts = None
 
     # The runs' factory; for a big model it times every call against its estimate.
     run_factory = factory
@@ -227,6 +248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             prompts=prompts,
             setup=setup.name if setup is not None else None,
             features=features,
+            prompt_cache=prompt_cache,
         )
 
     # Stub and Ollama runs stay on this machine; a Claude run may reach only its API host.
@@ -273,7 +295,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             r"[^A-Za-z0-9._-]",
             "-",
             f"{report.run_date}-{split_label(report.seed)}-{report.provider}-"
-            f"{setup.name if setup is not None else report.model}",
+            f"{setup.name if setup is not None else report.model}"
+            f"{'-cache' if report.prompt_cache else ''}",
         )
         args.publish.mkdir(parents=True, exist_ok=True)
         published = args.publish / f"{name}.md"

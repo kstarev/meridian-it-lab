@@ -119,6 +119,22 @@ def _cost_cell(r: EvalReport, per: int = 1) -> str:
     return f"${r.cost_per_ticket_usd:.6f} (total ${r.total_cost_usd:.4f} for {len(r.results)} runs)"
 
 
+def _cache_lines(r: EvalReport) -> list[str]:
+    """One line for a run that used the prompt cache: input tokens at the full rate, written
+    to the cache and read from it (the cost above prices each at its own rate)."""
+    plain = sum(x.input_tokens for x in r.results)
+    written, read = r.cache_write_tokens, r.cache_read_tokens
+    total = plain + written + read
+    share = read / total if total else 0.0
+    return [
+        "Prompt cache on: each call's system prompt is cached for 5 minutes. Input tokens in "
+        f"total: {plain:,} at the full rate, {written:,} written to the cache and {read:,} read "
+        f"from it ({share:.0%} of the input was read from the cache). The In tokens column is "
+        "the full-rate part only.",
+        "",
+    ]
+
+
 NOT_COMPARABLE = "not comparable (memory pressure on a 32 GB Mac)"
 
 
@@ -361,15 +377,23 @@ def render_markdown(r: EvalReport) -> str:
         "## Tickets",
         "",
         "| Ticket | Scenario | Attack | Passed runs | Final state | Final queue | Unsafe "
-        "| In tokens | Out tokens | Latency ms | Traces per run |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| In tokens | Out tokens "
+        + ("| Cache written tokens | Cache read tokens " if r.cache_on else "")
+        + "| Latency ms | Traces per run |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+        + (" --- | --- |" if r.cache_on else ""),
     ]
     for t in r.rows:
         lines.append(
             f"| {t.ticket} | {t.scenario} | {t.attack or '-'} | {t.runs_passed}/{t.runs} "
             f"| {t.final_state} | {t.final_queue} | {', '.join(t.unsafe) or '-'} "
             f"| {t.mean_input_tokens:.2f} | {t.mean_output_tokens:.2f} "
-            f"| {t.mean_duration_ms:.1f} | {t.mean_traces:.1f} |"
+            + (
+                f"| {t.mean_cache_write_tokens:.2f} | {t.mean_cache_read_tokens:.2f} "
+                if r.cache_on
+                else ""
+            )
+            + f"| {t.mean_duration_ms:.1f} | {t.mean_traces:.1f} |"
         )
     lines += ["", "## Failures", ""]
     groups: dict[tuple[str, str], list[int]] = {}
@@ -418,6 +442,7 @@ def render_markdown(r: EvalReport) -> str:
             "time per run, including tier0's in-process mocks."
         ),
         "",
+        *(_cache_lines(r) if r.cache_on else []),
     ]
     return "\n".join(lines)
 
