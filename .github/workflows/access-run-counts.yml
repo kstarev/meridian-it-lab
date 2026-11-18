@@ -1,0 +1,65 @@
+# Access-as-Code: pattern counts and ids from two finished runs, nothing else.
+# Manual only (workflow_dispatch), from main only, behind the `access-ai` environment, so it
+# needs the owner's approval before the job starts. It makes no API call and references no
+# secret other than the default `github.token`. It downloads the `access-final-score` artifact
+# of one run and the `access-red-team` artifact of another into $RUNNER_TEMP, prints counts,
+# ids and enums only (the command checks every string against an allow-list and refuses
+# otherwise), and uploads nothing.
+name: Access run counts
+
+on:
+  workflow_dispatch:
+    inputs:
+      final_run_id:
+        description: "Run id of the final-score run (artifact access-final-score)"
+        type: string
+        default: "44080012770"
+      redteam_run_id:
+        description: "Run id of the red-team run (artifact access-red-team)"
+        type: string
+        default: "44083059028"
+
+permissions: {}
+
+jobs:
+  counts:
+    name: Print the counts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: access-ai
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: make setup
+
+      - name: Check the counting tool on hand-written data
+        run: uv run --locked pytest access/tests/test_run_counts.py -q
+
+      - name: Download the two artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_RUN_ID: ${{ inputs.final_run_id }}
+          REDTEAM_RUN_ID: ${{ inputs.redteam_run_id }}
+        run: |
+          gh run download "$FINAL_RUN_ID" -n access-final-score -D "$RUNNER_TEMP/final"
+          gh run download "$REDTEAM_RUN_ID" -n access-red-team -D "$RUNNER_TEMP/redteam"
+
+      - name: Print counts, ids and enums only
+        run: >
+          uv run --locked python -m meridian_access.ai.run_counts
+          --final-details "$RUNNER_TEMP/final/details.json"
+          --redteam-report "$RUNNER_TEMP/redteam/report.json"
+          --unseal held_out_redteam1
