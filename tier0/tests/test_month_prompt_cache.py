@@ -1,6 +1,7 @@
-"""The month runner's opt-in prompt cache: counting the cache tokens, pricing them, the names
-and the refusals. Fake models and the tuning month only: no paid call, and no test here loads,
-sizes or runs the sealed month.
+"""The month runner's prompt cache: counting the cache tokens, pricing them, the names and the
+refusals. It is on by default for a Claude setup on a set that isn't sealed; that default has
+its own tests in test_prompt_cache_default.py. Fake models and the tuning month only: no paid
+call, and no test here loads, sizes or runs the sealed month.
 """
 
 import json
@@ -119,7 +120,7 @@ def test_counted_model_counts_cache_tokens_per_task() -> None:
 
 
 def test_a_run_with_the_prompt_cache_counts_prices_and_says_so(tmp_path: Path) -> None:
-    assert _run(tmp_path, "--prompt-cache") in SCORED
+    assert _run(tmp_path, "--prompt-cache") in SCORED  # asked for; the same as the default
     stem = _stem(True)
     assert stem.endswith("-cache")
     for suffix in (".json", ".md", ".runs.jsonl"):
@@ -133,19 +134,21 @@ def test_a_run_with_the_prompt_cache_counts_prices_and_says_so(tmp_path: Path) -
     assert c["cost_usd"] == pytest.approx(_expected_cost(c["calls"]))
     assert json.loads(lines[0])["header"]["prompt_cache"] is True
     assert any(line.startswith("- Prompt cache on:") for line in md.splitlines())
-    assert "--prompt-cache" in md
+    # asking for what is already the default leaves the recorded command as it would be
+    assert "--prompt-cache" not in md and "--no-prompt-cache" not in md
 
 
-def test_a_run_without_the_flag_is_unchanged_and_still_prices_cache_tokens(
+def test_a_run_without_the_cache_is_unchanged_and_still_prices_cache_tokens(
     tmp_path: Path,
 ) -> None:
-    assert _run(tmp_path) in SCORED
+    assert _run(tmp_path, "--no-prompt-cache") in SCORED
     assert "-cache" not in _stem(False)
     result, md, lines = _load(tmp_path, False)
     c = result["config"]
     assert not {"prompt_cache", "cache_write_tokens", "cache_read_tokens"} & set(c)
     assert "prompt_cache" not in json.loads(lines[0])["header"]
     assert "Prompt cache" not in md and "--prompt-cache" not in md
+    assert "--no-prompt-cache" in md  # not the default, so the recorded command says so
     assert c["cost_usd"] == pytest.approx(_expected_cost(c["calls"]))
 
 
@@ -220,7 +223,7 @@ def test_the_setup_factory_turns_the_cache_on_for_claude_only() -> None:
 def test_an_older_result_without_the_cache_keys_renders_as_the_run_wrote_it(
     tmp_path: Path,
 ) -> None:
-    assert _run(tmp_path) in SCORED
+    assert _run(tmp_path, "--no-prompt-cache") in SCORED
     result, md, _ = _load(tmp_path, False)
     assert mo.render(result, md_command(md)) == md
 

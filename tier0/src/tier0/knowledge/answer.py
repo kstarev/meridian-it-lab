@@ -62,6 +62,9 @@ class Outcome:
     input_tokens: int = 0
     output_tokens: int = 0
     fit: bool | None = None  # what the fit check said, when there was one
+    # With prompt caching on: input tokens written to and read from the cache (0 otherwise).
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 def postable(guides: Sequence[Guide]) -> tuple[Guide, ...]:
@@ -144,6 +147,7 @@ def answer_question(
         pointer=pointer if asks else None,
     )
     tokens_in, tokens_out = response.input_tokens, response.output_tokens
+    cache_w, cache_r = response.cache_write_tokens, response.cache_read_tokens
     fit: bool | None = None
     if mode == "fit" and kind == GUIDE:
         assert fit_system is not None  # noqa: S101
@@ -151,15 +155,28 @@ def answer_question(
         try:
             second = model.complete(fit_request(text, entry, fit_system))
         except ModelError:
-            return Outcome(HAND_OFF, None, FIT_FAILED, pick, screen, tokens_in, tokens_out, None)
+            return Outcome(
+                HAND_OFF,
+                None,
+                FIT_FAILED,
+                pick,
+                screen,
+                tokens_in,
+                tokens_out,
+                None,
+                cache_w,
+                cache_r,
+            )
         tokens_in += second.input_tokens
         tokens_out += second.output_tokens
+        cache_w += second.cache_write_tokens
+        cache_r += second.cache_read_tokens
         fit = parse_fit(second)
         if fit is None:
             kind, guide, why = HAND_OFF, None, FIT_FAILED
         elif not fit:
             kind, guide, why = HAND_OFF, None, FIT_NO
-    return Outcome(kind, guide, why, pick, screen, tokens_in, tokens_out, fit)
+    return Outcome(kind, guide, why, pick, screen, tokens_in, tokens_out, fit, cache_w, cache_r)
 
 
 def reply_text(guide: Guide, lang: str = "en") -> str:

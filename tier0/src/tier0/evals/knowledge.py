@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import Any
 
 from meridian_dataset import knowledge as kn
+from tier0.evals import caching
 from tier0.evals.stats import wilson
 from tier0.knowledge import sealed
 from tier0.knowledge.answer import GUIDE, HAND_OFF, answer_question, decide, entries_for
@@ -195,8 +196,11 @@ def score(
     model: ModelAdapter | None = None,
     final_test: str | None = None,
     on_progress: Callable[[int, int], None] | None = None,
+    prompt_cache: bool = False,
 ) -> dict[str, Any]:
-    """Score one prompt version of the picker on one model and one question set."""
+    """Score one prompt version of the picker on one model and one question set. With
+    `prompt_cache` the model's system prompt is cached for 5 minutes (never on a sealed set:
+    the command line decides, evals/caching.py)."""
     sealed.require_unsealed(set_name, final_test=final_test)
     if set_name in sealed.SEALED_SETS and FROZEN.get(model_name) != version:
         frozen = FROZEN.get(model_name)
@@ -207,10 +211,10 @@ def score(
     qset = kn.load_question_set(set_name)
     approved = frozenset(e.id for e in entries_for(kn.load_runbooks()))
     poison = poison_of(qset)
-    model = model if model is not None else ClaudeModel(model=model_name)
+    model = model if model is not None else ClaudeModel(model=model_name, cache_system=prompt_cache)
     show_text = set_name not in sealed.SEALED_SETS
     runs: list[dict[str, Any]] = []
-    tokens_in = tokens_out = 0
+    tokens_in = tokens_out = cache_written = cache_read = 0
     started = time.perf_counter()
     total = k * len(qset.questions)
     for run in range(1, k + 1):
@@ -222,6 +226,8 @@ def score(
                 response = model.complete(pick_request(question.text, entries, system))
                 tokens_in += response.input_tokens
                 tokens_out += response.output_tokens
+                cache_written += response.cache_write_tokens
+                cache_read += response.cache_read_tokens
                 pick = parse_pick(response, entries)
             except ModelError:
                 pick = None
@@ -246,6 +252,7 @@ def score(
             if on_progress is not None:
                 on_progress(len(runs), total)
     provider = getattr(model, "provider", "")
+    cached = prompt_cache or bool(cache_written or cache_read)
     return {
         "model": model_name,
         "version": version,
@@ -256,7 +263,24 @@ def score(
         "questions": len(qset.questions),
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
-        "cost_usd": cost_usd(provider, model_name, tokens_in, tokens_out),
+        "cost_usd": cost_usd(
+            provider,
+            model_name,
+            tokens_in,
+            tokens_out,
+            cache_write_tokens=cache_written,
+            cache_read_tokens=cache_read,
+        ),
+        # Only for a score that used the prompt cache, so an uncached score keeps its shape.
+        **(
+            {
+                "prompt_cache": True,
+                "cache_write_tokens": cache_written,
+                "cache_read_tokens": cache_read,
+            }
+            if cached
+            else {}
+        ),
         "seconds": round(time.perf_counter() - started, 1),
         "summary": {arm: summarise(runs, arm) for arm in ARMS},
         # No wording: whether each poisoned guide's instruction is model-visible, and flagged.
@@ -898,6 +922,7 @@ def render(results: Sequence[dict[str, Any]], picks: dict[str, str]) -> str:
         "",
         f"Total spent on these scores: ${sum(r['cost_usd'] for r in results):.2f}.",
         "",
+        *caching.result_note(results),
     ]
     return "\n".join(lines)
 
@@ -1059,6 +1084,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     s.add_argument("--set", default=kn.TUNING, choices=kn.QUESTION_SETS)
     s.add_argument("--k", type=int, default=1)
     s.add_argument("--final-test", default=None, choices=sorted(sealed.SEALED_SETS))
+    caching.add_flags(s)
     e = sub.add_parser("estimate")
     e.add_argument("--model", required=True, choices=sorted(PRICES_PER_MTOK))
     e.add_argument("--set", default=kn.TUNING, choices=kn.QUESTION_SETS)
@@ -1139,13 +1165,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     except sealed.SealedSetError as error:
         print(f"refused: {error}", file=sys.stderr)
         return 2
+    # On for a set that isn't sealed; a sealed set keeps it off until the owner rules.
+    prompt_cache, refusal = caching.resolve(
+        args.prompt_cache, provider="claude", sealed=args.set in sealed.SEALED_SETS
+    )
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
     out = path_for(args.model, args.version, args.set, args.k)
     if out.exists():
         print(f"refused: {out} exists; scores are never overwritten", file=sys.stderr)
         return 2
     with guard_for_model("claude"):
         result = score(
-            args.model, args.version, set_name=args.set, k=args.k, final_test=args.final_test
+            args.model,
+            args.version,
+            set_name=args.set,
+            k=args.k,
+            final_test=args.final_test,
+            prompt_cache=prompt_cache,
         )
     out.parent.mkdir(parents=True, exist_ok=True)
     partial = out.with_suffix(".json.partial")

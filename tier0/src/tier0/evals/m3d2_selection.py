@@ -32,7 +32,7 @@ from typing import Any
 from meridian_dataset import DEFAULT_SEED, generate
 from meridian_dataset.generator import _fill_colleague
 from meridian_dataset.names import TUNING_3D2_POOL
-from tier0.evals import m3_selection, m3d_screening
+from tier0.evals import caching, m3_selection, m3d_screening
 from tier0.evals.m3_selection import RESET, SEVERAL, Instance
 from tier0.netguard import guard_for_model
 
@@ -88,13 +88,17 @@ def _path(model: str, version: str, set_name: str) -> Path:
     return RESULTS / f"{model}__{version}__{set_name}.json"
 
 
-def score_part2(model: str, version: str, *, model_factory: Any = None) -> Path:
+def score_part2(
+    model: str, version: str, *, model_factory: Any = None, prompt_cache: bool = False
+) -> Path:
     """One version on part 2's 67 tuning messages, k = 3."""
     path = _path(model, version, PART2)
     if path.exists():
         return path
     made = model_factory(model) if model_factory is not None else None
-    result = m3_selection.score(model, version, model=made, cases=instances_3d2())
+    result = m3_selection.score(
+        model, version, model=made, cases=instances_3d2(), prompt_cache=prompt_cache
+    )
     result["set"] = PART2
     m3d_screening._save(path, result)
     return path
@@ -176,6 +180,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     which = s.add_mutually_exclusive_group(required=True)
     which.add_argument("--part2", action="store_true", help="part 2's 67 tuning messages")
     which.add_argument("--all", action="store_true", help="every tuning message")
+    caching.add_flags(s)
     p = sub.add_parser("pick")
     p.add_argument("--model", required=True)
     p.add_argument("--task", required=True, choices=("triage", "check"))
@@ -191,12 +196,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"{version}: {cells}; {score['prompt_chars']} characters")
         print(f"pick: {result['pick']} ({result['why']})")
         return 0
+    # Tuning data only, so never sealed: on for these Claude runs unless turned off.
+    cache, refusal = caching.resolve(args.prompt_cache, provider="claude", sealed=False)
+    if refusal is not None:
+        print(f"refused: {refusal}", file=sys.stderr)
+        return 2
     with guard_for_model("claude"):
-        print(f"saved: {score_part2(args.model, args.version)}")
+        print(f"saved: {score_part2(args.model, args.version, prompt_cache=cache)}")
         if args.all:
-            print(f"saved: {m3d_screening.score_all(args.model, args.version)}")
+            print(f"saved: {m3d_screening.score_all(args.model, args.version, prompt_cache=cache)}")
             if m3_selection.task_of(args.version) == "triage":
-                print(f"saved: {m3d_screening.score_several(args.model, args.version)}")
+                shown = m3d_screening.score_several(args.model, args.version, prompt_cache=cache)
+                print(f"saved: {shown}")
     return 0
 
 

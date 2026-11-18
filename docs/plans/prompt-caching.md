@@ -1,6 +1,6 @@
 # Plan: prompt caching for the Claude calls
 
-**Date:** 2026-11-17 · **Status:** Built, and checked on the tuning month on 2026-11-17: 88% less cost for the two shipping arms together, with every ticket routed as it was without the cache. Off unless asked for. · **Decisions:** this file (no new ADR; the owner can turn the ones they accept into an ADR) · **Budget item:** `tier0-3c`, for the check on the tuning month only
+**Date:** 2026-11-17 · **Status:** Built, and checked on the tuning month on 2026-11-17: 88% less cost for the two shipping arms together, with every ticket routed as it was without the cache. On by default for dev and tuning runs since 2026-11-18, off for sealed runs until the owner rules. · **Decisions:** this file (no new ADR; the owner can turn the ones they accept into an ADR) · **Budget item:** `tier0-3c`, for the check on the tuning month only
 
 The owner asked for prompt caching after the sealed month, as its own pull request, verified on the tuning month. The sealed month ran without it on purpose: nothing in the harness changed between the rehearsal and that run.
 
@@ -25,17 +25,18 @@ Every tier0 call to Claude sends a system prompt that is the same for every tick
 
 ## Decisions, and why
 
-1. **Off unless asked for.** `ClaudeModel(cache_system=True)` turns it on. With it off, every request and every ledger line is what it was before this change.
-   - Why not on everywhere: several eval reports work their cost out from input and output tokens only (the 3a, 3b, 3d and milestone 4 reports). With caching on they would under-report, while the ledger stayed right. They aren't changed here, so they keep running without the cache.
-2. **Where it can be turned on:**
-   - the month runner: `python -m tier0.evals.month run ... --prompt-cache`;
-   - the agent's own model: `TIER0_CLAUDE_PROMPT_CACHE=1`, next to `TIER0_CLAUDE_MODEL`. It is off by default there too.
+1. **On by default for dev and tuning runs, off for sealed runs until the owner rules.** `ClaudeModel(cache_system=True)` turns it on. With it off, every request and every ledger line is what it was before this change.
+   - Every eval report now counts cache writes and reads, and prices them at their own rates. A report of an uncached run is written and rendered as it always was.
+   - The default is decided in one place, `tier0/evals/caching.py`: on for a Claude model on a run that is not sealed, off otherwise. `--no-prompt-cache` turns it off. `--prompt-cache` on a sealed run, or for a model that isn't Claude, is refused.
+   - The evals that take it: the month runner (`month run`), the main eval (`python -m tier0.evals`), the how-to picker scores (`knowledge score`), the triage and check prompt scores (`m3_selection score`, `m3d_screening`, `m3d2_selection`) and `triage_check`. A "sealed" run is: a set in the month runner's or the knowledge eval's sealed sets, or a main eval run with `--final-comparison`.
+2. **Where else it can be turned on:**
+   - the agent's own model: `TIER0_CLAUDE_PROMPT_CACHE=1`, next to `TIER0_CLAUDE_MODEL`. It is still off by default there.
 3. **One marker, on the system prompt.** Not the request-level automatic marker: that one lands after the ticket's text, so every call would pay a write for bytes nobody reads again.
 4. **The 5-minute entry, not the 1-hour one.** A month run sends the same prompt every few seconds, so the entry stays warm, and the 1-hour entry costs 2 times the input rate to write.
 5. **The spend cap still holds.** Before each call the ledger checks the worst case, which now prices the whole input as a cache write (1.25 times) when the option is on. After the call, the ledger prices plain input, cache writes and cache reads each at their own rate.
    - A model id the price table doesn't know is priced at the highest known rates, and its cache reads at the full input rate, so an unknown model is over-counted, never under-counted.
-6. **A sealed set never runs with it.** The sealed month's one run was made without the cache, and the runner refuses `--prompt-cache` on a sealed set.
-7. **A cached run gets its own result name,** ending in `-cache`, so it can't be mistaken for, or resume, an uncached run.
+6. **A sealed run keeps it off until the owner rules.** The sealed month's one run was made without the cache, and every eval refuses `--prompt-cache` on a sealed run.
+7. **A cached run can't be mistaken for an uncached one.** Its result records `prompt_cache: true`. The month runner and the triage check also end its file name in `-cache`, and the main eval ends its published name in `-cache`. The score evals refuse to overwrite a saved score, so a second run of the same configuration is refused whichever way the cache was set.
 
 ## What is built
 
@@ -43,7 +44,8 @@ Every tier0 call to Claude sends a system prompt that is the same for every tick
 - `tier0/models/spend.py`: the ledger records cache writes and reads, at their rates. A line without caching has the same fields as before.
 - `tier0/models/claude.py`: the option, the marker, and the cache tokens read from the response.
 - `tier0/models/__init__.py`: `TIER0_CLAUDE_PROMPT_CACHE=1` for the agent's model.
-- `tier0/evals/month.py`: `--prompt-cache`, the cache tokens per task in the result, the cost from all four kinds of tokens, and one more line in the summary. A result without the option is written and rendered as before.
+- `tier0/evals/month.py`: `--prompt-cache` and `--no-prompt-cache`, the cache tokens per task in the result, the cost from all four kinds of tokens, and one more line in the summary. A result without the option is written and rendered as before.
+- `tier0/evals/caching.py`: the default, the two flags, and the refusals, shared by every eval above.
 
 ## Verified on the tuning month (2026-11-17)
 
@@ -85,8 +87,18 @@ What the check doesn't show:
 - **k above 1.** Later runs would read the entries the first run wrote, so the saving should not be smaller. It wasn't measured.
 - **Anything about quality on unseen wording.** The cache doesn't change what the model is sent, and the tuning month can't show more than that.
 
+## What changed on 2026-11-18
+
+The owner ruled: every eval report and the ledger count cache writes and reads, then caching goes on by default for dev and tuning runs, and stays off for sealed runs until the owner rules.
+
+- These now carry cache writes and reads next to input and output tokens, and price them at their own rates: the per-ticket trace summary (two new span attributes, `gen_ai.usage.cache_creation.input_tokens` and `gen_ai.usage.cache_read.input_tokens`, set only when not 0), the main eval's results, JSON and report, `knowledge score` and its report, `m3_selection score` and its report, `m3d_screening`, `m3d2_selection`, `triage_check` and the picker's `Outcome`. The month runner already did.
+- The ledger already recorded and priced both, so it is unchanged.
+- A result or report of a run without the cache has no new key and no new line. The committed generated reports are unchanged.
+- Estimates and worst-case checks before a run still price the input without the cache.
+- `prompt_selection` and `faults` run local models only, so they are not changed.
+- **This change was checked with fake models only. No paid run was made.** The first paid dev run of each eval is the first real check of its cache line.
+
 ## Left out, and why
 
-- **The other eval reports' cost lines** (decision 1). They keep running uncached until each is taught the cache tokens.
 - **The sealed month's cost estimate** (`sealed-cost`) still prices uncached calls. The month is spent, so it has no run left to price.
 - **A 1-hour entry or a keep-alive for the live agent.** A real help desk sees a ticket every few minutes at best, so a 5-minute entry would often have expired. Whether caching pays there depends on traffic the lab doesn't have. This change only makes the option available.

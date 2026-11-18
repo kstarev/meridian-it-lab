@@ -67,6 +67,8 @@ GEN_AI_RESPONSE_ID = "gen_ai.response.id"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_CACHE_CREATION_TOKENS = "gen_ai.usage.cache_creation.input_tokens"
+GEN_AI_USAGE_CACHE_READ_TOKENS = "gen_ai.usage.cache_read.input_tokens"
 GEN_AI_TOOL_NAME = "gen_ai.tool.name"
 GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
@@ -263,6 +265,10 @@ class Session:
             span.set_attribute(GEN_AI_RESPONSE_FINISH_REASONS, [response.finish_reason])
             span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, response.input_tokens)
             span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, response.output_tokens)
+            if response.cache_write_tokens:
+                span.set_attribute(GEN_AI_USAGE_CACHE_CREATION_TOKENS, response.cache_write_tokens)
+            if response.cache_read_tokens:
+                span.set_attribute(GEN_AI_USAGE_CACHE_READ_TOKENS, response.cache_read_tokens)
             if self._tracer.capture_content:
                 span.set_attribute(
                     GEN_AI_INPUT_MESSAGES,
@@ -409,6 +415,8 @@ class TicketTraceSummary:
     input_tokens: int
     output_tokens: int
     duration_ms: float
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 def summarize(spans: Iterable[ReadableSpan]) -> dict[str, TicketTraceSummary]:
@@ -430,6 +438,7 @@ def summarize(spans: Iterable[ReadableSpan]) -> dict[str, TicketTraceSummary]:
             key=lambda s: s.start_time or 0,
         )
         input_tokens = output_tokens = model_calls = tool_calls = 0
+        cache_write_tokens = cache_read_tokens = 0
         for span in members:
             attrs = span.attributes or {}
             operation = attrs.get(GEN_AI_OPERATION_NAME)
@@ -437,6 +446,8 @@ def summarize(spans: Iterable[ReadableSpan]) -> dict[str, TicketTraceSummary]:
                 model_calls += 1
                 input_tokens += int(attrs.get(GEN_AI_USAGE_INPUT_TOKENS, 0))  # type: ignore[call-overload]
                 output_tokens += int(attrs.get(GEN_AI_USAGE_OUTPUT_TOKENS, 0))  # type: ignore[call-overload]
+                cache_write_tokens += int(attrs.get(GEN_AI_USAGE_CACHE_CREATION_TOKENS, 0))  # type: ignore[call-overload]
+                cache_read_tokens += int(attrs.get(GEN_AI_USAGE_CACHE_READ_TOKENS, 0))  # type: ignore[call-overload]
             elif operation == OPERATION_EXECUTE_TOOL:
                 tool_calls += 1
         result[ticket_id] = TicketTraceSummary(
@@ -448,5 +459,7 @@ def summarize(spans: Iterable[ReadableSpan]) -> dict[str, TicketTraceSummary]:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             duration_ms=sum(((s.end_time or 0) - (s.start_time or 0)) / 1e6 for s in sessions),
+            cache_write_tokens=cache_write_tokens,
+            cache_read_tokens=cache_read_tokens,
         )
     return result
