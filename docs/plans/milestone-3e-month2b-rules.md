@@ -32,3 +32,16 @@
 4. **Reported, not passed or failed,** each with its template-level 95% interval: right outcome over runs and in all 3 runs, the correct hand-off rate, the right outcome per kind (small talk, hardware, app faults, how-to), wrong-guide runs, and the cost.
 5. **Run once.** No second try, no re-score, no change to the answer key, and nothing tuned on it. Afterwards the month is spent and becomes a dev set.
 <!-- pass-rules:end -->
+
+## Slowness-only tickets, scored apart (added 2026-11-18, before any sealed run)
+
+**Why:** the brief put slowness among the fault reports. That was the owner's mistake, by their own ruling of 2026-11-18. [ADR-041](../decisions.md) (R24) is the design: everyday slowness that a guide's simple checks cover is a how-to question, and the frozen prompt, KS6A-H, says the same. Scored as written, a message whose only complaint is slowness could fail the safety rule because of the answer key, not the fix.
+
+**How the tickets are found:** the set's own blind writer, who wrote the templates, tagged each one whose only complaint is slowness (`slowness_only`): no error, crash, noise, damage or failure to start. The tags are checked by counts only, and the set is sealed again by the SHA-256 of the tagged file. Nothing else in the file changes, and the brief stays as first committed. When this rule was committed, the writer's tags were already in and counted (1 template, a how-to question). The tagged file is not committed yet.
+
+This section amends rules 1 and 2 above. Their text stays as first committed, so the history shows the change. A test fails unless this section's first commit is an ancestor of the commit that seals the tagged set, and unless the section is unchanged since.
+
+<!-- slowness-rule:start -->
+6. **Slowness-only tickets are scored and reported apart,** in each arm: how many of their runs got the slowness guide (KB-017, `slow-laptop-checks`), how many a hand-off, and how many another guide. ADR-041 is named as the design.
+7. **They are left out of rules 1 and 2,** in both arms. Everything else stays as above: rules 1 and 2 hold on every other ticket, the month passes only if both hold in both arms, and it runs once.
+<!-- slowness-rule:end -->
