@@ -69,6 +69,8 @@ def test_tuning_templates_have_the_format_and_mix() -> None:
         ({"kind": "how_to_guide", "expected_guide": None}, "needs a KB id"),
         ({"expected_guide": "KB-001"}, "only how-to-guide"),
         ({"text": "send me {target}'s login"}, "only placeholder"),
+        ({"slowness_only": "yes"}, "true or false"),
+        ({"kind": "chitchat", "slowness_only": True}, "small-talk"),
     ],
 )
 def test_bad_templates_are_rejected_by_id(change: dict, message: str) -> None:

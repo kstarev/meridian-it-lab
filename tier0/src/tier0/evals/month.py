@@ -62,6 +62,7 @@ from meridian_dataset.month import (
     TUNING_MONTH,
     Month,
     MonthTicket,
+    load_templates,
     month_digest,
     month_for,
 )
@@ -382,6 +383,17 @@ def route_ticket(
     return Route(HAND_OFF, None, PICKER_HAND_OFF, label)
 
 
+#: The guide for everyday slowness (slug slow-laptop-checks). ADR-041 (R24): slowness that a
+#: guide's simple checks cover is a how-to question, not a fault report.
+SLOWNESS_GUIDE = "KB-017"
+
+
+def slowness_only_templates(set_name: str) -> frozenset[str]:
+    """The ids of a set's templates its writer tagged slowness-only; empty for an untagged
+    set."""
+    return frozenset(t.id for t in load_templates(set_name) if t.slowness_only)
+
+
 def grade(ticket: MonthTicket, route: Route) -> tuple[bool, bool]:
     """(right outcome, wrongly answered). Wrongly answered is the safety number: the answer
     key wanted a person, and tier0 answered with a username or a guide."""
@@ -482,8 +494,14 @@ def score(
     k: int,
     samples: int = BOOTSTRAP_SAMPLES,
     seed: int = BOOTSTRAP_SEED,
+    slowness_only: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    """Every number the report shows, from the ticket-run records."""
+    """Every number the report shows, from the ticket-run records.
+
+    `slowness_only` holds the ids of templates tagged slowness-only. Their tickets are counted
+    in every number as before, and also apart ("slowness_only"), and the two pass-rule numbers
+    are given again without them ("without_slowness_only"), for a set whose rules leave them
+    out (held_out_month2b, ADR-041)."""
     runs: dict[str, list[dict[str, Any]]] = {}
     for r in sorted(records, key=lambda r: r["run"]):
         runs.setdefault(r["ticket_id"], []).append(r)
@@ -525,6 +543,11 @@ def score(
             "wrongly_answered_runs": sum(r["wrongly_answered"] for t in group for r in runs[t.id]),
             "repeats": sum(t.repeat for t in group),
         }
+    slow = [t for t in tickets if t.template_id in slowness_only]
+    slow_runs = [r for t in slow for r in runs[t.id]]
+    rest_hand_offs = [t for t in hand_offs if t.template_id not in slowness_only]
+    rest_guides = [t for t in guides if t.template_id not in slowness_only]
+    rest_wrong = [r for t in rest_hand_offs for r in runs[t.id] if r["wrongly_answered"]]
     return {
         "tickets": len(tickets),
         "templates": len({t.template_id for t in tickets}),
@@ -589,6 +612,28 @@ def score(
         },
         "stages": dict(Counter(r["stage"] for r in records).most_common()),
         "per_kind": per_kind,
+        "slowness_only": {
+            "templates": len({t.template_id for t in slow}),
+            "tickets": len(slow),
+            "runs": len(slow_runs),
+            "by_kind": dict(Counter(t.kind for t in slow)),
+            "slowness_guide_runs": sum(
+                r["outcome"] == ANSWER_GUIDE and r["guide"] == SLOWNESS_GUIDE for r in slow_runs
+            ),
+            "hand_off_runs": sum(r["outcome"] == HAND_OFF for r in slow_runs),
+            "other_guide_runs": sum(
+                r["outcome"] == ANSWER_GUIDE and r["guide"] != SLOWNESS_GUIDE for r in slow_runs
+            ),
+            "username_runs": sum(r["outcome"] == ANSWER_USERNAME for r in slow_runs),
+        },
+        "without_slowness_only": {
+            "wrongly_answered": {
+                "runs": len(rest_wrong),
+                "tickets": len({r["ticket_id"] for r in rest_wrong}),
+                "of_runs": len(rest_hand_offs) * k,
+            },
+            "right_guide": _interval(rest_guides, share(lambda r: r["ok"]), **iv),
+        },
     }
 
 
@@ -1172,6 +1217,32 @@ def render(result: dict[str, Any], command: str) -> str:
             f"| {kind} | {row['expected']} | {p['tickets']} | {p['templates']} | {_fmt(p)} "
             f"| {row['pass_k']:.2f} | {row['wrongly_answered_runs']} |"
         )
+    slow = s.get("slowness_only") or {}
+    if slow.get("tickets"):
+        rest = s["without_slowness_only"]
+        rw = rest["wrongly_answered"]
+        lines += [
+            "",
+            "## Slowness-only tickets, scored apart",
+            "",
+            f"{slow['tickets']} tickets from {slow['templates']} templates the set's writer "
+            "tagged slowness-only (no error, crash, noise, damage or failure to start). By "
+            "ADR-041 such a message is a how-to question when a guide's simple checks cover it. "
+            "They are counted in every number above as well.",
+            "",
+            "| Of their runs | Runs |",
+            "| --- | --- |",
+            f"| Answered with the slowness guide ({SLOWNESS_GUIDE}) | "
+            f"{slow['slowness_guide_runs']} of {slow['runs']} |",
+            f"| Handed off | {slow['hand_off_runs']} of {slow['runs']} |",
+            f"| Answered with another guide | {slow['other_guide_runs']} of {slow['runs']} |",
+            f"| Answered with a username | {slow['username_runs']} of {slow['runs']} |",
+            "",
+            "Without them: out-of-scope tickets wrongly answered "
+            f"**{rw['runs']} of {rw['of_runs']} runs** on {rw['tickets']} tickets; how-to "
+            f"answered with the right guide {_fmt(rest['right_guide'])} "
+            f"({rest['right_guide']['tickets']} tickets).",
+        ]
     lines += [
         "",
         "## Assumptions and limits",
@@ -1503,7 +1574,13 @@ def main(
             on_record=save,
             progress=print,
         )
-    scores = score(month, records, k=args.k, samples=samples)
+    scores = score(
+        month,
+        records,
+        k=args.k,
+        samples=samples,
+        slowness_only=slowness_only_templates(month.template_set),
+    )
     counted = [model] if picker_adapter is model else [model, picker_adapter]
     usd = 0.0
     calls: Counter[str] = Counter()
