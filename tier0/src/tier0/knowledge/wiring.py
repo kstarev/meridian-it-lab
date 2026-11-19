@@ -11,6 +11,12 @@ On, a message goes the knowledge way only when all of these hold:
   as "other", but it goes to a person and the picker never sees it (as in the month's routing);
 - the policy table still says "escalate" for "other".
 
+With a how-to gate set (milestone 3f, `HOW_TO_GATE_VERSION`; None, the default, until the
+tuning picks a version), two steps come first, and each can only hand off: the code-only
+message screen (if it finds anything, the picker is never asked), then the gate on triage's own
+model (tier0.knowledge.gate), which must say exactly yes. A failed call, a refusal or a reply off
+the schema hands off. With no gate set, the path runs exactly as before.
+
 Then `answer_question` decides, with every gate it has: the frozen picker (KS5 on Claude
 Sonnet 5.5, ADR-046), the code-only message screen, and the posting gate (a guide approved by
 a person and not flagged by the guide screen). The model sees ids, titles and summaries, never
@@ -29,12 +35,23 @@ from dataclasses import dataclass, field
 
 from meridian_dataset.knowledge import MEMORY_REPO_URL, Guide, load_runbooks
 from tier0.knowledge.answer import Outcome, answer_question, postable
+from tier0.knowledge.gate import GATE_VERSIONS, gate_request, parse_gate
 from tier0.knowledge.prompts import FROZEN, PICKER_VERSIONS
-from tier0.models.base import ModelAdapter
+from tier0.models.base import ModelAdapter, ModelError
 
 # ADR-046: the guide picker runs on Claude Sonnet 5.5, with its frozen prompt.
 PICKER_MODEL = "claude-sonnet-5-5"
 PICKER_VERSION = FROZEN[PICKER_MODEL]
+# Milestone 3f: the how-to gate's version (tier0.knowledge.gate), asked on triage's own model
+# before the picker. None: no gate, and the path runs exactly as before. The tuning pull request
+# sets it to the version the plan's selection rule picks (docs/plans/milestone-3f-how-to-gate.md).
+HOW_TO_GATE_VERSION: str | None = None
+# Why a message was handed off before the picker was asked, with a gate set. The agent's
+# hand-off codes are these after "guide_" (guide_screen_first, ...); "guide_screen" stays the
+# code for the screen firing after a picker call, with no gate.
+SCREEN_FIRST = "screen_first"  # code: the message screen found something; no gate, no picker
+GATE_NO = "gate_no"  # the gate said the message is not one plain how-to question
+GATE_FAILED = "gate_failed"  # the gate's call failed, it refused, or its reply was off the schema
 # A provider that names real Claude models; any of its models but PICKER_MODEL is refused.
 CLAUDE_PROVIDER = "anthropic"
 # Why a guide the gates allowed was still not posted (it can't happen; code checks anyway).
@@ -46,10 +63,13 @@ _SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 @dataclass(frozen=True, slots=True)
 class GuidePicker:
     """Turns the knowledge path on. `model` answers the picker's call; `guides` are the
-    approved runbooks (by default the lab's 30). The prompt is always the frozen one."""
+    approved runbooks (by default the lab's 30). The prompt is always the frozen one.
+    `gate_version` is the how-to gate asked before the picker (milestone 3f), or None for none;
+    the gate runs on the model the agent passes, triage's own, never on `model`."""
 
     model: ModelAdapter
     guides: tuple[Guide, ...] = field(default_factory=load_runbooks)
+    gate_version: str | None = HOW_TO_GATE_VERSION
 
     def __post_init__(self) -> None:
         if self.model.provider == CLAUDE_PROVIDER and self.model.model != PICKER_MODEL:
@@ -57,6 +77,8 @@ class GuidePicker:
                 f"the guide picker runs on {PICKER_MODEL} with {PICKER_VERSION} (ADR-046), "
                 f"not {self.model.model}"
             )
+        if self.gate_version is not None and self.gate_version not in GATE_VERSIONS:
+            raise ValueError(f"there is no how-to gate {self.gate_version!r}")
 
     @property
     def version(self) -> str:
@@ -75,6 +97,19 @@ class GuidePicker:
             guides=self.guides,
             system=self.system,
         )
+
+    def ask_gate(self, text: str, *, model: ModelAdapter) -> bool | None:
+        """The how-to gate's verdict on one message, from `model` (triage's own): True only for
+        exactly {"plain_how_to": true}, False for exactly false, None for a failed call, a
+        refusal, a reply cut short or anything off the schema. Only True lets the picker be
+        asked. The gate never sees a guide."""
+        if self.gate_version is None:
+            raise ValueError("no how-to gate is set")
+        try:
+            response = model.complete(gate_request(text, GATE_VERSIONS[self.gate_version]))
+        except ModelError:
+            return None
+        return parse_gate(response)
 
 
 def postable_guide(guides: Sequence[Guide], guide_id: str | None) -> Guide | None:
