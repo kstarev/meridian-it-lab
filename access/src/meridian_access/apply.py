@@ -16,7 +16,8 @@ main part `approvals_default`. Changes held for bad HR data are never applied. A
 part makes the other one stale: both were built from the same actual state, and the apply
 changes it, so the other part is refused as "stale" and must be built again and approved
 again. A final break-glass
-guard drops any change that names a break-glass account, whatever the diff did. Every change
+guard drops any change that names a break-glass account, by any of its names
+(`break_glass.py`), whatever the diff did. Every change
 checks the current state first, so a second run does nothing. Suspension comes before removal
 where the API allows it.
 After a mock-live apply the state is read again and every applied change is checked to have
@@ -42,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from meridian_access.approvals import required_for, version_message
+from meridian_access.break_glass import break_glass
 from meridian_access.collect import ActualState, HttpishClient, Mocks, actual_state
 from meridian_access.exports import parse_exports
 from meridian_access.mocks import GoogleMock, OktaMock, SlackMock, Token
@@ -49,7 +51,6 @@ from meridian_access.models import Account, CollectorError
 from meridian_access.plan import PLAN_VERSION, Plan, build_plan, canonical_json, split_plan
 from meridian_access.plan import manual_tasks as plan_manual_tasks
 from meridian_access.policy.load import Policy, load_policy
-from meridian_dataset.access.model import DOMAIN
 
 PARTS = ("main", "held")
 DRY_RUN = "dry-run"
@@ -124,29 +125,6 @@ def _load_plan(plan: Plan | Path | str) -> Plan:
     if isinstance(plan, Plan):
         return plan
     return Plan(json.loads(Path(plan).read_text(encoding="utf-8")))
-
-
-def _break_glass_names(state: ActualState, policy: Policy) -> set[str]:
-    """Every name a break-glass account goes by: login, email, Google aliases."""
-    names: set[str] = set()
-    for a in state.accounts:
-        values = [v for v in (a.account, a.email, *a.aliases) if v.strip()]
-        if any(_is_listed(policy, v) for v in values):
-            names |= {_norm(v) for v in values}
-    return names
-
-
-def _is_listed(policy: Policy, value: str) -> bool:
-    return policy.is_break_glass(value) or (
-        "@" not in value and policy.is_break_glass(f"{value.strip()}@{DOMAIN}")
-    )
-
-
-def _touches_break_glass(change: Mapping[str, Any], policy: Policy, names: set[str]) -> bool:
-    account = change.get("account", "")
-    if not account.strip():
-        return False
-    return _norm(account) in names or _is_listed(policy, account)
 
 
 def _step(change: Mapping[str, Any]) -> int:
@@ -279,7 +257,7 @@ def apply_plan(
     index: dict[tuple[str, str, str], Account] = {}
     for a in state.accounts:
         index.setdefault((a.system, a.app_id, _norm(a.account)), a)
-    bg_names = _break_glass_names(state, policy)
+    protected = break_glass(policy, state.accounts)
     clients: dict[str, HttpishClient] = {}
     if mode == MOCK_LIVE and write_token is not None:
         for name, mock in (("okta", mocks.okta), ("google", mocks.google), ("slack", mocks.slack)):
@@ -291,7 +269,7 @@ def apply_plan(
     for c in data["changes"]:
         if c["action"] == "never_touch":
             continue  # a report-only entry for a break-glass account
-        if _touches_break_glass(c, policy, bg_names):
+        if protected.protects(c.get("account", "")):
             result.dropped_break_glass.append(dict(c))
             result.log.append(
                 f"warning: dropped a {c['action']} change for {c['account'].strip()}: "

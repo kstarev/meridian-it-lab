@@ -125,6 +125,9 @@ Item 1 is gap G1. One more gap was pinned later the same day.
   - The policy compares names with `str.lower`, but matching uses `str.casefold`. So `opſ-root@meridian.example` (with a long s) is not the listed `Ops-Root@meridian.example`.
 - **Why it matters:** apply deactivates the Slack user `ops` and deprovisions the Okta user `root-login@meridian.example`, though both are names of protected accounts.
 - **Pinned:** the `test_g2_*` tests in `test_break_glass_properties.py` (12 cases, each a strict xfail). The source is unchanged.
+- **Fixed** by [AAC-018](../../access/docs/adr/018-break-glass-covers-every-name-of-a-protected-account.md) (PR #129). The 12 tests now pass.
+  - One module, `break_glass.py`, works out every name of a protected account, and matching, the diff and apply ask it.
+  - The break-glass helpers named in the tables above (`match._break_glass`, `diff._break_glass_strings`, `diff._touches_break_glass`, `apply._break_glass_names`, `apply._is_listed`, `apply._touches_break_glass`) are gone. The break-glass target in `tools/mutate.py` now mutates `break_glass.py`.
 
 ## Property tests
 
