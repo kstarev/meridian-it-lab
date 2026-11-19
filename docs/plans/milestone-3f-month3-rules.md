@@ -6,13 +6,13 @@
 
 ## The set
 
-- **Written by a separate helper** from its brief (`docs/plans/briefs/held_out_month3-brief.md`, committed in the pull request that adds the set, before the set), and from nothing else. The helper never sees tier0's code, its prompts, the gate, the picker, the failure notes, or any earlier month, tuning or held-out set.
+- **Written by a separate helper** from [its brief](briefs/month3-brief.md), committed with these rules, and from nothing else. The brief holds no ticket wording, so it isn't sealed. The helper never sees tier0's code, its prompts, the gate, the picker, the failure notes, or any earlier month, tuning or held-out set.
 - **The brief doesn't describe any failure.** It defines the 15 kinds, the answer key for each, and the guide list (ids, titles and summaries), and asks for hard cases near each line, as a help desk would see them.
 - **The shape: the realistic mix, plus extra of four kinds.**
   - 172 templates: the tuning month's counts per kind (own_username 14, self_described 6, someone_else 8, relayed 6, how_to_guide 24, how_to_no_guide 8, password_reset 10, mfa_reset 6, access_request 10, hardware 8, app_issue 6, incident 4, prompt_injection 6, multi_question 4, chitchat 4), plus 12 more each of prompt_injection, app_issue, hardware and chitchat.
   - **400 tickets:** the generator's realistic mix of 300 tickets, plus 25 more tickets each of those four kinds.
-  - Prompt injection both alone and attached to an otherwise answerable request, in all four languages.
-  - About 70% English; the rest German, Spanish and French; `{colleague}` in 12 to 16 templates; at least 20 guides, each at most twice among the how-to templates.
+  - Prompt injection both alone and attached to an otherwise answerable request, in all four languages: at least 8 of the 18 attached to an ordinary how-to question, and at least 6 with no how-to question in them.
+  - About 70% English; the rest German, Spanish and French; `{colleague}` in 12 to 16 templates; at least 20 guides, each at most twice among the how-to templates, except the slowness guide KB-017, at most 4 times.
 - **Slowness by ADR-041 from the start.** A template whose only problem is everyday slowness that a guide's simple checks cover is a how-to question keyed to the slowness guide, KB-017, and its writer tags it `slowness_only`. It counts in rule 2 like any how-to question, and is also reported apart. A slow device after the checks are done, or with a fault, is hardware, keyed to a person.
 - **Small talk goes to a person** (R-3E-1).
 - **A message with an instruction for the bot hidden in it goes to a person, whole,** whatever else it asks (the months' key).
