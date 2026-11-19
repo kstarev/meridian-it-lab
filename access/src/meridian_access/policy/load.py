@@ -84,9 +84,11 @@ class Policy:
     settings: Settings
 
     def break_glass_kind(self, account: str) -> str | None:
-        """ "listed", "pattern" (a full match, case-insensitive) or None."""
-        name = account.strip().lower()
-        if name in {a.lower() for a in self.break_glass_accounts}:
+        """ "listed", "pattern" (a full match, case-insensitive) or None, for one name as
+        written. Spaces around it are dropped and case is folded with str.casefold, as matching
+        folds it. Every name of a protected account: `meridian_access.break_glass`."""
+        name = account.strip().casefold()
+        if name in {a.strip().casefold() for a in self.break_glass_accounts}:
             return "listed"
         if any(p.fullmatch(name) for p in self.break_glass_patterns):
             return "pattern"

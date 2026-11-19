@@ -10,9 +10,9 @@ Rules run in a fixed order and each counts only if it gives exactly one person:
   must pick exactly one, else the account is ambiguous); 6 an exact display or full name.
 An account with an email at the company domain that rules 1-3 don't match stops there:
 no name or username rule is tried.
-Break-glass accounts (the policy's list and patterns, also as bare usernames) are marked
-and never matched to a person. Superseded HRIS records (the old record of a rehire) are
-never candidates.
+Break-glass accounts are marked and never matched to a person: every record of a protected
+account, under any of its names (`break_glass.py`). Superseded HRIS records (the old record of
+a rehire) are never candidates.
 The result is deterministic: the same input gives the same output.
 """
 
@@ -22,6 +22,7 @@ import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
+from meridian_access.break_glass import break_glass
 from meridian_access.desired import desired_state
 from meridian_access.models import Account
 from meridian_access.policy.load import Policy
@@ -257,6 +258,7 @@ def match_accounts(
         for alias in a.aliases:
             primary_of_alias[alias.casefold()] = a.email or a.account
 
+    protected = break_glass(policy, accounts)
     matches: dict[AccountKey, Match] = {}
     unmatched: list[AccountKey] = []
     ambiguous: list[AccountKey] = []
@@ -264,7 +266,7 @@ def match_accounts(
         key = a.key
         if key in matches or key in unmatched or key in ambiguous:
             continue  # the same account twice (e.g. a repeated export row)
-        kind = _break_glass(policy, a)
+        kind = protected.account_kind(a)
         if kind:
             matches[key] = Match("", "break_glass", CONFIDENCE["break_glass"], kind)
             continue
@@ -276,21 +278,6 @@ def match_accounts(
         else:
             unmatched.append(key)
     return MatchResult(matches, unmatched, ambiguous)
-
-
-def _break_glass(policy: Policy, a: Account) -> str | None:
-    """The break-glass kind of an account: its login, its email or a Google alias, or any of
-    them as a bare username (`value` -> `value@meridian.example`)."""
-    for value in (a.account, a.email, *a.aliases):
-        value = value.strip()
-        if not value:
-            continue
-        kind = policy.break_glass_kind(value)
-        if not kind and "@" not in value:
-            kind = policy.break_glass_kind(f"{value}@{DOMAIN}")
-        if kind:
-            return kind
-    return None
 
 
 def _company_email(email: str) -> bool:

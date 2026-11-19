@@ -1,19 +1,18 @@
 """Property-based tests for the break-glass checks (hypothesis; AAC-007).
 
-The rule (policy/break_glass.yaml): an account is protected if it is listed or fully matches a
-pattern, case-insensitive, with spaces around it ignored, and also as a bare username
-(`name` stands for `name@meridian.example`). Every name a protected account goes by (its login,
-its email, a Google alias) is protected too. Four places check it: the policy itself, matching
-(`match._break_glass`), the diff's last word (`diff._touches_break_glass`) and apply's final
-guard (`apply._touches_break_glass`). Each is checked here against the same rule, on made-up
-names. The end-to-end check (no write reaches a protected account) is in
+The rule (policy/break_glass.yaml, AAC-018): a name is protected if it is listed or fully
+matches a pattern, with spaces around it ignored and case folded as matching folds it
+(str.casefold), in either of its forms: a bare username `name` is also `name@meridian.example`,
+and a company address is also its bare username. Every name a protected account goes by (its
+login, its email, a Google alias, wherever a record carries them) is protected too, in both
+forms. The policy checks one name (`Policy.break_glass_kind`); `break_glass.py` works out every
+name of every protected account, and matching, the diff's last word and apply's final guard all
+ask it. The rule is checked here on made-up names, and each of the three places end to end (the
+`test_g2_*` tests). The property that no write reaches a protected account is in
 test_apply_properties.py.
 
 Gap G2 (the owner's ruling, 2026-11-19: protection covers every name of a protected account,
-aliases included) does not hold yet: `ops` is not protected when `ops@meridian.example` is
-protected through its alias, matching marks only the record that carries the protected name, and
-the policy compares with str.lower where matching uses str.casefold. Its tests (`test_g2_*`, at
-the end) are strict xfails; the source is unchanged.
+aliases included) was pinned by the `test_g2_*` tests as strict xfails and is fixed by AAC-018.
 
 The runs are fixed (derandomize) and keep no example database.
 """
@@ -26,13 +25,12 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from meridian_access import apply as apply_mod
-from meridian_access import diff as diff_mod
 from meridian_access.apply import apply_plan, issue_write_tokens
+from meridian_access.break_glass import break_glass, name_forms, policy_kind
 from meridian_access.collect import ActualState, Mocks, actual_state
 from meridian_access.desired import desired_state
-from meridian_access.diff import Change, build_changes
-from meridian_access.match import Match, MatchResult, _break_glass, match_accounts
+from meridian_access.diff import build_changes
+from meridian_access.match import Match, MatchResult, match_accounts
 from meridian_access.mocks import GoogleMock, OktaMock, SlackMock
 from meridian_access.models import Account
 from meridian_access.plan import Plan
@@ -80,16 +78,23 @@ def spellings(draw, names, bare=True):
 
 
 def kind_by_rule(value: str) -> str | None:
-    """The rule written out: listed beats pattern; a bare name gets the domain."""
-    name = value.strip().lower()
-    for candidate in (name, f"{name}@{D}" if name and "@" not in name else None):
-        if candidate is None:
+    """The rule written out: as written first, then the other form (a bare name gets the
+    domain, a company address loses it); listed beats pattern within one form."""
+    name = value.strip().casefold()
+    other = f"{name}@{D}" if "@" not in name else name.removesuffix(f"@{D}")
+    for candidate in (name, other):
+        if not candidate:
             continue
-        if candidate in {a.lower() for a in LISTED}:
+        if candidate in {a.casefold() for a in LISTED}:
             return "listed"
         if re.fullmatch(r"breakglass-[0-9]+@meridian\.example", candidate):
             return "pattern"
     return None
+
+
+def _kind(policy, a: Account) -> str | None:
+    """Matching's word on one record, alone in the actual state."""
+    return break_glass(policy, [a]).account_kind(a)
 
 
 # --- the policy -----------------------------------------------------------------------------
@@ -134,7 +139,7 @@ def test_matching_marks_a_protected_name_wherever_the_account_carries_it(name, w
     else:
         fields[where] = name
     a = Account(system=system, **fields)
-    assert _break_glass(POLICY, a) == kind_by_rule(name)
+    assert _kind(POLICY, a) == kind_by_rule(name)
 
 
 @SETTINGS
@@ -146,10 +151,10 @@ def test_matching_leaves_an_account_with_no_protected_name_alone(names):
         email=names[1] if len(names) > 1 else "",
         aliases=tuple(names[2:]),
     )
-    assert _break_glass(POLICY, a) is None
+    assert _kind(POLICY, a) is None
 
 
-# --- the diff's last word and apply's guard ---------------------------------------------------
+# --- every name of a protected account (what the diff's last word and apply's guard ask) ---------
 
 # A protected Okta user whose login is not protected by itself: only its listed email makes it
 # so, and both guards must then protect the login too. And a Google user protected by an alias.
@@ -166,64 +171,88 @@ STATE = ActualState(
     (),
     None,
 )
-ALSO_PROTECTED = ("root-login", f"ops@{D}")
-
-
-def _change(account: str) -> Change:
-    return Change("leaver_access_left", "E1", account, "okta", "", "remove", "test")
-
-
-def _row(account: str) -> dict:
-    return {"account": account, "system": "okta", "app_id": "", "action": "remove"}
+ALSO_PROTECTED = ("root-login", f"root-login@{D}", f"ops@{D}")
+PROTECTED = break_glass(POLICY, STATE.accounts)
 
 
 @SETTINGS
-@given(
-    st.one_of(spellings(LISTED + PATTERNED), spellings(ALSO_PROTECTED, bare=False)),
-)
+@given(st.one_of(spellings(LISTED + PATTERNED), spellings(ALSO_PROTECTED)))
 def test_both_guards_stop_every_spelling_of_every_protected_name(name):
-    # names protected only through another name of their account are protected as written
-    # (any case, spaces around), not as a bare username: `ops` is not `ops@meridian.example`
-    diff_names = diff_mod._break_glass_strings(STATE, POLICY)
-    apply_names = apply_mod._break_glass_names(STATE, POLICY)
-    assert diff_mod._touches_break_glass(_change(name), POLICY, diff_names)
-    assert apply_mod._touches_break_glass(_row(name), POLICY, apply_names)
+    # names protected only through another name of their account are protected in any case,
+    # with spaces around, and in both forms: `ops` is `ops@meridian.example` (gap G2)
+    assert PROTECTED.protects(name)
 
 
 @SETTINGS
 @given(st.sampled_from((*NOT_PROTECTED, "ana", f"ANA@{D}", "root-login2", f"ops2@{D}")))
 def test_neither_guard_stops_an_ordinary_account(name):
-    diff_names = diff_mod._break_glass_strings(STATE, POLICY)
-    apply_names = apply_mod._break_glass_names(STATE, POLICY)
-    assert not diff_mod._touches_break_glass(_change(name), POLICY, diff_names)
-    assert not apply_mod._touches_break_glass(_row(name), POLICY, apply_names)
+    assert not PROTECTED.protects(name)
 
 
 def test_the_guards_collect_every_name_of_a_protected_account_and_only_those():
-    want = {"root-login", f"vault.admin@{D}", f"ops@{D}", f"breakglass-9@{D}"}
-    assert diff_mod._break_glass_strings(STATE, POLICY) == want
-    assert apply_mod._break_glass_names(STATE, POLICY) == want
+    listed = {"root-login", f"root-login@{D}", f"vault.admin@{D}", "vault.admin"}
+    pattern = {f"ops@{D}", "ops", f"breakglass-9@{D}", "breakglass-9"}
+    assert dict(PROTECTED.names) == dict.fromkeys(listed, "listed") | dict.fromkeys(
+        pattern, "pattern"
+    )
 
 
 @SETTINGS
 @given(spellings(LISTED + PATTERNED))
-def test_apply_s_listed_check_takes_a_bare_name_or_a_full_address(name):
-    assert apply_mod._is_listed(POLICY, name) is True
-    assert apply_mod._is_listed(POLICY, f"x{name.strip()}") is False
+def test_the_policy_check_takes_a_bare_name_or_a_full_address(name):
+    assert policy_kind(POLICY, name) == kind_by_rule(name) is not None
+    assert policy_kind(POLICY, f"x{name.strip()}") is None
+
+
+@SETTINGS
+@given(
+    st.text(alphabet="aB.-_@ \t\u017f", max_size=10),
+    st.sampled_from(("", f"@{D}", f"@{D.upper()}", "@mail.example")),
+)
+def test_a_name_has_at_most_two_forms_and_each_form_gives_back_the_same_pair(local, domain):
+    forms = name_forms(local + domain)
+    assert len(forms) <= 2
+    for form in forms:
+        assert form and form == form.strip().casefold()
+        assert set(name_forms(form)) == set(forms)
+
+
+def test_a_record_takes_the_kind_of_its_account():
+    # its own name only matches the pattern, but another name of its account is listed
+    okta = Account(system="okta", account=f"breakglass-77@{D}", email=f"breakglass-77@{D}")
+    google = Account(
+        system="google",
+        account=f"breakglass-77@{D}",
+        email=f"breakglass-77@{D}",
+        aliases=(f"breakglass-01@{D}",),
+    )
+    both = break_glass(POLICY, [okta, google])
+    assert both.account_kind(okta) == both.account_kind(google) == "listed"
+    assert _kind(POLICY, okta) == "pattern"
+
+
+def test_a_record_outside_the_state_is_still_checked_against_the_policy():
+    empty = break_glass(POLICY, [])
+    assert empty.names == {}
+    assert empty.account_kind(Account(system="slack", account="breakglass-01")) == "listed"
+    assert empty.account_kind(Account(system="slack", account="breakglass-5")) == "pattern"
+    assert empty.account_kind(Account(system="slack", account="ops")) is None
+    assert empty.protects(" BREAKGLASS-01 ") and not empty.protects("ops")
 
 
 # --- focused tests for what mutation testing found unchecked -------------------------------------
 
 
-def test_a_bare_name_the_policy_lists_as_written_is_protected_as_written():
+def test_a_bare_name_the_policy_lists_is_protected_in_both_forms():
     bare = dataclasses.replace(POLICY, break_glass_accounts=frozenset({"rootbare"}))
     for a in (
         Account(system="slack", account="rootbare"),
         Account(system="github", account=" RootBare "),
         Account(system="google", account=f"x@{D}", email=f"x@{D}", aliases=("rootbare",)),
+        Account(system="slack", account=f"rootbare@{D}"),  # its company address (gap G2)
     ):
-        assert _break_glass(bare, a) == "listed"
-    assert _break_glass(bare, Account(system="slack", account=f"rootbare@{D}")) is None
+        assert _kind(bare, a) == "listed"
+    assert _kind(bare, Account(system="slack", account="rootbare@mail.example")) is None
 
 
 # --- gap G2: every name of a protected account ----------------------------------------------------
@@ -234,15 +263,10 @@ def test_a_bare_name_the_policy_lists_as_written_is_protected_as_written():
 # as a bare username (`ops` for `ops@meridian.example`) and as a company address
 # (`root-login@meridian.example` for the login `root-login`), in any case matching treats as the
 # same (it compares with str.casefold, so `OPS` and `op` plus a long s are `ops`), with spaces
-# around. Today a bare username is protected only when the policy lists it or a pattern matches it,
-# the policy compares with str.lower, and matching looks only at the names one record carries.
-# Strict xfails; the source is unchanged.
+# around. Before AAC-018 a bare username was protected only when the policy listed it or a pattern
+# matched it, the policy compared with str.lower, and matching looked only at the names one record
+# carried. These were strict xfails until the fix.
 
-G2_REASON = (
-    "gap G2: break-glass protection does not yet cover every name of a protected account "
-    "(the bare username or company address of a name protected through another name, a record "
-    "in another system, case variants matching treats as the same)"
-)
 LONG_S = "\u017f"  # the long s: str.casefold() makes it "s", str.lower() keeps it
 
 # A Google user protected only through its listed alias, with a second alias; an Okta user
@@ -286,7 +310,6 @@ def _record(system: str, name: str) -> Account:
     return Account(system=system, account=name, email=email, app_id=app_id)
 
 
-@pytest.mark.xfail(strict=True, reason=G2_REASON)
 @pytest.mark.parametrize(
     "name", [f"Op{LONG_S}-Root@{D}", f"op{LONG_S}-root@{D}", f" OP{LONG_S}-ROOT@{D} "]
 )
@@ -295,7 +318,6 @@ def test_g2_the_policy_takes_every_case_variant_matching_treats_as_the_same(name
     assert POLICY.break_glass_kind(name) == "listed"
 
 
-@pytest.mark.xfail(strict=True, reason=G2_REASON)
 @pytest.mark.parametrize("bare", ["rootbare", "RootBare"])
 def test_g2_a_bare_name_the_policy_lists_protects_its_company_address(bare):
     policy = dataclasses.replace(POLICY, break_glass_accounts=frozenset({bare}))
@@ -304,7 +326,6 @@ def test_g2_a_bare_name_the_policy_lists_protects_its_company_address(bare):
     assert m is not None and m.rule == "break_glass"
 
 
-@pytest.mark.xfail(strict=True, reason=G2_REASON)
 @SETTINGS
 @given(other_names(), st.sampled_from(("okta", "slack", "github")))
 def test_g2_matching_marks_every_record_of_a_protected_account(name, system):
@@ -313,7 +334,6 @@ def test_g2_matching_marks_every_record_of_a_protected_account(name, system):
     assert m is not None and (m.employee_id, m.rule) == ("", "break_glass")
 
 
-@pytest.mark.xfail(strict=True, reason=G2_REASON)
 @SETTINGS
 @given(other_names(), st.sampled_from(("okta", "slack", "github")))
 def test_g2_the_diff_drops_every_change_that_names_a_protected_account(name, system):
@@ -379,7 +399,6 @@ def _g2_mocks(system: str, name: str) -> Mocks:
     return Mocks(OktaMock(okta), GoogleMock(google), SlackMock(slack))
 
 
-@pytest.mark.xfail(strict=True, reason=G2_REASON)
 @pytest.mark.parametrize(
     ("system", "name"),
     [

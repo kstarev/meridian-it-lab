@@ -12,12 +12,12 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from meridian_access.break_glass import break_glass
 from meridian_access.collect import ActualState
 from meridian_access.desired import DesiredState, PersonDesired
 from meridian_access.match import (
     Match,
     MatchResult,
-    _break_glass,
     _letters,
     _split_number,
     fold,
@@ -25,7 +25,7 @@ from meridian_access.match import (
 )
 from meridian_access.models import Account
 from meridian_access.policy.load import Policy
-from meridian_dataset.access.model import DOMAIN, HrisEvent, HrisRecord
+from meridian_dataset.access.model import HrisEvent, HrisRecord
 
 TYPE_ORDER = (
     "break_glass",
@@ -676,26 +676,6 @@ class _Builder:
                 )
 
 
-def _break_glass_strings(actual: ActualState, policy: Policy) -> set[str]:
-    """Every name a break-glass account goes by (login, email, Google aliases)."""
-    names: set[str] = set()
-    for a in actual.accounts:
-        if _break_glass(policy, a):
-            names |= {_norm(v) for v in (a.account, a.email, *a.aliases) if v.strip()}
-    return names
-
-
-def _touches_break_glass(c: Change, policy: Policy, names: set[str]) -> bool:
-    account = _norm(c.account)
-    if not account:
-        return False
-    if account in names:
-        return True
-    if policy.break_glass_kind(account):
-        return True
-    return "@" not in account and bool(policy.break_glass_kind(f"{account}@{DOMAIN}"))
-
-
 def build_changes(
     desired: DesiredState,
     actual: ActualState,
@@ -774,12 +754,12 @@ def build_changes(
                 ("HRIS terminate events",),
             )
         )
-    # last word: nothing but a never_touch entry may name a break-glass account
-    names = _break_glass_strings(actual, policy)
+    # last word: nothing but a never_touch entry may name a break-glass account, by any name
+    protected = break_glass(policy, actual.accounts)
     extra_warnings: list[str] = []
 
     def keep(c: Change) -> bool:
-        if c.type == "break_glass" or not _touches_break_glass(c, policy, names):
+        if c.type == "break_glass" or not protected.protects(c.account):
             return True
         extra_warnings.append(f"change for {c.account.strip()} dropped: break-glass account")
         return False

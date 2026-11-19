@@ -246,26 +246,27 @@ UNITS: tuple[Unit, ...] = (
         (A + "test_policy.py", A + "test_match.py", A + "test_diff.py", A + "test_apply.py"),
         (A + "test_break_glass_properties.py",),
     ),
+    # Since AAC-018 (gap G2) one module works out every name of a protected account; matching,
+    # the diff's last word and apply's guard ask it (in match_accounts, build_changes and
+    # apply_plan). It replaced match._break_glass, diff._break_glass_strings and
+    # _touches_break_glass, and apply._break_glass_names, _is_listed and _touches_break_glass.
     Unit(
         "access break-glass",
-        "access/src/meridian_access/match.py",
-        ("_break_glass",),
+        "access/src/meridian_access/break_glass.py",
+        (
+            "name_forms",
+            "policy_kind",
+            "_names_of",
+            "BreakGlass.protects",
+            "BreakGlass.account_kind",
+            "break_glass",
+        ),
         (A + "test_match.py", A + "test_diff.py", A + "test_apply.py"),
-        (A + "test_break_glass_properties.py", A + "test_match_properties.py"),
-    ),
-    Unit(
-        "access break-glass",
-        "access/src/meridian_access/diff.py",
-        ("_break_glass_strings", "_touches_break_glass"),
-        (A + "test_diff.py", A + "test_apply.py"),
-        (A + "test_break_glass_properties.py",),
-    ),
-    Unit(
-        "access break-glass",
-        "access/src/meridian_access/apply.py",
-        ("_break_glass_names", "_is_listed", "_touches_break_glass"),
-        (A + "test_apply.py",),
-        (A + "test_break_glass_properties.py", A + "test_apply_properties.py"),
+        (
+            A + "test_break_glass_properties.py",
+            A + "test_match_properties.py",
+            A + "test_apply_properties.py",
+        ),
     ),
     Unit(
         "access idempotent apply",

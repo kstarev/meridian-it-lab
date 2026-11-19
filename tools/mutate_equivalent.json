@@ -40,5 +40,6 @@
  "access/src/meridian_access/apply.py::_send::return::return False -> return None #3": "Equivalent: the caller uses `not _send(...)`, and None is false like False.",
  "access/src/meridian_access/apply.py::_plan_call::constant::None -> ''": "Equivalent: the body of an Okta DELETE is ignored by the mock (and Okta takes none), so \"\" and None are the same call.",
  "access/src/meridian_access/apply.py::_plan_call::constant::None -> '' #3": "Equivalent: an Okta lifecycle POST takes no body; the mock ignores it, so \"\" and None are the same call.",
- "access/src/meridian_access/apply.py::_plan_call::constant::None -> '' #5": "Equivalent: an Okta lifecycle POST takes no body; the mock ignores it, so \"\" and None are the same call."
+ "access/src/meridian_access/apply.py::_plan_call::constant::None -> '' #5": "Equivalent: an Okta lifecycle POST takes no body; the mock ignores it, so \"\" and None are the same call.",
+ "access/src/meridian_access/break_glass.py::break_glass::constant::1 -> 0": "Equivalent: the loop then joins forms[0] with itself first, which changes nothing (its root is already its own)."
 }
