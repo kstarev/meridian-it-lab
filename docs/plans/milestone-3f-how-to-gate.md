@@ -4,7 +4,7 @@
 
 ## The owner's ruling (12, 2026-11-19)
 
-- **(b), now:** guide answers wait for one click from a person in IT until a blind month passes. It is the default in code (its own pull request).
+- **(b), now:** guide answers wait for one click from a person in IT until a blind month passes. It is the default in code (ADR-053, #133).
 - **(a), once:** after reading the 7 failing tickets, a **structural fix in code, not more prompt wording**. The owner's example: "the picker is asked only when triage says how-to and the message screen found nothing". Tune on dev data only. Then one new blind month, `held_out_month3`: the realistic mix plus extra prompt-injection, app-fault, hardware and small-talk tickets, with slowness keyed by ADR-041 from the start. Its pass rules and the stop rule are committed before its seal. If month3 fails, (b) stays the design and the picker isn't changed again. **Stop and ask the owner before the sealed run.** Inside `tier0-3e`.
 
 ## What the failing tickets showed
@@ -66,13 +66,15 @@ The rules and the stop rule are in [milestone-3f-month3-rules.md](milestone-3f-m
 
 ## Cost
 
-`tier0-3e` has $8.43 left of $15. Estimated from the 3e runs' measured cost:
+`tier0-3e` had $8.43 left of $15 when this plan was written. Estimated from the 3e runs' measured cost and the gate's call count (868 runs reached a guide in each arm's recorded runs):
 
 | Step | Estimate |
 |---|---|
-| Gate tuning (at most 3 versions × 2 models, composed on 4 months) | about $1.00 |
-| The rehearsal (tuning month, both arms, k = 3) | about $1.60 |
-| Month3's one run (400 tickets, both arms, k = 3) | about $2.10 |
-| **Total** | **about $4.70** |
+| Gate tuning, per version: Haiku about $0.07, Sonnet about $1.30 (the gate prompt is too short to be cached) | about $1.40 |
+| The rehearsal (tuning month, both arms, k = 3, gate live) | about $2.00 |
+| Month3's one run (400 tickets, both arms, k = 3) | about $2.70 |
+| **Total with one version per model** | **about $6.10** |
+
+A second version for either model still fits. A third Sonnet version would not, so it isn't written: the plan stops and asks the owner instead.
 
 Each paid step runs under a watchdog that stops it before its own estimate plus 25%, and before `tier0-3e`'s cap.

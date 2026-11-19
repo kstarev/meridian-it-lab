@@ -14,7 +14,11 @@ SEALED_GLOB = "held_out_*"  # a tracked file whose basename starts with this is 
 # block it, because it is code people edit.
 EXTRA_PATHS = ("dataset/src/meridian_dataset/names.py",)
 # Dev sets the owner opened by an ADR: these may be searched when named with --open.
-OPENED = {"held_out_month1": "ADR-049"}
+OPENED = {
+    "held_out_month1": "ADR-049",
+    "held_out_month2": "ADR-052",
+    "held_out_month2b": "ADR-052",
+}
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _PREFIX = SEALED_GLOB.rstrip("*")

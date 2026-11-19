@@ -1,6 +1,6 @@
 """Tracing for ADR-007: one trace per work session, GenAI semantic conventions, no content.
 
-Each work session on a ticket (an intake or a sweep) is one trace. Every span
+Each work session on a ticket (an intake, a sweep or a click from IT) is one trace. Every span
 carries the ticket ID, so a ticket's traces can be joined and its cost and
 latency summed (`summarize`). Traces hold no message content by default and
 only pseudonymised user IDs. Content capture is a flag meant for eval runs on
@@ -85,7 +85,7 @@ OPERATION_EXECUTE_TOOL = "execute_tool"
 TIER0_TICKET_ID = "tier0.ticket.id"
 TIER0_SESSION_KIND = "tier0.session.kind"
 
-type SessionKind = Literal["intake", "sweep"]
+type SessionKind = Literal["intake", "sweep", "it_click"]
 
 _MAX_EVENT_VALUE_LENGTH = 64
 _OTLP_KIND = {

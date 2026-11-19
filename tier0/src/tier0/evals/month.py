@@ -425,6 +425,11 @@ def route_ticket(
             return Route(HAND_OFF, None, stopped, label)
     kind, guide = second_stage(text)
     if kind == GUIDE and guide:
+        # Scored as the picker's choice, as it always was. In the live flow a chosen guide now
+        # waits for one click from a person in IT before it is posted (ADR-053,
+        # GUIDE_ANSWERS_NEED_IT_CLICK in tier0.controls). That gate sits after the picker and
+        # this runner leaves it out on purpose, so month results stay comparable with every
+        # month before it: a blind month must pass rules 1 and 2 on the picker's own choice.
         return Route(ANSWER_GUIDE, guide, PICKER_GUIDE, label)
     return Route(HAND_OFF, None, PICKER_HAND_OFF, label)
 

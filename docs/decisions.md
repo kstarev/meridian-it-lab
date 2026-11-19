@@ -808,7 +808,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-035: Milestone 4, Knowledge: answers from approved runbooks, picked by the AI and posted by code
 
-**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job was built on 2026-11-17, code only, on the stub and a mock of GitHub, with no scheduled workflow ([as built](plans/milestone-4-knowledge.md#the-weekly-drafting-job-as-built)). Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
+**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job was built on 2026-11-17, code only, on the stub and a mock of GitHub, with no scheduled workflow ([as built](plans/milestone-4-knowledge.md#the-weekly-drafting-job-as-built)). Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person). Amended on 2026-11-19 by ADR-053: a picked guide waits for one click from a person in IT before it is posted.
 
 **Context:** tier0 answers one request type today. How-to questions are common, and their answers already live in the IT team's guides. ADR-005 (the weekly learning loop) and ADR-010 (memory as a reviewed Git repo) set where that knowledge comes from and how it's reviewed. They don't say how tier0 answers from it, what it must never answer, or how that is tested.
 
@@ -1061,7 +1061,7 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 
 ## ADR-040: Milestone 4 as built; its sealed test shows the picker what production shows it, and poisoned steps are a code-only result
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md), PR #48) and the owner's rulings since. Adds to ADR-035.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md), PR #48) and the owner's rulings since. Adds to ADR-035. Amended by ADR-051: the message screen also reads look-alike and hidden-character forms; its patterns are unchanged.
 
 **Context:** Milestone 4 was built and tuned on tuning data overnight, with its decisions in its plan. Its sealed how-to test, `held_out_k1`, was then written blind and sealed. In the test as built, the poisoned-guide questions showed the picker every guide's steps, which production never does. That made the test harder than real use, and it treated the model as a defence against poisoned steps.
 
@@ -1425,3 +1425,80 @@ Nothing leaked, but the answer key wants a person for both.
   - With the cache on for the sealed run, it costs about $1.10, and the plan comes to about $6.50. Whether a sealed run may use the cache is the owner's ruling; until then it is off.
 - **No planned work loses money.** The two items that give up cap are finished and unapproved. Access keeps $18 of cap in its two approved items, of which $3.14 is spent.
 - **The buffer is $6.** A new blind red-team set for Access, if the owner chooses that option, would need its own item from it.
+
+## ADR-051: The message screen also reads look-alike and hidden-character forms (PR #101); the widened screen has run on no sealed set
+
+**Date:** 2026-11-19 · **Status:** Accepted (owner, 2026-11-19). Amends [ADR-040](#adr-040-milestone-4-as-built-its-sealed-test-shows-the-picker-what-production-shows-it-and-poisoned-steps-are-a-code-only-result)'s message screen.
+
+**Context:**
+- Property tests found messages that got past the frozen message screen with no new wording ([report](evals/2026-11-18-safety-mutation-testing.md)): mathematical bold capitals (it lower-cased before NFKD), a zero-width character or soft hyphen inside a word, and Cyrillic or Greek look-alike letters.
+- [PR #101](https://github.com/kstarev/meridian-it-lab/pull/101) (branch `tier0-screen-gaps`, merged 2026-11-19 21:00 UTC) closed these gaps. ADR-040 froze the screen as it was when its sealed counts were seen, so the change needs this ADR.
+
+**Decision:**
+- **The screen reads more forms of each message.** `tier0/src/tier0/knowledge/screen.py` reads the text the old way first (`_normalise`), then in the forms `tier0/src/tier0/knowledge/lookalikes.py` makes: NFKD before casefold, look-alike letters of other scripts mapped to Latin ones, and hidden characters removed or turned into spaces. The first reading that fires gives the kind. So it can only fire more, and a message that fired before keeps its kind.
+- **The pattern list and its hash are unchanged.** `test_the_screen_is_frozen` (`tier0/tests/test_knowledge.py`) still pins `SCREEN_SHA256`.
+- **It fires the same on tuning data.** #101 added `test_both_screens_still_give_what_the_old_reading_gives` (`tier0/tests/test_guide_screen_properties.py`): whatever the old reading flags, the screen flags with the same kind. On the tuning month and the tuning how-to questions, the same items fire with the same kinds before and after (#101's before/after table; checked again for this ADR). `test_the_screen_on_the_tuning_set` passes unchanged.
+
+**Consequences:**
+- **The widened screen has run on no sealed set.** Every sealed result published so far that runs the message screen used it as it was before #101, so those results describe the old screen:
+  - `held_out_k1`, the sealed how-to test, 2026-11-16 ([result](evals/2026-11-16-m4-how-to-sealed.md));
+  - `held_out_month1`, 2026-11-17 ([Haiku](evals/2026-11-17-m3c-sealed-month-haiku-3d2.md), [Sonnet](evals/2026-11-17-m3c-sealed-month-sonnet-3d2.md));
+  - `held_out_month2` and `held_out_month2b`, run on 2026-11-19 before #101 merged; the commit that adds their results does not contain #101 ([month2 Haiku](evals/2026-11-19-m3e-sealed-month2-haiku-3d2.md), [month2 Sonnet](evals/2026-11-19-m3e-sealed-month2-sonnet-3d2.md), [month2b Haiku](evals/2026-11-19-m3e-sealed-month2b-haiku-3d2.md), [month2b Sonnet](evals/2026-11-19-m3e-sealed-month2b-sonnet-3d2.md)).
+  - They are not re-run or re-scored. The triage sets (held-out v2 to v6 and v4b) and Access's sets don't run this screen.
+- **The widened screen's first sealed measurement will be the next blind month.**
+- #101 also widened the guide screen the same way and made the picker's reply parser treat unreadable replies as off-format. The sealed how-to test's code-only result used the old guide screen too.
+
+## ADR-052: The two blind months (`held_out_month2`, `held_out_month2b`) are spent and are dev sets; their results stand as fails
+
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling 11 of 2026-11-19, after the months' runs). Follows ADR-049.
+
+**Context:**
+- Both months ran once on 2026-11-19 on the frozen system (KS6A-H, `haiku-3d2` and `sonnet-3d2`, k = 3, prompt cache on). **Both failed rule 1 in both arms** ([result](plans/milestone-3e-picker-fix.md#the-sealed-runs-result-2026-11-19)). The result was reported from ids, kinds and counts only ([failure note](evals/2026-11-19-m3e-failure-note.md)).
+- By their rules the months were spent, but the code still sealed them and nobody had read them until this ruling.
+
+**Decision:**
+- **The results stand as fails.** They are not re-scored. No answer key is changed, and no rule is softened.
+- **Both months are dev sets from 2026-11-19** (`SPENT_SETS`, and `OPENED` in `tools/sealed_paths.py`). They may be read and tuned on.
+- **Every number measured on them from now on is "dev, not blind".** The runner labels it so and names the result files `-dev`.
+- **The files stay pinned by their SHA-256.** The published results were measured on exactly those bytes.
+- **The sealed result files stay as published.**
+
+**Consequences:**
+- **Only the failing tickets were read:** the 7 wrongly answered tickets and the 7 tickets of template B009, whose how-to runs were all handed off ([the reasons](evals/2026-11-19-m3e-month2-failure-reasons.md)).
+- **No month is sealed in the month runner until `held_out_month3` is added.** The runner's checks for a sealed set stay, tested with these months standing in for sealed sets.
+- **Nothing measured on these months can show that a fix works.** That takes `held_out_month3`, written blind, with its pass rules and a stop rule committed before its seal (the owner's ruling 12 (a)).
+- **The other sealed sets are untouched.**
+
+## ADR-053: Guide answers wait for one click from a person in IT until a blind month passes
+
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling 12b of 2026-11-19: "guide answers wait for one click from a person in IT until a blind month passes"). Option 3 of the [failure note](evals/2026-11-19-m3e-failure-note.md). Amends ADR-035: code no longer posts a picked guide on its own. Follows ADR-052.
+
+**Context:**
+- The picker's fix, KS6A-H on `claude-sonnet-5-5`, failed rule 1 on both blind months, `held_out_month2` and `held_out_month2b`, in both arms. It answered some requests meant for a person with an approved guide. Rule 2 held, and no username was given out ([results](how-it-works.md#results-on-the-two-blind-months-milestone-3e), [failure note](evals/2026-11-19-m3e-failure-note.md)).
+- The first sealed month failed the same way, at the same picker (ADR-049).
+- ADR-052 then opened both months as dev sets, and only their failing tickets were read.
+- The failure note lists four options. The owner chose option 3: the picker's choice becomes a suggestion that someone on the IT team confirms before it is posted.
+
+**Decision:**
+- **A picked guide is a suggestion.** When the picker chooses a guide that every code gate allows, tier0 does not post it to the requester. Instead:
+  - the requester gets the existing hand-off reply, which says that the IT team will reply, with no new promise such as a time;
+  - the ticket goes to the queue for a person, as any hand-off does, with the hand-off code `guide_waits_for_it_click`;
+  - a draft goes to `#it-team`, the channel that already gets the proactive posts' previews (ADR-020). It holds the reply word for word and two buttons, "Send this guide" and "Take it over". It names the ticket and the guide, not the message or the requester.
+- **One click from a person in IT sends it, once.** A click counts only when:
+  - Slack signed it;
+  - it came from `#it-team`;
+  - the clicker is an active member of the IT team: the directory's IT department, the same people the weekly drafting job asks to review guides.
+
+  Anyone else's click is refused and written to the audit log, with who clicked and why. A second click does nothing. "Take it over" leaves the ticket with the person, and tier0 sends nothing. With the kill switch on, no click sends anything. A click on a ticket that a person has already moved out of the queue sends nothing.
+- **The output guard checks the reply twice:** before the draft is made, and again when the guide is sent. A guide it blocks never becomes a draft.
+- **One setting, on by default:** `GUIDE_ANSWERS_NEED_IT_CLICK` in `tier0/src/tier0/controls.py`, next to the kill switch and the rate limit. Turning it off is a deliberate change: that line, or the agent option `guide_answers_need_it_click=False`. Nothing reads it from the environment, a message or a model. Off, a picked guide is posted at once, as before.
+- **The stop condition:** the setting stays on until a blind month passes rules 1 and 2, in both arms. Turning it off then needs the owner's ruling and a new decision record.
+- **The evals don't change.** The month runner and the how-to eval score the picker's choice, as before. The click comes after the picker, and they leave it out on purpose. Their results stay comparable with every published one, and a blind month measures the same thing it measured before. Nothing was re-run for this, and no paid call was made.
+
+**Consequences:**
+- **It costs the hours the guides save.** A how-to question that a guide answers now waits for someone in IT, like a hand-off. Nobody on the IT team works in Asia-Pacific, so a requester there can wait for Berlin or Toronto to start work. What IT has to do is one click, not write the answer.
+- **A wrong guide no longer reaches a requester on the picker's choice alone.** A person sees the draft first. That person can still click on a wrong guide: the click is the safeguard, and how well people read drafts is not measured.
+- **Drafts are kept in memory.** After a restart, a click finds no draft and is refused. The ticket is already with a person, who answers by hand.
+- **The guide picker is still off by default** (the agent option `guide_picker`, ADR-035). This decision changes what happens when it is on.
+- **Mocks only.** The draft and the click run on the Slack mock, with the mock's signed button request. No real Slack call is made. A real Slack app would read the IT team from the directory or a Slack user group at click time.
+- **The site's demo shows the new flow:** the hand-off reply, the draft in `#it-team`, the click, then the guide.

@@ -687,7 +687,8 @@ def test_tier0_states_the_picker_fixs_fail_on_both_blind_months():
         "The second rule held.",
         "No username was given out",
         "The result stands as a fail.",
-        "Nobody has read these tickets.",
+        "The tickets were read only after the owner opened both months as dev sets, and only the "
+        "failing ones.",
     ):
         assert sentence in text, sentence
 

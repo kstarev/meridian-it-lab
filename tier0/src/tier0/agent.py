@@ -8,23 +8,40 @@ the ticket goes to a person and nothing unsafe is posted.
 The kill switch and the rate limit (ADR-008) are read here too, so the agent can
 stop before it does anything: no model call, no token, no tool call. The MCP
 server enforces both again on every tool call and does not rely on this code.
+
+A guide the picker chooses waits for one click from a person in IT before it is
+posted (ADR-053, `GUIDE_ANSWERS_NEED_IT_CLICK`, on by default): the requester
+gets the hand-off reply, #it-team gets a draft, and `handle_interaction` sends
+the guide once, on a click by a member of the IT team.
 """
 
 import contextlib
 import json
+import re
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Literal, Protocol
+from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from meridian_dataset.knowledge import Guide
 from tier0 import messages, replies
+from tier0.audit import AuditLog
 from tier0.clock import Clock, parse_time
-from tier0.controls import ACTIONS_STOPPED, KIND_REQUEST, RATE_LIMITED, Controls
+from tier0.controls import (
+    ACTIONS_STOPPED,
+    GUIDE_ANSWERS_NEED_IT_CLICK,
+    KIND_REQUEST,
+    RATE_LIMITED,
+    Controls,
+)
 from tier0.guard import check_reply
 from tier0.identity.binding import BoundIdentity, IdentityBinder, Unbound
 from tier0.identity.slack_signature import SignatureError, verify_slack_request
 from tier0.identity.tokens import TokenIssuer
+from tier0.knowledge import review
 from tier0.knowledge.answer import GUIDE, reply_text
 from tier0.knowledge.wiring import NOT_POSTABLE, GuidePicker, code_link, postable_guide
 from tier0.mcp_server.client import McpAuthError, McpToolError, open_session
@@ -89,6 +106,21 @@ TIER_C_RESET = "tier_c_reset"
 # and the start of every hand-off code the knowledge path gives ("guide_no_guide_fits", ...).
 ANSWER_GUIDE = "answer_guide"
 GUIDE_HAND_OFF = "guide_"
+# ADR-053, with GUIDE_ANSWERS_NEED_IT_CLICK on: the action when the chosen guide goes to #it-team
+# as a draft and the ticket to a person, and the hand-off code that ticket gets.
+DRAFT_GUIDE = "draft_guide_for_it"
+GUIDE_WAITS_FOR_IT = f"{GUIDE_HAND_OFF}waits_for_it_click"
+# A draft's states. Only a waiting draft can be sent or taken over, so a second click does nothing.
+DRAFT_WAITING = "waiting"
+DRAFT_SENT = "sent"
+DRAFT_TAKEN_OVER = "taken_over"
+DRAFT_CLOSED = "closed"  # not sent, and it never will be: a person answers by hand
+# Why a click on a draft was refused (the audit log's codes).
+CLICK_NOT_IT = "not_in_it_team"
+CLICK_WRONG_CHANNEL = "wrong_channel"
+CLICK_UNKNOWN_DRAFT = "unknown_draft"
+CLICK_TICKET_MOVED = "ticket_moved_on"
+_SAFE_ID = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +136,12 @@ class Outcome:
 
 class SlackApi(Protocol):
     def chat_post_message(
-        self, *, channel: str, text: str, thread_ts: str | None = None
+        self,
+        *,
+        channel: str,
+        text: str,
+        thread_ts: str | None = None,
+        blocks: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]: ...
 
     def users_info(self, user: str, *, include_locale: bool = False) -> dict[str, Any]: ...
@@ -131,6 +168,43 @@ def _audience(bound: BoundIdentity) -> _Audience:
         first_name=bound.first_name,
         tz=bound.tz,
     )
+
+
+@dataclass(slots=True)
+class _GuideDraft:
+    """A guide that waits in #it-team for one click (ADR-053): what will be posted, and where."""
+
+    ticket: str
+    guide: str
+    channel: str  # the requester's conversation with tier0
+    to: _Audience
+    body: str  # the reply code wrote, word for word
+    links: tuple[str, ...]  # the one link code built, which the output guard lets through
+    state: str = DRAFT_WAITING
+
+
+def _safe_id(value: object) -> str:
+    """An id from a click that is safe to log: a short plain token, or "hidden"."""
+    return value if isinstance(value, str) and _SAFE_ID.fullmatch(value) else "hidden"
+
+
+def _parse_click(body: bytes) -> tuple[str, str, str, str] | None:
+    """(action id, value, user, channel) from a block_actions form body, or None."""
+    try:
+        payload = json.loads(parse_qs(body.decode())["payload"][0])
+        actions = payload.get("actions") or []
+        action = actions[0] if actions and isinstance(actions[0], dict) else {}
+        fields = (
+            action.get("action_id"),
+            action.get("value"),
+            (payload.get("user") or {}).get("id"),
+            (payload.get("channel") or {}).get("id"),
+        )
+    except (KeyError, IndexError, ValueError, AttributeError, UnicodeDecodeError):
+        return None
+    if not all(isinstance(f, str) and f for f in fields):
+        return None
+    return fields  # type: ignore[return-value]
 
 
 class _SendBlocked(Exception):
@@ -304,12 +378,19 @@ class ServiceDeskAgent:
         ladder: VerificationLadder | None = None,
         features: Features | None = None,
         guide_picker: GuidePicker | None = None,
+        guide_answers_need_it_click: bool = GUIDE_ANSWERS_NEED_IT_CLICK,
+        it_team: frozenset[str] = frozenset(),
     ) -> None:
         """`guide_picker` turns milestone 4's knowledge path on: a message triage really
         calls "other" may get an approved guide (tier0.knowledge.wiring). None, the default,
         leaves it off, and every "other" goes to a person as before. With part 2's `tier_c`
         on, the reset signal runs first and the picker is asked only about what part 2 would
-        plainly hand off."""
+        plainly hand off.
+
+        `guide_answers_need_it_click` (ADR-053) is on by default: a chosen guide goes to
+        #it-team as a draft, and only a click by someone in `it_team` (Slack user ids) sends
+        it. Off, the guide is posted to the requester at once, as before. It stays on until a
+        blind month passes rules 1 and 2; turning it off must be a deliberate config change."""
         self._slack = slack
         self._secret = signing_secret
         self._binder = binder
@@ -329,6 +410,13 @@ class ServiceDeskAgent:
         self._ladder = ladder
         self._features = features if features is not None else Features()
         self._guide_picker = guide_picker
+        self._guide_needs_it_click = guide_answers_need_it_click
+        self._it_team = frozenset(it_team)
+        # Every click on a draft is logged with who clicked: in the controls' audit log, or in
+        # one of the agent's own when it has no controls.
+        self._audit = controls.audit if controls is not None else AuditLog(clock)
+        self._drafts: dict[str, _GuideDraft] = {}
+        self._click_lock = threading.Lock()
         if self._features.split and guide_picker is not None:
             raise ValueError(
                 "the split option and the guide picker don't run together: messages are not "
@@ -932,8 +1020,10 @@ class ServiceDeskAgent:
         picker: GuidePicker,
         text: str,
     ) -> tuple[str, str]:
-        """A message triage called "other": post an approved guide word for word, or hand it
-        to a person as before (ADR-035, ADR-046).
+        """A message triage called "other": an approved guide word for word, or a hand-off to
+        a person as before (ADR-035, ADR-046). With `guide_answers_need_it_click` on (ADR-053,
+        the default), the guide is not posted here: it goes to #it-team as a draft, and the
+        ticket to a person, until someone in IT clicks (`handle_interaction`).
 
         The model only picks; `answer_question`'s gates decide in code. Nothing here reads or
         changes an account: no token, no tool call, no directory lookup. So the verification
@@ -969,10 +1059,14 @@ class ServiceDeskAgent:
         # word, then the link (decision 7 of the plan). The guard checks all of it but the link.
         to = _audience(bound)
         link = code_link(guide)
+        links = (link,) if link else ()
+        body = reply_text(guide, to.language)
+        if self._guide_needs_it_click:
+            # ADR-053: until a blind month passes rules 1 and 2, the picker's choice is only a
+            # suggestion. The evals score that choice as before; this gate comes after it.
+            return self._draft_for_it(s, identifier, channel, bound, guide, body, links)
         try:
-            self._post(
-                channel, to, reply_text(guide, to.language), code_links=(link,) if link else ()
-            )
+            self._post(channel, to, body, code_links=links)
         except _SendBlocked as error:
             return self._guard_blocked(s, identifier, channel, bound, error.count)
         except _SendFailed:
@@ -985,6 +1079,179 @@ class ServiceDeskAgent:
         )
         self._tickets.set_state(identifier, AWAITING_REPLY)
         return ANSWER_GUIDE, AWAITING_REPLY
+
+    # --- ADR-053: a guide answer waits for one click from a person in IT ----------
+
+    def _draft_for_it(
+        self,
+        s: Session,
+        identifier: str,
+        channel: str,
+        bound: BoundIdentity,
+        guide: Guide,
+        body: str,
+        links: tuple[str, ...],
+    ) -> tuple[str, str]:
+        """Hand the ticket to a person exactly as a hand-off does, and put the guide in #it-team
+        as a draft with two buttons: "Send this guide" and "Take it over".
+
+        The output guard checks the reply now, as it would be posted, so a guide it blocks
+        never becomes a draft: the requester gets the fallback reply, as before. It checks the
+        reply again when the guide is sent. The requester gets the existing hand-off reply and
+        nothing else until someone in IT clicks. If the draft can't be posted, the ticket is
+        still with a person, who answers by hand."""
+        to = _audience(bound)
+        later = replies.compose(body, to.language, first_name=to.first_name, first=False)
+        verdict = check_reply(
+            later, requester_email=to.email, domain=self._domain, code_links=links
+        )
+        if not verdict.allowed:
+            return self._guard_blocked(s, identifier, channel, bound, len(verdict.blocked))
+        self._escalate(s, identifier, channel, bound, GUIDE_WAITS_FOR_IT)
+        draft = _GuideDraft(identifier, guide.id, channel, to, body, links)
+        if not self._post_draft(guide, draft):
+            s.event("tier0.guide.draft_not_sent", guide=guide.id)
+            self._tickets.add_comment(
+                identifier,
+                f"tier0: the guide picker chose the approved guide {guide.id}, but its draft "
+                "could not be posted to #it-team. A person answers by hand.",
+            )
+            return "escalate", TRIAGE
+        self._drafts[identifier] = draft
+        s.event("tier0.guide.drafted", guide=guide.id)
+        self._tickets.add_comment(
+            identifier,
+            f"tier0: the guide picker chose the approved guide {guide.id}. It waits in #it-team "
+            "for one click from a person in IT, who can send it word for word or take the "
+            "ticket over (ADR-053). The requester has the hand-off reply only.",
+        )
+        return DRAFT_GUIDE, TRIAGE
+
+    def _post_draft(self, guide: Guide, draft: _GuideDraft) -> bool:
+        """Post the draft to #it-team, guarded like every message. True if Slack took it."""
+        text = review.draft_text(draft.ticket, guide, draft.body)
+        if not check_reply(
+            text, requester_email=None, domain=self._domain, code_links=draft.links
+        ).allowed:
+            return False
+        try:
+            response = self._slack.chat_post_message(
+                channel=review.IT_TEAM_CHANNEL,
+                text=text,
+                blocks=review.draft_blocks(draft.ticket, guide, draft.body),
+            )
+        except Exception:
+            # A real Slack client raises on API and network errors. The ticket is already
+            # with a person, so a lost draft only costs them the shortcut.
+            return False
+        return bool(response.get("ok"))
+
+    def handle_interaction(self, request: SlackHttpRequest) -> str:
+        """A click on a guide draft's button, as Slack posts it (ADR-053). Returns what was done.
+
+        A click counts only when Slack signed it, it came from #it-team, and the clicker is on
+        the IT team; anyone else's click is refused. "Send this guide" posts the guide to the
+        requester, word for word, once: a draft that was sent or taken over takes no second
+        action. "Take it over" leaves the ticket with the person, and tier0 sends nothing.
+        With the kill switch on, nothing is sent. Every click is written to the audit log with
+        who clicked, and a refused one with why."""
+        try:
+            verify_slack_request(
+                request.headers, request.body, signing_secret=self._secret, now=self._clock.now()
+            )
+        except SignatureError as error:
+            self._audit_click("guide_draft.click_rejected", "unverified", None, error.reason)
+            return f"rejected: {error.reason}"
+        click = _parse_click(request.body)
+        if click is None:
+            self._audit_click("guide_draft.click_rejected", "unverified", None, "malformed")
+            return "rejected: malformed"
+        action, ticket, user, channel = click
+        if action not in review.ACTIONS:
+            return "ignored"  # another handler's button, such as the proactive posts' Cancel
+        who = _safe_id(user)
+        if user not in self._it_team:
+            return self._refuse_click(who, ticket, CLICK_NOT_IT)
+        if channel != review.IT_TEAM_CHANNEL:
+            return self._refuse_click(who, ticket, CLICK_WRONG_CHANNEL)
+        with self._click_lock:
+            draft = self._drafts.get(ticket)
+            if draft is None:
+                return self._refuse_click(who, ticket, CLICK_UNKNOWN_DRAFT)
+            if draft.state != DRAFT_WAITING:
+                # A second click, or a click on a draft that can't be sent: nothing happens.
+                self._audit_click("guide_draft.click_repeated", who, draft.ticket, draft.state)
+                return f"already {draft.state}"
+            if action == review.TAKE_OVER_ACTION:
+                return self._take_over(draft, who)
+            if self._stopped():
+                # The draft keeps waiting: once the switch is off, a click can send it.
+                return self._refuse_click(who, ticket, KILL_SWITCH_ON)
+            if self._tickets.get_ticket(draft.ticket).state != TRIAGE:
+                # Someone already moved the ticket on by hand; a late click must not post.
+                draft.state = DRAFT_CLOSED
+                return self._refuse_click(who, ticket, CLICK_TICKET_MOVED)
+            return self._send_draft(draft, who)
+
+    def _take_over(self, draft: _GuideDraft, who: str) -> str:
+        """The person keeps the ticket, which is already in the human queue; nothing is sent."""
+        draft.state = DRAFT_TAKEN_OVER
+        with self._tracer.session(ticket_id=draft.ticket, kind="it_click") as s:
+            s.event("tier0.guide.taken_over", guide=draft.guide)
+        self._tickets.add_comment(
+            draft.ticket,
+            f"tier0: a person in IT ({who}) took the ticket over; the guide {draft.guide} was "
+            "not sent, and tier0 sends nothing more on it.",
+        )
+        self._audit_click("guide_draft.taken_over", who, draft.ticket, None, guide=draft.guide)
+        return DRAFT_TAKEN_OVER
+
+    def _send_draft(self, draft: _GuideDraft, who: str) -> str:
+        """Post the guide to the requester, guarded again; then the ticket waits for their
+        reply and closes after 3 days, like any answer."""
+        with self._tracer.session(ticket_id=draft.ticket, kind="it_click") as s:
+            try:
+                self._post(draft.channel, draft.to, draft.body, code_links=draft.links)
+            except _SendBlocked as error:
+                draft.state = DRAFT_CLOSED
+                s.event("tier0.guard.blocked", count=error.count)
+                self._tickets.add_comment(
+                    draft.ticket,
+                    f"tier0: the output guard blocked the guide {draft.guide} when IT clicked to "
+                    "send it; nothing was sent. A person answers by hand.",
+                )
+                self._audit_click("guide_draft.not_sent", who, draft.ticket, "guard_blocked")
+                return "not sent: blocked by the output guard"
+            except _SendFailed:
+                # Nothing was posted, so the draft keeps waiting and a new click may send it.
+                s.event("tier0.reply.not_sent", reason="send_failed")
+                self._audit_click("guide_draft.not_sent", who, draft.ticket, "send_failed")
+                return "not sent: Slack did not take it"
+            draft.state = DRAFT_SENT
+            s.event("tier0.guide.posted", guide=draft.guide)
+        self._tickets.add_comment(
+            draft.ticket,
+            f"tier0: answered with the approved guide {draft.guide}: its steps word for word and "
+            f"its link, after one click by a person in IT ({who}).",
+        )
+        self._tickets.set_state(draft.ticket, AWAITING_REPLY)
+        self._audit_click("guide_draft.sent", who, draft.ticket, None, guide=draft.guide)
+        return DRAFT_SENT
+
+    def _refuse_click(self, who: str, ticket: str, why: str) -> str:
+        self._audit_click("guide_draft.click_refused", who, ticket, why)
+        return f"refused: {why}"
+
+    def _audit_click(
+        self, event: str, who: str, ticket: str | None, why: str | None, **details: str
+    ) -> None:
+        self._audit.record(
+            event,
+            actor=who,
+            ticket=_safe_id(ticket) if ticket is not None else "none",
+            why=_safe_id(why) if why is not None else "none",
+            **details,
+        )
 
     # --- sending --------------------------------------------------------------
 

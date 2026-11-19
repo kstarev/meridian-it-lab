@@ -16,6 +16,7 @@ from tier0.clock import MockClock, parse_time
 from tier0.controls import Controls, RateLimitSettings, build_controls
 from tier0.identity.binding import IdentityBinder
 from tier0.identity.tokens import JwtVerifier, TokenIssuer
+from tier0.knowledge.review import it_team
 from tier0.mcp_server.client import serve_in_process
 from tier0.mcp_server.server import McpServerHandle, build_mcp_server
 from tier0.mentions import MentionCheck
@@ -143,6 +144,8 @@ async def offline_runtime(
                 "mention_check": MentionCheck(directory),
                 "controls": controls,
                 "ladder": ladder,
+                # Who may send a guide draft with one click (ADR-053): the IT department.
+                "it_team": it_team(world),
                 **agent_options,
             },
         )

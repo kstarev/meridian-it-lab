@@ -5,10 +5,11 @@ A template set is a JSON file under pools/: {"templates": [{"id", "kind", "lang"
 how-to question a guide answers, and null for every other kind. The only placeholder is
 {colleague}, filled with another person's full name.
 
-Two sets exist. tuning_month is written by the tuning agent and may be read. held_out_month1
-was written blind by a helper that never saw tier0's code, was sealed until its one final
-test on 2026-11-17 (seal.py), and is a dev set since: it may be read, and numbers measured on
-it are dev, not blind. Error messages here name ids, never text.
+Four sets exist. tuning_month is written by the tuning agent and may be read. held_out_month1,
+held_out_month2 and held_out_month2b were each written blind by a helper that never saw tier0's
+code and sealed until their one final test (seal.py): month1 on 2026-11-17 (ADR-049), month2
+and month2b on 2026-11-19 (ADR-052). Each is a dev set since: it may be read, and numbers
+measured on it are dev, not blind. Error messages here name ids, never text.
 """
 
 import json
@@ -22,14 +23,19 @@ HELD_OUT_MONTH1 = "held_out_month1"
 HELD_OUT_MONTH2 = "held_out_month2"
 HELD_OUT_MONTH2B = "held_out_month2b"
 TEMPLATE_SETS = (TUNING_MONTH, HELD_OUT_MONTH1, HELD_OUT_MONTH2, HELD_OUT_MONTH2B)
-# Sets a model may run on only by their own name, at their one final test. held_out_month2 was
-# written blind from docs/plans/briefs/held_out_month2-brief.md and sealed on 2026-11-18, after
-# its pass rules were committed (docs/plans/milestone-3e-month2-rules.md). held_out_month2b, the
-# second blind month the owner asked for, likewise (docs/plans/milestone-3e-month2b-rules.md).
-SEALED_SETS: frozenset[str] = frozenset({HELD_OUT_MONTH2, HELD_OUT_MONTH2B})
+# Sets a model may run on only by their own name, at their one final test. None is sealed until
+# the next blind month is added. held_out_month2 and held_out_month2b were written blind and
+# sealed on 2026-11-18 after their pass rules were committed
+# (docs/plans/milestone-3e-month2-rules.md, docs/plans/milestone-3e-month2b-rules.md), ran once
+# on 2026-11-19 and are spent (ADR-052).
+SEALED_SETS: frozenset[str] = frozenset()
 # Sets that had their one final test, with its date. Each is a dev set since: it may be read
 # and tuned on, and every number measured on it from then on is "dev, not blind".
-SPENT_SETS: dict[str, str] = {HELD_OUT_MONTH1: "2026-11-17"}
+SPENT_SETS: dict[str, str] = {
+    HELD_OUT_MONTH1: "2026-11-17",
+    HELD_OUT_MONTH2: "2026-11-19",
+    HELD_OUT_MONTH2B: "2026-11-19",
+}
 # The seed of each set's month, fixed before anything ran on either set
 # (docs/plans/milestone-3c-realistic-month.md).
 DEFAULT_SEEDS = {

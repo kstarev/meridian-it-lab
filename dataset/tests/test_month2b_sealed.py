@@ -1,6 +1,7 @@
 """held_out_month2b: written blind from docs/plans/briefs/held_out_month2b-brief.md, copied in
-byte for byte, and sealed on 2026-11-18, after its pass rules (milestone 3e). Every check prints
-counts, ids, kinds and languages only; no assertion here holds any wording."""
+byte for byte, and sealed on 2026-11-18, after its pass rules (milestone 3e). Spent by its one
+final test on 2026-11-19 and a dev set since (ADR-052). Every check prints counts, ids, kinds and
+languages only; no assertion here holds any wording."""
 
 import re
 from collections import Counter
@@ -11,6 +12,7 @@ from meridian_dataset.month import (
     HELD_OUT_MONTH2,
     HELD_OUT_MONTH2B,
     SEALED_SETS,
+    SPENT_SETS,
     TUNING_MONTH,
     load_templates,
     month_digest,
@@ -26,8 +28,11 @@ def _pieces(text: str) -> set[str]:
     return {p.strip().lower() for p in re.split(r"[.!?\n]+", text) if len(p.split()) >= 3}
 
 
-def test_the_seal_holds() -> None:
-    assert HELD_OUT_MONTH2B in SEALED_SETS
+def test_it_is_spent_and_still_pinned() -> None:
+    """Spent by its one final test on 2026-11-19 and a dev set since (ADR-052). The digest still
+    pins it: the published result was measured on exactly these bytes."""
+    assert HELD_OUT_MONTH2B not in SEALED_SETS
+    assert SPENT_SETS[HELD_OUT_MONTH2B] == "2026-11-19"
     assert file_digest(HELD_OUT_MONTH2B) == HELD_OUT_MONTH2B_SHA256
     assert DEFAULT_SEEDS[HELD_OUT_MONTH2B] == 3141
 
