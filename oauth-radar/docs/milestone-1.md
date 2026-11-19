@@ -84,6 +84,8 @@ Evidence: [`test_run_report.py`](../tests/test_run_report.py): the same inputs g
 
 [`evaluate.py`](../src/meridian_oauth_radar/evaluate.py) is the grader, and the only module that reads an answer key. It runs the radar on the tuning world on its snapshot date and again a week later, then counts, against the 6 planted risky grants, how many are found and how many false alarms there are, two ways: **marked high by the rubric** (OAR-002's own definition of found) and **acted on by the radar** (a notice, a plan, or a nudge draft). Every rate has its count and a 95% Wilson interval. It also reports the catalogue's "dormant grants removed (simulation)": grants in the after-notice plan a week later, out of all grants unused for more than 90 days.
 
-The numbers are in the generated report, [docs/evals/2026-11-19-oauth-radar-tuning.md](../../docs/evals/2026-11-19-oauth-radar-tuning.md), not typed here. They are tuning numbers: one builder wrote the world, the plants and the radar. Whether precision gets a target is ruling R16; for now it is reported only.
+The numbers are in the generated report, [docs/evals/2026-11-19-oauth-radar-tuning.md](../../docs/evals/2026-11-19-oauth-radar-tuning.md), not typed here. They are tuning numbers: one builder wrote the world, the plants and the radar.
+
+**Update, 2026-11-19:** on the owner's ruling (R16, [OAR-008](adr/008-risk-rubric-with-the-owners-changes.md)), the headline is "acted on by the radar", with the lab brief's targets: precision at least 0.90 and recall 100%, each reported as PASS or FAIL and a FAIL until met. "Marked high by the rubric" is the second line, reported without a target. Tests pin both.
 
 Evidence: [`test_evaluate.py`](../tests/test_evaluate.py) pins every count, checks the published report is exactly the generated one, and checks no other module names an answer-key field.

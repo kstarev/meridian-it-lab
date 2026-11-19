@@ -4,13 +4,18 @@ This is the grader, and the only module that reads an answer key. The radar itse
 collector, enricher, rubric, policy, nudges and report) never does: `run.run_files` takes
 only the world's `radar/` folder, and a test runs it with no key on disk at all.
 
-Two ways of counting, both reported:
+Two ways of counting, both reported (OAR-008, the owner's ruling on R16):
 
-- **Marked high by the rubric** (OAR-002's definition of "found"): a planted risky grant
-  is found when the rubric rates it high; any other high grant is a false alarm.
-- **Acted on by the radar:** a notice draft, a place in a plan (after-notice or emergency),
-  or a Slack nudge draft. A grant that is only listed for a person to review isn't counted,
-  because that list holds every high and medium grant.
+- **The headline: acted on by the radar.** A planted risky grant is found when the radar
+  writes a notice draft for it, puts it in a plan (after-notice or emergency), or drafts a
+  Slack nudge for it. A grant only listed for a person to review isn't counted, because that
+  list holds every high and medium grant. It has two targets: **precision at least 0.90**
+  (the lab brief's target for every project) and **recall 100%** (the lab brief's target for
+  oauth-radar, and the catalogue's "6 of 6"). Each is reported as PASS or FAIL on its point
+  estimate, and a FAIL stays a FAIL until it is met.
+- **The second line: marked high by the rubric** (OAR-002's definition of "found"): a
+  planted risky grant is found when the rubric rates it high; any other high grant is a false
+  alarm. Reported, with no target.
 
 Every rate comes with its count and a 95% Wilson interval, because the counts are small. The
 catalogue's "dormant grants removed (simulation)" is reported too: of the grants unused for
@@ -29,6 +34,17 @@ from meridian_oauth_radar.rubric import STATUS
 from meridian_oauth_radar.run import LEDGER, reference_date, run_files
 
 Key = tuple[str, str]
+
+# The headline's targets (OAR-008): the lab brief's precision target for every project, and
+# its recall target for oauth-radar ("High-risk OAuth grants found: 100%").
+PRECISION_TARGET = 0.90
+RECALL_TARGET = 1.0
+PASS, FAIL = "PASS", "FAIL"
+
+
+def verdict(k: int, n: int, target: float) -> str:
+    """PASS when k of n meets the target on its point estimate; FAIL otherwise (and for n = 0)."""
+    return PASS if n and k / n >= target else FAIL
 
 
 def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
@@ -61,6 +77,14 @@ class Count:
     @property
     def precision(self) -> float:
         return self.found / self.flagged if self.flagged else 0.0
+
+    @property
+    def recall_verdict(self) -> str:
+        return verdict(self.found, self.planted, RECALL_TARGET)
+
+    @property
+    def precision_verdict(self) -> str:
+        return verdict(self.found, self.flagged, PRECISION_TARGET)
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +203,7 @@ def _rate(k: int, n: int) -> str:
 
 def markdown(ev: Evaluation) -> str:
     """The published report. A test checks the committed copy matches this output."""
+    a, h = ev.acted, ev.high
     lines = [
         "# Shadow AI Radar: precision and recall on the tuning world",
         "",
@@ -194,21 +219,32 @@ def markdown(ev: Evaluation) -> str:
         "it would do on a world it has never seen. There is no held-out world yet (OAR-006 "
         "waits).",
         "",
-        "## Found and false alarms",
+        "## Headline: acted on by the radar",
         "",
-        "| Counting | Flagged | Plants found (recall) | False alarms | Precision |",
-        "|---|---|---|---|---|",
-    ]
-    for c in (ev.high, ev.acted):
-        lines.append(
-            f"| {c.name} | {c.flagged} | {_rate(c.found, c.planted)} | {c.false_alarms} "
-            f"| {_rate(c.found, c.flagged)} |"
-        )
-    lines += [
+        "| Metric | Result | Target | |",
+        "|---|---|---|---|",
+        f"| Recall: planted risky grants the radar acted on | {_rate(a.found, a.planted)} "
+        f"| {RECALL_TARGET:.0%} | **{a.recall_verdict}** |",
+        f"| Precision: grants the radar acted on that are planted | {_rate(a.found, a.flagged)} "
+        f"| at least {PRECISION_TARGET:.2f} | **{a.precision_verdict}** |",
         "",
-        '"Marked high" is OAR-002\'s definition of found. "Acted on" counts a notice '
-        "draft, a place in a plan (after-notice or emergency) or a Slack nudge draft; a grant "
-        "only listed for a person to review isn't counted.",
+        f"The radar acted on {a.flagged} grants: {a.found} planted, {a.false_alarms} false "
+        'alarms. "Acted on" means a notice draft, a place in a plan (after-notice or emergency) '
+        "or a Slack nudge draft; a grant only listed for a person to review isn't counted. The "
+        "targets are the lab brief's: precision at least 0.90 for every project, and recall "
+        '100% for oauth-radar (the catalogue\'s "6 of 6": every planted grant). They are set '
+        "for a held-out world. A FAIL here stays a FAIL until it is met, and a PASS on a tuning "
+        "world wouldn't be the final word.",
+        "",
+        "## Second line: marked high by the rubric",
+        "",
+        "| Flagged | Plants found (recall) | False alarms | Precision |",
+        "|---|---|---|---|",
+        f"| {h.flagged} | {_rate(h.found, h.planted)} | {h.false_alarms} "
+        f"| {_rate(h.found, h.flagged)} |",
+        "",
+        "OAR-002's definition of found: a planted grant the rubric rates high. Reported, with "
+        "no target.",
         "",
         "## Each planted grant",
         "",
@@ -257,4 +293,16 @@ def markdown(ev: Evaluation) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["Count", "Evaluation", "PlantOutcome", "evaluate", "markdown", "wilson"]
+__all__ = [
+    "FAIL",
+    "PASS",
+    "PRECISION_TARGET",
+    "RECALL_TARGET",
+    "Count",
+    "Evaluation",
+    "PlantOutcome",
+    "evaluate",
+    "markdown",
+    "verdict",
+    "wilson",
+]
