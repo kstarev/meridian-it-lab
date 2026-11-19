@@ -15,6 +15,7 @@ from tier0.models.base import ModelError, ModelRequest, ModelResponse
 FROZEN = {
     "G1": "36a62b6c56f7e8f8798d078b06259fecc56387d4d60918fc333881df5d9915aa",
     "G2": "35491c1b5616330111e24c14368612ab838e3cf8f2b6a98319006ae190b682f8",
+    "G3": "55e797391967757e336ed644ee41e9ca02e83db7359e66aa2aa483bcdfe65733",
 }
 
 
