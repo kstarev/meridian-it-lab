@@ -281,6 +281,8 @@ UNITS: tuple[Unit, ...] = (
             "_assign",
             "_plan_call",
             "_step",
+            "_takes_away",  # the refusal of a plan that adds and removes one target (AAC-017)
+            "contradictions",
         ),
         (A + "test_apply.py",),
         (A + "test_apply_properties.py",),
