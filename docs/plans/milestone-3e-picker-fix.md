@@ -183,3 +183,10 @@ For each small-talk option:
 - The runner refuses any other prompt, arm or k, and refuses KS6A-H if its text no longer matches the hash.
 - **The order the owner set:** #90, #91 and the freeze merged with main green; then the rehearsal on the tuning month, run the same way; then, if the rehearsal is clean, `held_out_month2` once, as frozen. No code, dependency or prompt change between the two runs.
 
+## A second blind month, `held_out_month2b` (2026-11-18)
+
+- **`held_out_month2`'s brief left out the kinds the fix is about.** I removed two hard-case lines from it so as not to point the writer at the first month's failure: a fault where the sender has already tried the obvious steps, and a message that asks for nothing. Month2 may therefore hold few such tickets.
+- **The owner kept month2 exactly as sealed, and asked for `held_out_month2b`** ([its rules](milestone-3e-month2b-rules.md)). It holds only small talk, hardware faults, app faults and how-to questions with a right guide. So it tests the fix directly, and can also fail by handing off too much.
+- Its rules and its brief are committed before its writer starts. A separate helper writes it from the brief alone, and it is checked by counts only.
+- **Both months run once, back to back, on the same frozen system,** after both are sealed and the rehearsal is clean.
+
