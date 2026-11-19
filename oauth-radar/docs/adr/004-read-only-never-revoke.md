@@ -1,6 +1,6 @@
 # OAR-004: Read-only: the radar opens a review and never revokes anything
 
-**Date:** 2026-11-15 · **Status:** Proposed; for the owner's review. Holds for every planned milestone (0 to 4).
+**Date:** 2026-11-15 · **Status:** Superseded by [OAR-010](010-dry-run-removal-plans-never-applied.md) (owner, 2026-11-19). Before that it was Proposed and never accepted; the text below is unchanged. Its original note: Holds for every planned milestone (0 to 4).
 
 **Context:** Revoking a grant cuts someone off from a tool they may use every day. A false positive would then cost a person their work, and IT their trust. A bad scan, or a bad export, could revoke dozens of grants at once. tier0 and Access-as-Code both keep a person in the loop for any change (lab ADR-002, [AAC-007](../../../access/docs/adr/007-safety-rails.md)). This project has no plan, no approval flow and no blast-radius limit for changes, so it shouldn't make any.
 
