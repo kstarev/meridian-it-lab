@@ -14,7 +14,7 @@
   | `scope_breadth` | The broadest scope the grant holds, from the scope explainer's classes: Google's restricted scopes and Admin SDK scopes are broad, sensitive scopes medium, non-sensitive scopes narrow. **A scope the table doesn't know counts as broad.** | broad 3, medium 2, narrow 0 |
   | `unverified_publisher` | Google doesn't list the publisher as verified. **A publisher the vendor directory doesn't know counts as not verified.** | +2 |
   | `reach` | People at Meridian holding a grant to the same app: 1 to 4 add nothing, 5 to 24 add 1, 25 or more ("org-wide") add 2. The mock has no admin installs, so they don't count yet. | 0, +1, +2 |
-  | `ai_app` | **Change 2:** the vendor directory's AI flag. Only when the directory doesn't know the app, the short word list (`ai`, `gpt`, `llm`, `copilot`, `assistant`, `agent`, `transcribe`, `transcription`, as whole words in the app's or the publisher's name). | +1 |
+  | `ai_app` | **Change 2:** the vendor directory's AI flag. Only when the directory doesn't know the app, the short word list (`ai`, `gpt`, `llm`, `copilot`, `assistant`, `agent`, `transcribe`, `transcription`, as whole words in the app's name; the publisher is unknown too, since only the directory names it). | +1 |
   | `not_reviewed` | The app isn't in IT's app catalogue at all | +1 |
 
 - **Two overrides make a grant high whatever its points:** an app on IT's banned list; and a leaver's grant (HRIS says terminated, or the end date has passed) that holds a scope above narrow. Leavers come from the Access world's HRIS records ([OAR-009](009-tuning-world-month-people-and-access-leavers.md)).
