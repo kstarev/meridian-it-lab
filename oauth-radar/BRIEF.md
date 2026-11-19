@@ -14,6 +14,8 @@ Project 3 of the Meridian IT lab. Milestone 0 is this brief, the [decisions](doc
 
 **If a catalogue or a longer description of this project exists anywhere else, the owner should point to it,** and this brief will be checked against it.
 
+**Update, 2026-11-19: the owner's catalogue exists.** Where it differs from this brief or from OAR-001 to OAR-007, the catalogue wins, since none of them is accepted yet. Every difference, and what milestone 1 does about it, is in [catalogue-differences.md](docs/catalogue-differences.md).
+
 ## The problem
 
 "Shadow AI" is what happens when people give a third-party app, often an AI tool, access to company data without IT ever seeing it. A meeting note-taker asks to read every calendar and every Drive file. A writing assistant asks for full Gmail. An AI agent asks to read every Slack channel. Each takes one click on "Allow" (an OAuth consent), and from then on the app holds a token that reaches that data until someone takes it back.
