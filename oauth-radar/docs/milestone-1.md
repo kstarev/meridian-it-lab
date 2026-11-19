@@ -39,3 +39,13 @@ Evidence: [`test_oauth_world.py`](../../dataset/tests/test_oauth_world.py): same
 Evidence: [`test_scopes.py`](../tests/test_scopes.py): the catalogue's examples, an unknown scope, every entry one short sentence, and every scope the tuning world holds is in the table.
 
 **Honest limits.** The classes follow Google's restricted and sensitive scope lists as recalled on 2026-11-19, without a network to check them; a person should check them against Google's current lists. The table covers the common Workspace scopes, not all of them.
+
+## 4. Risk rubric from OAR-002
+
+**Proposed (OAR-002), not yet accepted by the owner.** [`rubric.py`](../src/meridian_oauth_radar/rubric.py) builds OAR-002's rubric exactly as [OAR-002](adr/002-risk-model-rules-first.md) states it: scope breadth 3/2/0 (the broadest scope, not the sum; an unknown scope counts as broad), unverified publisher +2, reach +1 for 5 to 24 people and +2 for 25 or more, AI app +1, not reviewed by IT +1; a banned app or a leaver's grant above sign-in is always high; 5 points or more is high, 3 to 4 medium, 2 or fewer low. Every score lists all five signals with their points and a plain reason, so it can be recomputed by hand. The catalogue's own rubric (scope sensitivity times users times dormancy times vendor maturity) is not built; that is the owner's call (R14).
+
+[`enrich.py`](../src/meridian_oauth_radar/enrich.py) is the enricher: from the vendor directory, IT's catalogue and the banned list it gives each app's vendor, category, verified flag, data location, vendor maturity, IT's review and AI tag, and the approved alternative (an app IT approved in the same category).
+
+How the scaffold's words were read, where OAR-002 leaves a choice: broad means Google's restricted scopes and Admin SDK scopes, medium means Google's sensitive scopes, narrow means non-sensitive scopes, from the scope explainer's classes. A publisher nobody knows counts as not verified. Reach counts people holding a grant to the app (the mock has no admin installs). The AI word list is `ai`, `gpt`, `llm`, `copilot`, `assistant`, `agent`, `transcribe` and `transcription`, as whole words, used only for apps IT never reviewed. Each choice is logged for the owner.
+
+Evidence: [`test_rubric.py`](../tests/test_rubric.py): OAR-002's four worked examples, points per signal on every score, unknown scopes, the reach steps, the AI word list, both overrides, a ranking that doesn't depend on input order, and the enricher on the tuning world.
