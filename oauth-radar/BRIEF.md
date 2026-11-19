@@ -22,6 +22,14 @@ Project 3 of the Meridian IT lab. Milestone 0 is this brief, the [decisions](doc
 
 Meridian's IT team is three people, and Meridian has about 140 SaaS apps ([lab brief](../docs/brief.md)). Ticket type 9, "New app or integration approval", is how an app is meant to get reviewed. It's only 4% of tickets, because most apps never go through it: people just click "Allow". So IT can't say which apps hold which grants, how many people use them, or which of them can read everyone's mail. The audits Meridian goes through (SOC 2 Type II, ISO 27001) ask exactly that.
 
+## Why it's real
+
+Each finding below is in the wording checked against its primary source, which it links.
+
+- Push Security's telemetry for an average week in April 2026: the average organisation had 17 AI OAuth integrations connected to Google Workspace and Microsoft 365, most of them unapproved. ([Push Security](https://pushsecurity.com/blog/what-push-data-reveals-about-the-state-of-shadow-ai))
+- Material Security analysed 22,332 OAuth-connected apps in 21 enterprise Google Workspace environments (June 2026): 47.2% had no active use in the past 90 days, with their authorisations still in place. ([Material Security](https://material.security/resources/the-access-you-forgot-you-granted-materials-oauth-risk-report))
+- UpGuard's State of Shadow AI report (November 2025): 45% of workers find workarounds to reach blocked applications. ([UpGuard](https://www.upguard.com/resources/the-state-of-shadow-ai))
+
 ## Who it's for
 
 - **Meridian's IT team** (a lead and two engineers, in Berlin and Toronto). They get one ranked list to work from, worst first, with the reason for each line.

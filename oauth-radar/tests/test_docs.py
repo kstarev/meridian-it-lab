@@ -57,3 +57,41 @@ def test_relative_links_resolve() -> None:
 def test_the_lab_brief_links_here() -> None:
     brief = (ROOT / "docs" / "brief.md").read_text(encoding="utf-8")
     assert "](../oauth-radar/BRIEF.md)" in brief
+
+
+# The only statistics the brief may carry, in the wording checked against each primary source
+# on 2026-11-19, each with its link. A new number or source needs the owner's check first.
+CHECKED_FINDINGS = (
+    (
+        "Push Security's telemetry for an average week in April 2026: the average organisation "
+        "had 17 AI OAuth integrations connected to Google Workspace and Microsoft 365, most of "
+        "them unapproved.",
+        "https://pushsecurity.com/blog/what-push-data-reveals-about-the-state-of-shadow-ai",
+    ),
+    (
+        "Material Security analysed 22,332 OAuth-connected apps in 21 enterprise Google "
+        "Workspace environments (June 2026): 47.2% had no active use in the past 90 days, with "
+        "their authorisations still in place.",
+        "https://material.security/resources/the-access-you-forgot-you-granted-materials-oauth-risk-report",
+    ),
+    (
+        "UpGuard's State of Shadow AI report (November 2025): 45% of workers find workarounds "
+        "to reach blocked applications.",
+        "https://www.upguard.com/resources/the-state-of-shadow-ai",
+    ),
+)
+
+
+def test_why_its_real_carries_only_the_checked_findings() -> None:
+    brief = (PROJECT / "BRIEF.md").read_text(encoding="utf-8")
+    section = brief.split("## Why it's real\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    assert len(bullets) == len(CHECKED_FINDINGS)
+    for line, (text, url) in zip(bullets, CHECKED_FINDINGS, strict=True):
+        assert line.startswith(f"- {text} (["), line
+        assert line.endswith(f"]({url}))"), line
+    # No other number anywhere in the section, outside the links.
+    for _, url in CHECKED_FINDINGS:
+        section = section.replace(url, "")
+    allowed = set(re.findall(r"\d[\d,.]*\d|\d", " ".join(text for text, _ in CHECKED_FINDINGS)))
+    assert set(re.findall(r"\d[\d,.]*\d|\d", section)) <= allowed
