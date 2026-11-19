@@ -80,7 +80,7 @@ BLOCKED = [
     _bash("rg --no-ignore foo"),
     _bash("rg -uuu foo pools"),
     # a real pipe or list after a quoted word is still a pipe or list
-    _bash("cat dataset/src/meridian_dataset/month/pools/held_out_month2.json | head"),
+    _bash("cat dataset/src/meridian_dataset/knowledge/pools/held_out_k1.json | head"),
     _bash('grep x "held_out_v3.json" | wc -l'),
     _bash('echo "a|b"; cat held_out_x.json'),
     _bash("echo 'a && b' && cat held_out_x.json"),
@@ -152,6 +152,8 @@ ALLOWED = [
     # a set the owner opened
     _bash("cat dataset/src/meridian_dataset/month/pools/held_out_month1.json"),
     ("Read", {"file_path": "dataset/src/meridian_dataset/month/pools/held_out_month1.json"}),
+    ("Read", {"file_path": "dataset/src/meridian_dataset/month/pools/held_out_month2.json"}),
+    ("Read", {"file_path": "dataset/src/meridian_dataset/month/pools/held_out_month2b.json"}),
     # code that also holds blind wording: left out of searches, not blocked here
     ("Read", {"file_path": NAMES_PY}),
     # other reads, and other tools

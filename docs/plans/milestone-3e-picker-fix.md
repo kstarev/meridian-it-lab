@@ -201,4 +201,4 @@ For each small-talk option:
   - `held_out_month2b`: 7 of 495 and 8 of 495 runs, all app faults from one template.
 - Every miss was answered with a guide by the shared picker. No username was given out, and no how-to run got a wrong guide.
 - The 4 sealed runs cost $2.44. Today's paid calls came to $3.48, rehearsal included, against the day's $6 limit.
-- **The result stands as a fail.** Nobody has read the tickets, and both months stay unopened until the owner rules ([the failure note, with the options](../evals/2026-11-19-m3e-failure-note.md)).
+- **The result stands as a fail** ([the failure note, with the options](../evals/2026-11-19-m3e-failure-note.md)). Nobody had read the tickets until the owner opened both months as dev sets (ADR-052, 2026-11-19). Then only the failing tickets and B009's were read ([the reasons](../evals/2026-11-19-m3e-month2-failure-reasons.md)).
