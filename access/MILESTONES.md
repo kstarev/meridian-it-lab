@@ -60,7 +60,7 @@ Reading actual state from the three mocks and the 95 exports, and matching every
 - [x] Rules-only matching is scored on the tuning world: precision and recall on account-to-person pairs, with intervals. Evidence: [matching report](../docs/evals/2026-11-15-access-tuning-matching.md), [`test_rules_only_precision_and_recall_on_the_tuning_world`](tests/test_match.py).
 - [x] The AI's title and match suggestions run through the spend ledger and cap ($3 and `ACCESS_CLAUDE_SPEND_CAP_USD` then; the per-item caps of lab ADR-037 since 2026-11-15), with structured outputs validated by code; a refusal or malformed answer counts as no suggestion. Evidence: [`test_a_call_that_would_cross_the_cap_is_not_made`](tests/test_ai.py), [`test_every_failure_is_no_suggestion`](tests/test_ai.py).
 - [x] Haiku 5.5, Sonnet 5.5 and Opus 5.5 are compared on the tuning world only, in a GitHub Actions run approved by the owner; the report shows accuracy, precision, recall and cost, and the user picks a model ([AAC-006](docs/adr/006-model-choice-and-spend-cap.md)). Evidence: [the k=3 report](../docs/evals/2026-11-15-access-model-comparison-k3.md); the owner picked Haiku 5.5 on 2026-11-15.
-- [ ] The chosen prompts are frozen by hash.
+- [x] The chosen prompts are frozen by hash. Evidence: [`test_the_prompts_are_frozen_by_hash`](tests/test_final.py), pins and freeze digest in [`ai/frozen.py`](src/meridian_access/ai/frozen.py) ([AAC-013](docs/adr/013-m7-frozen-prompts-and-the-owners-answers.md), [AAC-014](docs/adr/014-line-breaks-are-flattened-before-any-prompt.md)); the digest was confirmed by the owner as M7-R2 on 2026-11-16 ([m7-prep.md](docs/m7-prep.md), D12).
 
 ## 5. Diff, plan pull request and the mock Slack message
 
@@ -110,11 +110,11 @@ The sealed final score and a page that explains it. The prep is in [docs/m7-prep
 - [ ] The page states the honest limits from the brief and the compliance mapping as a mapping, not a claim.
 - [ ] The held-out world becomes a dev set.
 
-## What's left (2026-11-15, counts updated 2026-11-17)
+## What's left (2026-11-15, counts updated 2026-11-19)
 
-40 of 54 boxes are ticked, each with its evidence. The 14 open ones:
+41 of 54 boxes are ticked, each with its evidence (the milestone 4 freeze box on 2026-11-19). The 13 open ones:
 
-- **Milestone 4:** the comparison is done and Haiku 5.5 is chosen. The summary's pass rate was not part of the comparison and is not measured yet. The prompts were frozen by hash for milestone 7 (AAC-013, AAC-014).
+- **Milestone 4:** all boxes are ticked. The summary's pass rate was not part of the model comparison and is not measured yet; it is not a box.
 - **Milestone 5:**
   - The 5-minute leaver plan: `timing.json` and a local test time the whole plan build, but nothing measures it from an HRIS change in the workflow.
   - The owner's GitHub App, ruleset and secrets: the steps are in [docs/SETUP.md](docs/SETUP.md).
