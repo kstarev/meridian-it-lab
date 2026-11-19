@@ -2,6 +2,8 @@
 
 Short records of the choices that shape Shadow AI Radar (`oauth-radar`), one file each, numbered OAR-001 onwards. The lab's own decisions are in [docs/decisions.md](../../../docs/decisions.md) and are cited as "lab ADR-NNN"; Access-as-Code's are in [access/docs/adr/](../../../access/docs/adr/README.md) as AAC-NNN. To change a decision, add a new record that supersedes the old one instead of editing it.
 
+All seven are still Proposed. The owner's catalogue (2026-11-19) differs from several of them; the differences are listed in [catalogue-differences.md](../catalogue-differences.md).
+
 | ID | Decision | Status |
 |---|---|---|
 | [OAR-001](001-project-layout.md) | `oauth-radar/` in the lab repo, with its own package, brief and decisions | Proposed; for the owner's review |
