@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Tier0 demo · One request in simulated Slack</title>
+<meta name="description" content="One fake request handled end to end by Tier0, shown as a simulated Slack conversation, with notes on what code decided and what the AI model only suggested.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Tier0 demo · One request in simulated Slack">
+<meta property="og:description" content="One fake request handled end to end by Tier0, shown as a simulated Slack conversation, with notes on what code decided and what the AI model only suggested.">
+<meta property="og:url" content="https://kstarev.dev/meridian-it-lab/demo.html">
+<meta property="og:image" content="https://kstarev.dev/meridian-it-lab/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://kstarev.dev/meridian-it-lab/demo.html">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B1220'/%3E%3Ctext x='32' y='42' font-family='Arial,sans-serif' font-weight='700' font-size='26' text-anchor='middle' fill='%23F3F6FB'%3ET%3Ctspan fill='%2360A5FA'%3E0%3C/tspan%3E%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="site.css">
+<style>
+.badge{align-self:flex-start;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:999px;border:1px solid #D97706;background:#FFF4E0;color:#92400E}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:20px}
+.step{background:#FFFFFF;border:1px solid #E3E7EE;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.step-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.step-head .num{font-family:'JetBrains Mono',monospace;font-size:13px;color:#1D4ED8}
+.who{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid #CBD3E1;background:#F6F7F9;color:#3A4356}
+.who.person{border-color:#D97706;background:#FFF4E0;color:#92400E}
+.who.both{border-color:#2563EB;background:#EFF4FF;color:#1D4ED8}
+.step-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width: 900px){.step-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px}}
+.shown{display:flex;flex-direction:column;gap:12px;min-width:0}
+.note{display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.6;color:#3A4356;border-left:3px solid #2563EB;padding-left:16px;min-width:0}
+.note p{margin:0}
+.note strong{color:#141A26}
+code{font-family:'JetBrains Mono',monospace;font-size:.88em;overflow-wrap:anywhere}
+.slack{border:1px solid #DDDDDD;border-radius:10px;background:#FFFFFF;overflow:hidden;min-width:0}
+.slack-bar{margin:0;display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;padding:8px 14px;background:#3F0E40;color:#FFFFFF;font-size:13px}
+.slack-bar span{color:#E8D9E8}
+.msg{display:flex;gap:10px;padding:12px 14px;min-width:0}
+.avatar{flex:none;width:36px;height:36px;border-radius:8px;background:#E8D9E8;color:#3F0E40;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.avatar.bot{background:#0B1220;color:#60A5FA;font-family:'Space Grotesk',sans-serif}
+.msg-body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.msg-head{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-size:15px;color:#1D1C1D}
+.msg-head time{font-size:12px;color:#616061}
+.app{font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 4px;border-radius:3px;background:#E8E8E8;color:#616061}
+.msg-text{margin:0;font-size:15px;line-height:1.55;color:#1D1C1D;overflow-wrap:anywhere}
+.msg-text .url{color:#1264A3}
+.log{border:1px solid #E3E7EE;border-radius:10px;background:#F8FAFC;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.log-title{margin:0;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#5B6478;overflow-wrap:anywhere}
+.facts{margin:0;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.45}
+.facts div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 16px;border-bottom:1px solid #E3E7EE;padding-bottom:6px}
+.facts div:last-child{border-bottom:0;padding-bottom:0}
+.facts dt{color:#3A4356}
+.facts dd{margin:0;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#141A26}
+.comments{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.5;color:#3A4356;overflow-wrap:anywhere}
+@media (max-width: 520px){.step{padding:18px}.msg{padding:10px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+<nav aria-label="Main">
+<a class="brand" href="index.html" aria-label="Tier0 home page">
+<span class="brand-mark" aria-hidden="true">T<span>0</span></span>
+<span class="brand-name">Tier0</span>
+</a>
+<div class="navlinks">
+<a class="navl" href="index.html">Home</a>
+<a class="navl" href="tier0.html">Tier0 case study</a>
+<a class="navl" href="access-as-code.html">Access-as-Code case study</a>
+<a class="gh" href="https://github.com/kstarev/meridian-it-lab">View on GitHub</a>
+</div>
+</nav>
+</header>
+
+<main>
+<div class="hero">
+<div class="wrap">
+<p class="eyebrow"><a href="index.html">Home</a> / <a href="tier0.html">Tier0 case study</a> / Demo</p>
+<p class="badge">$label</p>
+<h1>One request, from message to closed ticket</h1>
+<p class="lead">One fake employee asks Tier0 how to get onto the office Wi-Fi. Each step below shows what happened, with a short note on what code decided and what the AI model only suggested.</p>
+<p class="fake"><strong>This is not a real Slack workspace.</strong> The conversation is a replay of one run of Tier0 on the lab's mocks of Slack, the staff directory and the ticket system. Every message, label and ticket note below comes from that run; none of it was written for this page. On the lab's clock, the message arrives on $when.</p>
+</div>
+</div>
+
+<section id="replay" aria-labelledby="replay-h">
+<div class="wrap">
+<div class="head">
+<p class="eyebrow">The replay</p>
+<h2 id="replay-h">What happened, step by step</h2>
+</div>
+<ol class="steps">
+$steps
+</ol>
+<div class="prose col">
+<p class="small">How this page is made: <code>python -m tier0.site_demo --out site</code> runs the ticket through the real agent in process, with no paid model and no network, and writes the <a href="demo.json">run log</a> and this page. A test fails if either drifts from a new run (<a href="$repo/tier0/src/tier0/site_demo.py">the generator</a>, <a href="$repo/docs/decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned">ADR-036</a>).</p>
+</div>
+</div>
+</section>
+</main>
+
+<footer>
+<div class="wrap">
+<div class="who">
+<strong>Built by Kris Starev, IT Engineering Team Lead, Berlin</strong>
+<span>All data is fake. Meridian is a fictional company, and nothing comes from a real employer.</span>
+</div>
+<div class="links">
+<a href="index.html">Home</a>
+<a href="tier0.html">Tier0 case study</a>
+<a href="access-as-code.html">Access-as-Code case study</a>
+<a href="https://github.com/kstarev/meridian-it-lab">GitHub</a>
+<a href="https://github.com/kstarev/meridian-it-lab/blob/main/docs/decisions.md">Decisions</a>
+</div>
+</div>
+</footer>
+
+</body>
+</html>
