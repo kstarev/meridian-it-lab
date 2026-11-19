@@ -420,7 +420,7 @@ def plan(
     countries: Iterable[str],
     last_human_at: datetime | None,
     state: State,
-    config: Config = Config(),  # noqa: B008 - frozen, so a shared default is safe
+    config: Config = Config(),  # frozen, so a shared default is safe
 ) -> Due:
     """Which previews and posts are due at `now`."""
     codes = tuple(sorted(set(countries)))
