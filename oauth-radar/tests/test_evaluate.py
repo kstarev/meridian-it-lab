@@ -1,0 +1,72 @@
+"""Precision and recall on the tuning world, against the planted answer key (milestone 1).
+
+The numbers are pinned: a change to the world, the rubric or the policy that moves them has
+to change this test and the published report in the same pull request.
+"""
+
+import ast
+from pathlib import Path
+
+import pytest
+
+from meridian_dataset.oauth import KEY_DIR, RADAR_DIR, generate_oauth_world, write_oauth_world
+from meridian_oauth_radar.evaluate import Evaluation, evaluate, markdown, wilson
+
+ROOT = Path(__file__).resolve().parents[2]
+REPORT = ROOT / "docs" / "evals" / "2026-11-19-oauth-radar-tuning.md"
+SRC = ROOT / "oauth-radar" / "src" / "meridian_oauth_radar"
+
+
+@pytest.fixture(scope="module")
+def evaluation(tmp_path_factory: pytest.TempPathFactory) -> Evaluation:
+    folder = tmp_path_factory.mktemp("oauth")
+    write_oauth_world(generate_oauth_world(), folder / "w")
+    return evaluate(
+        folder / "w" / RADAR_DIR, folder / "w" / KEY_DIR / "answer_key.json", folder / "s"
+    )
+
+
+def test_marked_high_by_the_rubric(evaluation: Evaluation) -> None:
+    c = evaluation.high
+    assert (c.planted, c.found, c.flagged, c.false_alarms) == (6, 5, 178, 173)
+
+
+def test_acted_on_by_the_radar(evaluation: Evaluation) -> None:
+    c = evaluation.acted
+    assert (c.planted, c.found, c.flagged, c.false_alarms) == (6, 6, 35, 29)
+
+
+def test_the_one_plant_the_rubric_misses_is_caught_by_dormancy(evaluation: Evaluation) -> None:
+    missed = [p for p in evaluation.plants if p.tier != "high"]
+    assert [(p.app, p.tier, p.total, p.outcome) for p in missed] == [
+        ("Mergewick Mail Merge", "medium", 4, "notice, then after-notice plan")
+    ]
+    assert all(p.outcome != "only listed for a person" for p in evaluation.plants)
+
+
+def test_dormant_grants_in_the_plan_a_week_later(evaluation: Evaluation) -> None:
+    assert (evaluation.dormant, evaluation.dormant_in_plan, evaluation.excepted) == (65, 5, 1)
+
+
+def test_the_published_report_is_the_generated_one(evaluation: Evaluation) -> None:
+    assert REPORT.read_text(encoding="utf-8") == markdown(evaluation)
+
+
+def test_wilson() -> None:
+    low, high = wilson(6, 6)
+    assert (round(low, 3), high) == (0.61, 1.0)
+    assert wilson(0, 0) == (0.0, 1.0)
+
+
+def test_only_the_grader_reads_an_answer_key() -> None:
+    readers = []
+    for path in sorted(SRC.glob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        strings = {
+            node.value
+            for node in ast.walk(ast.parse(text))
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        if any("risky_grants" in s or "answer_key" in s for s in strings):
+            readers.append(path.name)
+    assert readers == ["evaluate.py"]

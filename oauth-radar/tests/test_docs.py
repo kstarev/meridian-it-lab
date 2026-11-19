@@ -43,7 +43,7 @@ def test_every_rule_is_in_oar_002() -> None:
 
 
 def test_relative_links_resolve() -> None:
-    pages = [PROJECT / "BRIEF.md", PROJECT / "MILESTONES.md", *ADR_DIR.glob("*.md")]
+    pages = [PROJECT / "BRIEF.md", PROJECT / "MILESTONES.md", *PROJECT.glob("docs/**/*.md")]
     broken = []
     for page in pages:
         for target in LINK.findall(page.read_text(encoding="utf-8")):

@@ -23,6 +23,8 @@ FORBIDDEN_IMPORTS = {
     "ollama",
     "openai",
     "requests",
+    "slack_bolt",
+    "slack_sdk",
     "smtplib",
     "socket",
     "ssl",

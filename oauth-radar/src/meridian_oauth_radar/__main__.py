@@ -1,5 +1,8 @@
 """Command line: python -m meridian_oauth_radar [--google-tokens FILE [--banned FILE]].
 
+Or a full dry run on a world folder (milestone 1):
+python -m meridian_oauth_radar --world DIR --out DIR [--today YYYY-MM-DD] [--ledger FILE]
+
 With no file it says there's nothing to scan yet: milestone 0 has no generated data
 (OAR-003). With a Google token export it prints the ranked findings for IT to review. It only
 reads files. It never revokes anything and never calls an API (OAR-004, OAR-005).
@@ -7,6 +10,7 @@ reads files. It never revokes anything and never calls an API (OAR-004, OAR-005)
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 from meridian_oauth_radar import Finding, Grant
@@ -47,7 +51,26 @@ def main(argv: list[str] | None = None) -> int:
         "--google-tokens", type=Path, metavar="FILE", help="a Google token export (JSON)"
     )
     parser.add_argument("--banned", type=Path, metavar="FILE", help="IT's banned-app list (JSON)")
+    parser.add_argument("--world", type=Path, metavar="DIR", help="a world's radar/ folder")
+    parser.add_argument("--out", type=Path, metavar="DIR", help="where a --world run writes")
+    parser.add_argument("--today", type=date.fromisoformat, help="the simulated date")
+    parser.add_argument("--ledger", type=Path, metavar="FILE", help="a previous run's ledger")
     args = parser.parse_args(argv)
+
+    if args.world is not None:
+        if args.out is None or args.google_tokens is not None:
+            print("error: --world needs --out, and not --google-tokens", file=sys.stderr)
+            return 2
+        from meridian_oauth_radar.run import run_files, write_run
+
+        try:
+            files = run_files(args.world, today=args.today, ledger_path=args.ledger)
+        except (ExportError, ValueError, OSError) as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+        write_run(files, args.out)
+        print(f"Wrote a dry run to {args.out}: see report.md. Nothing was removed or sent.")
+        return 0
 
     if args.google_tokens is None:
         if args.banned is not None:
