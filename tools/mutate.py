@@ -285,6 +285,22 @@ UNITS: tuple[Unit, ...] = (
         (A + "test_apply.py",),
         (A + "test_apply_properties.py",),
     ),
+    # Added 2026-11-19 in a later pass: the whole of build_changes, so its nested `hold` and
+    # its break-glass last word (`keep`) are mutated too. `tests` are the ones on main that day
+    # (with #111's), `new_tests` the ones added with this pass.
+    Unit(
+        "access build_changes",
+        "access/src/meridian_access/diff.py",
+        ("build_changes",),
+        (
+            A + "test_diff.py",
+            A + "test_break_glass_properties.py",
+            A + "test_split.py",
+            A + "test_plan.py",
+            A + "test_apply.py",
+        ),
+        (A + "test_build_changes_properties.py",),
+    ),
 )
 
 

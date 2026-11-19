@@ -1,6 +1,6 @@
 # Mutation testing on Access-as-Code's safety code
 
-**Date:** 2026-11-19 · **Cost:** $0: no model was called, and no sealed set was read · **Tool:** `tools/mutate.py` (from [the tier0 run](2026-11-18-safety-mutation-testing.md)) · **Results:** `out/mutation/access-before.json`, `out/mutation/access-after.json` (not tracked)
+**Date:** 2026-11-19 · **Cost:** $0: no model was called, and no sealed set was read · **Tool:** `tools/mutate.py` (from [the tier0 run](2026-11-18-safety-mutation-testing.md)) · **Results:** `out/mutation/access-before.json`, `out/mutation/access-after.json`, and for [the later `build_changes` pass](#later-pass-diffbuild_changes) `out/mutation/access-build-changes-before.json`, `out/mutation/access-build-changes-after.json` (not tracked)
 
 The same tool and the same changes as the tier0 run, on the four safety rails of [AAC-007](../../access/docs/adr/007-safety-rails.md): identity matching, the blast-radius limit, break-glass accounts and idempotent apply. A mutant is one file with one small change inside one named function; its tests are run against it, and a failing test kills it.
 
@@ -151,9 +151,52 @@ All use hypothesis with `derandomize=True` and `database=None`. Every person, ac
 - No change reaches a break-glass account, and without the break-glass policy the same changes would be made (the control).
 - Too few approvals are refused before any write; a plan built before a state change is refused as stale, live or dry.
 
+## Later pass: `diff.build_changes`
+
+Left out of the run above (see below), then mutated on its own the same day, as the owner asked. One unit, target `access build_changes`: the whole of `build_changes` in `access/src/meridian_access/diff.py`, with the two functions nested in it, `hold` (bad data, notice periods, bulk imports) and `keep` (the break-glass last word: nothing but a `never_touch` entry may name a break-glass account). The same tool, the same changes and the same equivalent list.
+
+Tests before: `test_diff.py`, `test_break_glass_properties.py`, `test_split.py`, `test_plan.py` and `test_apply.py`, all on main that day. After: those plus `test_build_changes_properties.py`. No source file is changed.
+
+Before (the tests on main, 107 s):
+
+| Target | Mutants | Killed | Survived | Timed out | Equivalent or harmless | Score |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| access build_changes | 53 | 45 | 8 | 0 | 3 | 90.0% |
+| Total | 53 | 45 | 8 | 0 | 3 | 90.0% |
+
+After (with the new tests, 117 s):
+
+| Target | Mutants | Killed | Survived | Timed out | Equivalent or harmless | Score |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| access build_changes | 53 | 50 | 3 | 0 | 3 | 100.0% |
+| Total | 53 | 50 | 3 | 0 | 3 | 100.0% |
+
+Killed / mutants: 84.9% before, 94.3% after. Every mutant of `keep` but one (`return False` to `return None`, equivalent) was already killed by the tests on main.
+
+The 5 survivors that mattered, and what kills them (`test_build_changes_properties.py`):
+
+| Where | Change | Killed by |
+|---|---|---|
+| `build_changes`, the ids a reviewed map entry may name | only superseded records count as known: an entry naming a current person is refused, one naming the old record of a rehire is used | `test_a_reviewed_entry_places_an_account_on_the_current_person_it_names`, `test_a_reviewed_entry_naming_the_old_record_of_a_rehire_is_not_used` |
+| `build_changes`, the bulk block (3) | a bulk import that removes or suspends exactly one account is not held; the block finding states twice the removals it holds | `test_a_bulk_import_holds_what_the_same_leavers_would_lose_and_says_how_much`, `test_a_bulk_import_that_suspends_one_account_is_held` |
+| `build_changes`, cause dates | an orphan takes its cause date from an HR event that names nobody, and a drift or rehire change from an event with no kind | `test_a_cause_date_comes_only_from_the_person_s_own_event_of_the_cause_kind`, `test_an_orphan_and_drift_get_no_cause_date_from_an_event_that_names_nobody_or_nothing` |
+
+The 3 left, with reasons (numbers from `list --target "access build_changes"`; in a run of every `access ` target they are 579 to 631):
+
+- 3. `access/src/meridian_access/diff.py:720` `build_changes` (constant): `None` to `''`. Harmless: it differs only when the HR data has no people at all. Then reviewed map entries get no unknown-id check (None); with "" every one is refused, warns, and its account is held as ambiguous with a second warning. The changes and held changes are the same either way: with no people the matcher places nobody, and the person an entry names does not exist, so nothing is planned for its account.
+- 10. `access/src/meridian_access/diff.py:733` `build_changes` (guard): `if not moved: return` to `(removed)`. Equivalent: with nothing to move, `held.extend` adds nothing and the next line keeps every change, so the early return only saves work.
+- 42. `access/src/meridian_access/diff.py:785` `build_changes` (return): `return False` to `return None`. Equivalent: `keep` is only used as a filter (`if keep(c)`), and None is false like False.
+
+No surviving mutant showed a bug, and no gap is pinned. One open point, from survivor 3: with an HR export that has no people at all, a reviewed map entry is used without the unknown-id check, so the account it names gets no change and no warning. With people in the export, the same entry warns and its account is held as ambiguous. Nothing is removed either way.
+
+The new tests (hypothesis, `derandomize=True`, `database=None`; made-up people, no world):
+- A bulk import holds exactly the changes the same leavers would get from ordinary HR events, and none is proposed now; one `block_two_approvers` finding gives the number of people and of removals it holds. A bulk import that removes or suspends nothing holds nothing and raises no block. An ordinary leaver the same day is never held.
+- A change's cause date is the date of its own person's last HR event of the kind behind its type (the rule written out in the test), whatever the event order; events that name nobody or have no kind give no change a date.
+- A reviewed map entry places an account on the current person it names; one naming the old record of a rehire warns and leaves the account held as ambiguous.
+
 ## What was not covered
 
-- `diff.build_changes`: its break-glass filter is a function nested in a 100-line function whose other mutants are about holds. The diff's `_touches_break_glass` and `_break_glass_strings`, which the filter calls, are covered.
+- `diff.build_changes` in the run above: its break-glass filter is a function nested in a 100-line function whose other mutants are about holds. The diff's `_touches_break_glass` and `_break_glass_strings`, which the filter calls, are covered. It has its own pass, [above](#later-pass-diffbuild_changes).
 - `safety.py`: it counts the four safety numbers for milestone 7; it enforces nothing.
 - Text constants (the break-glass pattern, the policy files) and the operators the tool lacks (see the tier0 report).
 
@@ -166,3 +209,13 @@ uv run --locked python tools/mutate.py render out/mutation/access-before.json ou
 ```
 
 About 14 minutes each with 10 jobs on 12 cores. `make mutation` runs these targets and tier0's together. Not part of `make test` or CI.
+
+The `build_changes` pass:
+
+```
+uv run --locked python tools/mutate.py run --target "access build_changes" --baseline --out out/mutation/access-build-changes-before.json
+uv run --locked python tools/mutate.py run --target "access build_changes" --out out/mutation/access-build-changes-after.json
+uv run --locked python tools/mutate.py render out/mutation/access-build-changes-before.json out/mutation/access-build-changes-after.json
+```
+
+About 2 minutes each. Its target starts with "access ", so `--target "access "` now runs it too: the first run's commands then give a fifth row and a larger total. Their four rows stay as they are, since those units and their tests are unchanged.

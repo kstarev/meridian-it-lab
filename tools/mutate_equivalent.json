@@ -40,5 +40,8 @@
  "access/src/meridian_access/apply.py::_send::return::return False -> return None #3": "Equivalent: the caller uses `not _send(...)`, and None is false like False.",
  "access/src/meridian_access/apply.py::_plan_call::constant::None -> ''": "Equivalent: the body of an Okta DELETE is ignored by the mock (and Okta takes none), so \"\" and None are the same call.",
  "access/src/meridian_access/apply.py::_plan_call::constant::None -> '' #3": "Equivalent: an Okta lifecycle POST takes no body; the mock ignores it, so \"\" and None are the same call.",
- "access/src/meridian_access/apply.py::_plan_call::constant::None -> '' #5": "Equivalent: an Okta lifecycle POST takes no body; the mock ignores it, so \"\" and None are the same call."
+ "access/src/meridian_access/apply.py::_plan_call::constant::None -> '' #5": "Equivalent: an Okta lifecycle POST takes no body; the mock ignores it, so \"\" and None are the same call.",
+ "access/src/meridian_access/diff.py::build_changes::constant::None -> ''": "Harmless: it differs only when the HR data has no people at all. Then reviewed map entries get no unknown-id check (None); with \"\" every one is refused, warns, and its account is held as ambiguous with a second warning. The changes and held changes are the same either way: with no people the matcher places nobody, and the person an entry names does not exist, so nothing is planned for its account.",
+ "access/src/meridian_access/diff.py::build_changes::guard::if not moved: return -> (removed)": "Equivalent: with nothing to move, `held.extend` adds nothing and the next line keeps every change, so the early return only saves work.",
+ "access/src/meridian_access/diff.py::build_changes::return::return False -> return None": "Equivalent: `keep` is only used as a filter (`if keep(c)`), and None is false like False."
 }
