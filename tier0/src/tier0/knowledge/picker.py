@@ -82,14 +82,25 @@ def pick_request(
     )
 
 
+_UNREADABLE = object()
+
+
+def _loads(text: str) -> Any:
+    """The reply as JSON, or _UNREADABLE when it can't be read safely. Besides bad JSON, that is
+    a number too long for Python to convert (ValueError) and nesting too deep (RecursionError)."""
+    try:
+        return json.loads(text)
+    except (ValueError, RecursionError, TypeError):  # JSONDecodeError is a ValueError
+        return _UNREADABLE
+
+
 def parse_pick(response: ModelResponse, entries: Sequence[Entry], *, asks: bool = False) -> Pick:
     """Strict: any reply that isn't exactly the expected object is an off-format hand-off."""
     off = Pick(request_type=OTHER, guide=None, off_format=True)
     if response.finish_reason != "stop":
         return off
-    try:
-        data = json.loads(response.text)
-    except (json.JSONDecodeError, TypeError):
+    data = _loads(response.text)
+    if data is _UNREADABLE:
         return off
     keys = {"asks_for", "request_type", "guide"} if asks else {"request_type", "guide"}
     if not isinstance(data, dict) or set(data) != keys:
@@ -132,9 +143,8 @@ def parse_fit(response: ModelResponse) -> bool | None:
     """Strict: True for "yes", False for "no", None for anything else."""
     if response.finish_reason != "stop":
         return None
-    try:
-        data = json.loads(response.text)
-    except (json.JSONDecodeError, TypeError):
+    data = _loads(response.text)
+    if data is _UNREADABLE:
         return None
     if not isinstance(data, dict) or set(data) != {"fits"}:
         return None

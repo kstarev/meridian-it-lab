@@ -9,10 +9,17 @@ person's account or things, or an incident (a lost or stolen device, a clicked p
 The word lists were written from tuning data only, in English, German, Spanish and French.
 It is deliberately narrow: "password" alone doesn't fire, because one guide is about the
 password manager. What it misses on new wording, the sealed how-to test will show.
+
+Its patterns stay frozen (ADR-040; a test pins them). Property tests (2026-11-18) found that
+mathematical bold capitals and a zero-width character inside a word got past it with no new
+wording. It now also reads each message in the forms lookalikes.py makes, which can only make
+it fire more, never less.
 """
 
 import re
 import unicodedata
+
+from tier0.knowledge import lookalikes
 
 ACCOUNT_ACTION = "account_action"
 SOMEONE_ELSE = "someone_else"
@@ -75,9 +82,17 @@ def _normalise(text: str) -> str:
 
 
 def hand_off_signal(text: str) -> str | None:
-    """Why this message must go to a person, or None when the signal doesn't fire."""
-    normalised = _normalise(text)
-    for kind, pattern in _COMPILED:
-        if pattern.search(normalised):
-            return kind
+    """Why this message must go to a person, or None when the signal doesn't fire.
+
+    The message is read as before (_normalise), then in the look-alike forms (lookalikes.py);
+    the first reading that fires gives the kind, so a message that fired before keeps its kind."""
+    readings = (_normalise(text), *(_words(form) for form in lookalikes.forms(text)))
+    for normalised in dict.fromkeys(readings):
+        for kind, pattern in _COMPILED:
+            if pattern.search(normalised):
+                return kind
     return None
+
+
+def _words(folded: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", folded).strip()
