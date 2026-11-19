@@ -45,7 +45,7 @@ def token(user: str, client: str, name: str, *scopes: str, **extra: Any) -> dict
     }
 
 
-def activity(user: str, client: str, when: str) -> dict[str, Any]:
+def activity(user: str, client: str, when: str, name: str = "activity") -> dict[str, Any]:
     return {
         "kind": "admin#reports#activity",
         "id": {"time": when, "applicationName": "token", "uniqueQualifier": f"{user}-{when}"},
@@ -53,7 +53,7 @@ def activity(user: str, client: str, when: str) -> dict[str, Any]:
         "events": [
             {
                 "type": "auth",
-                "name": "activity",
+                "name": name,
                 "parameters": [
                     {"name": "client_id", "value": client},
                     {"name": "app_name", "value": "ignored"},
@@ -116,6 +116,34 @@ def test_the_collector_returns_typed_grants_with_last_used() -> None:
     assert got.grants[1].last_used == datetime(2026, 6, 1, 6, 0, tzinfo=UTC)
     assert got.grants[3].last_used is None
     assert got.grants[3].native_app is True
+
+
+def test_last_used_counts_only_use_after_the_grant() -> None:
+    users, tokens, _ = world()
+    activities = [
+        # USERS[0] authorized NOTES and used it once, later; WRITER was only authorized.
+        activity(USERS[0], NOTES, "2026-09-01T09:00:00Z", name="authorize"),
+        activity(USERS[0], NOTES, "2026-10-03T09:00:00Z"),
+        activity(USERS[0], WRITER, "2026-11-10T09:00:00Z", name="authorize"),
+        # A newer authorize (the user consented again) isn't use either.
+        activity(USERS[2], NOTES, "2026-08-01T09:00:00Z"),
+        activity(USERS[2], NOTES, "2026-11-01T09:00:00Z", name="authorize"),
+        activity(USERS[4], WRITER, "2026-11-11T09:00:00Z", name="revoke"),
+    ]
+    got = {g.key: g.last_used for g in collect(FakeAdminApi(users, tokens, activities)).grants}
+    assert got == {
+        (USERS[0], NOTES): datetime(2026, 10, 3, 9, tzinfo=UTC),
+        (USERS[0], WRITER): None,
+        (USERS[2], NOTES): datetime(2026, 8, 1, 9, tzinfo=UTC),
+        (USERS[4], WRITER): None,
+    }
+
+
+def test_an_event_needs_a_name() -> None:
+    users, tokens, activities = world()
+    del activities[0]["events"][0]["name"]
+    with pytest.raises(CollectorError, match=r'activities.list page 0: item \d+: "name" must be'):
+        collect(FakeAdminApi(users, tokens, activities))
 
 
 def test_it_pages_through_every_user_and_every_activity_page() -> None:

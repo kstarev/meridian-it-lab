@@ -19,7 +19,9 @@
 
 Evidence: [`test_collector.py`](../tests/test_collector.py), including `test_no_socket_is_opened` (every socket call fails during the collection) and `test_the_fake_has_no_call_that_changes_anything`.
 
-**Honest limits.** The mock is shaped like the real APIs for the fields the radar reads, not copied from them: real responses have more fields, rate limits, errors and quirks. "Last used" is the newest token activity the mock holds; a real audit log keeps only so much history.
+**Update, 2026-11-19:** on the owner's ruling ([OAR-011](adr/011-mock-admin-api-collector.md)), "last used" counts only use after the grant: the `authorize` event that made the grant isn't use, and neither is a `revoke`. A grant nobody has used since it was granted has no last-used time.
+
+**Honest limits.** The mock is shaped like the real APIs for the fields the radar reads, not copied from them: real responses have more fields, rate limits, errors and quirks. "Last used" is the newest use the mock holds; a real audit log keeps only so much history.
 
 ## 2. OAuth grants for the shared Meridian people
 
@@ -57,6 +59,8 @@ Evidence: [`test_rubric.py`](../tests/test_rubric.py): OAR-002's four worked exa
 [`policy.py`](../src/meridian_oauth_radar/policy.py) applies the catalogue's policy as plans and drafts only. On a simulated date, for each scored grant: an app on Security's compromised list goes into an **emergency plan** that a person must trigger; a grant under a current exception is left alone; a grant unused for more than 90 days that holds a restricted scope gets a **notice draft** first and, once the notice is 7 days old and the grant still unused, goes into the **after-notice plan**; a restricted grant with no record of use, and every high or medium grant, goes to a person; low grants need nothing. A plan over the **blast-radius limit** (10 grants) is refused whole and its grants go to a person. Every plan says `"dry_run": true` and `"applied": false`, and names the action "revoke" only as data, with how a person would do it by hand. The same inputs and date give byte-identical files, and a notice is never issued twice; the notice ledger carries over to the next run.
 
 Evidence: [`test_policy.py`](../tests/test_policy.py): notice, waiting and plan over a simulated week; a grant used after its notice; exceptions before and after expiry; the emergency plan; the blast-radius limit; idempotent files; the tuning world over a simulated week.
+
+**Update, 2026-11-19:** on the owner's ruling ([OAR-010](adr/010-dry-run-removal-plans-never-applied.md)), an exception lasts at most 90 days, from its approval date (a new field, `approved_on`) to its expiry date. One with a longer term, no expiry or no approval date is refused when the list is loaded, never trimmed; it protects nothing, and `run.json`, the weekly report and the command line list it. The tuning world has one such entry, written for a whole year.
 
 **Honest limits.** Nothing applies a plan, so "removed" in any number means "in a reviewed plan". The notice is a draft file; nobody is told anything. The 90 days, 7 days and 10 grants are settings chosen for the tuning world's scale, not measured.
 

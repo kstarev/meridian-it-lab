@@ -5,7 +5,8 @@
 The world folder holds the radar's inputs (the shared dataset's `radar/` files). The run
 never reads the answer key. It writes, under `--out`:
 
-- `run.json`: the date, the settings and the counts;
+- `run.json`: the date, the settings, the counts, and any IT exception refused at load time
+  (over 90 days, or no expiry), with the reason;
 - `scores.json`: every grant's rubric score, with the points and reason per signal;
 - `plans/after-notice-plan.json` and `plans/emergency-plan.json`: dry-run plans, never applied;
 - `notices/`: notice drafts, one per user, and `ledger.json`, which the next run reads;
@@ -23,10 +24,11 @@ from pathlib import Path
 from typing import Any
 
 from meridian_oauth_radar.collector import collect
-from meridian_oauth_radar.enrich import load_knowledge
+from meridian_oauth_radar.enrich import Knowledge, load_knowledge
 from meridian_oauth_radar.fake_admin import FakeAdminApi
 from meridian_oauth_radar.nudges import nudge_files, nudges
 from meridian_oauth_radar.policy import (
+    MAX_EXCEPTION_DAYS,
     Settings,
     decide,
     load_compromised,
@@ -64,11 +66,12 @@ def run_files(
     collection = collect(api)
     knowledge = load_knowledge(world)
     found = score_all(collection.grants, knowledge)
+    listed = load_exceptions(world / "exceptions.json")
     result = decide(
         found,
         today=today,
         ledger=load_ledger(ledger_path) if ledger_path else (),
-        exceptions=load_exceptions(world / "exceptions.json"),
+        exceptions=listed.entries,
         compromised=load_compromised(world / "compromised_apps.json"),
         settings=settings,
     )
@@ -102,6 +105,7 @@ def run_files(
             "rubric": STATUS,
             "dry_run": True,
             "settings": asdict(settings),
+            "exception_max_days": MAX_EXCEPTION_DAYS,
             "api_calls": len(api.calls),
             "changes_made": 0,
             "messages_sent": 0,
@@ -118,9 +122,22 @@ def run_files(
                 "to_a_person": len(result.to_a_person),
                 "excepted": len(result.excepted),
                 "exceptions_expired": len(result.expired_exceptions),
+                "exceptions_refused": len(listed.refused),
                 "no_action": result.no_action,
                 "nudges": len(drafts),
             },
+            "exceptions_refused": [
+                {
+                    "entry": r.entry,
+                    "client_id": r.client_id,
+                    "app": _app_name(knowledge, r.client_id),
+                    "user_key": r.user_key,
+                    "approved_on": r.approved_on.isoformat() if r.approved_on else None,
+                    "expires": r.expires.isoformat() if r.expires else None,
+                    "why": r.why,
+                }
+                for r in listed.refused
+            ],
             "apps": {
                 client: {
                     "vendor": facts.vendor,
@@ -135,6 +152,11 @@ def run_files(
     )
     files["report.md"] = weekly_report(files).encode()
     return files
+
+
+def _app_name(knowledge: Knowledge, client_id: str) -> str:
+    entry = knowledge.catalogue.get(client_id) or knowledge.vendors.get(client_id)
+    return entry.name if entry else client_id
 
 
 def write_run(files: dict[str, bytes], out: Path) -> dict[str, Path]:

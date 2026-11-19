@@ -27,7 +27,7 @@ from typing import Any
 from meridian_dataset.month.personas import Persona, build_personas
 from meridian_dataset.oauth.apps import ALL_APPS, BACKGROUND, BANNED, BANNED_REASON, PLANTED, App
 
-OAUTH_GENERATOR_VERSION = "0.1.0"
+OAUTH_GENERATOR_VERSION = "0.2.0"
 OAUTH_TUNING_SEED = 9137
 REFERENCE_TIME = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 # A grant not used for more than this many days is drawn as dormant. The radar's own
@@ -94,10 +94,19 @@ APPROVED_ON = "2026-03-02"
 IT_LEAD = "IT lead"
 COMPROMISED_ON = "2026-11-14"
 # Two dormant Tallyfern grants in Finance: one under an exception that still runs, one under
-# an exception that has expired.
+# an exception that has expired. Each runs 90 days from its approval, the longest an
+# exception may last (OAR-010), so IT renews it every quarter.
 EXCEPTION_DAYS = (120, 150)
+EXCEPTION_APPROVED = ("2026-11-02", "2026-08-03")
 EXCEPTION_EXPIRES = ("2027-01-31", "2026-11-01")
 EXCEPTION_REASON = "used only at the quarterly close"
+# One more entry IT wrote for a whole year, which the radar must refuse and report (OAR-010).
+LONG_EXCEPTION = {
+    "slug": "pollquill",
+    "reason": "the yearly engagement survey",
+    "approved_on": "2026-06-01",
+    "expires": "2027-06-01",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,14 +174,30 @@ class OAuthWorld:
             },
             "exceptions.json": {
                 "exceptions": [
+                    *(
+                        {
+                            "client_id": grant.app.client_id,
+                            "user_key": grant.user,
+                            "reason": EXCEPTION_REASON,
+                            "approved_by": IT_LEAD,
+                            "approved_on": approved_on,
+                            "expires": expires,
+                        }
+                        for grant, approved_on, expires in zip(
+                            self.exception_grants,
+                            EXCEPTION_APPROVED,
+                            EXCEPTION_EXPIRES,
+                            strict=True,
+                        )
+                    ),
                     {
-                        "client_id": grant.app.client_id,
-                        "user_key": grant.user,
-                        "reason": EXCEPTION_REASON,
+                        "client_id": _app(LONG_EXCEPTION["slug"]).client_id,
+                        "user_key": None,
+                        "reason": LONG_EXCEPTION["reason"],
                         "approved_by": IT_LEAD,
-                        "expires": expires,
-                    }
-                    for grant, expires in zip(self.exception_grants, EXCEPTION_EXPIRES, strict=True)
+                        "approved_on": LONG_EXCEPTION["approved_on"],
+                        "expires": LONG_EXCEPTION["expires"],
+                    },
                 ]
             },
         }

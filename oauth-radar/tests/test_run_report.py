@@ -53,6 +53,24 @@ def test_the_report_says_it_is_a_dry_run(world: Path) -> None:
     assert "## Emergency: compromised apps (a person must trigger this plan)" in report
 
 
+def test_a_refused_exception_is_reported_and_protects_nothing(world: Path) -> None:
+    files = run_files(world)
+    run = json.loads(files["run.json"])
+    assert run["exception_max_days"] == 90
+    assert run["counts"]["exceptions_refused"] == 1
+    [refused] = run["exceptions_refused"]
+    assert (refused["entry"], refused["app"], refused["user_key"]) == (2, "Pollquill Surveys", None)
+    assert (refused["approved_on"], refused["expires"]) == ("2026-06-01", "2027-06-01")
+    report = files["report.md"].decode()
+    assert "## IT exceptions refused" in report
+    assert (
+        "| 2 | Pollquill Surveys | everyone | 2026-06-01 | 2027-06-01 "
+        "| its term is 365 days, over the limit of 90 |"
+    ) in report
+    # It protects nothing: no Pollquill grant is listed as excepted.
+    assert run["counts"]["excepted"] == 1
+
+
 def test_a_week_later_the_noticed_grants_are_in_the_plan(world: Path, tmp_path: Path) -> None:
     first = run_files(world)
     write_run(first, tmp_path / "day0")
@@ -72,6 +90,8 @@ def test_the_command_line_runs_a_world(
     world: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert main(["--world", str(world), "--out", str(tmp_path / "out")]) == 0
-    assert "Nothing was removed or sent." in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Nothing was removed or sent." in out
+    assert "Refused 1 IT exception at load time" in out
     assert (tmp_path / "out" / "report.md").is_file()
     assert main(["--world", str(world)]) == 2

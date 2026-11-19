@@ -13,7 +13,8 @@ real response for the fields the radar reads (not every field the real API retur
 - **Reports API `activities.list`** for the `token` application: `{"kind":
   "admin#reports#activities", "items": [...], "nextPageToken": ...}`, newest first. Each item
   has `id.time`, `actor.email` and one event whose parameters name the `client_id`. This is
-  the mock activity source for "last used". Event names are simplified.
+  the mock activity source for "last used". Event names are simplified: `authorize` when a
+  grant is made (which isn't use), `activity` when it is used.
 
 **It changes nothing.** The real tokens resource can also take a token away. This fake has
 no such method, on purpose: the radar only plans, and a person applies a plan by hand

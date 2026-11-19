@@ -4,6 +4,9 @@ It pages through the directory's users, asks for each user's tokens, and pages t
 token activity to find when each grant was last used. It returns typed `TokenGrant` records,
 sorted, so the same API data always gives the same tuple.
 
+**"Last used" counts only use after the grant** (OAR-010, OAR-011): the `authorize` event
+that made the grant isn't use, and neither is a `revoke`. Any other token event is use.
+
 It talks only to an `AdminApi`: an object with the three read calls of the fake in
 `meridian_oauth_radar.fake_admin`. There is no HTTP client in this package, no credential
 and no call that changes anything (OAR-004, OAR-005). It reads only the fields it names;
@@ -22,6 +25,8 @@ from meridian_oauth_radar.fake_admin import ACTIVITIES_KIND, TOKENS_KIND, USERS_
 
 # A guard against a page token that never ends. 230 users at 100 a page is 3 pages.
 MAX_PAGES = 1000
+# Token events that aren't use: the grant itself, and taking it back (OAR-011).
+NOT_USE = frozenset({"authorize", "revoke"})
 
 
 class AdminApi(Protocol):
@@ -51,8 +56,9 @@ class CollectorError(ValueError):
 class TokenGrant:
     """One user's OAuth token for one app, as `tokens.list` shows it, plus when it was last used.
 
-    `last_used` is the newest token activity for this user and app, in UTC, or None when the
-    activity source has none. `scopes` are sorted, with no duplicates. There is no field for
+    `last_used` is the newest use of the grant by this user, in UTC: the newest token event
+    that isn't `authorize` or `revoke`. It is None when the activity source has no use since
+    the grant. `scopes` are sorted, with no duplicates. There is no field for
     message or file content, because the radar never reads any (OAR-005).
     """
 
@@ -163,7 +169,7 @@ def _client_id(where: str, event: Mapping[str, Any]) -> str | None:
 
 
 def _last_used(api: AdminApi) -> dict[tuple[str, str], datetime]:
-    """The newest activity time for every (user, app) the token activity mentions."""
+    """The newest use for every (user, app) the token activity mentions. A grant isn't use."""
     newest: dict[tuple[str, str], datetime] = {}
     seen: set[str] = set()
     token: str | None = None
@@ -193,7 +199,7 @@ def _last_used(api: AdminApi) -> dict[tuple[str, str], datetime]:
                 if not isinstance(event, Mapping):
                     raise CollectorError(f"{at}: an event is not an object")
                 client = _client_id(at, event)
-                if client is None:
+                if client is None or _text(at, event, "name") in NOT_USE:
                     continue
                 key = (user, client)
                 if key not in newest or moment > newest[key]:
@@ -254,4 +260,12 @@ def _order(grant: TokenGrant) -> tuple[str, str]:
     return grant.key
 
 
-__all__ = ["MAX_PAGES", "AdminApi", "Collection", "CollectorError", "TokenGrant", "collect"]
+__all__ = [
+    "MAX_PAGES",
+    "NOT_USE",
+    "AdminApi",
+    "Collection",
+    "CollectorError",
+    "TokenGrant",
+    "collect",
+]
