@@ -83,6 +83,7 @@ def run_files(
                     "client_id": s.grant.client_id,
                     "app": s.grant.display_text,
                     "tier": s.tier,
+                    "tier_note": s.tier_note,
                     "total": s.total,
                     "last_used": s.grant.last_used.isoformat() if s.grant.last_used else None,
                     "signals": [asdict(p) for p in s.signals],

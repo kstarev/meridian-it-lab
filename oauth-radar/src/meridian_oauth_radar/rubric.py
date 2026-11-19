@@ -1,9 +1,9 @@
-"""The risk rubric of OAR-002, exactly as OAR-002 states it.
+"""The risk rubric of OAR-008: OAR-002's points, with the owner's two changes.
 
-**Status: Proposed (OAR-002), not yet accepted by the owner.** The owner's catalogue asks
-for a different rubric ("scope sensitivity times users times dormancy times vendor maturity"); see
-oauth-radar/docs/catalogue-differences.md. Until the owner rules (R14), this module builds
-OAR-002 as written, so its results can be compared, and changes none of its numbers.
+**Status: OAR-008, accepted by the owner on 2026-11-19.** It supersedes OAR-002. The
+catalogue's product ("scope sensitivity times users times dormancy times vendor maturity")
+isn't built: the owner kept OAR-002's points. Dormancy is the policy engine's, and vendor
+maturity is reported, not scored.
 
 One grant (one person, one app, every scope that person gave it) gets points for five
 signals. Every score lists each signal with its points and the reason, so a person can
@@ -14,19 +14,23 @@ recompute it by hand:
 | `scope_breadth`: the broadest scope the grant holds | broad 3, medium 2, narrow 0 |
 | `unverified_publisher`: Google doesn't list the publisher as verified | +2 |
 | `reach`: people at Meridian with a grant to the same app | 1-4: 0, 5-24: +1, 25+: +2 |
-| `ai_app`: tagged AI in IT's catalogue, or (not in it) its name matches the AI word list | +1 |
+| `ai_app`: the vendor directory's AI flag; if it doesn't know the app, the AI word list | +1 |
 | `not_reviewed`: the app isn't in IT's catalogue at all | +1 |
 
 Two overrides make a grant high whatever its points: `banned_app` (on IT's banned list) and
 `leaver` (the person has left and the grant holds a scope above narrow). Tiers: 5 points or
-more is high, 3-4 medium, 2 or fewer low.
+more is high, 3-4 medium, 2 or fewer low, with one exception (the owner's first change):
+**an app IT approved is never high because of its reach alone.** If an approved app's grant
+reaches 5 points only through `reach`, it is medium, and the score says why. The owner's
+second change is the AI signal's order: the vendor directory first, the word list only for
+apps the directory doesn't know.
 
 Scope tiers come from the scope explainer's classes: Google's restricted scopes and Admin
 SDK scopes are broad (all mail, all Drive files, admin), sensitive scopes are medium
 (calendar, contacts, Sheets, Docs, sending mail, the directory), non-sensitive ones are
 narrow (sign-in, files the app made or was handed). **A scope the table doesn't know counts
-as broad,** as OAR-002 says: it fails toward a review, never toward silence. The broadest
-scope counts, not the sum.
+as broad:** it fails toward a review, never toward silence. The broadest scope counts, not
+the sum.
 
 The rubric only scores. It reads facts and grants and returns numbers; it never decides an
 action, and no model is involved. AI may later word an explanation; it never sets a score.
@@ -39,9 +43,9 @@ from dataclasses import dataclass
 
 from meridian_oauth_radar import scopes
 from meridian_oauth_radar.collector import TokenGrant
-from meridian_oauth_radar.enrich import AppFacts, Knowledge
+from meridian_oauth_radar.enrich import APPROVED, AppFacts, Knowledge
 
-STATUS = "Proposed (OAR-002), not yet accepted by the owner"
+STATUS = "OAR-008, accepted by the owner on 2026-11-19"
 
 HIGH, MEDIUM, LOW = "high", "medium", "low"
 TIERS = (HIGH, MEDIUM, LOW)
@@ -50,7 +54,7 @@ MEDIUM_FROM = 3
 
 BROAD, MEDIUM_SCOPE, NARROW = "broad", "medium", "narrow"
 BREADTH_POINTS = {BROAD: 3, MEDIUM_SCOPE: 2, NARROW: 0}
-# Scope class (from the explainer) -> OAR-002's breadth. Unknown counts as broad.
+# Scope class (from the explainer) -> breadth. Unknown counts as broad.
 BREADTH_OF_CLASS = {
     scopes.RESTRICTED: BROAD,
     scopes.ADMIN: BROAD,
@@ -64,8 +68,8 @@ REACH_ORG_WIDE_FROM, REACH_ORG_WIDE_POINTS = 25, 2
 AI_POINTS = 1
 NOT_REVIEWED_POINTS = 1
 
-# OAR-002's "short AI word list", for apps not in IT's catalogue. Whole words, any case,
-# in the app's name or its publisher's name.
+# The short AI word list, only for apps the vendor directory doesn't know (OAR-008). Whole
+# words, any case, in the app's name.
 AI_WORDS = frozenset(
     {"ai", "gpt", "llm", "copilot", "assistant", "agent", "transcribe", "transcription"}
 )
@@ -91,6 +95,8 @@ class Score:
     signals: tuple[Points, ...]
     overrides: tuple[Points, ...]
     tier: str
+    # Why the tier isn't the one the points alone give, or None.
+    tier_note: str | None = None
     status: str = STATUS
 
     def __post_init__(self) -> None:
@@ -123,13 +129,16 @@ def _words(text: str) -> set[str]:
 
 
 def is_ai_app(name: str, facts: AppFacts) -> tuple[bool, str]:
-    """OAR-002's AI signal: IT's tag if IT reviewed the app, else the word list."""
-    if facts.in_it_catalogue:
-        return bool(facts.it_ai_tag), "IT's catalogue tags it AI" if facts.it_ai_tag else ""
+    """The AI signal (OAR-008): the vendor directory's flag; else the word list on the name."""
+    if facts.vendor_ai is not None:
+        return facts.vendor_ai, "the vendor directory flags it as AI" if facts.vendor_ai else ""
     hits = sorted(_words(name) & AI_WORDS)
-    if not hits and facts.vendor:
-        hits = sorted(_words(facts.vendor) & AI_WORDS)
     return bool(hits), f"its name matches the AI word list ({', '.join(hits)})" if hits else ""
+
+
+APPROVED_REACH_NOTE = (
+    "Medium, not high: IT approved the app, and it reaches {total} points only through its reach."
+)
 
 
 def _tier(total: int, overridden: bool) -> str:
@@ -201,7 +210,17 @@ def score_grant(
             )
         )
     total = sum(p.points for p in signals)
-    return Score(grant, signals, tuple(overrides), _tier(total, bool(overrides)))
+    tier = _tier(total, bool(overrides))
+    note = None
+    # The owner's first change (OAR-008): an approved app is never high on its reach alone.
+    if (
+        tier == HIGH
+        and not overrides
+        and facts.it_status == APPROVED
+        and total - reach_points < HIGH_FROM
+    ):
+        tier, note = MEDIUM, APPROVED_REACH_NOTE.format(total=total)
+    return Score(grant, signals, tuple(overrides), tier, note)
 
 
 def score_all(
@@ -238,6 +257,7 @@ def counts(found: Iterable[Score]) -> Mapping[str, int]:
 
 __all__ = [
     "AI_WORDS",
+    "APPROVED_REACH_NOTE",
     "HIGH",
     "LOW",
     "MEDIUM",

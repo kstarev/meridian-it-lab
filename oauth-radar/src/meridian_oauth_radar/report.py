@@ -59,7 +59,7 @@ def weekly_report(files: dict[str, bytes]) -> str:
         "",
         "For IT and Security. **A dry run:** nothing was removed and no message was sent. "
         "Every plan below waits for a person. "
-        f"Risk scores use the OAR-002 rubric: {run['rubric']}.",
+        f"Risk scores use the rubric of {run['rubric']}.",
         "",
         "## This week",
         "",
@@ -152,6 +152,8 @@ def weekly_report(files: dict[str, bytes]) -> str:
         parts = "+".join(str(p["points"]) for p in first["signals"])
         info = run["apps"][client]
         override = " (override)" if first["overrides"] else ""
+        if first.get("tier_note"):
+            override = " (approved: not high on reach alone)"
         lines.append(
             f"| {first['app']} | {len(rows)} | {first['tier']}{override} "
             f"| {parts} = {first['total']} "
