@@ -95,8 +95,9 @@ Scored once on a sealed held-out world, with the practice world's numbers beside
 
 | Metric | Target |
 |---|---|
-| High-risk OAuth grants found: recall on planted high-risk grants ([lab brief](../docs/brief.md)) | 100% |
-| Precision: grants marked high that the answer key lists as high-risk | Reported; the lab's target for every project is ≥ 0.90 |
+| **Headline** recall: planted risky grants the radar acts on (a notice draft, a plan, or a Slack nudge draft) ([lab brief](../docs/brief.md), [OAR-008](docs/adr/008-risk-rubric-with-the-owners-changes.md)) | 100%; reported as FAIL until met |
+| **Headline** precision: grants the radar acts on that the answer key lists as risky | ≥ 0.90, the lab's target for every project; reported as FAIL until met |
+| Second line: recall and precision of "marked high by the rubric" | Reported |
 | Recall and precision per problem type | Reported |
 | Grants revoked or changed by the radar | 0 |
 | API calls and AI calls | 0 |

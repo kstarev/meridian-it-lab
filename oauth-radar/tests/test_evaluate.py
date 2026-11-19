@@ -10,7 +10,18 @@ from pathlib import Path
 import pytest
 
 from meridian_dataset.oauth import KEY_DIR, RADAR_DIR, generate_oauth_world, write_oauth_world
-from meridian_oauth_radar.evaluate import Evaluation, evaluate, markdown, wilson
+from meridian_oauth_radar.evaluate import (
+    FAIL,
+    PASS,
+    PRECISION_TARGET,
+    RECALL_TARGET,
+    Count,
+    Evaluation,
+    evaluate,
+    markdown,
+    verdict,
+    wilson,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT = ROOT / "docs" / "evals" / "2026-11-19-oauth-radar-tuning.md"
@@ -24,6 +35,61 @@ def evaluation(tmp_path_factory: pytest.TempPathFactory) -> Evaluation:
     return evaluate(
         folder / "w" / RADAR_DIR, folder / "w" / KEY_DIR / "answer_key.json", folder / "s"
     )
+
+
+def test_the_headline_is_acted_on_with_the_lab_targets_and_both_fail(
+    evaluation: Evaluation,
+) -> None:
+    c = evaluation.acted
+    assert c.name == "Acted on by the radar"
+    assert (PRECISION_TARGET, RECALL_TARGET) == (0.90, 1.0)
+    assert (c.recall_verdict, c.precision_verdict) == (FAIL, FAIL)
+    report = markdown(evaluation)
+    headline = report.index("## Headline: acted on by the radar")
+    second = report.index("## Second line: marked high by the rubric")
+    assert headline < second
+    assert (
+        "| Recall: planted risky grants the radar acted on "
+        "| 7 of 8 (87.5%; 95% CI 52.9% to 97.8%) | 100% | **FAIL** |"
+    ) in report
+    assert (
+        "| Precision: grants the radar acted on that are planted "
+        "| 7 of 36 (19.4%; 95% CI 9.8% to 35.0%) | at least 0.90 | **FAIL** |"
+    ) in report
+
+
+def test_the_second_line_is_marked_high_with_no_target(evaluation: Evaluation) -> None:
+    report = markdown(evaluation)
+    part = report[report.index("## Second line: marked high by the rubric") :]
+    part = part[: part.index("## Each planted grant")]
+    assert (
+        "| 35 | 7 of 8 (87.5%; 95% CI 52.9% to 97.8%) | 28 "
+        "| 7 of 35 (20.0%; 95% CI 10.0% to 35.9%) |"
+    ) in part
+    assert PASS not in part and FAIL not in part
+    assert "Reported, with no target." in part
+
+
+@pytest.mark.parametrize(
+    ("k", "n", "target", "expected"),
+    [
+        (9, 10, 0.90, PASS),
+        (89, 100, 0.90, FAIL),
+        (8, 8, 1.0, PASS),
+        (7, 8, 1.0, FAIL),
+        (0, 0, 0.90, FAIL),
+    ],
+)
+def test_a_verdict_can_pass_and_can_fail(k: int, n: int, target: float, expected: str) -> None:
+    assert verdict(k, n, target) == expected
+
+
+def test_a_perfect_count_passes_both_targets() -> None:
+    perfect = Count("Acted on by the radar", flagged=8, found=8, planted=8)
+    assert (perfect.recall_verdict, perfect.precision_verdict) == (PASS, PASS)
+    one_false_alarm_in_ten = Count("Acted on by the radar", flagged=10, found=9, planted=9)
+    assert one_false_alarm_in_ten.precision_verdict == PASS
+    assert Count("x", flagged=11, found=9, planted=9).precision_verdict == FAIL
 
 
 def test_marked_high_by_the_rubric(evaluation: Evaluation) -> None:
