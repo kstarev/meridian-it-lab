@@ -91,6 +91,8 @@ No surviving mutant showed a bug. The property tests found 6 places where the co
 5. **`parse_pick` raises on a number of more than 4300 digits.** `picker.py:81-83` catches `JSONDecodeError` and `TypeError`; Python's int limit raises a plain `ValueError`. The error leaves `answer_question` (`answer.py:99`): no guide is posted, but the caller gets an exception, not an off-format hand-off. A reply is capped at 64 tokens, so a model cannot send this.
 6. **`parse_pick` raises on a reply nested 100000 deep.** `json.loads` raises `RecursionError`, which is not caught either. Same effect and same cap as 5.
 
+**Since then (branch `tier0-screen-gaps`):** all 6 are fixed and the tests are no longer marked xfail. Each screen keeps its patterns and its old reading, and also reads the text in more forms (`tier0/src/tier0/knowledge/lookalikes.py`) and each link's host up to `?`, `#` or `\`, so it can only fire more. `parse_pick` and `parse_fit` treat a reply they can't read safely as off-format. On the tuning data and the 30 runbooks, neither screen's result changed for any item.
+
 ## Property tests
 
 All use hypothesis with `derandomize=True`, `database=None` and 200 or 300 examples. hypothesis keeps its own caches in `.hypothesis/`, which git ignores; no example database is written. Every name and sentence is made up; the sealed-set tests patch the guards' lists with stand-in names (and `tier0.evals.month.SEALED_SETS`, `SPENT_SETS`, `DEFAULT_SEEDS`).

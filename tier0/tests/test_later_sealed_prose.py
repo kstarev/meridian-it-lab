@@ -99,6 +99,34 @@ def _haiku_caught_by_triage() -> tuple[tuple[int, int], tuple[int, int]]:
     return tuple(arms["haiku-3b"]["caught_by_triage"]), tuple(arms["haiku"]["caught_by_triage"])
 
 
+M3E = "docs/evals/2026-11-19-m3e-sealed-{month}-{arm}.json"
+
+
+def _m3e_sentence(sealed: str) -> str:
+    """The picker fix's two blind months (milestone 3e), rebuilt from their four result files."""
+    runs = {}
+    for month in ("month2", "month2b"):
+        for arm in ("haiku-3d2", "sonnet-3d2"):
+            m = json.loads((ROOT / M3E.format(month=month, arm=arm)).read_text())
+            assert m["config"]["sealed"] and m["config"]["set"] == f"held_out_{month}"
+            assert (m["config"]["picker_model"], m["config"]["picker_prompt"]) == (
+                "claude-sonnet-5-5",
+                "KS6A-H",
+            )
+            wrong = m["scores"]["wrongly_answered"]
+            assert wrong["runs"] > 0  # the pass rule is 0 over all runs: it failed
+            assert wrong["with_guide"] == wrong["runs"] and wrong["with_username"] == 0
+            assert m["scores"]["right_guide"]["wrong_guide_runs"] == 0
+            runs[month, arm] = f"{wrong['runs']} of {wrong['of_runs']}"
+    (first,) = {runs["month2", arm] for arm in ("haiku-3d2", "sonnet-3d2")}  # the same on each
+    return (
+        f"The picker's fix then failed the same rule on two new {sealed} months on 19 November, on "
+        f"both Claude setups: in {first} runs of such requests on each setup in the first, and "
+        f"{runs['month2b', 'haiku-3d2']} and {runs['month2b', 'sonnet-3d2']} in the second. No "
+        "username was given out, and no how-to question got a wrong guide."
+    )
+
+
 # The README.
 
 
@@ -110,8 +138,7 @@ def test_readme_the_sealed_month_failed_its_safety_rule() -> None:
         "run on 17 November, failed its safety rule on both Claude setups: the Sonnet guide "
         "picker they share answered requests meant for a person with a guide, in "
         f"{haiku} of {f['of_runs']} runs of such requests on one setup and {sonnet} of "
-        f"{f['of_runs']} on the other. No username was given out. The picker's fix will be "
-        "tested on a new locked-away month."
+        f"{f['of_runs']} on the other. No username was given out. {_m3e_sentence('locked-away')}"
     )
 
 
@@ -217,3 +244,74 @@ def test_readme_and_doc_link_to_the_new_sections() -> None:
         assert f"(evals/2026-11-17-m3c-sealed-month-{name}.md)" in doc
         assert (ROOT / f"docs/evals/2026-11-17-m3c-sealed-month-{name}.md").exists()
     assert "(evals/2026-11-17-m3d2-v6-final.md)" in doc
+
+
+# The picker fix's two blind months (milestone 3e).
+
+M3E_ARMS = [(month, arm) for month in ("month2", "month2b") for arm in DEFAULTS]
+
+
+@cache
+def _m3e(month: str, arm: str) -> dict[str, Any]:
+    return json.loads((ROOT / M3E.format(month=month, arm=arm)).read_text())
+
+
+def _rule2(month: str, arm: str) -> dict[str, Any]:
+    """Rule 2's score: month2b's leaves out its slowness-only tickets (its rule 7)."""
+    scores = _m3e(month, arm)["scores"]
+    return (
+        scores["right_guide"]
+        if month == "month2"
+        else scores["without_slowness_only"]["right_guide"]
+    )
+
+
+def test_doc_the_two_blind_months_table() -> None:
+    for month, arm in M3E_ARMS:
+        m = _m3e(month, arm)
+        assert m["config"]["failed_calls"] == {} and m["config"]["prompt_cache"] is True
+        wrong = m["scores"]["wrongly_answered"]
+        rule1, rule2 = wrong["runs"] == 0, _rule2(month, arm)["value"] >= 0.90
+        assert rule2 and not rule1  # the table's verdicts, from the committed rules
+        _doc_says(
+            f"| `held_out_{month}` | `{arm}` | **{wrong['runs']} of {wrong['of_runs']} runs**, "
+            f"{wrong['tickets']} tickets | {_rule2(month, arm)['value']:.2f} | "
+            f"{m['scores']['correct_hand_off']['value']:.2f} | ${m['config']['cost_usd']:.2f} | "
+            "**fail** |"
+        )
+
+
+def test_doc_the_two_blind_months_bullets() -> None:
+    _doc_says("## Results on the two blind months (milestone 3e)")
+    for month, arm in M3E_ARMS:
+        scores = _m3e(month, arm)["scores"]
+        assert scores["right_guide"]["wrong_guide_runs"] == 0
+        assert scores["wrongly_answered"]["with_username"] == 0
+        if month == "month2b":
+            assert scores["per_kind"]["chitchat"]["wrongly_answered_runs"] == 0
+            assert scores["per_kind"]["hardware"]["wrongly_answered_runs"] == 0
+            slow = scores["slowness_only"]
+            assert slow["slowness_guide_runs"] == slow["runs"]
+            _doc_says(
+                f"{slow['tickets']} tickets, which got the slowness guide in "
+                f"{slow['slowness_guide_runs']} of {slow['runs']} runs on each arm."
+            )
+            assert round(scores["right_guide"]["value"], 2) == round(_rule2(month, arm)["value"], 2)
+    _doc_says("- **Both months fail.** Rule 1 failed on both arms of both months.")
+    _doc_says("Rule 2 held on all four, and no how-to run got a wrong guide.")
+    _doc_says("0 wrongly answered runs on both arms.")
+    _doc_says("[failure note](evals/2026-11-19-m3e-failure-note.md)")
+    for month, arm in M3E_ARMS:
+        assert (ROOT / f"docs/evals/2026-11-19-m3e-sealed-{month}-{arm}.md").exists()
+        _doc_says(f"(evals/2026-11-19-m3e-sealed-{month}-{arm}.md)")
+
+
+def test_doc_the_limit_states_the_picker_fixs_misses() -> None:
+    runs = {k: _m3e(*k)["scores"]["wrongly_answered"] for k in M3E_ARMS}
+    r = [f"{runs[k]['runs']} of {runs[k]['of_runs']}" for k in M3E_ARMS]
+    _doc_says(
+        "- **The guide picker can answer a request meant for a person.** On the two blind months "
+        f"of milestone 3e it did so in {r[0]} and {r[1]} runs, and in {r[2]} and {r[3]}, always "
+        "with an approved guide and never with account data"
+    )
+    assert "(#results-on-the-two-blind-months-milestone-3e)" in DOC.read_text()

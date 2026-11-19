@@ -1,7 +1,10 @@
-"""Mutation testing for the safety code (docs/evals/2026-11-18-safety-mutation-testing.md).
+"""Mutation testing for the safety code (docs/evals/2026-11-18-safety-mutation-testing.md, and
+for Access-as-Code's targets, all named "access ...",
+docs/evals/2026-11-19-access-safety-mutation-testing.md).
 
     uv run --locked python tools/mutate.py run                   # every target, all tests
     uv run --locked python tools/mutate.py run --target ladder   # one target
+    uv run --locked python tools/mutate.py run --target "access "   # Access-as-Code only
     uv run --locked python tools/mutate.py run --baseline        # only the tests from before
     uv run --locked python tools/mutate.py list                  # print the mutants, run nothing
     uv run --locked python tools/mutate.py show 17               # print mutant 17 as a diff
@@ -186,6 +189,101 @@ UNITS: tuple[Unit, ...] = (
         ("_sealed_bytes", "unseal"),
         (A + "test_redteam_sealed.py", A + "test_redteam.py", A + "test_redteam_workflow.py"),
         (A + "test_redteam_unseal_mutation.py",),
+    ),
+    # Access-as-Code's safety rails (AAC-007), added 2026-11-19; `tests` are the ones on main
+    # that day, `new_tests` the ones added with this work.
+    Unit(
+        "access identity matching",
+        "access/src/meridian_access/match.py",
+        (
+            "fold",
+            "norm_email",
+            "_split_number",
+            "_letters",
+            "username_templates",
+            "_Person.firsts",
+            "_Person.lasts",
+            "_Person.full_names",
+            "_Person.schemes",
+            "_name_key",
+            "_email_number",
+            "_Index.__init__",
+            "_unique",
+            "_names_agree",
+            "_by_email",
+            "match_accounts",
+            "_company_email",
+            "_apply_rules",
+        ),
+        (A + "test_match.py", A + "test_diff.py"),
+        (A + "test_match_properties.py",),
+    ),
+    Unit(
+        "access blast radius",
+        "access/src/meridian_access/limits.py",
+        ("_is_iso_date", "bucket_key", "buckets", "over_limit"),
+        (A + "test_limits.py", A + "test_split.py", A + "test_approvals.py"),
+        (A + "test_blast_radius_properties.py",),
+    ),
+    Unit(
+        "access blast radius",
+        "access/src/meridian_access/approvals.py",
+        ("required_for", "count_approvals", "check"),
+        (A + "test_limits.py", A + "test_split.py", A + "test_approvals.py"),
+        (A + "test_blast_radius_properties.py",),
+    ),
+    Unit(
+        "access blast radius",
+        "access/src/meridian_access/plan.py",
+        ("split_plan",),
+        (A + "test_limits.py", A + "test_split.py", A + "test_approvals.py"),
+        (A + "test_blast_radius_properties.py",),
+    ),
+    Unit(
+        "access break-glass",
+        "access/src/meridian_access/policy/load.py",
+        ("Policy.break_glass_kind", "Policy.is_break_glass"),
+        (A + "test_policy.py", A + "test_match.py", A + "test_diff.py", A + "test_apply.py"),
+        (A + "test_break_glass_properties.py",),
+    ),
+    Unit(
+        "access break-glass",
+        "access/src/meridian_access/match.py",
+        ("_break_glass",),
+        (A + "test_match.py", A + "test_diff.py", A + "test_apply.py"),
+        (A + "test_break_glass_properties.py", A + "test_match_properties.py"),
+    ),
+    Unit(
+        "access break-glass",
+        "access/src/meridian_access/diff.py",
+        ("_break_glass_strings", "_touches_break_glass"),
+        (A + "test_diff.py", A + "test_apply.py"),
+        (A + "test_break_glass_properties.py",),
+    ),
+    Unit(
+        "access break-glass",
+        "access/src/meridian_access/apply.py",
+        ("_break_glass_names", "_is_listed", "_touches_break_glass"),
+        (A + "test_apply.py",),
+        (A + "test_break_glass_properties.py", A + "test_apply_properties.py"),
+    ),
+    Unit(
+        "access idempotent apply",
+        "access/src/meridian_access/apply.py",
+        (
+            "normalise_mode",
+            "apply_plan",
+            "_verify",
+            "_took_effect",
+            "_one",
+            "_defer_delete",
+            "_send",
+            "_assign",
+            "_plan_call",
+            "_step",
+        ),
+        (A + "test_apply.py",),
+        (A + "test_apply_properties.py",),
     ),
 )
 
@@ -384,8 +482,16 @@ def _overlay(folder: Path, unit: Unit, source: bytes) -> None:
 def _pytest(unit: Unit, tests: Sequence[str], source: bytes, timeout: float, canary: bool) -> str:
     """Run the unit's tests against `source`: KILLED, SURVIVED or TIMED_OUT."""
     with tempfile.TemporaryDirectory(prefix="mutate-") as tmp:
-        folder = Path(tmp) / "src"
-        folder.mkdir()
+        # tmp/<package dir>/src, with the package dir's other entries linked next to it, so
+        # code that walks up from its own file (access/policy/load.py looks for access/policy)
+        # finds what it finds in the checkout.
+        parts = Path(unit.path).parts
+        at = parts.index("src")
+        folder = Path(tmp).joinpath(*parts[: at + 1])
+        folder.mkdir(parents=True)
+        for entry in ROOT.joinpath(*parts[:at]).iterdir():
+            if entry.name != "src" and at > 0:
+                (folder.parent / entry.name).symlink_to(entry)
         seen = Path(tmp) / "imported"
         if canary:
             # Proof that the tests import the copy: the copy writes this file when imported.

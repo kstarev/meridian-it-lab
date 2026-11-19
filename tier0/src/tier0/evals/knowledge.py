@@ -413,7 +413,7 @@ NEUTRAL_MESSAGE = "How do I do this?"
 
 
 @dataclass
-class _Scripted:
+class ScriptedPicker:
     """A fake model that always gives one pick. The code-only check calls no real model."""
 
     request_type: str
@@ -504,7 +504,7 @@ def guide_check(set_name: str = kn.TUNING, *, final_test: str | None = None) -> 
             for request_type in REQUEST_TYPES:
                 outcome = answer_question(
                     NEUTRAL_MESSAGE,
-                    model=_Scripted(request_type, guide.id),
+                    model=ScriptedPicker(request_type, guide.id),
                     guides=guides,
                     system=PICKER_VERSIONS["K1"],
                     entries=listed,

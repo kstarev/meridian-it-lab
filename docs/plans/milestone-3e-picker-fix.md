@@ -1,6 +1,6 @@
 # Plan: milestone 3e, the picker fix (budget item `tier0-3e`)
 
-**Date:** 2026-11-18 · **Status:** three candidates written, then compared on dev sets only (2026-11-18). All three had 0 safety misses on both sets; by the committed rule I recommend **KS6A-H**. **Nothing is selected for a sealed run:** the owner picks, and only a new blind month can show that a fix works. · **Decisions:** [ADR-049](../decisions.md), [ADR-050](../decisions.md); two draft ADRs are at the end of this file for the owner · **Builds on:** [the sealed month's result](milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17), [the failure note](../evals/2026-11-17-m3c-month1-failure-note.md)
+**Date:** 2026-11-18 · **Status:** the owner picked **KS6A-H** from the dev comparison (2026-11-18). It ran once on two blind months on 2026-11-19 and **failed the safety rule on both, in both arms** ([the result](#the-sealed-runs-result-2026-11-19)). · **Decisions:** [ADR-049](../decisions.md), [ADR-050](../decisions.md); two draft ADRs are at the end of this file for the owner · **Builds on:** [the sealed month's result](milestone-3c-realistic-month.md#the-sealed-months-result-2026-11-17), [the failure note](../evals/2026-11-17-m3c-month1-failure-note.md)
 
 ## Why
 
@@ -193,3 +193,12 @@ For each small-talk option:
   - Month2b's writer then tagged its own templates. By count, 1 template is tagged: a how-to question keyed to the slowness guide, KB-017 (7 tickets). No fault report is tagged. The set was sealed again, and only the tag changed.
   - Month2 has 2 tickets (1 template) whose right answer is KB-017. Both are how-to tickets keyed "answer with KB-017", as ADR-041 asks. Month2 has no tags, and it stays as sealed.
 
+## The sealed runs' result (2026-11-19)
+
+- **The rehearsal was clean.** On the tuning month, both arms ran with 0 failed calls and 0 of 624 out-of-scope runs answered, for $1.03. The checkout was unchanged between the rehearsal and the sealed runs.
+- **Both months failed rule 1 in both arms, and rule 2 held in all four** ([results](../how-it-works.md#results-on-the-two-blind-months-milestone-3e)):
+  - `held_out_month2`: 9 of 624 runs on each arm, on the same 3 `prompt_injection` tickets;
+  - `held_out_month2b`: 7 of 495 and 8 of 495 runs, all app faults from one template.
+- Every miss was answered with a guide by the shared picker. No username was given out, and no how-to run got a wrong guide.
+- The 4 sealed runs cost $2.44. Today's paid calls came to $3.48, rehearsal included, against the day's $6 limit.
+- **The result stands as a fail.** Nobody has read the tickets, and both months stay unopened until the owner rules ([the failure note, with the options](../evals/2026-11-19-m3e-failure-note.md)).

@@ -44,6 +44,8 @@ On 2026-11-17 a helper ran one `git grep` whose paths covered a sealed pool file
 | 4 | Bash | `git show`, `git diff`, `git blame`, `git cat-file` or `git log -p` that names a sealed file | `git show HEAD:x/held_out_v6.json` |
 | 5 | Bash | `git grep`, `grep -r` (or `-R`) and `rg --no-ignore` (or `-u`) whose paths cover a sealed file. The hook asks `git ls-files` what the paths cover. No path means the whole folder | `git grep foo`, `git grep foo -- dataset`, `grep -rn foo .` |
 
+**Quotes.** The hook cuts a Bash command into its parts at each `|`, `||`, `&`, `&&`, `;` and new line, and judges each part. A `|`, `;` or `&&` inside single or double quotes, or after a backslash, is not a cut: `git grep -E "foo|bar" -- tier0/src` is one search. A quoted word that holds such a character is judged as a command too, so `bash -c 'ls; cat x/held_out_k1.json'` is still blocked. When the quotes don't balance, the hook cuts at every such character, quoted or not, as it did before.
+
 ### What it never blocks
 
 - **Any program that runs code:** `python`, `pytest`, `make`, `uv`, `gh`, a shell script. So the sealed runner, the tests and CI commands are never blocked. CI doesn't run the hook at all: only Claude Code does.

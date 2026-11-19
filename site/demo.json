@@ -1,0 +1,76 @@
+{
+  "label": "Simulated Slack, fake data",
+  "source": {
+    "template_set": "tuning_month",
+    "template": "T035",
+    "kind": "how_to_guide",
+    "expected_guide": "KB-001",
+    "world_seed": 1108
+  },
+  "models": {
+    "triage": "tier0.stub/tier0-stub-1",
+    "guide_pick": "stub/scripted"
+  },
+  "requester": {
+    "name": "Anika Sato",
+    "first_name": "Anika"
+  },
+  "message": {
+    "at": "2026-11-02T09:00:00.000Z",
+    "text": "I'm working from the Toronto office for the first time today, how do I get my work laptop onto the staff Wi-Fi"
+  },
+  "checks": {
+    "slack_signature": "valid",
+    "identity": "bound",
+    "directory_reads_by": [
+      "tier0-gateway"
+    ],
+    "kill_switch": "off",
+    "rate_limit": "allowed"
+  },
+  "triage": {
+    "category": "other"
+  },
+  "policy": {
+    "tier": "A",
+    "action": "escalate"
+  },
+  "pick": {
+    "version": "KS5",
+    "request_type": "how_to",
+    "guide": "KB-001",
+    "screen": "none",
+    "outcome": "guide"
+  },
+  "guide": {
+    "id": "KB-001",
+    "title": "Connect to the office Wi-Fi",
+    "approved": true,
+    "flagged": false
+  },
+  "reply": {
+    "at": "2026-11-02T09:00:00.000Z",
+    "text": "Hi Anika, I'm tier0, Meridian's AI assistant for IT requests.\n\nHere's our guide for that:\n*Connect to the office Wi-Fi*\n1. Open your Wi-Fi settings and choose the network Meridian-Staff.\n2. When asked to sign in, use your work email address and your normal work sign-in.\n3. Accept the certificate named meridian-radius if your device asks about it.\n4. If the network does not appear, turn Wi-Fi off and on again and move closer to the centre of the floor.\n5. Still stuck after two tries? Post in #it-help and say which office and floor you are on.\nhttps://memory.meridian.example/runbooks/office-wifi.md"
+  },
+  "guard": "passed",
+  "tokens_issued": 0,
+  "tool_calls": 0,
+  "ticket": {
+    "id": "IT-1",
+    "queue": "service-desk",
+    "state_after_reply": "Awaiting reply",
+    "comments_after_reply": [
+      "tier0: triaged as other; policy: Tier A, action escalate.",
+      "tier0: guide picker KS5: request type how_to, guide KB-001; message screen none.",
+      "tier0: answered with the approved guide KB-001: its steps word for word and its link."
+    ],
+    "comments_at_close": [
+      "tier0: closed after 3 days with no reply."
+    ],
+    "state_at_close": "Done"
+  },
+  "close": {
+    "at": "2026-11-05T09:01:00.000Z",
+    "text": "Hi Anika.\n\nNo reply for 3 days, so I've marked this as done. If it isn't sorted, send me a new message."
+  }
+}

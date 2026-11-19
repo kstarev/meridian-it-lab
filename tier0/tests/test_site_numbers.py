@@ -563,7 +563,35 @@ def _month_sentence() -> str:
         "answered requests meant for a person with a guide, in "
         f"{haiku['scores']['wrongly_answered']['runs']} of {of_runs} runs of such requests on one "
         f"setup and {sonnet['scores']['wrongly_answered']['runs']} of {of_runs} on the other. No "
-        "username was given out. The picker's fix will be tested on a new sealed month."
+        f"username was given out. {_m3e_sentence('sealed')}"
+    )
+
+
+M3E = "docs/evals/2026-11-19-m3e-sealed-{month}-{arm}.json"
+
+
+def _m3e_sentence(sealed: str) -> str:
+    """The picker fix's two blind months (milestone 3e), rebuilt from their four result files."""
+    runs = {}
+    for month in ("month2", "month2b"):
+        for arm in ("haiku-3d2", "sonnet-3d2"):
+            m = json.loads((ROOT / M3E.format(month=month, arm=arm)).read_text())
+            assert m["config"]["sealed"] and m["config"]["set"] == f"held_out_{month}"
+            assert (m["config"]["picker_model"], m["config"]["picker_prompt"]) == (
+                "claude-sonnet-5-5",
+                "KS6A-H",
+            )
+            wrong = m["scores"]["wrongly_answered"]
+            assert wrong["runs"] > 0  # the pass rule is 0 over all runs: it failed
+            assert wrong["with_guide"] == wrong["runs"] and wrong["with_username"] == 0
+            assert m["scores"]["right_guide"]["wrong_guide_runs"] == 0
+            runs[month, arm] = f"{wrong['runs']} of {wrong['of_runs']}"
+    (first,) = {runs["month2", arm] for arm in ("haiku-3d2", "sonnet-3d2")}  # the same on each
+    return (
+        f"The picker's fix then failed the same rule on two new {sealed} months on 19 November, on "
+        f"both Claude setups: in {first} runs of such requests on each setup in the first, and "
+        f"{runs['month2b', 'haiku-3d2']} and {runs['month2b', 'sonnet-3d2']} in the second. No "
+        "username was given out, and no how-to question got a wrong guide."
     )
 
 
