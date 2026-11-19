@@ -113,6 +113,7 @@ Killed / mutants: 82.7% before, 93.9% after. Each of the 35 left is listed below
 No surviving mutant showed a bug. The property tests found one place where the code does not keep its rule. It is a test marked `xfail(strict=True)`; the source is unchanged.
 
 1. **Rule 2 of identity matching ignores more than case, accents and a `+tag`.** `match.py:83`, `fold` runs NFKD and drops every character that is not ASCII, so a zero-width space, a soft hyphen, a Cyrillic or a CJK letter disappears. `ana.smith\u200b@meridian.example` is matched to the person `ana.smith@meridian.example` by `normalised_email`. An account under such an address is attributed to a real person, so it is never reported as an orphan. Pinned by `test_match_properties.py::test_rule_2_does_not_ignore_characters_other_than_accents` (4 cases).
+   - **Update, 2026-11-19:** fixed under the owner's ruling 5 ([AAC-016](../../access/docs/adr/016-rule-2-refuses-non-ascii-addresses.md)). Rule 2 now refuses such an address and the account stays an orphan; the test is no longer an xfail.
 
 ## Property tests
 

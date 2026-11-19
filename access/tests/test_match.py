@@ -111,6 +111,51 @@ def test_rule_2_plus_tags_and_accents_but_not_dots(policy):
     assert res.unmatched == [dotless.key] and not res.matches
 
 
+def test_rule_2_refuses_an_address_with_a_zero_width_space(policy):
+    # AAC-016 (gap G1): a zero-width space before the `@` is not case, an accent or a tag
+    people = [rec("E1", "Ana", "Smith", email="ana.smith@meridian.example")]
+    lookalike = acct("google", "ana.smith\u200b@meridian.example")
+    res = match_accounts([lookalike], people, policy)
+    assert res.unmatched == [lookalike.key] and not res.matches and not res.ambiguous
+
+
+@pytest.mark.parametrize(
+    "account",
+    [
+        # a display name that is the person's: rule 6 is not tried
+        acct("google", "ana.smith\u200b@meridian.example", display="Ana Smith"),
+        # a look-alike of the company domain is not an outside address the names can place
+        acct("okta", "ana.smith@meridian\u200b.example", display="Ana Smith"),
+        acct(
+            "slack",
+            "ana.smith",
+            email="ana.smith@meridian\u200b.example",
+            given="Ana",
+            family="Smith",
+            display="Ana Smith",
+        ),
+        # full-width and mathematical look-alikes: NFKD would rewrite them to ASCII
+        acct("google", "\uff41na.smith@meridian.example"),
+        acct("google", "\U0001d41ana.smith@meridian.example"),
+        # rule 3's normalised branch refuses the same addresses
+        acct("google", "zz@meridian.example", aliases=("ana.smith\u200b@meridian.example",)),
+    ],
+    ids=["display", "domain", "slack", "full-width", "mathematical", "alias"],
+)
+def test_no_later_rule_places_an_address_rule_2_refuses(policy, account):
+    people = [rec("E1", "Ana", "Smith", email="ana.smith@meridian.example")]
+    res = match_accounts([account], people, policy)
+    assert res.unmatched == [account.key] and not res.matches
+
+
+def test_an_exact_google_alias_still_places_an_address_rule_2_refuses(policy):
+    # rule 3 with an exact alias is Google's own record, not folding
+    people = [rec("E1", "Ana", "Smith", email="ana.smith@meridian.example")]
+    g = acct("google", "ana.smith\u200b@meridian.example", aliases=("ana.smith@meridian.example",))
+    m = match_accounts([g], people, policy).matches[g.key]
+    assert (m.employee_id, m.rule) == ("E1", "google_alias")
+
+
 def test_a_numbered_email_is_not_matched(policy):
     # HRIS numbers its duplicate addresses (ann.lee4); "ann.lee2" is not guessed from them
     people = [
@@ -303,6 +348,9 @@ def test_the_tuning_break_glass_accounts_are_all_marked(world, result):
 def test_helpers():
     assert fold("Çelik") == "celik"
     assert norm_email("Jo.Sé+tag@Meridian.Example") == "jo.se@meridian.example"
+    assert norm_email("Øystein.Æsir+x@meridian.example") == "oystein.aesir@meridian.example"
+    for extra in ("\u200b", "\u00ad", "\u0436", "\u4e2d", "\uff41", "\U0001d41a"):
+        assert norm_email(f"ana{extra}@meridian.example") is None, ascii(extra)
 
 
 def test_fold_transliterates_letters_nfkd_cannot_decompose():

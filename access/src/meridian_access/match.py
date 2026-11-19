@@ -3,13 +3,14 @@
 A false match is worse than no match (the planner removes access based on matches).
 Rules run in a fixed order and each counts only if it gives exactly one person:
   1 exact work email (case-insensitive); 2 normalised email (a `+tag`, case and accents
-  only; dots count); 3 Google aliases; 4 a Slack userName equal to the local part of a work
+  only; dots count; an address with any other non-ASCII character is refused, AAC-016);
+  3 Google aliases; 4 a Slack userName equal to the local part of a work
   email (an account with an outside-domain email also needs its names to agree); 5 a
   username in an export under any known username scheme (a number in the username must
   agree with the person's email number; with several candidates the row's name columns
   must pick exactly one, else the account is ambiguous); 6 an exact display or full name.
-An account with an email at the company domain that rules 1-3 don't match stops there:
-no name or username rule is tried.
+An account with an email at the company domain that rules 1-3 don't match stops there,
+and so does one whose email rule 2 refuses: no name or username rule is tried.
 Break-glass accounts (the policy's list and patterns, also as bare usernames) are marked
 and never matched to a person. Superseded HRIS records (the old record of a rehire) are
 never candidates.
@@ -60,7 +61,8 @@ class MatchResult:
         return m.employee_id if m else ""
 
 
-# Letters NFKD does not decompose; without this they would silently disappear.
+# Letters NFKD does not decompose; without this they would silently disappear from fold()
+# (and rule 2 would refuse them). They count as accented letters.
 _TRANSLIT = str.maketrans(
     {
         "Ø": "O",
@@ -86,9 +88,18 @@ def fold(text: str) -> str:
     return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
 
 
-def norm_email(email: str) -> str:
-    """Case and accents folded and a `+tag` removed. Dots are kept: `a.b@` is not `ab@`."""
-    local, _, domain = fold(email.strip()).partition("@")
+def norm_email(email: str) -> str | None:
+    """Rule 2's key: case and accents folded and a `+tag` removed. Dots are kept: `a.b@` is
+    not `ab@`. None (refused) when any other non-ASCII character is left, such as a
+    zero-width space, a soft hyphen, a Cyrillic or CJK letter, or a full-width or
+    mathematical look-alike: rule 2 ignores case, accents and a tag, nothing else (AAC-016).
+    Accents are the combining marks of the canonical decomposition (NFD), plus the
+    `_TRANSLIT` letters."""
+    text = unicodedata.normalize("NFD", email.strip().lower().translate(_TRANSLIT))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    if not text.isascii():
+        return None
+    local, _, domain = text.partition("@")
     return f"{local.split('+', 1)[0]}@{domain}"
 
 
@@ -179,7 +190,8 @@ class _Index:
             email = p.email.casefold()
             local = email.partition("@")[0]
             self.by_email[email].append(p)
-            self.by_norm[norm_email(email)].append(p)
+            if (norm := norm_email(p.email)) is not None:
+                self.by_norm[norm].append(p)
             self.by_local[local].append(p)
             for s in p.schemes():
                 self.by_scheme[s].append(p)
@@ -221,10 +233,12 @@ def _names_agree(p: _Person, a: Account) -> bool | None:
 
 
 def _by_email(index: _Index, email: str) -> tuple[list[_Person], list[_Person]]:
-    """(exact candidates, normalised candidates) for one address."""
+    """(exact candidates, normalised candidates) for one address. An address rule 2
+    refuses has no normalised candidates."""
+    norm = norm_email(email)
     return (
         _unique(index.by_email.get(email.casefold(), ())),
-        _unique(index.by_norm.get(norm_email(email), ())),
+        _unique(index.by_norm.get(norm, ())) if norm is not None else [],
     )
 
 
@@ -325,8 +339,10 @@ def _apply_rules(
             exact, norm = _by_email(index, primary)
             if (m := take(exact, "google_alias")) or (m := take(norm, "google_alias")):
                 return m, many
-        if _company_email(email):
-            return None, many  # a company address that rules 1-3 don't place: stop here
+        if _company_email(email) or norm_email(email) is None:
+            # a company address that rules 1-3 don't place, or an address rule 2 refuses
+            # (a look-alike stays an orphan, AAC-016): stop here
+            return None, many
     if a.system == "slack":
         found = _unique(index.by_local.get(fold(a.account.strip()), ()))
         if email:  # an outside-domain email: the names have to agree as well

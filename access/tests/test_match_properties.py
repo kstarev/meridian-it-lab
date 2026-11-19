@@ -13,9 +13,9 @@ false match is worse than none (match.py). The rules checked here:
 - a number in a username must agree with the person's email number;
 - rule 2 ignores case, accents and a `+tag`, and nothing else.
 
-The last one does not hold: `fold` drops every character NFKD can't turn into ASCII, so an
-address with an extra zero-width or Cyrillic character is matched to the person without it.
-That test is a strict xfail, listed in the overnight gaps file; the source is unchanged.
+The last one used to fail (gap G1): `fold` dropped every character NFKD can't turn into
+ASCII, so an address with an extra zero-width or Cyrillic character was matched to the
+person without it. Rule 2 now refuses such an address (AAC-016).
 
 Made-up people at meridian.example only, no world, no network. The runs are fixed
 (derandomize) and keep no example database.
@@ -389,11 +389,6 @@ OTHER_CHARACTERS = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gap: fold() drops or rewrites characters that are not accents, so rule 2 "
-    "matches a different address to the person",
-)
 @pytest.mark.parametrize("extra", OTHER_CHARACTERS.values(), ids=OTHER_CHARACTERS)
 def test_rule_2_does_not_ignore_characters_other_than_accents(extra):
     r = record("E001", "Ana", "Smith", f"ana.smith@{DOMAIN}")
