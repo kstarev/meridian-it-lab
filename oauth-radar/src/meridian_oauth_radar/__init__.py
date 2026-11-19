@@ -2,8 +2,8 @@
 
 Milestone 0 holds the data model, a loader for one export shape (`load`), a two-rule stub of
 the rules engine (`rules`) and a command line (`python -m meridian_oauth_radar`).
-Milestone 1 adds a mock Google Admin token API (`fake_admin`) and the collector that pages
-through it (`collector`). See oauth-radar/docs/milestone-1.md.
+Milestone 1 adds a mock Google Admin token API (`fake_admin`), the collector that pages
+through it (`collector`) and the scope explainer (`scopes`). See oauth-radar/docs/milestone-1.md.
 
 - A **grant** is one person's OAuth consent to one third-party app, exactly as an export
   shows it: who, which app, which scopes.

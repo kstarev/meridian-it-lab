@@ -31,3 +31,11 @@ Evidence: [`test_collector.py`](../tests/test_collector.py), including `test_no_
 Evidence: [`test_oauth_world.py`](../../dataset/tests/test_oauth_world.py): same seed, same bytes (a golden manifest hash); the people are the shared 230 and unchanged; exactly 6 plants, each by a different person; nothing under `radar/` names a plant; fake data only, no token values. No existing world or pinned digest moves, and their tests are unedited.
 
 **Honest limits.** One builder wrote the world, the plants and (later) the rubric, so a shared misreading can't be caught here. A tuning world proves little on its own: it's for building and tuning, and its numbers are reported as tuning numbers. The people have no leaver status, so nothing exercises a leaver rule.
+
+## 3. Scope explainer
+
+[`scopes.py`](../src/meridian_oauth_radar/scopes.py) is a static, reviewed table from each Google OAuth scope URL to one plain-English sentence of what it lets an app do ("This app can read, send and delete all your email, and change your mail settings."), the data it reaches, and Google's class for it (restricted, sensitive, non-sensitive, or admin). An unknown scope is never guessed at: the explainer says plainly that it has no description and that IT should check it, and its class is "unknown".
+
+Evidence: [`test_scopes.py`](../tests/test_scopes.py): the catalogue's examples, an unknown scope, every entry one short sentence, and every scope the tuning world holds is in the table.
+
+**Honest limits.** The classes follow Google's restricted and sensitive scope lists as recalled on 2026-11-19, without a network to check them; a person should check them against Google's current lists. The table covers the common Workspace scopes, not all of them.
