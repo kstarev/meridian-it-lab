@@ -8,8 +8,16 @@
     "world_seed": 1108
   },
   "models": {
-    "triage": "tier0.stub/tier0-stub-1",
-    "guide_pick": "stub/scripted"
+    "recorded_on": "2026-11-19",
+    "recording": "demo-recorded-run.json",
+    "triage": {
+      "model": "claude-haiku-5-5",
+      "prompt": "HT9"
+    },
+    "guide_pick": {
+      "model": "claude-sonnet-5-5",
+      "prompt": "KS6A-H"
+    }
   },
   "requester": {
     "name": "Anika Sato",
@@ -36,7 +44,7 @@
     "action": "escalate"
   },
   "pick": {
-    "version": "KS5",
+    "version": "KS6A-H",
     "request_type": "how_to",
     "guide": "KB-001",
     "screen": "none",
@@ -87,7 +95,7 @@
     "state_after_draft": "Triage",
     "comments_after_draft": [
       "tier0: triaged as other; policy: Tier A, action escalate.",
-      "tier0: guide picker KS5: request type how_to, guide KB-001; message screen none.",
+      "tier0: guide picker KS6A-H: request type how_to, guide KB-001; message screen none.",
       "tier0: handed to a person (guide_waits_for_it_click).",
       "tier0: the guide picker chose the approved guide KB-001. It waits in #it-team for one click from a person in IT, who can send it word for word or take the ticket over (ADR-053). The requester has the hand-off reply only."
     ],

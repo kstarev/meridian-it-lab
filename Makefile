@@ -54,7 +54,7 @@ holidays-preview: ## Print a year's proactive-post schedule, nothing sent (YEAR=
 images: ## Regenerate the README's animated flow pictures in docs/img
 	$(UV_RUN) python -m tier0.docs_img --out docs/img
 
-site-demo: ## Rebuild the site's simulated-Slack demo, site/demo.html and its run log (stub only)
+site-demo: ## Rebuild the site's simulated-Slack demo, site/demo.html and its run log, from the recorded run (no model call)
 	$(UV_RUN) python -m tier0.site_demo --out site
 
 og: ## Redraw the site's social preview, site/og.png (fetches Pillow and fontTools for this run only)
