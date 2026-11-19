@@ -167,6 +167,11 @@ CHECK_YES = "check_yes"
 NO_PICKER = "no_picker"  # "other" with no second stage: a person handles it
 PICKER_GUIDE = "picker_guide"
 PICKER_HAND_OFF = "picker_hand_off"
+# Milestone 3f: with a how-to gate, the code-only message screen runs before the picker is
+# asked, then the gate (on the arm's own triage model). Either can only hand off.
+SCREEN = "screen"  # code: the message screen found something; the picker is never called
+GATE_NO = "gate_no"  # the gate said the message is not one plain how-to question
+GATE_FAILED = "gate_failed"  # the gate's call failed, or its reply was off the schema
 STAGES = (
     TRIAGE_FAILED,
     TRIAGE_OFF_FORMAT,
@@ -177,6 +182,9 @@ STAGES = (
     CHECK_NO,
     CHECK_YES,
     NO_PICKER,
+    SCREEN,
+    GATE_NO,
+    GATE_FAILED,
     PICKER_GUIDE,
     PICKER_HAND_OFF,
 )
@@ -212,6 +220,39 @@ class Picker:
 
 
 NONE_PICKER = Picker("none", no_picker)
+
+
+@dataclass(frozen=True, slots=True)
+class Gate:
+    """Milestone 3f's how-to gate (tier0.knowledge.gate): a version and its pinned prompt."""
+
+    version: str
+    system: str
+    sha256: str
+
+
+def gate_for(version: str) -> Gate:
+    gate = importlib.import_module("tier0.knowledge.gate")
+    system = gate.GATE_VERSIONS[version]
+    return Gate(version, system, hashlib.sha256(system.encode()).hexdigest())
+
+
+def gate_route(text: str, model: ModelAdapter, gate: Gate) -> str | None:
+    """The stage that hands the message off before the picker, or None to ask the picker. The
+    code-only screen first (it costs nothing), then the gate on `model`, the arm's own."""
+    screen = importlib.import_module("tier0.knowledge.screen")
+    gate_module = importlib.import_module("tier0.knowledge.gate")
+    if screen.hand_off_signal(text) is not None:
+        return SCREEN
+    try:
+        verdict = gate_module.parse_gate(
+            model.complete(gate_module.gate_request(text, gate.system))
+        )
+    except ModelError:
+        verdict = None
+    if verdict is None:
+        return GATE_FAILED
+    return None if verdict else GATE_NO
 
 
 def knowledge_picker(setup: Setup, model: ModelAdapter, prompt: str | None = None) -> Picker:
@@ -337,6 +378,7 @@ def route_ticket(
     model: ModelAdapter,
     setup: Setup,
     second_stage: SecondStage = no_picker,
+    gate: Gate | None = None,
 ) -> Route:
     """Where one message ends up. Every failure goes to a person. With the setup's `tier_c` on,
     a reset triage didn't refuse is handed off by code before anything else."""
@@ -377,6 +419,10 @@ def route_ticket(
         return Route(ANSWER_USERNAME, None, CHECK_YES, label)
     if second_stage is no_picker:
         return Route(HAND_OFF, None, NO_PICKER, label)
+    if gate is not None:
+        stopped = gate_route(text, model, gate)
+        if stopped is not None:
+            return Route(HAND_OFF, None, stopped, label)
     kind, guide = second_stage(text)
     if kind == GUIDE and guide:
         return Route(ANSWER_GUIDE, guide, PICKER_GUIDE, label)
@@ -413,6 +459,7 @@ def run_month(
     model: ModelAdapter,
     k: int,
     second_stage: SecondStage = no_picker,
+    gate: Gate | None = None,
     done: Sequence[dict[str, Any]] = (),
     on_record: Callable[[dict[str, Any]], None] | None = None,
     progress: Callable[[str], None] | None = None,
@@ -435,6 +482,7 @@ def run_month(
                 model=model,
                 setup=setup,
                 second_stage=second_stage,
+                gate=gate,
             )
             ok, wrongly = grade(ticket, route)
             record = {
@@ -1052,8 +1100,10 @@ def result_stem(
     *,
     prompt_cache: bool = False,
     spent: bool = False,
+    gate: str | None = None,
 ) -> str:
     stem = f"month-{set_name}-{setup}-picker-{picker}-k{k}-seed{seed}"
+    stem += f"-gate-{gate}" if gate else ""
     stem += f"-kinds-{'-'.join(sorted(kinds))}" if kinds else ""
     stem += "-dev" if spent else ""
     return stem + ("-cache" if prompt_cache else "")
@@ -1385,6 +1435,11 @@ def main(
         "out of the run and of its numbers)",
     )
     r.add_argument("--picker-prompt", default=None, help="milestone 4 prompt version")
+    r.add_argument(
+        "--gate",
+        default=None,
+        help="milestone 3f how-to gate version (tier0.knowledge.gate), with --picker knowledge",
+    )
     r.add_argument("--picker-on-own-model", action="store_true", help=own_help)
     r.add_argument(
         "--final-test",
@@ -1475,6 +1530,7 @@ def main(
         kinds,
         prompt_cache=args.prompt_cache,
         spent=args.set in SPENT_SETS,
+        gate=args.gate,
     )
     out_json = args.out / f"{stem}.json"
     out_md = args.out / f"{stem}.md"
@@ -1513,6 +1569,18 @@ def main(
         except PickerUnavailable as exc:
             print(f"refused: {exc}", file=sys.stderr)
             return 2
+    gate: Gate | None = None
+    if args.gate is not None:
+        if args.picker != "knowledge":
+            print(
+                "refused: --gate guards the guide picker; pass --picker knowledge", file=sys.stderr
+            )
+            return 2
+        try:
+            gate = gate_for(args.gate)
+        except (ImportError, KeyError):
+            print(f"refused: there is no how-to gate {args.gate!r}", file=sys.stderr)
+            return 2
     prompts = setup.prompts()
     config: dict[str, Any] = {
         "eval": "tier0 realistic month, routing level (milestone 3c)",
@@ -1541,6 +1609,11 @@ def main(
         "bootstrap_samples": samples,
         "bootstrap_seed": BOOTSTRAP_SEED,
     }
+    if gate is not None:
+        # The gate runs on the arm's own triage model, after the code-only screen (milestone 3f).
+        config["gate"] = gate.version
+        config["gate_sha256"] = gate.sha256
+        config["gate_model"] = setup.triage_model
     if picker.mode != "plain":
         config["picker_mode"] = picker.mode
     if picker.pointer is not None:
@@ -1550,6 +1623,8 @@ def main(
     header = {key: config[key] for key in ("set", "seed", "month_sha256", "setup", "picker", "k")}
     header["picker_prompt_sha256"] = config["picker_prompt_sha256"]
     header["picker_model"] = picker_model
+    if gate is not None:
+        header["gate_sha256"] = gate.sha256
     if cache:
         header["prompt_cache"] = True
     args.out.mkdir(parents=True, exist_ok=True)
@@ -1570,6 +1645,7 @@ def main(
             model=model,
             k=args.k,
             second_stage=picker.stage,
+            gate=gate,
             done=done,
             on_record=save,
             progress=print,
