@@ -12,7 +12,10 @@ The rules checked here, on a tiny made-up world of three mocks:
 - no change names a break-glass account (listed, by pattern, by its email or a Google alias,
   in any case or with spaces) and reaches a mock: it is dropped, and no write touches it;
 - apply refuses, before any write, a plan with fewer approvals than the larger of what the
-  file claims and what its changes need, and a plan whose state changed.
+  file claims and what its changes need, and a plan whose state changed;
+- apply refuses a plan that both adds and takes away one target (AAC-017), before it reads or
+  writes anything, whatever the mode, the approvals or the state, and changes nothing; it
+  never gives that reason for any other plan.
 
 Each run builds fresh mocks. No world, no network. The runs are fixed (derandomize) and keep no
 example database.
@@ -160,13 +163,14 @@ def snapshot(mocks: Mocks) -> dict:
     )
 
 
-def spy_writes(mocks: Mocks) -> list[tuple[str, str, Any]]:
+def spy_writes(mocks: Mocks, *, reads: bool = False) -> list[tuple[str, str, Any]]:
+    """The writes made to each mock from now on; with `reads`, every request."""
     seen: list[tuple[str, str, Any]] = []
     for mock in (mocks.okta, mocks.google, mocks.slack):
         original = mock.request
 
         def spy(method, path, *, _o=original, **kw):
-            if method != "GET":
+            if reads or method != "GET":
                 seen.append((method, path, kw.get("body")))
             return _o(method, path, **kw)
 
@@ -195,9 +199,11 @@ def _spell(name: str):
 
 
 @st.composite
-def changes(draw, names=SAFE, max_size=10):
-    """Plan rows. One target never gets both an add and a removal (the diff never asks for
-    both; with both, every apply would take the access away and give it back)."""
+def changes(draw, names=SAFE, max_size=10, contradictory=False):
+    """Plan rows. By default one target never gets both an add and a removal: apply refuses
+    such a plan (AAC-017; the diff never asks for both, and with both every apply would take
+    the access away and give it back), and the other properties are about plans apply runs.
+    With `contradictory`, rows are drawn with no such rule, so a plan may have both."""
     out = []
     wants: dict[tuple[str, str, str], bool] = {}
     for _ in range(draw(st.integers(0, max_size))):
@@ -206,10 +212,41 @@ def changes(draw, names=SAFE, max_size=10):
         action = draw(st.sampled_from(("suspend", "remove", "add")))
         app_id = draw(st.sampled_from(("", *APPS))) if system == "okta" else ""
         target = (system, app_id, name.strip().casefold())
-        if wants.setdefault(target, action == "add") != (action == "add"):
+        if not contradictory and wants.setdefault(target, action == "add") != (action == "add"):
             continue
         out.append(change(system, action, name, app_id))
     return out
+
+
+@st.composite
+def contradictory_changes(draw, names=SAFE, max_size=8):
+    """Plan rows with at least one target both added and suspended or removed (each row
+    spelled its own way), shuffled in among other rows."""
+    rows = draw(changes(names, max_size, contradictory=True))
+    system = draw(st.sampled_from(("okta", "google", "slack")))
+    name = draw(st.sampled_from(names[system]))
+    app_id = draw(st.sampled_from(("", *APPS))) if system == "okta" else ""
+    removal = draw(st.sampled_from(("suspend", "remove")))
+    rows += [
+        change(system, "add", draw(_spell(name)), app_id),
+        change(system, removal, draw(_spell(name)), app_id),
+    ]
+    return draw(st.permutations(rows))
+
+
+def clashing(rows) -> list[str]:
+    """This file's own reading of AAC-017: each (system, app, account) that the rows both add
+    and suspend or remove, named as apply names it, sorted by system, app and account."""
+
+    def target(c):
+        return (c["system"], c["app_id"], c["account"].strip().casefold())
+
+    adds = {target(c) for c in rows if c["action"] == "add"}
+    taken = {target(c) for c in rows if c["action"] in ("suspend", "remove")}
+    return [
+        f"{account} ({system}/{app})" if app else f"{account} ({system})"
+        for system, app, account in sorted(adds & taken)
+    ]
 
 
 def hand_plan(mocks, rows, approvals_required=1, part="main") -> Plan:
@@ -433,6 +470,66 @@ def test_a_plan_built_before_a_state_change_is_refused_as_stale(world, rows, sys
         result = apply(mocks, rows, plan=plan, mode=mode)
         assert result.refused_reason == "stale"
     assert writes == [] and snapshot(mocks) == before
+
+
+# --- contradictory plans (AAC-017) ---------------------------------------------------------------
+
+MODES = st.sampled_from(("mock-live", "dry-run"))
+
+
+@SETTINGS
+@given(worlds(), changes(contradictory=True), MODES, st.integers(0, 3))
+def test_a_plan_is_refused_as_contradictory_exactly_when_it_adds_and_removes_one_target(
+    world, rows, mode, approvals
+):
+    mocks = make_mocks(world)
+    plan = hand_plan(mocks, rows)
+    before = snapshot(mocks)
+    calls = spy_writes(mocks, reads=True)
+    result = apply(mocks, rows, mode=mode, approvals=approvals, plan=plan)
+    clash = clashing(rows)
+    if clash:
+        assert (
+            result.refused_reason == f"contradictory plan: it adds and removes {', '.join(clash)}"
+        )
+        assert calls == [] and snapshot(mocks) == before
+        assert result.applied == result.skipped_already_done == result.failed == []
+    else:
+        assert not result.refused_reason.startswith("contradictory")
+
+
+@SETTINGS
+@given(
+    worlds(),
+    contradictory_changes(),
+    changes(names=PROTECTED, max_size=4, contradictory=True),
+    MODES,
+    st.integers(0, 3),
+    st.booleans(),
+    st.randoms(use_true_random=False),
+)
+def test_a_contradictory_plan_is_refused_and_changes_nothing(
+    world, rows, bg_rows, mode, approvals, stale, rnd
+):
+    """Whatever else is wrong with it or in it: break-glass rows, too few approvals, a state
+    that changed since it was built. Applied twice, it changes nothing twice."""
+    rows = [*rows, *bg_rows]
+    rnd.shuffle(rows)
+    mocks = make_mocks(world)
+    plan = hand_plan(mocks, rows)
+    if stale:
+        mocks.slack.data["Resources"][0]["active"] ^= True
+    before = snapshot(mocks)
+    calls = spy_writes(mocks, reads=True)
+    for _ in range(2):
+        result = apply(mocks, rows, mode=mode, approvals=approvals, plan=plan)
+        assert result.refused_reason == (
+            f"contradictory plan: it adds and removes {', '.join(clashing(rows))}"
+        )
+        assert result.log[-1] == f"refused: {result.refused_reason}"
+        assert result.applied == result.skipped_already_done == result.failed == []
+        assert result.dropped_break_glass == result.not_applied == result.manual_tasks == []
+    assert calls == [] and snapshot(mocks) == before
 
 
 # --- focused tests for what mutation testing found unchecked -------------------------------------

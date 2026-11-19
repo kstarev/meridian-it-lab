@@ -17,6 +17,7 @@ from meridian_access.apply import (
     ACCEPTED_MODES,
     apply_plan,
     confirm_manual_tasks,
+    contradictions,
     issue_write_tokens,
     normalise_mode,
 )
@@ -425,21 +426,24 @@ def test_no_change_type_ever_touches_a_break_glass_account(world_dir, policy):
     }
     # only changes that would make an API call: every system's suspend and remove, an Okta app
     # unassignment and an Okta app add
-    changes = []
+    takes_away = []
     for action in ("suspend", "remove"):
         for system, accounts in names.items():
-            changes += [change(system, action, account) for account in accounts]
-    changes += [change("okta", "remove", account, app_id) for account in names["okta"]]
-    changes += [change("okta", "add", account, app_id) for account in names["okta"]]
-    bad = hand_plan(mocks, world_dir, strict, changes, approvals_required=1)
-    before = snapshot(mocks)
-    writes = write_calls(mocks)
-    result, _ = run_hand(bad, world_dir, strict, mocks, approvals=1)
-    assert not result.refused_reason, result.refused_reason
-    assert writes == [] and snapshot(mocks) == before
-    assert result.applied == [] and result.skipped_already_done == [] and result.failed == []
-    assert len(result.dropped_break_glass) == len(changes)
-    assert sum(1 for line in result.log if line.startswith("warning: dropped")) == len(changes)
+            takes_away += [change(system, action, account) for account in accounts]
+    takes_away += [change("okta", "remove", account, app_id) for account in names["okta"]]
+    adds = [change("okta", "add", account, app_id) for account in names["okta"]]
+    # a plan that adds and removes one target is refused whole (AAC-017): two plans, so each
+    # change reaches the guard
+    for changes in (takes_away, adds):
+        bad = hand_plan(mocks, world_dir, strict, changes, approvals_required=1)
+        before = snapshot(mocks)
+        writes = write_calls(mocks)
+        result, _ = run_hand(bad, world_dir, strict, mocks, approvals=1)
+        assert not result.refused_reason, result.refused_reason
+        assert writes == [] and snapshot(mocks) == before
+        assert result.applied == [] and result.skipped_already_done == [] and result.failed == []
+        assert len(result.dropped_break_glass) == len(changes)
+        assert sum(1 for line in result.log if line.startswith("warning: dropped")) == len(changes)
     # control: against a policy that does not list the Slack user the same change is made, so
     # the guard (and not the plan, or the mocks) is what kept the account safe
     loose_mocks = make_mocks(world_dir)
@@ -846,6 +850,146 @@ def test_a_plan_with_a_block_claiming_one_approval_needs_two(plan, world_dir, po
     hand = hand_plan(mocks, world_dir, policy, block, approvals_required=1)
     result, _ = run_hand(hand, world_dir, policy, mocks, approvals=1)
     assert result.refused_reason == "needs 2 approvals"
+
+
+# ---------------------------------------------------------------- contradictory plans (AAC-017)
+
+
+def all_calls(mocks):
+    """Every request made to each mock from now on, reads included."""
+    seen = []
+    for mock in (mocks.okta, mocks.google, mocks.slack):
+        original = mock.request
+
+        def spy(method, path, *, _o=original, **kw):
+            seen.append((method, path))
+            return _o(method, path, **kw)
+
+        mock.request = spy
+    return seen
+
+
+def _mover_add(plan):
+    return next(c for c in plan.changes if c["system"] == "okta" and c["action"] == "add")
+
+
+def test_a_plan_that_adds_and_removes_one_target_is_refused_before_anything_is_read(
+    plan, world_dir, policy
+):
+    add = _mover_add(plan)
+    undo = {**add, "action": "remove", "account": f"  {add['account'].upper()} "}
+    rows = [*plan.changes, undo]
+    target = f"{add['account'].casefold()} (okta/{add['app_id']})"
+    reason = f"contradictory plan: it adds and removes {target}"
+    for mode, approvals in (("mock-live", 2), ("dry-run", 2), ("mock-live", 0)):
+        mocks = make_mocks(world_dir)
+        hand = hand_plan(mocks, world_dir, policy, rows)
+        before = snapshot(mocks)
+        calls = all_calls(mocks)
+        result, _ = run_hand(hand, world_dir, policy, mocks, mode=mode, approvals=approvals)
+        assert result.refused_reason == reason, (mode, approvals)
+        assert result.log[-1] == f"refused: {reason}"
+        assert calls == [] and snapshot(mocks) == before
+        assert result.applied == result.skipped_already_done == result.failed == []
+        assert result.dropped_break_glass == result.manual_tasks == []
+    # the control: the same changes without the removal are applied
+    mocks = make_mocks(world_dir)
+    ok, _ = run_hand(hand_plan(mocks, world_dir, policy, plan.changes), world_dir, policy, mocks)
+    assert not ok.refused_reason and add["account"] in {c["account"] for c in ok.applied}
+
+
+def test_the_cli_refuses_a_contradictory_plan_with_exit_code_1(
+    plan, world_dir, tmp_path, monkeypatch, capsys
+):
+    add = _mover_add(plan)
+    data = {**plan.data, "changes": [*plan.changes, {**add, "action": "suspend"}]}
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(Plan(data).json(), encoding="utf-8")
+    log = tmp_path / "log.json"
+    monkeypatch.setenv("ACCESS_APPLY_MODE", "mock-live")
+    argv = ["--plan", str(plan_file), "--world", str(world_dir), "--approvals", "1"]
+    assert apply_mod.main([*argv, "--log", str(log)]) == 1
+    out = capsys.readouterr().out
+    target = f"{add['account'].casefold()} (okta/{add['app_id']})"
+    assert f"refused: contradictory plan: it adds and removes {target}" in out
+    assert "applied: 0  already done: 0" in out
+    assert json.loads(log.read_text())["applied"] == []
+
+
+A = "ana@meridian.example"
+
+
+@pytest.mark.parametrize(
+    ("rows", "clashes"),
+    [
+        # a removal, a suspension, and the flag on an export row each take access away
+        (
+            [change("okta", "add", A, "amber-board"), change("okta", "remove", A, "amber-board")],
+            [f"{A} (okta/amber-board)"],
+        ),
+        (
+            [
+                change("okta", "suspend", f"  {A.upper()} ", "amber-board"),
+                change("okta", "add", A, "amber-board"),
+            ],
+            [f"{A} (okta/amber-board)"],
+        ),
+        ([change("okta", "add", A), change("okta", "suspend", A)], [f"{A} (okta)"]),
+        ([change("google", "remove", A), change("google", "add", A.title())], [f"{A} (google)"]),
+        ([change("slack", "add", "Ana"), change("slack", "remove", "ana")], ["ana (slack)"]),
+        (
+            [
+                change("birch-notes", "flag", "Ana", "birch-notes"),
+                change("birch-notes", "add", "ana", "birch-notes"),
+            ],
+            ["ana (birch-notes/birch-notes)"],
+        ),
+        (  # every target is named, sorted by system, app and account
+            [
+                change("slack", "remove", "ana"),
+                change("okta", "remove", "cara@meridian.example", "amber-board"),
+                change("slack", "add", "ana"),
+                change("okta", "add", "cara@meridian.example", "amber-board"),
+                change("okta", "add", "ben@meridian.example", "amber-board"),
+                change("okta", "remove", "ben@meridian.example", "amber-board"),
+            ],
+            [
+                "ben@meridian.example (okta/amber-board)",
+                "cara@meridian.example (okta/amber-board)",
+                "ana (slack)",
+            ],
+        ),
+        # not one target, or not taking access away
+        ([change("okta", "add", A, "amber-board"), change("okta", "remove", A, "amber-desk")], []),
+        ([change("okta", "add", A, "amber-board"), change("okta", "suspend", A)], []),
+        ([change("okta", "add", A, "amber-board"), change("slack", "remove", "ana")], []),
+        (
+            [
+                change("okta", "remove", "ana", "amber-board"),
+                change("okta", "add", A, "amber-board"),
+            ],
+            [],
+        ),
+        ([change("okta", "add", A, "amber-board"), change("okta", "flag", A, "amber-board")], []),
+        ([change("hris", "add", "E0"), change("hris", "flag", "E0")], []),
+        ([change("okta", "add", A), change("okta", "never_touch", A)], []),
+        ([change("okta", "add", A, "amber-board"), change("okta", "add", A, "amber-board")], []),
+        ([change("slack", "remove", "ana"), change("slack", "suspend", "ana")], []),
+        ([], []),
+    ],
+)
+def test_what_counts_as_adding_and_taking_away_one_target(rows, clashes):
+    assert contradictions(rows) == clashes
+    assert contradictions(reversed(rows)) == clashes
+
+
+def test_the_diff_never_asks_to_add_and_take_away_one_target(combined, parts):
+    """A sanity check on the tuning world: its plans have adds, removals and export flags, and
+    no target gets both, so the refusal never stops a plan the diff built."""
+    bulk = [c for c in combined.data["held"] if c.get("hold") == "bulk"]
+    assert {"add", "remove", "suspend", "flag"} <= {c["action"] for c in combined.changes}
+    for rows in ([*combined.changes, *bulk], parts[0].changes, parts[1].changes):
+        assert contradictions(rows) == []
 
 
 def test_hr_reversing_a_termination_after_the_plan_refuses_it(plan, world_dir, policy, tmp_path):

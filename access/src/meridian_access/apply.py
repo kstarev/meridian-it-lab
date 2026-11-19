@@ -4,6 +4,10 @@ There is no mode for real systems. `mode` is `dry-run` (the default: say what wo
 change nothing) or `mock-live` (change the in-process mocks). Any other value is a dry run.
 Apply never talks to anything but the mocks it is given.
 
+A plan that both adds and takes away one target (the same system, app and account) is refused
+before anything is read or changed, and the refusal names each such target (AAC-017). The diff
+never asks for both; with both, every apply would take the access away and give it back.
+
 Before any change it re-checks what the pull request check already checked: the plan has
 enough approvals (the requirement is recomputed from the changes and the policy, never taken
 from the plan file alone) and is not stale (the actual state still has the hash the plan was
@@ -36,13 +40,14 @@ import json
 import os
 import re
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from meridian_access.approvals import required_for, version_message
 from meridian_access.collect import ActualState, HttpishClient, Mocks, actual_state
+from meridian_access.diff import REMOVING
 from meridian_access.exports import parse_exports
 from meridian_access.mocks import GoogleMock, OktaMock, SlackMock, Token
 from meridian_access.models import Account, CollectorError
@@ -149,6 +154,33 @@ def _touches_break_glass(change: Mapping[str, Any], policy: Policy, names: set[s
     return _norm(account) in names or _is_listed(policy, account)
 
 
+def _takes_away(change: Mapping[str, Any]) -> bool:
+    """A removal or a suspension, or the flag on an export row (a by-hand removal task). A flag
+    on a directory account is a review, and one on an HR record a correction: neither takes
+    access away."""
+    if change["action"] in REMOVING:
+        return True
+    return change["action"] == "flag" and change["system"] not in (*DIRECTORY, "hris")
+
+
+def contradictions(changes: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Every target that `changes` both add and take away, as `account (system/app)`, sorted.
+    A target is what apply finds an account by: the system, the app id and the account
+    (trimmed, in any case)."""
+    adds: set[tuple[str, str, str]] = set()
+    taken: set[tuple[str, str, str]] = set()
+    for c in changes:
+        target = (c["system"], c["app_id"], _norm(c["account"]))
+        if c["action"] == "add":
+            adds.add(target)
+        elif _takes_away(c):
+            taken.add(target)
+    return [
+        f"{account} ({system}{'/' + app_id if app_id else ''})"
+        for system, app_id, account in sorted(adds & taken)
+    ]
+
+
 def _step(change: Mapping[str, Any]) -> int:
     system, app_id, action = change["system"], change["app_id"], change["action"]
     if action == "add":
@@ -203,6 +235,12 @@ def apply_plan(
         return result
     if data.get("part") not in PARTS:
         result.refused_reason = f"unknown plan part {data.get('part')!r}: expected main or held"
+        result.log.append(f"refused: {result.refused_reason}")
+        return result
+    # on the plan file alone, before any read: approving such a plan again would not help
+    clashes = contradictions(data["changes"])
+    if clashes:
+        result.refused_reason = f"contradictory plan: it adds and removes {', '.join(clashes)}"
         result.log.append(f"refused: {result.refused_reason}")
         return result
     # what the plan file says is a floor, never the answer: recompute from its own changes
