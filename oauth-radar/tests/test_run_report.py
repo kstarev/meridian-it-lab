@@ -71,6 +71,27 @@ def test_a_refused_exception_is_reported_and_protects_nothing(world: Path) -> No
     assert run["counts"]["excepted"] == 1
 
 
+def test_a_leavers_grant_is_high_and_listed_by_app(world: Path) -> None:
+    files = run_files(world)
+    counts = json.loads(files["run.json"])["counts"]
+    assert (counts["leavers_in_directory"], counts["leaver_grants"]) == (1, 1)
+    [row] = [
+        g
+        for g in json.loads(files["scores.json"])["grants"]
+        if any(o["signal"] == "leaver" for o in g["overrides"])
+    ]
+    assert (row["app"], row["tier"], row["total"]) == ("Huddlewave Meet", "high", 4)
+    person = json.loads(files["to-a-person.json"])["grants"]
+    [listed] = [g for g in person if g["user_key"] == row["user_key"]]
+    assert "The person has left" in listed["reason"]
+    report = files["report.md"].decode()
+    assert "| Grants held by people HR says have left | 1 |" in report
+    assert "## Grants held by people who have left, above sign-in" in report
+    assert "| Huddlewave Meet | 1 |" in report
+    # The report names apps, not the leaver.
+    assert row["user_key"] not in report
+
+
 def test_a_week_later_the_noticed_grants_are_in_the_plan(world: Path, tmp_path: Path) -> None:
     first = run_files(world)
     write_run(first, tmp_path / "day0")

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from meridian_oauth_radar.collector import collect
-from meridian_oauth_radar.enrich import Knowledge, load_knowledge
+from meridian_oauth_radar.enrich import Knowledge, load_knowledge, load_leavers
 from meridian_oauth_radar.fake_admin import FakeAdminApi
 from meridian_oauth_radar.nudges import nudge_files, nudges
 from meridian_oauth_radar.policy import (
@@ -65,7 +65,8 @@ def run_files(
     api = FakeAdminApi.from_files(world)
     collection = collect(api)
     knowledge = load_knowledge(world)
-    found = score_all(collection.grants, knowledge)
+    leavers = load_leavers(world, today)
+    found = score_all(collection.grants, knowledge, leavers)
     listed = load_exceptions(world / "exceptions.json")
     result = decide(
         found,
@@ -123,6 +124,9 @@ def run_files(
                 "excepted": len(result.excepted),
                 "exceptions_expired": len(result.expired_exceptions),
                 "exceptions_refused": len(listed.refused),
+                "leavers_in_hris": len(leavers),
+                "leavers_in_directory": len(set(collection.users) & leavers),
+                "leaver_grants": sum(1 for g in collection.grants if g.user_key in leavers),
                 "no_action": result.no_action,
                 "nudges": len(drafts),
             },

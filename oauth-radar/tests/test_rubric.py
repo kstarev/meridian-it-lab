@@ -2,13 +2,14 @@
 
 import itertools
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from meridian_dataset.oauth import RADAR_DIR, generate_oauth_world, write_oauth_world
 from meridian_oauth_radar.collector import TokenGrant
-from meridian_oauth_radar.enrich import AppFacts, load_knowledge
+from meridian_oauth_radar.enrich import AppFacts, load_knowledge, load_leavers
 from meridian_oauth_radar.load import ExportError
 from meridian_oauth_radar.rubric import (
     APPROVED_REACH_NOTE,
@@ -221,3 +222,26 @@ def test_a_bad_catalogue_stops_the_load(tmp_path: Path) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(ExportError, match='app 0: "status"'):
         load_knowledge(folder)
+
+
+def test_leavers_are_read_from_hr_and_their_grants_are_high(tmp_path: Path) -> None:
+    write_oauth_world(generate_oauth_world(), tmp_path)
+    folder = tmp_path / RADAR_DIR
+    today = date(2026, 11, 16)
+    left = load_leavers(folder, today)
+    world = generate_oauth_world()
+    assert left == {leaver.work_email for leaver in world.leavers}
+    # "Terminated", or an end date that has passed; a future end date isn't gone yet.
+    path = folder / "hris_leavers.json"
+    rows = [
+        {"employee_id": "E1", "work_email": "a@x", "status": "terminated", "end_date": ""},
+        {"employee_id": "E2", "work_email": "b@x", "status": "active", "end_date": "2026-11-15"},
+        {"employee_id": "E3", "work_email": "c@x", "status": "active", "end_date": "2026-11-16"},
+        {"employee_id": "E4", "work_email": "d@x", "status": "active", "end_date": ""},
+    ]
+    path.write_text(json.dumps({"records": rows}), encoding="utf-8")
+    assert load_leavers(folder, today) == {"a@x", "b@x"}
+    rows[0]["end_date"] = "soon"
+    path.write_text(json.dumps({"records": rows}), encoding="utf-8")
+    with pytest.raises(ExportError, match='record 0: "end_date" must be a date'):
+        load_leavers(folder, today)

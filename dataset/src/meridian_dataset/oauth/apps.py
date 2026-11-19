@@ -10,7 +10,7 @@ Three groups:
   reviewed. None of them is planted as risky.
 - **Planted apps**, each granted by exactly one person: the 6 risky grants. Which grants
   are planted, and why, is only in the answer key, never in a file the radar reads.
-- **A banned app** that nobody holds a grant to any more.
+- **A banned app,** which one person still holds: a plant (OAR-009).
 """
 
 from dataclasses import dataclass, field

@@ -28,12 +28,12 @@ def evaluation(tmp_path_factory: pytest.TempPathFactory) -> Evaluation:
 
 def test_marked_high_by_the_rubric(evaluation: Evaluation) -> None:
     c = evaluation.high
-    assert (c.planted, c.found, c.flagged, c.false_alarms) == (6, 5, 33, 28)
+    assert (c.planted, c.found, c.flagged, c.false_alarms) == (8, 7, 35, 28)
 
 
 def test_acted_on_by_the_radar(evaluation: Evaluation) -> None:
     c = evaluation.acted
-    assert (c.planted, c.found, c.flagged, c.false_alarms) == (6, 6, 35, 29)
+    assert (c.planted, c.found, c.flagged, c.false_alarms) == (8, 7, 36, 29)
 
 
 def test_the_one_plant_the_rubric_misses_is_caught_by_dormancy(evaluation: Evaluation) -> None:
@@ -41,11 +41,31 @@ def test_the_one_plant_the_rubric_misses_is_caught_by_dormancy(evaluation: Evalu
     assert [(p.app, p.tier, p.total, p.outcome) for p in missed] == [
         ("Mergewick Mail Merge", "medium", 4, "notice, then after-notice plan")
     ]
-    assert all(p.outcome != "only listed for a person" for p in evaluation.plants)
+
+
+def test_the_leaver_is_high_but_only_listed_and_the_banned_grant_is_nudged(
+    evaluation: Evaluation,
+) -> None:
+    by_kind = {p.kind: p for p in evaluation.plants}
+    leaver, banned = by_kind["leaver_grant"], by_kind["banned_app"]
+    assert (leaver.app, leaver.tier, leaver.total, leaver.outcome) == (
+        "Huddlewave Meet",
+        "high",
+        4,
+        "only listed for a person",
+    )
+    assert (banned.app, banned.tier, banned.outcome) == (
+        "NoteSprout AI",
+        "high",
+        "Slack nudge draft",
+    )
+    missed = [p.kind for p in evaluation.plants if p.outcome == "only listed for a person"]
+    assert missed == ["leaver_grant"]
+    assert (evaluation.users, evaluation.leavers_in_directory) == (231, 1)
 
 
 def test_dormant_grants_in_the_plan_a_week_later(evaluation: Evaluation) -> None:
-    assert (evaluation.dormant, evaluation.dormant_in_plan, evaluation.excepted) == (65, 5, 1)
+    assert (evaluation.dormant, evaluation.dormant_in_plan, evaluation.excepted) == (66, 5, 1)
 
 
 def test_the_published_report_is_the_generated_one(evaluation: Evaluation) -> None:

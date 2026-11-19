@@ -32,6 +32,8 @@ Evidence: [`test_collector.py`](../tests/test_collector.py), including `test_no_
 
 Evidence: [`test_oauth_world.py`](../../dataset/tests/test_oauth_world.py): same seed, same bytes (a golden manifest hash); the people are the shared 230 and unchanged; exactly 6 plants, each by a different person; nothing under `radar/` names a plant; fake data only, no token values. No existing world or pinned digest moves, and their tests are unedited.
 
+**Update, 2026-11-19:** on the owner's ruling ([OAR-009](adr/009-tuning-world-month-people-and-access-leavers.md)), leavers are read from the Access tuning world's HRIS records (`generate_access()`, seed 6108, read only): `radar/hris_leavers.json` holds four fields (employee ID, work email, status, end date) of everyone HRIS shows as gone before the snapshot. The month roster and the Access HRIS share no person, so the leaver is one of those HRIS people whose Google account was never removed, added to the directory beside the 230. Two plants join the 6: a grant to the app IT banned, still in use, and that leaver's grant to the meetings app (medium on its points alone, so only the leaver override makes it high). Both are drawn after everything else, and a test pins that the earlier grants don't move. OAuth generator 0.3.0. No pinned digest outside the OAuth world moves; a test checks the Access world's bytes are unchanged.
+
 **Honest limits.** One builder wrote the world, the plants and (later) the rubric, so a shared misreading can't be caught here. A tuning world proves little on its own: it's for building and tuning, and its numbers are reported as tuning numbers. The people have no leaver status, so nothing exercises a leaver rule.
 
 ## 3. Scope explainer
