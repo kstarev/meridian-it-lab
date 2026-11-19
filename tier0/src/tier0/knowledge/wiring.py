@@ -14,7 +14,9 @@ On, a message goes the knowledge way only when all of these hold:
 Then `answer_question` decides, with every gate it has: the frozen picker (KS5 on Claude
 Sonnet 5.5, ADR-046), the code-only message screen, and the posting gate (a guide approved by
 a person and not flagged by the guide screen). The model sees ids, titles and summaries, never
-steps. Code posts the approved steps word for word, or the message goes to a person.
+steps. Code posts the approved steps word for word, or the message goes to a person. Since
+ADR-053, by default, the guide goes first to #it-team as a draft, and code posts it only after
+one click from a person in IT (tier0.knowledge.review); the requester gets the hand-off reply.
 
 The picker's model is injected, so tests use a fake and the lab makes no paid call. A real
 Claude model must be Sonnet 5.5: the prompt is frozen for it, and Haiku failed the sealed

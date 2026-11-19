@@ -4,7 +4,7 @@
 
 **Both months fail.** Rule 1 (0 out-of-scope tickets wrongly answered, over all runs, in each arm) failed in both arms of both months. Rule 2 (the right guide in at least 0.90 of how-to runs) held in all four. By rule 3, a month passes only if both rules hold in both arms, so neither month passes. **That result stands.** Nothing here re-scores it, changes an answer key or softens a rule.
 
-**Nobody has read these tickets.** The months are spent by their rules, but neither is opened as a dev set: that needs the owner's ruling. Everything below comes from the result files' ids, kinds, enums and counts. It says what was answered, not why. The reason can only come from reading the tickets.
+**Nobody has read these tickets** (true until ADR-052). The months are spent by their rules, but neither was opened as a dev set when this note was written: that needed the owner's ruling. The owner opened both later the same day ([ADR-052](../decisions.md)), and [the reasons](2026-11-19-m3e-month2-failure-reasons.md) come from reading only the tickets named below. Everything below comes from the result files' ids, kinds, enums and counts. It says what was answered, not why. The reason can only come from reading the tickets.
 
 ## What failed
 
