@@ -146,5 +146,6 @@ def test_a_paid_run_needs_the_budget_item(capsys: pytest.CaptureFixture[str]) ->
 
 
 def test_the_reply_has_room_on_every_model() -> None:
-    """At 16 tokens Sonnet's replies were cut short (finish "length") before any JSON."""
-    assert gate_request("x", GATE_VERSIONS["G3"]).max_tokens >= 64
+    """At 16 and at 64 tokens Sonnet's replies were cut short (finish "length") before any
+    JSON. The gate gets what triage gets."""
+    assert gate_request("x", GATE_VERSIONS["G3"]).max_tokens == 1024

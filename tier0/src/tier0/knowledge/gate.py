@@ -181,9 +181,11 @@ def gate_request(text: str, system: str) -> ModelRequest:
         system=system,
         user=f"Message from the employee:\n<message>\n{text}\n</message>",
         json_schema=GATE_SCHEMA,
-        # 64, as the picker's call: at 16, Sonnet's replies were cut short before any JSON
-        # (finish "length", empty text) in 27 of 869 dev calls, each a hand-off by the parser.
-        max_tokens=64,
+        # 1024, as triage's own call. Sonnet's thinking can't be turned off, and at 16 tokens
+        # (27 of 869 dev calls) and at 64 (33 of 869) its reply was cut short before any JSON
+        # (finish "length", empty text), each a hand-off by the parser. Haiku's thinking is
+        # off, and it was never cut short. Only the tokens used are billed.
+        max_tokens=1024,
     )
 
 
