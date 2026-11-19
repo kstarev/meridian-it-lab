@@ -6,6 +6,8 @@ The [brief](../BRIEF.md) and decisions OAR-001 to OAR-007 were written on 2026-1
 
 This page lists every place they differ, and what milestone 1 does about each. Milestone 1 here is the owner's list of 2026-11-19 (collector, shared dataset grants, scope explainer, risk rubric, dry-run policy engine, Slack nudge drafts, weekly report, precision and recall), not the scaffold's milestone 1 ([numbering](#milestone-numbering)). Nothing below changes an OAR decision. Each one stays Proposed until the owner rules (R20), and a change to one is a new record that supersedes it.
 
+**Update, 2026-11-19: the owner ruled.** Every default below is accepted, with a few changes, and [OAR-008](adr/008-risk-rubric-with-the-owners-changes.md) to [OAR-011](adr/011-mock-admin-api-collector.md) supersede OAR-002 to OAR-005. The table below is kept as it was written; where a ruling changed a row, the new record says so: the rubric and what "found" means (rows 2, 5, 6 and 19: OAR-008), the people, leavers and plants (rows 6, 16 and 18: OAR-009), "last used" and exceptions (rows 8 and 10: OAR-010, OAR-011).
+
 ## The differences
 
 | # | Item | Scaffold says | Catalogue says | What milestone 1 does |
@@ -50,4 +52,4 @@ This page lists every place they differ, and what milestone 1 does about each. M
 
 ## Open rulings this touches
 
-R14 (the risk model), R15 (whose people: the catalogue answers it), R16 (a precision target), R17 (the ticket draft), R18 (the AI explainer), R19 (a blind referee) and R20 (accept, change or reject OAR-001 to OAR-007) are still the owner's. Where milestone 1 code needs one of them, it follows the catalogue and the choice is written down for the owner.
+R14 (the risk model), R15 (whose people), R16 (a precision target) and R20 (for OAR-002 to OAR-005) were ruled on 2026-11-19; see OAR-008 to OAR-011. R17 (the ticket draft), R18 (the AI explainer), R19 (a blind referee) and R20 for OAR-001, OAR-006 and OAR-007 are still the owner's. Where milestone 1 code needs one of them, it follows the catalogue and the choice is written down for the owner.

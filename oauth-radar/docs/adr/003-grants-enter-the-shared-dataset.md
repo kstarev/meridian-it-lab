@@ -1,6 +1,6 @@
 # OAR-003: OAuth grants join the shared dataset in their own module, and no existing world moves
 
-**Date:** 2026-11-15 · **Status:** Proposed; for the owner's review. Builds on lab ADR-001 and follows [AAC-004](../../../access/docs/adr/004-extend-the-shared-dataset.md). Nothing in `dataset/` changes in milestone 0.
+**Date:** 2026-11-15 · **Status:** Superseded by [OAR-009](009-tuning-world-month-people-and-access-leavers.md) (owner, 2026-11-19). Before that it was Proposed and never accepted; the text below is unchanged. Its original note: Builds on lab ADR-001 and follows [AAC-004](../../../access/docs/adr/004-extend-the-shared-dataset.md). Nothing in `dataset/` changes in milestone 0.
 
 **Context:** Lab ADR-001 says the one shared dataset holds OAuth grants, with risky grants among its planted problems. No generator writes them yet. The worlds that exist must stay byte-identical, because published and sealed results rest on them:
 

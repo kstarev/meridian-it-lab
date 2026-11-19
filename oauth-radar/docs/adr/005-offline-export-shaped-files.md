@@ -1,6 +1,6 @@
 # OAR-005: Offline only: the radar reads export-shaped files, never an API, and never message content
 
-**Date:** 2026-11-15 · **Status:** Proposed; for the owner's review.
+**Date:** 2026-11-15 · **Status:** Superseded by [OAR-011](011-mock-admin-api-collector.md) (owner, 2026-11-19). Before that it was Proposed and never accepted; the text below is unchanged.
 
 **Context:** The lab brief puts all four projects "running offline on files shaped like Okta, Google Workspace, Slack, Jamf, Intune and Linear exports", and rules out live APIs and real tenants. The dataset (milestone 1) and the radar's loaders have to agree on which files exist and what's in them, so that shape is decided here. Grants are also sensitive: a scope can let an app read every message, so the radar must report what an app *may* reach without ever reading it itself.
 

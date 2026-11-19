@@ -1,6 +1,6 @@
 # OAR-002: The risk model: five signals, two overrides, scored by rules first
 
-**Date:** 2026-11-15 · **Status:** Proposed; for the owner's review. The milestone-0 stub builds two rules; the rest is the plan for milestone 2.
+**Date:** 2026-11-15 · **Status:** Superseded by [OAR-008](008-risk-rubric-with-the-owners-changes.md) (owner, 2026-11-19). Before that it was Proposed and never accepted; the text below is unchanged. Its original note: The milestone-0 stub builds two rules; the rest is the plan for milestone 2.
 
 **Context:** The lab brief's target for `oauth-radar` is "High-risk OAuth grants found: 100%". That needs a written answer to "what is high-risk?" before any data is generated, because the planted problems in the dataset ([OAR-003](003-grants-enter-the-shared-dataset.md)) follow it. The radar also has to put the worst grants first, so a three-person IT team reads them first. And this project has no Claude budget (lab ADR-037).
 
