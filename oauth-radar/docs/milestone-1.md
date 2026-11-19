@@ -71,3 +71,11 @@ Evidence: [`test_nudges.py`](../tests/test_nudges.py).
 [`run.py`](../src/meridian_oauth_radar/run.py) is one dry run: collect from the mock API, score, apply the policy on a simulated date, draft nudges, and write the run's files (`run.json`, `scores.json`, the two plans, notice drafts and their ledger, the list for a person, nudge drafts). [`report.py`](../src/meridian_oauth_radar/report.py) builds the weekly Markdown report for IT and Security **from those files alone**: the counts, the emergency plan, the after-notice plan, what a person should review (grouped by app, not by person), open notices, nudge drafts, and every app with its points per signal, vendor, data location and IT status. `make oauth-run` writes the tuning world and a run into `out/oauth-radar/`; `--today` and `--ledger` simulate a later week.
 
 Evidence: [`test_run_report.py`](../tests/test_run_report.py): the same inputs give the same files and leave the inputs unchanged; the report rebuilt from the written files is identical; a week later the noticed grants are in the plan; the run works with the answer key nowhere on disk.
+
+## 8. Precision and recall on the tuning world
+
+[`evaluate.py`](../src/meridian_oauth_radar/evaluate.py) is the grader, and the only module that reads an answer key. It runs the radar on the tuning world on its snapshot date and again a week later, then counts, against the 6 planted risky grants, how many are found and how many false alarms there are, two ways: **marked high by the rubric** (OAR-002's own definition of found) and **acted on by the radar** (a notice, a plan, or a nudge draft). Every rate has its count and a 95% Wilson interval. It also reports the catalogue's "dormant grants removed (simulation)": grants in the after-notice plan a week later, out of all grants unused for more than 90 days.
+
+The numbers are in the generated report, [docs/evals/2026-11-19-oauth-radar-tuning.md](../../docs/evals/2026-11-19-oauth-radar-tuning.md), not typed here. They are tuning numbers: one builder wrote the world, the plants and the radar. Whether precision gets a target is ruling R16; for now it is reported only.
+
+Evidence: [`test_evaluate.py`](../tests/test_evaluate.py) pins every count, checks the published report is exactly the generated one, and checks no other module names an answer-key field.
