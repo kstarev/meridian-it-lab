@@ -1,10 +1,14 @@
 """The scope explainer: one plain-English sentence per scope URL; unknown scopes say so."""
 
+import re
+from pathlib import Path
+
 import pytest
 
 from meridian_dataset.oauth.apps import ALL_APPS
 from meridian_oauth_radar.scopes import (
     CLASSES,
+    CLASSES_CHECKED_ON,
     RESTRICTED,
     SCOPES,
     UNKNOWN,
@@ -67,3 +71,23 @@ def test_full_mail_and_full_drive_are_restricted_and_sign_in_is_not() -> None:
         assert google_class(url) == RESTRICTED
     for url in ("openid", G + "userinfo.email", G + "drive.file", G + "calendar.readonly"):
         assert not is_restricted(url)
+
+
+CHECKED = Path(__file__).resolve().parents[1] / "docs" / "scope-classes.md"
+
+
+def test_the_checked_page_lists_every_scope_with_its_class_and_a_source() -> None:
+    text = CHECKED.read_text(encoding="utf-8")
+    assert f"**Checked:** {CLASSES_CHECKED_ON}" in text
+    rows = re.findall(r"^\| `([^`]+)` \| ([a-z-]+) \| ([^|]+) \| ([^|]+) \|$", text, re.MULTILINE)
+    assert {url: cls for url, cls, _, _ in rows} == {u: s.google_class for u, s in SCOPES.items()}
+    assert len(rows) == len(SCOPES)
+    cited = {int(n) for n in re.findall(r"^(\d+)\. .+: https://\S+$", text, re.MULTILINE)}
+    for url, _, _, sources in rows:
+        used = {int(n) for n in re.findall(r"\[(\d+)\]", sources)}
+        assert used and used <= cited, url
+    # Every restricted entry cites Google's restricted list.
+    restricted_list = 3
+    for url, cls, _, sources in rows:
+        if cls == RESTRICTED:
+            assert f"[{restricted_list}]" in sources, url

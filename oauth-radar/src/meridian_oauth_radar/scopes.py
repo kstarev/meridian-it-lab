@@ -8,12 +8,18 @@ A static table, reviewed by a person, from scope URL to:
 - **Google's class** for the scope: `restricted` (Gmail and Drive scopes that reach all of a
   person's mail or files), `sensitive` (calendar, contacts, Sheets, Docs, send-only mail and
   the like), `non-sensitive` (sign-in, and files the app made or was handed), or `admin`
-  (Admin SDK scopes that reach other people's accounts).
+  (the radar's own class, not Google's: Admin SDK scopes that reach other people's accounts).
 
 A scope the table doesn't know is never guessed at: `explain` says so plainly, and
-`google_class` returns `unknown`. The classes follow Google's published restricted and
-sensitive scope lists as the table's author recalled them on 2026-11-19, with no network to
-check; a person should check them against Google's current lists before they are relied on.
+`google_class` returns `unknown`.
+
+**Checked on 2026-11-19 against Google's public pages,** each cited per scope in
+`oauth-radar/docs/scope-classes.md` (`CLASSES_CHECKED_ON`). No class was wrong. Every
+restricted entry is on Google's restricted list (https://support.google.com/cloud/answer/13464325)
+and no other entry is. Gmail's, Drive's, Docs', Sheets' and Slides' classes match their scope
+pages. A few classes no public page confirms (`contacts.readonly`, `directory.readonly`,
+`tasks`, the `userinfo.*` forms of the sign-in scopes, and the Admin SDK scopes) stand as
+written; that page says which.
 
 The explainer only describes. It doesn't score, decide or call anything. All data is fake;
 the scope URLs are Google's real ones, because that is what a grant holds.
@@ -29,6 +35,8 @@ UNKNOWN = "unknown"
 CLASSES = (RESTRICTED, SENSITIVE, NON_SENSITIVE, ADMIN)
 
 G = "https://www.googleapis.com/auth/"
+# When the classes were last checked against Google's lists (oauth-radar/docs/scope-classes.md).
+CLASSES_CHECKED_ON = "2026-11-19"
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,6 +221,7 @@ def is_restricted(url: str) -> bool:
 __all__ = [
     "ADMIN",
     "CLASSES",
+    "CLASSES_CHECKED_ON",
     "NON_SENSITIVE",
     "RESTRICTED",
     "SCOPES",
