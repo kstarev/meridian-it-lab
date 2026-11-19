@@ -189,4 +189,7 @@ For each small-talk option:
 - **The owner kept month2 exactly as sealed, and asked for `held_out_month2b`** ([its rules](milestone-3e-month2b-rules.md)). It holds only small talk, hardware faults, app faults and how-to questions with a right guide. So it tests the fix directly, and can also fail by handing off too much.
 - Its rules and its brief are committed before its writer starts. A separate helper writes it from the brief alone, and it is checked by counts only.
 - **Both months run once, back to back, on the same frozen system,** after both are sealed and the rehearsal is clean.
+- **Slowness, fixed before any sealed run.** The month2b brief put slowness among the fault reports, against ADR-041, which makes guide-covered everyday slowness a how-to question. The owner ruled that slowness-only tickets are scored apart and left out of month2b's pass rules ([the amendment](milestone-3e-month2b-rules.md)).
+  - Month2b's writer then tagged its own templates. By count, 1 template is tagged: a how-to question keyed to the slowness guide, KB-017 (7 tickets). No fault report is tagged. The set was sealed again, and only the tag changed.
+  - Month2 has 2 tickets (1 template) whose right answer is KB-017. Both are how-to tickets keyed "answer with KB-017", as ADR-041 asks. Month2 has no tags, and it stays as sealed.
 
