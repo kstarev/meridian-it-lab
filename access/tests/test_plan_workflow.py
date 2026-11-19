@@ -1,5 +1,6 @@
-"""The plan workflow: nightly, pinned, secrets only for the App token, skipped cleanly without
-the App; no Slack token or webhook is in the repo."""
+"""The plan workflow: nightly, pinned, secrets only for the App token, the App key only from the
+access-plan-bot environment on main, skipped cleanly without the App; no Slack token or webhook
+is in the repo."""
 
 import re
 import subprocess
@@ -12,6 +13,8 @@ WORKFLOW = ROOT / ".github" / "workflows" / "access-plan.yml"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 COMPARE = ROOT / ".github" / "workflows" / "access-ai-compare.yml"
 THIS = Path(__file__).resolve().relative_to(ROOT).as_posix()
+KEY_ENVIRONMENT = "access-plan-bot"
+MAIN_ONLY = "github.ref == 'refs/heads/main'"
 # Tracked files allowed to name the forbidden strings: this test only, by exact path.
 SLACK_WHITELIST = {THIS}
 SLACK_NEEDLES = (
@@ -103,7 +106,36 @@ def test_the_plan_job_has_no_secrets_and_the_model_summary_is_never_switched_on(
     assert "secrets." not in plan and "vars." not in plan
     assert "ANTHROPIC" not in code_of(text)
     assert "ACCESS_AI_LIVE" not in code_of(text)  # only the comment mentions it
-    assert "environment:" not in code_of(text)
+    # The plan job has no environment and no `if`: it builds the plan from any branch.
+    assert "environment" not in jobs()["plan"] and "if" not in jobs()["plan"]
+
+
+def test_every_job_that_reads_the_app_key_is_in_its_environment_and_runs_from_main_only():
+    readers = {
+        job_id
+        for job_id, job in jobs().items()
+        if "secrets.ACCESS_APP_PRIVATE_KEY" in yaml.safe_dump(job, width=10_000)
+    }
+    # bot only compares the key with empty, but an environment secret is empty to a job that
+    # doesn't name the environment, so bot needs it too, or it would skip the pull requests.
+    assert readers == {"bot", "pull-requests"}
+    for job_id in readers:
+        job = jobs()[job_id]
+        assert job["environment"] == KEY_ENVIRONMENT, job_id
+        assert job["if"].startswith(MAIN_ONLY), job_id
+        assert "||" not in job["if"], job_id
+
+
+def test_no_other_workflow_names_the_app_key():
+    others = [
+        p.name
+        for p in sorted(WORKFLOW.parent.iterdir())
+        if p != WORKFLOW and "ACCESS_APP_PRIVATE_KEY" in p.read_text(encoding="utf-8")
+    ]
+    assert others == []
+    assert KEY_ENVIRONMENT not in "".join(
+        p.read_text(encoding="utf-8") for p in WORKFLOW.parent.iterdir() if p != WORKFLOW
+    )
 
 
 def test_a_missing_app_id_or_key_skips_the_pull_request_job_cleanly():
@@ -117,7 +149,7 @@ def test_a_missing_app_id_or_key_skips_the_pull_request_job_cleanly():
     assert bot["outputs"]["ready"] == "${{ steps.check.outputs.ready }}"
     prs = jobs()["pull-requests"]
     assert prs["needs"] == ["plan", "bot"]
-    assert prs["if"] == "needs.bot.outputs.ready == 'yes'"
+    assert prs["if"] == f"{MAIN_ONLY} && needs.bot.outputs.ready == 'yes'"
     # The check itself never fails the run: both branches write an output and exit 0.
     script = check["run"]
     assert "exit 1" not in script and 'echo "ready=yes"' in script and 'echo "ready=no"' in script

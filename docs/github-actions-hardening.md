@@ -1,8 +1,8 @@
 # GitHub Actions hardening
 
-GitHub Actions runs this repo's workflows: the files in `.github/workflows/`. A workflow is a list of jobs. A job is a list of steps that run on a GitHub machine. This page explains, in plain words, the six controls that keep those runs safe.
+GitHub Actions runs this repo's workflows: the files in `.github/workflows/`. A workflow is a list of jobs. A job is a list of steps that run on a GitHub machine. This page explains, in plain words, the seven controls that keep those runs safe.
 
-One test file checks all six: `tests/test_workflow_hardening.py`. It reads every workflow file it finds, so a new workflow is checked without a change to the test. Each rule is also run on a small broken workflow, to show that it can fail.
+One test file checks all seven: `tests/test_workflow_hardening.py`. It reads every workflow file it finds, so a new workflow is checked without a change to the test. Each rule is also run on a small broken workflow, to show that it can fail.
 
 ## 1. Actions are pinned to a commit
 
@@ -44,7 +44,17 @@ One test file checks all six: `tests/test_workflow_hardening.py`. It reads every
 
 **Test:** `test_every_paid_job_waits_for_the_owners_approval_and_runs_from_main_only`. It finds a paid job by its text: the key's name, `ACCESS_AI_LIVE` or `--no-dry-run`.
 
-## 5. Inputs reach scripts through env
+## 5. Every secret lives in an environment that accepts main only
+
+**What:** Two secrets are in use. `ANTHROPIC_API_KEY` is in the `access-ai` environment (control 4). `ACCESS_APP_PRIVATE_KEY`, the key of the GitHub App that opens the plan pull requests, is in the `access-plan-bot` environment. Both environments accept `main` only. Each job that names a secret also names its environment and has `if: github.ref == 'refs/heads/main'`. No secret is set for the whole workflow.
+
+**Why:** A repository secret reaches a workflow on any branch. Anyone who can push a branch could start a run with a changed workflow and read the key. An environment secret reaches only a job that names the environment, and the environment refuses any branch but `main`. The `if:` skips the job on another branch before it asks.
+
+**Where:** The `bot` and `pull-requests` jobs of `access-plan.yml`. `bot` only checks that the key is set, but it still names the environment: without it, it would see an empty key and skip the pull requests. `access-plan-bot` has no required reviewer, so the nightly run doesn't wait. The plan pull request is the approval step. The `plan` job names no secret and still builds the plan from any branch.
+
+**Test:** `test_every_job_that_reads_a_secret_gets_it_from_its_environment_on_main_only`. The secrets and their environments are listed in the test, so a new secret has to be added on purpose. `access/tests/test_plan_workflow.py` checks the plan workflow's two jobs as well.
+
+## 6. Inputs reach scripts through env
 
 **What:** Some values come from outside: what a person types when starting a workflow (`inputs`), or the details of a pull request (`github.event`). GitHub pastes a `${{ ... }}` expression into a script as text, before the script runs. So no `run:` script here contains `${{ }}` at all. The value goes into an environment variable under `env:`, and the script reads `"$NAME"`.
 
@@ -54,7 +64,7 @@ One test file checks all six: `tests/test_workflow_hardening.py`. It reads every
 
 **Test:** `test_no_run_script_has_an_expression_in_it`.
 
-## 6. Dependabot keeps the pins fresh
+## 7. Dependabot keeps the pins fresh
 
 **What:** Dependabot is GitHub's bot that opens a pull request when a dependency has a newer version. `.github/dependabot.yml` has two entries, both weekly. `github-actions` updates the pinned SHAs and their version comments. `uv` updates the Python versions in the `pyproject.toml` files and in `uv.lock` together.
 
@@ -86,5 +96,6 @@ To click:
 5. **Settings → Actions → General → Actions permissions → "Allow kstarev, and select non-kstarev, actions and reusable workflows"**, then tick "Allow actions created by GitHub" and add `astral-sh/setup-uv@*` to the list. Now: "Allow all actions and reusable workflows" (`allowed_actions: all`).
 6. **Settings → Actions → General → Actions permissions → "Require actions to be pinned to a full-length commit SHA".** Now: off (`sha_pinning_required: false`). Optional: it makes GitHub enforce control 1 as well as the test.
 7. **Settings → Advanced Security → Code Security → CodeQL analysis → Set up → Default.** Now: not configured. Optional: ADR-011 lists CodeQL, and it can also scan the workflow files.
+8. **Settings → Environments → New environment → `access-plan-bot`**, then move the App key into it. Now: the environment doesn't exist, and `ACCESS_APP_PRIVATE_KEY` is a repository secret. The steps, in order, with the test run, are in [access/docs/SETUP.md, part D](../access/docs/SETUP.md#d-move-the-app-key-into-the-access-plan-bot-environment).
 
-Not a click, but worth knowing: `ACCESS_APP_PRIVATE_KEY` (**Settings → Secrets and variables → Actions**) is a repository secret, so a workflow on any branch of this repo can read it. Today only `kstarev` can push a branch. If someone else ever gets write access, move that key into an environment limited to `main` first.
+Until part D of SETUP.md is done, `ACCESS_APP_PRIVATE_KEY` is still a repository secret, so a workflow on any branch can read it. Control 5 is only complete once that repository secret is removed.
