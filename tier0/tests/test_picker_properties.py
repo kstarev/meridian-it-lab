@@ -33,6 +33,7 @@ from tier0.knowledge.picker import (
     REQUEST_TYPES,
     Entry,
     Pick,
+    parse_fit,
     parse_pick,
     pick_schema,
 )
@@ -193,21 +194,43 @@ def test_the_schema_offers_exactly_the_listed_ids_and_none(listed: list[str]) ->
     assert schema["additionalProperties"] is False
 
 
-# Python refuses to turn more than 4300 digits into an int, with a plain ValueError that
-# parse_pick does not catch. A reply is at most 64 tokens (pick_request), so a model cannot
-# send this; the parser's "any reply ... is an off-format hand-off" still does not hold for it.
-# Reported in docs/evals/2026-11-18-safety-mutation-testing.md; the source is left as it is.
-@pytest.mark.xfail(strict=True, raises=ValueError, reason="parse_pick raises on a huge number")
+# Python refuses to turn more than 4300 digits into an int, with a plain ValueError, and
+# json.loads raises RecursionError on a reply nested deeper than the recursion limit. A reply is
+# at most 64 tokens (pick_request), so a model cannot send these, but the parser still hands
+# them off as off-format rather than raising (docs/evals/2026-11-18-safety-mutation-testing.md).
+HUGE_NUMBER = "1" * 5000
+UNREADABLE = {
+    "5000 digits": '{"request_type": "how_to", "guide": ' + HUGE_NUMBER + "}",
+    "5000 digits, alone": HUGE_NUMBER,
+    "5000 digits, in an extra key": '{"request_type": "how_to", "guide": "KB-001", "x": '
+    + HUGE_NUMBER
+    + "}",
+    "100000 deep": "[" * 100_000,
+    "100000 deep, closed": "[" * 100_000 + "]" * 100_000,
+    "100000 deep, in the guide": '{"request_type": "how_to", "guide": ' + "{" * 100_000 + "}",
+}
+
+
 def test_a_reply_with_a_number_of_5000_digits_is_off_format() -> None:
-    text = '{"request_type": "how_to", "guide": ' + "1" * 5000 + "}"
+    text = '{"request_type": "how_to", "guide": ' + HUGE_NUMBER + "}"
     assert parse_pick(_response(text), ENTRIES) == OFF
 
 
-# The same for a reply nested deeper than Python's recursion limit: json.loads raises
-# RecursionError, which parse_pick does not catch either.
-@pytest.mark.xfail(strict=True, raises=RecursionError, reason="parse_pick raises on deep nesting")
 def test_a_reply_nested_100000_deep_is_off_format() -> None:
     assert parse_pick(_response("[" * 100_000), ENTRIES) == OFF
+
+
+@pytest.mark.parametrize("text", UNREADABLE.values(), ids=UNREADABLE)
+def test_a_reply_too_big_or_too_deep_to_read_is_off_format_in_every_parser(text: str) -> None:
+    assert parse_pick(_response(text), ENTRIES) == OFF
+    assert parse_pick(_response(text), ENTRIES, asks=True) == OFF
+    assert parse_fit(_response(text)) is None
+
+
+def test_a_number_at_the_digit_limit_parses_and_is_off_format_as_before() -> None:
+    # 4300 digits is Python's limit; this reply parses, and a number is never a guide id.
+    text = '{"request_type": "how_to", "guide": ' + "1" * 4300 + "}"
+    assert parse_pick(_response(text), ENTRIES) == OFF
 
 
 # --- decide -------------------------------------------------------------------------------------

@@ -29,12 +29,20 @@ the old ones, which are kept as they were. They were written from 12 more tuning
 - more steering wording, some of it in German, Spanish or French;
 - more ways to ask for a code.
 `held_out_g2`, written blind, measures it.
+
+Property tests (2026-11-18) found ways past it that need no new wording: a link whose host is
+followed by "?", "#" or "\", and look-alike or hidden characters (mathematical bold capitals, a
+Cyrillic letter, a zero-width character inside a word). The fix leaves every pattern as it was:
+the screen also reads each link's host up to those marks, and reads the text again in the forms
+lookalikes.py makes. Both can only add flags.
 """
 
 import re
 import unicodedata
 from collections.abc import Iterable
 from typing import Protocol
+
+from tier0.knowledge import lookalikes
 
 ADDRESSED_TO_BOT = "addressed_to_bot"
 STEERING = "steering"
@@ -221,6 +229,9 @@ _WARNING_BEFORE = re.compile(r"\b(never|not|dont|don t|nie|niemals|nunca|jamais|
 
 _EMAIL = re.compile(r"[\w.+-]+@([\w-]+(?:\.[\w-]+)+)")
 _LINK = re.compile(r"\b(?:https?://|www\.)([^/\s\"'`)>]+)", re.IGNORECASE)
+# A browser ends a link's host at "?", "#" or "\" too, so "https://a.example?.meridian.example"
+# opens a.example. Both readings are checked; either one outside meridian.example flags the text.
+_LINK_HOST = re.compile(r"\b(?:https?://|www\.)([^/?#\\\s\"'`)>]+)", re.IGNORECASE)
 
 _COMPILED_ADDRESS = tuple(re.compile(p) for p in _ADDRESS_PATTERNS)
 _COMPILED = tuple((kind, re.compile(p)) for kind, p in _PATTERNS)
@@ -248,15 +259,11 @@ def _ours(domain: str) -> bool:
     return domain == DOMAIN or domain.endswith("." + DOMAIN)
 
 
-def flag_text(text: str) -> str | None:
-    """Why one piece of guide text must not be posted, or None."""
-    for domain in (*_EMAIL.findall(text), *_LINK.findall(text)):
-        if not _ours(domain):
-            return OUTSIDE_ADDRESS
-    folded = _fold(text)
+def _flag_folded(folded: str) -> str | None:
+    """Why one piece of text, already folded, must not be posted, or None."""
     if any(p.search(folded) for p in _COMPILED_ADDRESS):
         return ADDRESSED_TO_BOT
-    normalised = _normalise(text)
+    normalised = re.sub(r"[^a-z0-9]+", " ", folded).strip()
     for kind, pattern in _COMPILED:
         if pattern.search(normalised):
             return kind
@@ -266,6 +273,21 @@ def flag_text(text: str) -> str | None:
             match.group("between")
         ):
             return CREDENTIALS
+    return None
+
+
+def flag_text(text: str) -> str | None:
+    """Why one piece of guide text must not be posted, or None.
+
+    The text is read as before (_fold), then in the look-alike forms (lookalikes.py); the first
+    reading that is flagged gives the kind, so a text flagged before keeps its kind."""
+    hosts = (*_EMAIL.findall(text), *_LINK.findall(text), *_LINK_HOST.findall(text))
+    if not all(_ours(host) for host in hosts):
+        return OUTSIDE_ADDRESS
+    for folded in dict.fromkeys((_fold(text), *lookalikes.forms(text))):
+        kind = _flag_folded(folded)
+        if kind is not None:
+            return kind
     return None
 
 
