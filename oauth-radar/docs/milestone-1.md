@@ -57,3 +57,11 @@ Evidence: [`test_rubric.py`](../tests/test_rubric.py): OAR-002's four worked exa
 Evidence: [`test_policy.py`](../tests/test_policy.py): notice, waiting and plan over a simulated week; a grant used after its notice; exceptions before and after expiry; the emergency plan; the blast-radius limit; idempotent files; the tuning world over a simulated week.
 
 **Honest limits.** Nothing applies a plan, so "removed" in any number means "in a reviewed plan". The notice is a draft file; nobody is told anything. The 90 days, 7 days and 10 grants are settings chosen for the tuning world's scale, not measured.
+
+## 6. Slack nudge drafts as files
+
+[`nudges.py`](../src/meridian_oauth_radar/nudges.py) writes one Slack message draft per user, as a Markdown file, for risky apps people still use: grants the policy sent to a person that the rubric rates high, used within the last 90 days, to an app IT hasn't approved. The message says what the app can do, in the scope explainer's words, and names the approved tool in the same category ("*Draftmoth AI Writer* is connected to your Google account. This app can read, change and send all your email (but not delete it for good). Here's the approved tool that does the same thing: *Vellumine Assist*."), or says IT has no approved tool for it yet. Nothing is sent: the package holds no Slack client, and the guard test refuses Slack libraries.
+
+Evidence: [`test_nudges.py`](../tests/test_nudges.py).
+
+**Honest limits.** "Risky" is the OAR-002 rubric's "high", so the nudges inherit its false alarms. The catalogue's "users who switched after a nudge" needs simulated responses, which aren't built.
