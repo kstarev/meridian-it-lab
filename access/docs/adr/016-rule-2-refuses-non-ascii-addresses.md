@@ -1,6 +1,6 @@
 # AAC-016: Rule 2 of identity matching refuses an address with any non-ASCII character other than an accent
 
-**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling 5, 2026-11-19: "yes: rule 2 leaves such an address unmatched"). Closes gap G1.
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling 5, 2026-11-19: "yes: rule 2 leaves such an address unmatched"). Closes gap G1. Built in PR #120.
 
 **Context:** Rule 2 of identity matching (`match.py`) is "normalised email: a `+tag`, case and accents only; dots count". It ran `fold()`: NFKD, then every non-ASCII character dropped. So a zero-width space, a soft hyphen, or a Cyrillic or CJK letter vanished, and `ana.smith\u200b@meridian.example` was matched to the person at `ana.smith@meridian.example` (confidence 0.95). The safety property tests found it ([mutation testing record](../../../docs/evals/2026-11-19-access-safety-mutation-testing.md), gap G1). An account under a look-alike address was pinned on a real, active person, so it was never reported as an orphan. If that person left, the plan would act on an account that was not theirs.
 
