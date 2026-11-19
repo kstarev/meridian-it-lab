@@ -79,6 +79,18 @@ BLOCKED = [
     _bash("grep -rn foo pools"),
     _bash("rg --no-ignore foo"),
     _bash("rg -uuu foo pools"),
+    # a real pipe or list after a quoted word is still a pipe or list
+    _bash("cat dataset/src/meridian_dataset/month/pools/held_out_month2.json | head"),
+    _bash('grep x "held_out_v3.json" | wc -l'),
+    _bash('echo "a|b"; cat held_out_x.json'),
+    _bash("echo 'a && b' && cat held_out_x.json"),
+    _bash(f'git grep -E "foo|bar" -- docs && cat {FAKE}'),
+    # a quoted command is judged as a command
+    _bash(f"bash -c 'ls; cat {FAKE}'"),
+    _bash(f'echo "$(ls; cat {FAKE})"'),
+    # quotes that don't balance: split as before, ignoring quotes
+    _bash(f'echo "a | cat {FAKE}'),
+    _bash(f"cat {FAKE} 'x"),
 ]
 
 ALLOWED = [
@@ -130,6 +142,13 @@ ALLOWED = [
     _bash("grep -n held_out docs/a.md | head"),
     _bash("cat docs/a.md | grep held_out_fake.json"),
     _bash("cat pools/tuning.json"),
+    # a quoted |, ; or && is not a pipe or list
+    _bash('git grep -E "foo|bar" -- tier0/src/tier0/evals/month.py'),
+    _bash("rg 'a|b' tier0/src"),
+    _bash('git grep -n "a;b" -- src'),
+    _bash("git grep -n 'a && b' -- src docs"),
+    _bash("grep -rn 'x|y' src | head"),
+    _bash(r"git grep -n foo\|bar -- src"),
     # a set the owner opened
     _bash("cat dataset/src/meridian_dataset/month/pools/held_out_month1.json"),
     ("Read", {"file_path": "dataset/src/meridian_dataset/month/pools/held_out_month1.json"}),
@@ -165,6 +184,14 @@ def test_the_hook_allows_everything_else(case: tuple[str, dict], repo: str):
 def test_the_lists_are_long_enough_to_mean_something():
     assert len(BLOCKED) >= 25
     assert len(ALLOWED) >= 40
+
+
+@pytest.mark.parametrize(
+    "command", ['echo "a|b', "echo 'a;b", "grep 'x src", 'git grep "foo|bar -- src', "ls \\"]
+)
+def test_quotes_that_dont_balance_never_crash_the_hook(command: str, repo: str):
+    reason = sealed_guard.decide("Bash", {"command": command}, cwd=repo)
+    assert reason is None or "tools/search.py" in reason
 
 
 def _run_main(monkeypatch: pytest.MonkeyPatch, stdin: str) -> int:

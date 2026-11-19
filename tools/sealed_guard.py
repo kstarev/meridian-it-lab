@@ -52,7 +52,8 @@ GREPS = frozenset({"grep", "egrep", "fgrep"})
 GIT_READERS = frozenset({"show", "diff", "blame", "cat-file"})
 # Words that come before the real program and are skipped, with their own flags.
 WRAPPERS = frozenset({"sudo", "command", "time", "nohup", "exec", "caffeinate"})
-SEGMENT_SPLIT_RE = re.compile(r"\|\||&&|[|;&\n]")
+SEGMENT_SPLIT_RE = re.compile(r"\|\||&&|[|;&\n]")  # only when the quotes don't balance
+SEPARATORS = frozenset("|;&\n")
 ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 RECURSIVE_RE = re.compile(r"-[A-Za-z]*[rR][A-Za-z]*|--recursive|--dereference-recursive")
 RG_NO_IGNORE_RE = re.compile(r"--no-ignore\S*|-u+|--unrestricted")
@@ -92,6 +93,45 @@ def _covers_sealed(paths: list[str], cwd: str) -> str | None:
     except (OSError, subprocess.SubprocessError):
         return None  # not a repository, or a pathspec git rejects: nothing to guard
     return next((p for p in listed if _sealed(p)), None)
+
+
+def _split(command: str) -> list[str]:
+    """The command cut at each `|`, `||`, `&`, `&&`, `;` and newline that is not quoted or
+    escaped. Raises ValueError when the quotes don't balance."""
+    segments: list[str] = []
+    current: list[str] = []
+    quote = ""
+    chars = iter(command)
+    for ch in chars:
+        if ch == "\\" and quote != "'":
+            nxt = next(chars, None)
+            if nxt is None:
+                raise ValueError("a trailing backslash")
+            current += [ch, nxt]
+        elif quote:
+            current.append(ch)
+            if ch == quote:
+                quote = ""
+        elif ch in "'\"":
+            current.append(ch)
+            quote = ch
+        elif ch in SEPARATORS:
+            segments.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    if quote:
+        raise ValueError("unbalanced quotes")
+    return [*segments, "".join(current)]
+
+
+def _command(command: str, cwd: str) -> str | None:
+    """The reason to block this shell command, or None."""
+    try:
+        segments = _split(command)
+    except ValueError:  # can't parse it: split as before, ignoring quotes
+        segments = SEGMENT_SPLIT_RE.split(command)
+    return next((r for s in segments if (r := _segment(s, cwd))), None)
 
 
 def _words(segment: str) -> list[str]:
@@ -148,6 +188,10 @@ def _segment(segment: str, cwd: str) -> str | None:
     words = _words(segment)
     if not words:
         return None
+    # A quoted word may be a command of its own (`bash -c 'ls; cat x'`): judge it too.
+    for word in words:
+        if SEPARATORS & set(word) and (reason := _command(word, cwd)):
+            return reason
     program = words[0].rsplit("/", 1)[-1]
     if program == "git":
         return _git(words, cwd)
@@ -182,10 +226,7 @@ def decide(tool_name: str, tool_input: dict, cwd: str | None = None) -> str | No
         elif "held_out_" in str(tool_input.get("glob") or ""):
             reason = "Grep with a glob that names sealed files"
     elif tool_name == "Bash":
-        for segment in SEGMENT_SPLIT_RE.split(str(tool_input.get("command", ""))):
-            reason = _segment(segment, cwd)
-            if reason:
-                break
+        reason = _command(str(tool_input.get("command", "")), cwd)
     return f"blocked by tools/sealed_guard.py: {reason}; {USE}" if reason else None
 
 
