@@ -65,3 +65,9 @@ Evidence: [`test_policy.py`](../tests/test_policy.py): notice, waiting and plan 
 Evidence: [`test_nudges.py`](../tests/test_nudges.py).
 
 **Honest limits.** "Risky" is the OAR-002 rubric's "high", so the nudges inherit its false alarms. The catalogue's "users who switched after a nudge" needs simulated responses, which aren't built.
+
+## 7. Weekly report
+
+[`run.py`](../src/meridian_oauth_radar/run.py) is one dry run: collect from the mock API, score, apply the policy on a simulated date, draft nudges, and write the run's files (`run.json`, `scores.json`, the two plans, notice drafts and their ledger, the list for a person, nudge drafts). [`report.py`](../src/meridian_oauth_radar/report.py) builds the weekly Markdown report for IT and Security **from those files alone**: the counts, the emergency plan, the after-notice plan, what a person should review (grouped by app, not by person), open notices, nudge drafts, and every app with its points per signal, vendor, data location and IT status. `make oauth-run` writes the tuning world and a run into `out/oauth-radar/`; `--today` and `--ledger` simulate a later week.
+
+Evidence: [`test_run_report.py`](../tests/test_run_report.py): the same inputs give the same files and leave the inputs unchanged; the report rebuilt from the written files is identical; a week later the noticed grants are in the plan; the run works with the answer key nowhere on disk.

@@ -11,7 +11,7 @@ POOL ?= tuning
 COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data access-data access-plan oauth-data lint format test mutation eval demo holidays-preview review-pool images og search
+.PHONY: help setup data access-data access-plan oauth-data oauth-run lint format test mutation eval demo holidays-preview review-pool images og search
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,6 +30,9 @@ access-plan: ## Build the Access-as-Code plan for the tuning world into out/acce
 
 oauth-data: ## Generate the Shadow AI Radar OAuth tuning world into out/oauth-radar/tuning
 	$(UV_RUN) python -m meridian_dataset.oauth --out out/oauth-radar
+
+oauth-run: oauth-data ## Dry-run the radar on the OAuth tuning world into out/oauth-radar/run (nothing is sent or changed)
+	$(UV_RUN) python -m meridian_oauth_radar --world out/oauth-radar/tuning/radar --out out/oauth-radar/run
 
 lint: ## Check style and common bugs with ruff
 	$(UV_RUN) ruff check .
