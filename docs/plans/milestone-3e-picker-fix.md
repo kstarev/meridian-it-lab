@@ -172,3 +172,14 @@ For each small-talk option:
 
 - If `held_out_month2` fails, the picker's failure is published and the brief says so. A new candidate needs a new blind month.
 - KS6B and KS6C stay in the code, pinned, unused.
+
+## The owner's pick, and the frozen plan (2026-11-18)
+
+- **The owner picked KS6A-H**, by the dev rule committed before the runs.
+- **It is frozen in the month runner** as `held_out_month2`'s plan (`SEALED_PLANS`):
+  - the picker prompt KS6A-H, pinned by its SHA-256 `04fdb994…0888`, the same text the dev runs used;
+  - the two arms `haiku-3d2` and `sonnet-3d2`, the picker on `claude-sonnet-5-5`, k = 3;
+  - the prompt cache on, for the system prompt only (R-3E-3). `--no-prompt-cache` is refused.
+- The runner refuses any other prompt, arm or k, and refuses KS6A-H if its text no longer matches the hash.
+- **The order the owner set:** #90, #91 and the freeze merged with main green; then the rehearsal on the tuning month, run the same way; then, if the rehearsal is clean, `held_out_month2` once, as frozen. No code, dependency or prompt change between the two runs.
+

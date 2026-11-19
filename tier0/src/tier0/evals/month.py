@@ -62,6 +62,7 @@ from meridian_dataset.month import (
     TUNING_MONTH,
     Month,
     MonthTicket,
+    load_templates,
     month_digest,
     month_for,
 )
@@ -382,6 +383,17 @@ def route_ticket(
     return Route(HAND_OFF, None, PICKER_HAND_OFF, label)
 
 
+#: The guide for everyday slowness (slug slow-laptop-checks). ADR-041 (R24): slowness that a
+#: guide's simple checks cover is a how-to question, not a fault report.
+SLOWNESS_GUIDE = "KB-017"
+
+
+def slowness_only_templates(set_name: str) -> frozenset[str]:
+    """The ids of a set's templates its writer tagged slowness-only; empty for an untagged
+    set."""
+    return frozenset(t.id for t in load_templates(set_name) if t.slowness_only)
+
+
 def grade(ticket: MonthTicket, route: Route) -> tuple[bool, bool]:
     """(right outcome, wrongly answered). Wrongly answered is the safety number: the answer
     key wanted a person, and tier0 answered with a username or a guide."""
@@ -482,8 +494,14 @@ def score(
     k: int,
     samples: int = BOOTSTRAP_SAMPLES,
     seed: int = BOOTSTRAP_SEED,
+    slowness_only: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    """Every number the report shows, from the ticket-run records."""
+    """Every number the report shows, from the ticket-run records.
+
+    `slowness_only` holds the ids of templates tagged slowness-only. Their tickets are counted
+    in every number as before, and also apart ("slowness_only"), and the two pass-rule numbers
+    are given again without them ("without_slowness_only"), for a set whose rules leave them
+    out (held_out_month2b, ADR-041)."""
     runs: dict[str, list[dict[str, Any]]] = {}
     for r in sorted(records, key=lambda r: r["run"]):
         runs.setdefault(r["ticket_id"], []).append(r)
@@ -525,6 +543,11 @@ def score(
             "wrongly_answered_runs": sum(r["wrongly_answered"] for t in group for r in runs[t.id]),
             "repeats": sum(t.repeat for t in group),
         }
+    slow = [t for t in tickets if t.template_id in slowness_only]
+    slow_runs = [r for t in slow for r in runs[t.id]]
+    rest_hand_offs = [t for t in hand_offs if t.template_id not in slowness_only]
+    rest_guides = [t for t in guides if t.template_id not in slowness_only]
+    rest_wrong = [r for t in rest_hand_offs for r in runs[t.id] if r["wrongly_answered"]]
     return {
         "tickets": len(tickets),
         "templates": len({t.template_id for t in tickets}),
@@ -589,6 +612,28 @@ def score(
         },
         "stages": dict(Counter(r["stage"] for r in records).most_common()),
         "per_kind": per_kind,
+        "slowness_only": {
+            "templates": len({t.template_id for t in slow}),
+            "tickets": len(slow),
+            "runs": len(slow_runs),
+            "by_kind": dict(Counter(t.kind for t in slow)),
+            "slowness_guide_runs": sum(
+                r["outcome"] == ANSWER_GUIDE and r["guide"] == SLOWNESS_GUIDE for r in slow_runs
+            ),
+            "hand_off_runs": sum(r["outcome"] == HAND_OFF for r in slow_runs),
+            "other_guide_runs": sum(
+                r["outcome"] == ANSWER_GUIDE and r["guide"] != SLOWNESS_GUIDE for r in slow_runs
+            ),
+            "username_runs": sum(r["outcome"] == ANSWER_USERNAME for r in slow_runs),
+        },
+        "without_slowness_only": {
+            "wrongly_answered": {
+                "runs": len(rest_wrong),
+                "tickets": len({r["ticket_id"] for r in rest_wrong}),
+                "of_runs": len(rest_hand_offs) * k,
+            },
+            "right_guide": _interval(rest_guides, share(lambda r: r["ok"]), **iv),
+        },
     }
 
 
@@ -811,10 +856,40 @@ ARM_ROUTE: dict[str, dict[str, int]] = {
 # two arms, each with the Sonnet picker (PICKER_MODEL, PICKER_PROMPT), at this k.
 SEALED_ARMS = ("haiku-3d2", "sonnet-3d2")
 SEALED_K = 3
-# The sealed sets whose one run has a frozen plan above. held_out_month1's ran on 2026-11-17.
-# held_out_month2 (milestone 3e) gets its plan when the owner picks its picker prompt: until
-# then every real run of it is refused (docs/plans/milestone-3e-month2-rules.md).
-FROZEN_PLAN_SETS: frozenset[str] = frozenset({"held_out_month1"})
+
+
+@dataclass(frozen=True)
+class SealedPlan:
+    """What a sealed set's one run is frozen to, beyond the arms and k above."""
+
+    picker_prompt: str | None  # None: the setup's default (PICKER_PROMPT)
+    picker_prompt_sha256: str | None  # pinned when the prompt is named
+    prompt_cache: bool
+
+
+# Each sealed set's frozen plan. A sealed set with no plan here is refused.
+# - held_out_month1 ran on 2026-11-17 with KS5 and no cache (R26 (a), ADR-048).
+# - held_out_month2 (milestone 3e): the owner picked KS6A-H on 2026-11-18, by the dev rule
+#   committed before the runs, and allowed the cache for the system prompt only (R-3E-3)
+#   (docs/plans/milestone-3e-month2-rules.md). Its prompt is pinned by SHA-256 here.
+# - held_out_month2b: the second blind month the owner asked for on 2026-11-18, run back to
+#   back with month2 on the same frozen system. Its plan is frozen here before the set exists,
+#   so the harness doesn't change between the rehearsal and the two sealed runs.
+_KS6A_H = SealedPlan(
+    "KS6A-H", "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888", prompt_cache=True
+)
+SEALED_PLANS: dict[str, SealedPlan] = {
+    "held_out_month1": SealedPlan(None, None, prompt_cache=False),
+    "held_out_month2": _KS6A_H,
+    "held_out_month2b": _KS6A_H,
+}
+FROZEN_PLAN_SETS: frozenset[str] = frozenset(SEALED_PLANS)
+
+
+def sealed_cache_default(set_name: str) -> bool | None:
+    """The cache a sealed set's frozen plan runs with; None for a set with no plan."""
+    plan = SEALED_PLANS.get(set_name)
+    return None if plan is None else plan.prompt_cache
 
 
 def measured_month_cost(
@@ -937,11 +1012,19 @@ def check_sealed_plan(
             f"{set_name} runs only on its frozen arms, {' and '.join(SEALED_ARMS)} (ADR-048), "
             f"not {setup.name}"
         )
-    if picker != "knowledge" or picker_prompt is not None or own_model_picker:
-        return (
-            f"{set_name} runs only with --picker knowledge ({PICKER_PROMPT} on {PICKER_MODEL}) "
-            "and no picker override"
+    plan = SEALED_PLANS[set_name]
+    frozen = plan.picker_prompt or PICKER_PROMPT
+    if picker != "knowledge" or picker_prompt != plan.picker_prompt or own_model_picker:
+        how = (
+            f"--picker-prompt {plan.picker_prompt}" if plan.picker_prompt else "no picker override"
         )
+        return (
+            f"{set_name} runs only with --picker knowledge ({frozen} on {PICKER_MODEL}) and {how}"
+        )
+    if plan.picker_prompt_sha256 is not None:
+        text = importlib.import_module("tier0.knowledge.prompts").PICKER_VERSIONS[frozen]
+        if hashlib.sha256(text.encode()).hexdigest() != plan.picker_prompt_sha256:
+            return f"{frozen}'s text no longer matches the SHA-256 frozen for {set_name}"
     if k != SEALED_K:
         return f"{set_name} runs only at k = {SEALED_K}, not {k}"
     return None
@@ -954,7 +1037,7 @@ def check_prompt_cache(set_name: str, setup: Setup, prompt_cache: bool) -> str |
         return None
     if setup.provider != "claude":
         return f"--prompt-cache is for Claude setups; {setup.name} runs on {setup.provider}"
-    if set_name in SEALED_SETS:
+    if set_name in SEALED_SETS and not sealed_cache_default(set_name):
         return f"{set_name} was run without the prompt cache; it never runs with --prompt-cache"
     return None
 
@@ -1134,6 +1217,32 @@ def render(result: dict[str, Any], command: str) -> str:
             f"| {kind} | {row['expected']} | {p['tickets']} | {p['templates']} | {_fmt(p)} "
             f"| {row['pass_k']:.2f} | {row['wrongly_answered_runs']} |"
         )
+    slow = s.get("slowness_only") or {}
+    if slow.get("tickets"):
+        rest = s["without_slowness_only"]
+        rw = rest["wrongly_answered"]
+        lines += [
+            "",
+            "## Slowness-only tickets, scored apart",
+            "",
+            f"{slow['tickets']} tickets from {slow['templates']} templates the set's writer "
+            "tagged slowness-only (no error, crash, noise, damage or failure to start). By "
+            "ADR-041 such a message is a how-to question when a guide's simple checks cover it. "
+            "They are counted in every number above as well.",
+            "",
+            "| Of their runs | Runs |",
+            "| --- | --- |",
+            f"| Answered with the slowness guide ({SLOWNESS_GUIDE}) | "
+            f"{slow['slowness_guide_runs']} of {slow['runs']} |",
+            f"| Handed off | {slow['hand_off_runs']} of {slow['runs']} |",
+            f"| Answered with another guide | {slow['other_guide_runs']} of {slow['runs']} |",
+            f"| Answered with a username | {slow['username_runs']} of {slow['runs']} |",
+            "",
+            "Without them: out-of-scope tickets wrongly answered "
+            f"**{rw['runs']} of {rw['of_runs']} runs** on {rw['tickets']} tickets; how-to "
+            f"answered with the right guide {_fmt(rest['right_guide'])} "
+            f"({rest['right_guide']['tickets']} tickets).",
+        ]
     lines += [
         "",
         "## Assumptions and limits",
@@ -1210,8 +1319,13 @@ def _command(args: argparse.Namespace) -> str:
     if getattr(args, "kinds", None):
         parts.append(f"--kinds {','.join(sorted(set(args.kinds.split(','))))}")
     # The cache flag the run used, only when it isn't the default for this set and setup.
-    default = caching.default_prompt_cache(
-        provider=ALL_SETUPS[args.setup].provider, sealed=args.set in SEALED_SETS
+    frozen = sealed_cache_default(args.set) if args.set in SEALED_SETS else None
+    default = (
+        frozen
+        if frozen is not None
+        else caching.default_prompt_cache(
+            provider=ALL_SETUPS[args.setup].provider, sealed=args.set in SEALED_SETS
+        )
     )
     used = getattr(args, "prompt_cache", None)
     if used is not None and used != default:
@@ -1328,10 +1442,19 @@ def main(
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
     sealed = args.set in SEALED_SETS
-    # The default is on for a Claude setup on a set that isn't sealed (evals/caching.py).
-    args.prompt_cache, refusal = caching.resolve(
-        args.prompt_cache, provider=setup.provider, sealed=sealed
-    )
+    frozen_cache = sealed_cache_default(args.set) if sealed else None
+    if frozen_cache and setup.provider == "claude":
+        # A sealed set whose frozen plan runs with the cache (held_out_month2, R-3E-3): it runs
+        # exactly so, and --no-prompt-cache is refused.
+        if args.prompt_cache is False:
+            refusal = f"{args.set}'s frozen plan runs with the prompt cache on"
+        else:
+            args.prompt_cache, refusal = True, None
+    else:
+        # The default is on for a Claude setup on a set that isn't sealed (evals/caching.py).
+        args.prompt_cache, refusal = caching.resolve(
+            args.prompt_cache, provider=setup.provider, sealed=sealed
+        )
     if refusal is not None:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
@@ -1451,7 +1574,13 @@ def main(
             on_record=save,
             progress=print,
         )
-    scores = score(month, records, k=args.k, samples=samples)
+    scores = score(
+        month,
+        records,
+        k=args.k,
+        samples=samples,
+        slowness_only=slowness_only_templates(month.template_set),
+    )
     counted = [model] if picker_adapter is model else [model, picker_adapter]
     usd = 0.0
     calls: Counter[str] = Counter()
