@@ -11,7 +11,7 @@ POOL ?= tuning
 COUNTRIES ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help setup data access-data access-plan lint format test mutation eval demo holidays-preview review-pool images og search
+.PHONY: help setup data access-data access-plan lint format test mutation eval demo holidays-preview review-pool images og site-demo search
 
 help: ## Show the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z][a-z-]*:.*## / {printf "  make %-8s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -53,6 +53,9 @@ holidays-preview: ## Print a year's proactive-post schedule, nothing sent (YEAR=
 
 images: ## Regenerate the README's animated flow pictures in docs/img
 	$(UV_RUN) python -m tier0.docs_img --out docs/img
+
+site-demo: ## Rebuild the site's simulated-Slack demo, site/demo.html and its run log (stub only)
+	$(UV_RUN) python -m tier0.site_demo --out site
 
 og: ## Redraw the site's social preview, site/og.png (fetches Pillow and fontTools for this run only)
 	$(UV_RUN) --with pillow --with fonttools --with brotli python -m tier0.site_og --out site/og.png

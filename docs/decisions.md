@@ -833,7 +833,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-036: The demo is a replay on the mocks, labelled simulated Slack; a real Slack app is optional, not planned
 
-**Date:** 2026-11-14 · **Status:** Accepted; planned, not built. The user's decision: there will be no Slack or Linear demo workspace. Changes the in-scope and out-of-scope lists (the demo workspaces), so it needs this ADR. Supersedes the demo halves of ADR-004 and ADR-009, and amends ADR-034.
+**Date:** 2026-11-14 · **Status:** Accepted; partly built. On 2026-11-19 one story was built: one tuning-month how-to ticket, run on the stub with a scripted guide pick, as `site/demo.html` (`python -m tier0.site_demo`); the other stories are planned. The user's decision: there will be no Slack or Linear demo workspace. Changes the in-scope and out-of-scope lists (the demo workspaces), so it needs this ADR. Supersedes the demo halves of ADR-004 and ADR-009, and amends ADR-034.
 
 **Context:** The plan relied on free Slack and Linear workspaces with fake data for the demo: `make demo-live` and a 90-second video recorded in them (ADR-004, ADR-009, the brief's reviewer experience). There won't be any. The demo still has to show a person what tier0 does, from the request to the closed ticket, without anyone running code.
 
