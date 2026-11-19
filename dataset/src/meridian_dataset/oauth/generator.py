@@ -1,8 +1,12 @@
 """The OAuth tuning world: Google OAuth grants for the shared Meridian people.
 
 The people are the 230 of `meridian_dataset.month.personas` (`build_personas()`), read
-only. This module draws from its own `random.Random(OAUTH_TUNING_SEED)`, so it can't shift
-anyone else's draws, and it adds nothing to any existing world.
+only. Leavers come from the Access tuning world's HRIS records (`generate_access()`, seed
+6108, the public tuning recipe), built in memory and read only (OAR-009): the world copies
+four HRIS fields of everyone who had left by the snapshot into `radar/hris_leavers.json`, and
+one of them, whose Google account was never removed, still holds a grant. The two rosters
+share no one. This module draws from its own `random.Random(OAUTH_TUNING_SEED)`, so it can't
+shift anyone else's draws, and it adds nothing to any existing world.
 
 It is a **tuning world** only: its recipe is public and the radar may be tuned on it. There
 is no held-out or sealed OAuth world (OAR-006 waits).
@@ -10,10 +14,13 @@ is no held-out or sealed OAuth world (OAR-006 waits).
 The world is a snapshot at `REFERENCE_TIME`. Every grant has an "authorize" activity when it
 was made and, if it was used later, an "activity" event at its last use.
 
-**Exactly 6 risky grants are planted** (`PLANTS`), each by a different person and each to an
-app nobody else holds. They are marked only in the answer key (`key/answer_key.json`),
-which is written apart from the radar's inputs (`radar/`). Nothing in `radar/` says which
-grants are planted.
+**8 risky grants are planted**, each by a different person: the catalogue's 6 (`PLANTS`),
+each to an app nobody else holds; a grant to the app IT banned (`BANNED_PLANT`); and a
+leaver's grant to the company's video-meeting app (`LEAVER_PLANT`), which on its points
+alone is only medium, so only the leaver override makes it high. They are drawn after
+everything else, so the earlier grants don't move. They are marked only in the answer key
+(`key/answer_key.json`), which is written apart from the radar's inputs (`radar/`). Nothing
+in `radar/` says which grants are planted.
 """
 
 import hashlib
@@ -24,10 +31,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from meridian_dataset.access import ACCESS_TUNING_SEED, generate_access
 from meridian_dataset.month.personas import Persona, build_personas
 from meridian_dataset.oauth.apps import ALL_APPS, BACKGROUND, BANNED, BANNED_REASON, PLANTED, App
 
-OAUTH_GENERATOR_VERSION = "0.2.0"
+OAUTH_GENERATOR_VERSION = "0.3.0"
 OAUTH_TUNING_SEED = 9137
 REFERENCE_TIME = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 # A grant not used for more than this many days is drawn as dormant. The radar's own
@@ -81,6 +89,25 @@ PLANTS: tuple[Plant, ...] = (
     ),
 )  # fmt: skip
 
+# Two more plants, on the owner's ruling of 2026-11-19 (OAR-009): a grant to the app IT
+# banned, still in use; and a leaver's grant. The leaver holds the most common app at
+# Meridian, which reads and changes their calendar: medium on its points alone.
+BANNED_PLANT = Plant(
+    "notesprout",
+    "banned_app",
+    12,
+    "A grant to the AI note-taker IT banned, with full Drive access, still in use.",
+)
+LEAVER_APP = "huddlewave"
+LEAVER_KIND = "leaver_grant"
+LEAVER_WHY = (
+    "HR says the person has left, but their Google account was never removed and still "
+    "lets the meetings app read and change their calendar."
+)
+# The leaver last used the app within this many days before their end date.
+LEAVER_LAST_USE_BEFORE_END = 14
+HRIS_LEAVERS_FILE = "hris_leavers.json"
+
 # Look-alikes that are not risky, so a false alarm can be counted.
 DECOYS: tuple[tuple[str, str], ...] = (
     ("vellumine", "The approved company AI assistant: reads Drive, verified, reviewed by IT."),
@@ -118,6 +145,16 @@ class Grant:
 
 
 @dataclass(frozen=True, slots=True)
+class Leaver:
+    """The four HRIS fields the radar needs, copied from an Access world record."""
+
+    employee_id: str
+    work_email: str
+    status: str
+    end_date: str
+
+
+@dataclass(frozen=True, slots=True)
 class OAuthWorld:
     """The tuning world: what the radar may read (`radar_inputs`) and the answer key apart."""
 
@@ -126,6 +163,7 @@ class OAuthWorld:
     users: tuple[str, ...]
     exception_grants: tuple[Grant, ...]
     plants: tuple[tuple[Plant, Grant], ...]
+    leavers: tuple[Leaver, ...]
 
     def radar_inputs(self) -> dict[str, Any]:
         """Every file the radar may read, as JSON-ready objects, by file name."""
@@ -157,6 +195,18 @@ class OAuthWorld:
                     for app in ALL_APPS
                     if app.it_status is not None
                 ]
+            },
+            HRIS_LEAVERS_FILE: {
+                "as_of": REFERENCE_TIME.date().isoformat(),
+                "records": [
+                    {
+                        "employee_id": leaver.employee_id,
+                        "work_email": leaver.work_email,
+                        "status": leaver.status,
+                        "end_date": leaver.end_date,
+                    }
+                    for leaver in self.leavers
+                ],
             },
             "banned_apps.json": {
                 "apps": [{"app_id": BANNED.client_id, "name": BANNED.name, "reason": BANNED_REASON}]
@@ -337,6 +387,30 @@ def _days(rng: random.Random, app: App) -> int:
     return rng.randint(0, ACTIVE_UP_TO_DAYS)
 
 
+def hris_leavers(as_of: datetime = REFERENCE_TIME) -> tuple[Leaver, ...]:
+    """Everyone the Access tuning world's HRIS shows as gone before `as_of`, read only.
+
+    A record counts when its status is "terminated" and its end date is before `as_of`, and
+    nobody with the same work email is still employed (a rehire's old record doesn't).
+    """
+    records = generate_access(ACCESS_TUNING_SEED).hris.records
+    employed = {r.work_email for r in records if r.status != "terminated"}
+    day = as_of.date().isoformat()
+    return tuple(
+        sorted(
+            (
+                Leaver(r.employee_id, r.work_email, r.status, r.end_date)
+                for r in records
+                if r.status == "terminated"
+                and r.end_date
+                and r.end_date < day
+                and r.work_email not in employed
+            ),
+            key=lambda leaver: leaver.employee_id,
+        )
+    )
+
+
 def generate_oauth_world(seed: int = OAUTH_TUNING_SEED) -> OAuthWorld:
     """The tuning world for `seed`: same seed, same world."""
     rng = random.Random(seed)
@@ -370,12 +444,32 @@ def generate_oauth_world(seed: int = OAUTH_TUNING_SEED) -> OAuthWorld:
 
     if {plant.slug for plant in PLANTS} != {app.slug for app in PLANTED}:
         raise AssertionError("every planted app has exactly one plant")
+
+    # The banned-app plant: one more person outside IT, not planted yet, no exception.
+    banned_user = rng.choice(sorted(set(candidates) - set(planted_users)))
+    banned_grant = _grant(rng, banned_user, BANNED, BANNED_PLANT.days_since_use)
+    grants[(banned_user, BANNED.slug)] = banned_grant
+    plants.append((BANNED_PLANT, banned_grant))
+
+    # The leaver plant: someone HRIS says has left, whose Google account is still there.
+    leavers = hris_leavers()
+    roster = {p.email for p in people}
+    if not leavers or roster & {leaver.work_email for leaver in leavers}:
+        raise AssertionError("the leavers must be HRIS records outside the month roster")
+    leaver = rng.choice(leavers)
+    since_end = (REFERENCE_TIME.date() - datetime.fromisoformat(leaver.end_date).date()).days
+    days = since_end + rng.randint(0, LEAVER_LAST_USE_BEFORE_END)
+    leaver_grant = _grant(rng, leaver.work_email, _app(LEAVER_APP), days)
+    grants[(leaver.work_email, LEAVER_APP)] = leaver_grant
+    plants.append((Plant(LEAVER_APP, LEAVER_KIND, days, LEAVER_WHY), leaver_grant))
+
     return OAuthWorld(
         seed=seed,
         grants=tuple(grants[key] for key in sorted(grants)),
-        users=tuple(p.email for p in people),
+        users=(*(p.email for p in people), leaver.work_email),
         exception_grants=exception_grants,
         plants=tuple(plants),
+        leavers=leavers,
     )
 
 

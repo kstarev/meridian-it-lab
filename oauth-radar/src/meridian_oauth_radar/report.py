@@ -81,6 +81,7 @@ def weekly_report(files: dict[str, bytes]) -> str:
         f"| Exceptions past their expiry | {c['exceptions_expired']} |",
         f"| Exceptions refused (over {run['exception_max_days']} days, or no expiry) "
         f"| {c['exceptions_refused']} |",
+        f"| Grants held by people HR says have left | {c['leaver_grants']} |",
         f"| Slack nudge drafts | {c['nudges']} |",
         f"| Changes made / messages sent | {run['changes_made']} / {run['messages_sent']} |",
         "",
@@ -125,6 +126,24 @@ def weekly_report(files: dict[str, bytes]) -> str:
     else:
         lines.append("Nothing.")
     lines.append("")
+
+    leaver_apps = Counter(
+        row["app"]
+        for row in found["grants"]
+        if any(o["signal"] == "leaver" for o in row["overrides"])
+    )
+    if leaver_apps:
+        lines += [
+            "## Grants held by people who have left, above sign-in",
+            "",
+            "HR says these people have left, but their Google accounts still hold these grants. "
+            "Each is high by the leaver override.",
+            "",
+            "| App | Grants |",
+            "|---|---|",
+            *(f"| {app} | {n} |" for app, n in sorted(leaver_apps.items())),
+            "",
+        ]
 
     lines += ["## Notices", ""]
     waiting = Counter(n["app"] for n in ledger["notices"])

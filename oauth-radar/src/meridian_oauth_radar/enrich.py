@@ -12,6 +12,9 @@ location, whether an approved alternative exists". The plain English is the scop
 - `it_app_catalogue.json`: the apps IT has reviewed: `{"apps": [{"client_id", "name",
   "category", "ai", "status", "reviewed_on"}]}`. `status` is "approved" or "not approved".
 - `banned_apps.json`: IT's banned list, in the milestone-0 shape (`load.load_banned_apps`).
+- `hris_leavers.json`: HR's leavers, four HRIS fields each: `{"as_of", "records":
+  [{"employee_id", "work_email", "status", "end_date"}]}` (OAR-009). `load_leavers` gives the
+  work emails of everyone who has left: HRIS says terminated, or the end date has passed.
 
 An approved alternative is an app IT approved in the same category as the app, other than
 the app itself. The enricher reads files and returns facts. It never calls anything.
@@ -20,6 +23,7 @@ the app itself. The enricher reads files and returns facts. It never calls anyth
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +34,8 @@ STATUSES = (APPROVED, "not approved")
 APP_INFO_FILE = "app_info.json"
 CATALOGUE_FILE = "it_app_catalogue.json"
 BANNED_FILE = "banned_apps.json"
+LEAVERS_FILE = "hris_leavers.json"
+TERMINATED = "terminated"
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,4 +173,33 @@ def load_knowledge(directory: Path) -> Knowledge:
     return Knowledge(vendors, catalogue, load_banned_apps(directory / BANNED_FILE))
 
 
-__all__ = ["APPROVED", "AppFacts", "CatalogueEntry", "Knowledge", "VendorEntry", "load_knowledge"]
+def load_leavers(directory: Path, today: date) -> frozenset[str]:
+    """Work emails of everyone HR says has left by `today` (OAR-002's leaver rule)."""
+    path = directory / LEAVERS_FILE
+    data = _read(path)
+    rows = data.get("records") if isinstance(data, dict) else None
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        raise ExportError(f'{path}: needs a "records" list of objects')
+    left = set()
+    for i, row in enumerate(rows):
+        email, status, end = row.get("work_email"), row.get("status"), row.get("end_date")
+        if not isinstance(email, str) or not email.strip() or not isinstance(status, str):
+            raise ExportError(f'{path}: record {i}: needs "work_email" and "status" strings')
+        try:
+            ended = date.fromisoformat(end) if isinstance(end, str) and end else None
+        except ValueError as err:
+            raise ExportError(f'{path}: record {i}: "end_date" must be a date or empty') from err
+        if status == TERMINATED or (ended is not None and ended < today):
+            left.add(email)
+    return frozenset(left)
+
+
+__all__ = [
+    "APPROVED",
+    "AppFacts",
+    "CatalogueEntry",
+    "Knowledge",
+    "VendorEntry",
+    "load_knowledge",
+    "load_leavers",
+]

@@ -331,8 +331,14 @@ def decide(
             routed.append(Routed(score, "Holds a restricted scope, with no record of use."))
             continue
         if score.tier in (HIGH, MEDIUM):
-            why = f"Rated {score.tier} by the rubric ({score.total} points)."
-            routed.append(Routed(score, f"{why} {score.tier_note}" if score.tier_note else why))
+            why = " ".join(
+                [
+                    f"Rated {score.tier} by the rubric ({score.total} points).",
+                    *(o.reason for o in score.overrides),
+                    *([score.tier_note] if score.tier_note else []),
+                ]
+            )
+            routed.append(Routed(score, why))
             continue
         no_action += 1
 
