@@ -1,6 +1,6 @@
 # AAC-017: Apply refuses a plan that adds and removes one target
 
-**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling, 2026-11-19: "apply refuses a plan that adds and removes the same target"). Built in this pull request.
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling, 2026-11-19: "apply refuses a plan that adds and removes the same target"). Built in PR #122.
 
 **Context:** The apply property tests (PR #111) never drew a plan that both adds and removes one target, because the diff never asks for both. Apply would have run such a plan. It takes access away before it adds, so the access would be gone and then back, on every run: a second apply would not be a no-op. Apply only runs a plan that matches a fresh rebuild, so today only a bug in the diff could bring such a plan this far.
 
