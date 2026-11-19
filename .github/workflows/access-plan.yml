@@ -1,11 +1,13 @@
 # Access-as-Code: build the plan for the tuning world and keep the two rolling plan pull
 # requests in line with it (AAC-002, AAC-008). Nightly, and by hand.
 #
-# Three jobs:
+# Four jobs:
 # - plan: builds the plan with no token beyond read access and no secrets, and uploads it. The
 #   summary is the template (the model summary runs only when ACCESS_AI_LIVE=1, which this
 #   workflow never sets), and the Slack message is a JSON file, never sent. The tuning world is
 #   generated on the runner; this is the tuning world's simulated month, never a real system.
+# - leaver-drill: makes one person of a copy of the tuning world a leaver and times their full
+#   deprovisioning plan from that HRIS change (milestone 5); it fails at 300 s.
 # - bot: says whether the owner's GitHub App is set up (variable ACCESS_APP_ID and secret
 #   ACCESS_APP_PRIVATE_KEY, see access/docs/SETUP.md). It only compares them with empty; the
 #   key is never put in its environment.
@@ -65,6 +67,45 @@ jobs:
             out/access/plan/slack-message.json
             out/access/plan/timing.json
             out/access/plan/held/
+          if-no-files-found: error
+          retention-days: 30
+
+  leaver-drill:
+    # Milestone 5: a leaver's full deprovisioning plan, timed from the HRIS change. On a copy of
+    # the tuning world; it fails at 300 s or when an account of the leaver is missing from the
+    # plan (access/src/meridian_access/leaver_drill.py). Its own job, so a failure here never
+    # holds back the plan pull requests.
+    name: Leaver drill, timed from the HRIS change
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python 3.13 and the locked dependencies
+        run: uv sync --locked
+
+      - name: Generate the tuning world
+        run: make access-data
+
+      - name: Make one person a leaver and time their plan
+        run: uv run --locked python -m meridian_access.leaver_drill --world out/access/seed-6108 --out out/access/leaver-drill
+
+      - name: Keep the drill's result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: access-leaver-drill
+          path: out/access/leaver-drill/leaver-drill.json
           if-no-files-found: error
           retention-days: 30
 

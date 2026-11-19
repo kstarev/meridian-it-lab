@@ -63,8 +63,9 @@ def test_it_runs_nightly_and_by_hand_and_never_on_pull_requests():
 def test_permissions_are_empty_at_the_top_and_read_only_in_every_job():
     data, _ = load()
     assert data["permissions"] == {}
-    assert set(data["jobs"]) == {"plan", "bot", "pull-requests"}
+    assert set(data["jobs"]) == {"plan", "leaver-drill", "bot", "pull-requests"}
     assert data["jobs"]["plan"]["permissions"] == {"contents": "read"}
+    assert data["jobs"]["leaver-drill"]["permissions"] == {"contents": "read"}
     assert data["jobs"]["bot"]["permissions"] == {}
     # The App token does the writing; GITHUB_TOKEN never gets a write grant.
     assert data["jobs"]["pull-requests"]["permissions"] == {"contents": "read"}
@@ -203,3 +204,29 @@ def test_no_tracked_file_has_a_slack_token_or_webhook():
         if any(n in text for n in SLACK_NEEDLES):
             hits.append(name)
     assert not hits, hits
+
+
+def test_the_leaver_drill_is_its_own_job_and_keeps_its_result_apart_from_the_plan():
+    """Milestone 5's 5-minute leaver plan, measured in the workflow. The drill's job needs no
+    other job and nothing needs it, so a failed drill never holds back the plan pull requests;
+    its result is its own artifact, so the plan artifact keeps the paths plan_pr reads."""
+    data, _ = load()
+    drill = data["jobs"]["leaver-drill"]
+    assert "needs" not in drill and "if" not in drill
+    assert all("leaver-drill" not in str(job.get("needs", "")) for job in data["jobs"].values())
+    text = yaml.safe_dump(drill)
+    assert "secrets." not in text and "ACCESS_AI_LIVE" not in text
+    runs = "\n".join(s.get("run", "") for s in drill["steps"])
+    assert "make access-data" in runs
+    assert (
+        "python -m meridian_access.leaver_drill --world out/access/seed-6108 "
+        "--out out/access/leaver-drill"
+    ) in runs
+    (upload,) = [s for s in drill["steps"] if "upload-artifact" in s.get("uses", "")]
+    assert upload["if"] == "always()"
+    assert upload["with"]["name"] == "access-leaver-drill"
+    assert upload["with"]["path"] == "out/access/leaver-drill/leaver-drill.json"
+    plan_upload = next(
+        s for s in data["jobs"]["plan"]["steps"] if "upload-artifact" in s.get("uses", "")
+    )
+    assert "leaver" not in plan_upload["with"]["path"]

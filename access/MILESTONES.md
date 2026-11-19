@@ -116,7 +116,7 @@ The sealed final score and a page that explains it. The prep is in [docs/m7-prep
 
 - **Milestone 4:** the comparison is done and Haiku 5.5 is chosen. The summary's pass rate was not part of the comparison and is not measured yet. The prompts were frozen by hash for milestone 7 (AAC-013, AAC-014).
 - **Milestone 5:**
-  - The 5-minute leaver plan: `timing.json` and a local test time the whole plan build, but nothing measures it from an HRIS change in the workflow.
+  - The 5-minute leaver plan: the nightly **Access plan** workflow now has a leaver drill job ([`leaver_drill.py`](src/meridian_access/leaver_drill.py), [`test_leaver_drill.py`](tests/test_leaver_drill.py)). On a copy of the tuning world it makes one person a leaver, times their full deprovisioning plan from that HRIS change, checks every account matched to them is in it, and fails at 300 s. Tick it after its first green run (artifact `access-leaver-drill`).
   - The owner's GitHub App, ruleset and secrets: the steps are in [docs/SETUP.md](docs/SETUP.md).
   - The scheduled workflow: `access-plan.yml` now runs nightly and opens, updates and closes both plan pull requests ([`test_plan_pr.py`](tests/test_plan_pr.py), [`test_plan_workflow.py`](tests/test_plan_workflow.py)). Tick it after the first green run with the App.
   - The mock Slack message is written to `out/access/plan/slack-message.json`, not `out/access/slack-message.json` as this box says, and its pull request link is still a placeholder: the plan is built before the pull request number is known.
