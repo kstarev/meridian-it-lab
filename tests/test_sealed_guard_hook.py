@@ -1,7 +1,8 @@
 """The Claude Code hook blocks reads and searches of sealed files, and nothing else
 (docs/sealed-search-guard.md). It must never block the sealed runner, the tests or CI.
 
-Never opens a real sealed file: the cases run against a throwaway repository.
+Never opens a real sealed file: the cases run against a throwaway repository, whose fake
+sealed files hold dummy text written here.
 """
 
 import io
@@ -19,23 +20,40 @@ import sealed_guard  # noqa: E402
 
 FAKE = "pools/held_out_fake.json"
 NAMES_PY = "dataset/src/meridian_dataset/names.py"
+COMMIT = ["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "x"]
+
+
+def _tree(root: Path, files: dict[str, str]) -> None:
+    for path, text in files.items():
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        (root / path).write_text(text)
 
 
 @pytest.fixture(scope="module")
 def repo(tmp_path_factory: pytest.TempPathFactory) -> str:
     root = tmp_path_factory.mktemp("repo")
-    for path, text in (
-        (FAKE, '["sealed wording"]\n'),
-        ("pools/tuning.json", '["tuning wording"]\n'),
-        ("src/code.py", "x = 1\n"),
-        ("docs/a.md", "held_out_fake.json is sealed\n"),
-    ):
-        (root / path).parent.mkdir(parents=True, exist_ok=True)
-        (root / path).write_text(text)
+    _tree(
+        root,
+        {
+            FAKE: '["sealed wording"]\n',
+            "pools/tuning.json": '["tuning wording"]\n',
+            "src/code.py": "x = 1\n",
+            "docs/a.md": "held_out_fake.json is sealed\n",
+            "tier0/src/tier0/evals/month.py": "y = 2\n",
+            "old/kept.md": "kept\n",
+            "old/held_out_gone.json": '["sealed wording"]\n',  # deleted by the second commit
+        },
+    )
+    (root / "links").mkdir()
+    (root / "links" / "to_sealed.json").symlink_to("../pools/held_out_fake.json")
+    (root / "linkdir").symlink_to("pools")
+    (root / "src" / "loop").symlink_to(".")  # a symlink loop in a clean folder
     for cmd in (
         ["init", "-q"],
         ["add", "-A"],
-        ["-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "x"],
+        COMMIT,
+        ["rm", "-q", "old/held_out_gone.json"],
+        COMMIT,
     ):
         subprocess.run(["git", *cmd], cwd=root, check=True)  # noqa: S603, S607
     return str(root)
@@ -46,9 +64,11 @@ def _bash(command: str) -> tuple[str, dict]:
 
 
 BLOCKED = [
-    # 1. Read of a sealed file
+    # 1. Read of a sealed file, of a symlink to one, or of one in another case (macOS)
     ("Read", {"file_path": FAKE}),
     ("Read", {"file_path": "/x/dataset/src/meridian_dataset/pools/held_out_v6.json"}),
+    ("Read", {"file_path": "links/to_sealed.json"}),
+    ("Read", {"file_path": "pools/HELD_OUT_FAKE.JSON"}),
     # 2. Grep on a sealed file, or with a glob that names sealed files
     ("Grep", {"pattern": "foo", "path": FAKE}),
     ("Grep", {"pattern": "foo", "glob": "held_out_*.json"}),
@@ -79,6 +99,12 @@ BLOCKED = [
     _bash("grep -rn foo pools"),
     _bash("rg --no-ignore foo"),
     _bash("rg -uuu foo pools"),
+    # allowed before the path rule (owner's ruling 3, 2026-11-19), blocked now: no path,
+    # a path that doesn't resolve, and pathspec magic the hook doesn't resolve
+    _bash("rg foo"),
+    _bash("grep -rn foo /somewhere/outside/the/repo"),
+    _bash("git grep -n foo -- ':!*held_out_*'"),
+    _bash("git grep -n foo -- . ':(exclude,glob)**/held_out_*'"),
     # a real pipe or list after a quoted word is still a pipe or list
     _bash("cat dataset/src/meridian_dataset/month/pools/held_out_month2.json | head"),
     _bash('grep x "held_out_v3.json" | wc -l'),
@@ -129,14 +155,10 @@ ALLOWED = [
     _bash("git ls-files | grep held_out"),
     # searches that don't cover a sealed file
     _bash("python tools/search.py foo"),
-    _bash("git grep -n foo -- ':!*held_out_*'"),
-    _bash("git grep -n foo -- . ':(exclude,glob)**/held_out_*'"),
     _bash("git grep foo -- src docs"),
     _bash("git grep foo HEAD -- src"),
     _bash("git grep -n foo src"),
     _bash("grep -rn foo src"),
-    _bash("grep -rn foo /somewhere/outside/the/repo"),
-    _bash("rg foo"),
     _bash("rg --no-ignore foo src"),
     _bash("grep held_out_fake.json docs/a.md"),
     _bash("grep -n held_out docs/a.md | head"),
@@ -184,6 +206,162 @@ def test_the_hook_allows_everything_else(case: tuple[str, dict], repo: str):
 def test_the_lists_are_long_enough_to_mean_something():
     assert len(BLOCKED) >= 25
     assert len(ALLOWED) >= 40
+
+
+# --- Rule 5: a search limited to explicit paths (owner's ruling 3, 2026-11-19) --------------
+# Allowed only if the hook resolves every path (globs, `..`, `~`, symlinks, a `cd`) and none is
+# or holds a sealed file. Each blocked case also says why, so a block for the wrong reason
+# fails. `{out}` is a folder outside the repository; `~` is a fake home folder.
+SEALED = "a sealed file ("
+UNSURE = "can't be checked"
+
+PATH_LIMITED_ALLOWED = [
+    "grep -n foo src/code.py",  # a plain file
+    "grep -rn foo src",  # a folder with no sealed file (and a symlink loop in it)
+    "grep -n foo src/*.py",  # a glob that matches only non-sealed files
+    "grep -rn foo **/*.py",
+    "grep -rn foo src/../docs",
+    "grep -rn foo {out}/clean",  # outside the repository
+    "grep -rn foo ~/clean",
+    "cd && grep -rn foo clean",  # cd with no folder goes home
+    "rg foo src docs",
+    "rg -g '*.json' -n foo src",
+    "rg --no-ignore -uu foo src",
+    "git grep -n foo -- src docs",
+    "git grep -n foo -- '*.py'",  # git's own wildcard, resolved by git
+    "git grep -n -e foo --and -e bar -- src",
+    "git -C src grep -n foo -- .",
+    "git grep foo HEAD -- old",  # no sealed file under old/ in HEAD either
+    "grep -rn --include='*.py' -A 2 foo src 2>/dev/null | head -5",
+    "grep -rn foo src > out.txt 2>&1",
+    "timeout 10 grep -rn foo src",
+    "cd src && grep -rn foo .",
+    "cd src && cd .. && grep -rn foo docs",
+    "find src -name '*.py' -exec grep -n foo {} +",
+    "ls pools | rg held_out",  # reads a pipe: no path needed
+    "grep foo < docs/a.md",
+    "bash -c 'grep -rn foo src'",
+    "x=$(grep -rln foo src)",
+    "git ls-files | xargs wc -l",
+    # a here-document's lines are text, not commands
+    "cat > notes.md <<'EOF'\ngrep -rn foo .\nrg foo\nEOF",
+    "git commit -m \"$(cat <<'EOF'\nWhy `grep -rn foo .` is blocked\nEOF\n)\"",
+]
+
+PATH_LIMITED_BLOCKED = [
+    # a path that is, or holds, a sealed file
+    ("grep -n foo pools/*.json", SEALED),  # a glob that matches a sealed file
+    ("grep -n foo p[^x]ols/*", SEALED),  # zsh's [^x] class (Python's fnmatch reads it as ^)
+    ("grep -rn foo **/*.json", SEALED),
+    ("grep -rn foo src/../pools", SEALED),  # .. into a folder that holds one
+    ("grep -n foo links/to_sealed.json", SEALED),  # a symlink to a sealed file
+    ("grep -rn foo pools", SEALED),  # a folder that holds one
+    ("grep -rn foo links", SEALED),  # a folder that holds a symlink to one
+    ("grep -rn foo linkdir", SEALED),  # a symlink to a folder that holds one
+    ("grep -n foo pools/HELD_OUT_FAKE.JSON", SEALED),  # macOS ignores case
+    ("grep -rn foo {out}/sealed", SEALED),
+    ("grep -rn foo ~/sealed", SEALED),
+    ("grep -rn foo ~/clean/../sealed", SEALED),
+    ("grep -rn -f pools/held_out_fake.json src", SEALED),  # patterns from a sealed file
+    ("rg -g '*.json' foo pools", SEALED),  # -g overrides .rgignore
+    ("rg foo pools", SEALED),
+    ("git grep foo -- pools", SEALED),
+    ("git grep foo -- links", SEALED),  # a tracked symlink to a sealed file
+    ("git grep foo -- '*.json'", SEALED),
+    ("git grep foo HEAD~1 -- old", "HEAD~1:old/held_out_gone.json"),  # deleted since
+    ("cd pools && grep -rn foo .", SEALED),
+    ("cd src; grep -rn foo ../pools", SEALED),
+    ("cd src; grep -rn foo .", SEALED),  # if the cd fails, `.` is the repository
+    ("find pools -name '*.json' -exec grep -n foo {} +", SEALED),
+    ("bash -c 'grep -rn foo pools'", SEALED),
+    ("x=$(grep -rln foo pools)", SEALED),
+    # no path: the whole folder
+    ("grep -rn foo", UNSURE),
+    ("grep --directories=recurse foo", UNSURE),
+    ("rg foo", UNSURE),
+    ("git grep foo", UNSURE),
+    ("git grep foo --", UNSURE),
+    ("git grep foo HEAD", UNSURE),
+    ("find -exec grep foo {} +", UNSURE),
+    # a path that doesn't resolve
+    ("grep -rn foo nowhere", UNSURE),
+    ("grep -n foo src/*.md", UNSURE),  # a glob that matches nothing
+    ("cd - && grep -rn foo src", UNSURE),
+    ("cd $DIR && grep -rn foo src", UNSURE),
+    # what the hook can't parse
+    ('grep -rn foo "src', UNSURE),
+    ("grep -rn foo $(echo src)", UNSURE),
+    ("grep -rn foo `echo src`", UNSURE),
+    ("grep -rn foo $DIR", UNSURE),
+    ("grep -rn foo {src,docs}", UNSURE),
+    ("grep -rn foo <<EOF\nx\nEOF", UNSURE),
+    ("git ls-files | xargs grep foo", "xargs would hand grep"),
+    # options that widen the search, or that the hook doesn't know
+    ("grep --frobnicate foo src", UNSURE),
+    ("grep -rn --recur foo src", UNSURE),  # abbreviations are not read
+    ("grep -z foo src/code.py", UNSURE),  # ugrep reads inside archives with -z
+    ("zgrep foo src/code.py", UNSURE),
+    ("rg --pre cat foo src", UNSURE),
+    ("git grep --no-index foo -- src", UNSURE),
+    ("git grep --untracked foo -- src", UNSURE),
+    ("git grep -O foo -- src", UNSURE),
+    ("git grep foo -- ':(glob)src/**'", UNSURE),
+    ("git --git-dir=.git grep foo -- src", UNSURE),
+    ("env -C pools grep -rn foo .", UNSURE),
+    ("GIT_DIR=.git git grep foo -- src", "environment variable"),
+]
+
+
+@pytest.fixture
+def places(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """A folder outside the repository and a fake home folder, each with a clean folder and
+    a folder that holds a fake sealed file."""
+    for top in ("out", "home"):
+        _tree(
+            tmp_path / top,
+            {"clean/notes.md": "foo\n", "sealed/held_out_elsewhere.json": '["sealed wording"]\n'},
+        )
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    return {"out": str(tmp_path / "out")}
+
+
+@pytest.mark.parametrize("command", PATH_LIMITED_ALLOWED)
+def test_a_search_limited_to_clean_paths_is_allowed(command: str, repo: str, places: dict):
+    command = command.replace("{out}", places["out"])
+    assert sealed_guard.decide("Bash", {"command": command}, cwd=repo) is None
+
+
+@pytest.mark.parametrize(("command", "why"), PATH_LIMITED_BLOCKED)
+def test_a_search_is_blocked_unless_every_path_resolves_clean(
+    command: str, why: str, repo: str, places: dict
+):
+    command = command.replace("{out}", places["out"])
+    reason = sealed_guard.decide("Bash", {"command": command}, cwd=repo)
+    assert reason
+    assert why in reason
+    assert "tools/search.py" in reason
+    assert "sealed wording" not in reason
+
+
+def test_the_path_lists_cover_each_case_the_owner_named():
+    assert len(PATH_LIMITED_ALLOWED) >= 25
+    assert len(PATH_LIMITED_BLOCKED) >= 50
+    assert sum(why == SEALED for _, why in PATH_LIMITED_BLOCKED) >= 20
+    assert sum(why == UNSURE for _, why in PATH_LIMITED_BLOCKED) >= 25
+
+
+def test_a_folder_too_big_to_check_is_blocked(monkeypatch, repo):
+    monkeypatch.setattr(sealed_guard, "MAX_ENTRIES", 2)
+    reason = sealed_guard.decide("Bash", {"command": "grep -rn foo src docs"}, cwd=repo)
+    assert reason
+    assert "too many files" in reason
+
+
+def test_a_path_limited_search_goes_through_the_hook_end_to_end(monkeypatch, capsys, repo):
+    for command, code in (("grep -rn foo src", 0), ("grep -rn foo pools", 2)):
+        payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": repo}
+        assert _run_main(monkeypatch, json.dumps(payload)) == code
+    assert "pools/held_out_fake.json" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

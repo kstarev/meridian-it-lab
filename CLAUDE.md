@@ -6,7 +6,9 @@
   sealed files out, and `dataset/src/meridian_dataset/names.py`, which holds blind wording.
 - Checks on a sealed set print counts, ids and enums only, never wording.
 - A set the owner opened as a dev set is listed in `tools/sealed_paths.py` (`OPENED`).
-- A hook (`tools/sealed_guard.py`) blocks reads and searches of sealed files. It never blocks a
-  program that runs code. `MERIDIAN_SEALED_GUARD=off` turns it off.
+- A hook (`tools/sealed_guard.py`) blocks reads and searches of sealed files. A `grep`, `rg` or
+  `git grep` limited to explicit paths passes only if no path is or holds a sealed file; when
+  unsure, it blocks. It never blocks a program that runs code. `MERIDIAN_SEALED_GUARD=off` turns
+  it off.
 
 More: [docs/sealed-search-guard.md](docs/sealed-search-guard.md).
