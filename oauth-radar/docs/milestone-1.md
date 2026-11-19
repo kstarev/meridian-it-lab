@@ -42,7 +42,7 @@ Evidence: [`test_oauth_world.py`](../../dataset/tests/test_oauth_world.py): same
 
 Evidence: [`test_scopes.py`](../tests/test_scopes.py): the catalogue's examples, an unknown scope, every entry one short sentence, and every scope the tuning world holds is in the table.
 
-**Honest limits.** The classes follow Google's restricted and sensitive scope lists as recalled on 2026-11-19, without a network to check them; a person should check them against Google's current lists. The table covers the common Workspace scopes, not all of them.
+**Honest limits.** The table covers the common Workspace scopes, not all of them. Its classes were first written from memory; **update, 2026-11-19:** they have since been checked against Google's public pages, and none was wrong. [scope-classes.md](scope-classes.md) cites a source for each scope and says which classes no public page confirms.
 
 ## 4. Risk rubric from OAR-002
 
