@@ -1,6 +1,6 @@
 # AAC-018: Break-glass protection covers every name of a protected account, worked out in one place
 
-**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling, 2026-11-19: "break-glass protection covers every name of a protected account, aliases included"). Pinned as gap G2 in PR #123; built in PR #FIX_PR.
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling, 2026-11-19: "break-glass protection covers every name of a protected account, aliases included"). Pinned as gap G2 in PR #123; built in PR #129.
 
 **Context:** [AAC-007](007-safety-rails.md) says no plan ever changes a break-glass account. Four places checked this, each with its own code: the policy, matching, the diff's last word and apply's final guard. They had three holes:
 
