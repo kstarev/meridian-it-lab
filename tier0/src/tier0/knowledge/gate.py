@@ -181,7 +181,9 @@ def gate_request(text: str, system: str) -> ModelRequest:
         system=system,
         user=f"Message from the employee:\n<message>\n{text}\n</message>",
         json_schema=GATE_SCHEMA,
-        max_tokens=16,
+        # 64, as the picker's call: at 16, Sonnet's replies were cut short before any JSON
+        # (finish "length", empty text) in 27 of 869 dev calls, each a hand-off by the parser.
+        max_tokens=64,
     )
 
 
