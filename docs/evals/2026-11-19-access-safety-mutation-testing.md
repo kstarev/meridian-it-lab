@@ -114,6 +114,18 @@ No surviving mutant showed a bug. The property tests found one place where the c
 
 1. **Rule 2 of identity matching ignores more than case, accents and a `+tag`.** `match.py:83`, `fold` runs NFKD and drops every character that is not ASCII, so a zero-width space, a soft hyphen, a Cyrillic or a CJK letter disappears. `ana.smith\u200b@meridian.example` is matched to the person `ana.smith@meridian.example` by `normalised_email`. An account under such an address is attributed to a real person, so it is never reported as an orphan. Pinned by `test_match_properties.py::test_rule_2_does_not_ignore_characters_other_than_accents` (4 cases).
 
+Item 1 is gap G1. One more gap was pinned later the same day.
+
+### G2: break-glass protection misses other names of a protected account
+
+- **Rule:** the owner's ruling (2026-11-19): break-glass protection covers every name of a protected account, aliases included.
+- **What happens:** a bare username counts only when the policy lists it or a pattern matches it.
+  - `ops` is not protected when the Google user `ops@meridian.example` is protected through its listed alias.
+  - Matching marks only the record that carries the protected name. An Okta user or Slack user under another name of the same account is matched as usual, or becomes an orphan to remove.
+  - The policy compares names with `str.lower`, but matching uses `str.casefold`. So `opſ-root@meridian.example` (with a long s) is not the listed `Ops-Root@meridian.example`.
+- **Why it matters:** apply deactivates the Slack user `ops` and deprovisions the Okta user `root-login@meridian.example`, though both are names of protected accounts.
+- **Pinned:** the `test_g2_*` tests in `test_break_glass_properties.py` (12 cases, each a strict xfail). The source is unchanged.
+
 ## Property tests
 
 All use hypothesis with `derandomize=True` and `database=None`. Every person, account and plan is made up; apply runs on tiny in-process mocks.
