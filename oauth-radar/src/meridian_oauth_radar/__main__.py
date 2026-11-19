@@ -9,6 +9,7 @@ reads files. It never revokes anything and never calls an API (OAR-004, OAR-005)
 """
 
 import argparse
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -70,6 +71,13 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         write_run(files, args.out)
         print(f"Wrote a dry run to {args.out}: see report.md. Nothing was removed or sent.")
+        refused = json.loads(files["run.json"])["counts"]["exceptions_refused"]
+        if refused:
+            print(
+                f"Refused {refused} IT exception{'s' if refused != 1 else ''} at load time "
+                "(over 90 days, or no expiry): listed in report.md. A refused exception "
+                "protects nothing."
+            )
         return 0
 
     if args.google_tokens is None:

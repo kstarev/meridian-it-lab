@@ -17,6 +17,7 @@ from meridian_oauth_radar.enrich import AppFacts, load_knowledge
 from meridian_oauth_radar.fake_admin import FakeAdminApi
 from meridian_oauth_radar.load import ExportError
 from meridian_oauth_radar.policy import (
+    MAX_EXCEPTION_DAYS,
     Advisory,
     ExceptionEntry,
     PolicyResult,
@@ -117,9 +118,16 @@ def test_same_inputs_same_files_and_no_notice_twice() -> None:
 
 def test_exceptions_hold_until_they_expire() -> None:
     entry = ExceptionEntry(
-        APP, "a@meridian.example", "quarterly close", "IT lead", date(2026, 11, 30)
+        APP,
+        "a@meridian.example",
+        "quarterly close",
+        "IT lead",
+        date(2026, 9, 1),
+        date(2026, 11, 30),
     )
-    everyone = ExceptionEntry(OTHER, None, "team need", "IT lead", date(2027, 1, 1))
+    everyone = ExceptionEntry(
+        OTHER, None, "team need", "IT lead", date(2026, 11, 1), date(2027, 1, 1)
+    )
     found = [scored(DRIVE), scored(DRIVE, user="c@meridian.example", app=OTHER)]
     before = run(found, DAY0, exceptions=[entry, everyone])
     assert len(before.excepted) == 2
@@ -127,6 +135,19 @@ def test_exceptions_hold_until_they_expire() -> None:
     after = run(found, date(2026, 12, 1), exceptions=[entry, everyone])
     assert [n.user_key for n in after.new_notices] == ["a@meridian.example"]
     assert after.expired_exceptions == (entry,)
+    # Not yet approved on the day: it doesn't count.
+    early = run(found, date(2026, 10, 31), exceptions=[everyone])
+    assert early.excepted == ()
+
+
+def test_an_exception_lasts_at_most_90_days_and_a_longer_one_cant_be_built() -> None:
+    assert MAX_EXCEPTION_DAYS == 90
+    ok = ExceptionEntry(APP, None, "x", "IT lead", date(2026, 11, 1), date(2027, 1, 30))
+    assert (ok.expires - ok.approved_on).days == 90
+    with pytest.raises(ValueError, match="at most 90 days: its term is 91 days"):
+        ExceptionEntry(APP, None, "x", "IT lead", date(2026, 11, 1), date(2027, 1, 31))
+    with pytest.raises(ValueError, match="expires before it was approved"):
+        ExceptionEntry(APP, None, "x", "IT lead", date(2026, 11, 1), date(2026, 10, 31))
 
 
 def test_a_compromised_app_goes_to_an_emergency_plan_a_person_must_trigger() -> None:
@@ -184,7 +205,7 @@ def test_the_tuning_world_over_a_simulated_week(tmp_path: Path) -> None:
     radar = tmp_path / RADAR_DIR
     found = score_all(collect(FakeAdminApi.from_files(radar)).grants, load_knowledge(radar))
     kw = {
-        "exceptions": load_exceptions(radar / "exceptions.json"),
+        "exceptions": load_exceptions(radar / "exceptions.json").entries,
         "compromised": load_compromised(radar / "compromised_apps.json"),
     }
     day0 = decide(found, today=REFERENCE_TIME.date(), **kw)  # type: ignore[arg-type]
@@ -198,17 +219,49 @@ def test_the_tuning_world_over_a_simulated_week(tmp_path: Path) -> None:
     assert len(day0.expired_exceptions) == 1
 
 
-def test_an_exception_needs_an_expiry_date(tmp_path: Path) -> None:
-    path = tmp_path / "exceptions.json"
-    path.write_text(
-        json.dumps(
-            {
-                "exceptions": [
-                    {"client_id": APP, "user_key": None, "reason": "x", "approved_by": "IT lead"}
-                ]
-            }
-        ),
-        encoding="utf-8",
+def write_exceptions(path: Path, *rows: dict[str, object]) -> Path:
+    base = {"client_id": APP, "user_key": None, "reason": "x", "approved_by": "IT lead"}
+    path.write_text(json.dumps({"exceptions": [base | row for row in rows]}), encoding="utf-8")
+    return path
+
+
+def test_a_long_or_open_ended_exception_is_refused_at_load_and_reported(tmp_path: Path) -> None:
+    path = write_exceptions(
+        tmp_path / "exceptions.json",
+        {"approved_on": "2026-11-01", "expires": "2027-01-30"},  # 90 days: kept
+        {"approved_on": "2026-06-01", "expires": "2027-06-01"},  # a year: refused
+        {"approved_on": "2026-11-01"},  # no expiry: refused
+        {"approved_on": "2026-11-01", "expires": None},  # no expiry: refused
+        {"expires": "2026-12-01"},  # no approval date: refused
+        {"approved_on": "2026-11-01", "expires": "2026-10-01"},  # backwards: refused
+    )
+    listed = load_exceptions(path)
+    assert [(e.approved_on, e.expires) for e in listed.entries] == [
+        (date(2026, 11, 1), date(2027, 1, 30))
+    ]
+    assert [(r.entry, r.why) for r in listed.refused] == [
+        (1, "its term is 365 days, over the limit of 90"),
+        (2, "it has no expiry date"),
+        (3, "it has no expiry date"),
+        (4, "it has no approval date, so its term can't be checked"),
+        (5, "it expires before it was approved"),
+    ]
+    # Never trimmed: the refused entry keeps its own dates, and protects nothing.
+    assert listed.refused[0].expires == date(2027, 6, 1)
+    alone = load_exceptions(
+        write_exceptions(
+            tmp_path / "one.json", {"approved_on": "2026-06-01", "expires": "2027-06-01"}
+        )
+    )
+    assert alone.entries == () and len(alone.refused) == 1
+    result = run([scored(DRIVE)], DAY0, exceptions=alone.entries)
+    assert result.excepted == ()
+    assert [n.client_id for n in result.new_notices] == [APP]
+
+
+def test_a_malformed_exception_date_stops_the_load(tmp_path: Path) -> None:
+    path = write_exceptions(
+        tmp_path / "exceptions.json", {"approved_on": "2026-11-01", "expires": "next year"}
     )
     with pytest.raises(ExportError, match='exception 0: "expires" must be a date'):
         load_exceptions(path)

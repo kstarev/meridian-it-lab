@@ -76,7 +76,7 @@ def test_the_tuning_world_nudges(tmp_path: Path) -> None:
     result = decide(
         score_all(collect(FakeAdminApi.from_files(radar)).grants, k),
         today=REFERENCE_TIME.date(),
-        exceptions=load_exceptions(radar / "exceptions.json"),
+        exceptions=load_exceptions(radar / "exceptions.json").entries,
         compromised=load_compromised(radar / "compromised_apps.json"),
     )
     found = nudges(result, k)

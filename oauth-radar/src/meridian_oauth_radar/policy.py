@@ -12,7 +12,7 @@ For each scored grant, on the simulated date `today`, in this order:
 1. **Compromised app** (on Security's list): goes into the **emergency plan**, which skips the
    notice but must be triggered by a person. The radar never triggers it.
 2. **A current exception** covers the grant (same app, and the same user or every user, and
-   `today` is on or before its expiry date): no action, listed as excepted.
+   `today` is from its approval date through its expiry date): no action, listed as excepted.
 3. **Dormant with a restricted scope** (last used more than `dormant_days` ago, and at least
    one scope Google classes as restricted):
    - no notice yet: a **notice draft** is written, dated today;
@@ -22,6 +22,11 @@ For each scored grant, on the simulated date `today`, in this order:
 4. **Restricted, but no record of use**: to a person (the radar can't tell if it's dormant).
 5. **High or medium** by the rubric: to a person.
 6. Low: no action.
+
+**Exceptions last at most 90 days** (`MAX_EXCEPTION_DAYS`, the owner's ruling in OAR-010):
+the expiry date may be at most 90 days after the approval date. `load_exceptions` refuses an
+entry with a longer term, no expiry or no approval date, and returns it with the reason, so
+the run reports it. It is never trimmed to 90 days, and a refused exception protects nothing.
 
 **Blast-radius limit.** A plan may touch at most `max_grants_per_plan` grants. A plan over the
 limit is refused whole: it lists nothing to do, and every grant it would have touched goes
@@ -52,6 +57,8 @@ HOW_BY_HAND = (
     "(Directory API tokens.delete for this userKey and clientId)."
 )
 AFTER_NOTICE, EMERGENCY = "after-notice", "emergency"
+# The longest an IT exception may last, from its approval date to its expiry date (OAR-010).
+MAX_EXCEPTION_DAYS = 90
 PROPOSED, REFUSED, EMPTY = "proposed", "refused", "empty"
 
 
@@ -66,21 +73,65 @@ class Settings:
             raise ValueError("every policy setting must be at least 1")
 
 
+def term_problem(approved_on: date | None, expires: date | None) -> str | None:
+    """Why an exception's term is refused, or None when it is 90 days or less."""
+    if expires is None:
+        return "it has no expiry date"
+    if approved_on is None:
+        return "it has no approval date, so its term can't be checked"
+    days = (expires - approved_on).days
+    if days < 0:
+        return "it expires before it was approved"
+    if days > MAX_EXCEPTION_DAYS:
+        return f"its term is {days} days, over the limit of {MAX_EXCEPTION_DAYS}"
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class ExceptionEntry:
-    """An approved business need: IT keeps this app (for one user, or everyone) until expiry."""
+    """An approved business need: IT keeps this app (for one user, or everyone) until expiry.
+
+    Its term, from `approved_on` to `expires`, is at most `MAX_EXCEPTION_DAYS`; a longer one
+    can't be built (the loader refuses it first, and reports it).
+    """
 
     client_id: str
     user_key: str | None
     reason: str
     approved_by: str
+    approved_on: date
     expires: date
+
+    def __post_init__(self) -> None:
+        problem = term_problem(self.approved_on, self.expires)
+        if problem is not None:
+            raise ValueError(f"an exception lasts at most {MAX_EXCEPTION_DAYS} days: {problem}")
 
     def covers(self, grant: TokenGrant) -> bool:
         return grant.client_id == self.client_id and self.user_key in (None, grant.user_key)
 
     def current(self, today: date) -> bool:
-        return today <= self.expires
+        return self.approved_on <= today <= self.expires
+
+
+@dataclass(frozen=True, slots=True)
+class RefusedException:
+    """An entry of IT's exception list the radar refused at load time. It protects nothing."""
+
+    entry: int
+    client_id: str
+    user_key: str | None
+    approved_on: date | None
+    expires: date | None
+    why: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExceptionList:
+    """IT's exception list as loaded: the entries that count, and the ones refused."""
+
+    entries: tuple[ExceptionEntry, ...]
+    refused: tuple[RefusedException, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -447,6 +498,13 @@ def _bad(path: Path, where: str, key: str) -> date:
     raise ExportError(f'{path}: {where}: "{key}" must be a date (YYYY-MM-DD)')
 
 
+def _maybe_date(path: Path, where: str, row: Mapping[str, Any], key: str) -> date | None:
+    """A date, or None when the field is missing, null or empty."""
+    if row.get(key) in (None, ""):
+        return None
+    return _date(path, where, row, key)
+
+
 def _text(path: Path, where: str, row: Mapping[str, Any], key: str) -> str:
     value = row.get(key)
     if not isinstance(value, str) or not value.strip():
@@ -472,24 +530,29 @@ def _scopes(path: Path, where: str, row: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(sorted(set(value)))
 
 
-def load_exceptions(path: Path) -> tuple[ExceptionEntry, ...]:
-    """IT's exception list. Every entry needs an expiry date."""
-    entries = []
+def load_exceptions(path: Path) -> ExceptionList:
+    """IT's exception list. An entry with a term over 90 days, no expiry date or no approval
+    date is refused and returned with the reason, never trimmed. A malformed entry stops the
+    load, as any unreadable input does."""
+    entries: list[ExceptionEntry] = []
+    refused: list[RefusedException] = []
     for i, row in enumerate(_rows(path, "exceptions")):
         where = f"exception {i}"
         user = row.get("user_key")
         if user is not None and (not isinstance(user, str) or not user.strip()):
             raise ExportError(f'{path}: {where}: "user_key" must be a string or null')
-        entries.append(
-            ExceptionEntry(
-                client_id=_text(path, where, row, "client_id"),
-                user_key=user,
-                reason=_text(path, where, row, "reason"),
-                approved_by=_text(path, where, row, "approved_by"),
-                expires=_date(path, where, row, "expires"),
-            )
-        )
-    return tuple(entries)
+        client_id = _text(path, where, row, "client_id")
+        reason = _text(path, where, row, "reason")
+        approved_by = _text(path, where, row, "approved_by")
+        approved_on = _maybe_date(path, where, row, "approved_on")
+        expires = _maybe_date(path, where, row, "expires")
+        problem = term_problem(approved_on, expires)
+        if problem is not None or approved_on is None or expires is None:
+            why = problem or "it has no expiry or approval date"
+            refused.append(RefusedException(i, client_id, user, approved_on, expires, why))
+            continue
+        entries.append(ExceptionEntry(client_id, user, reason, approved_by, approved_on, expires))
+    return ExceptionList(tuple(entries), tuple(refused))
 
 
 def load_compromised(path: Path) -> dict[str, Advisory]:
@@ -529,13 +592,16 @@ def load_ledger(path: Path) -> tuple[Notice, ...]:
 __all__ = [
     "AFTER_NOTICE",
     "EMERGENCY",
+    "MAX_EXCEPTION_DAYS",
     "PLAN_ACTION",
     "Advisory",
     "ExceptionEntry",
+    "ExceptionList",
     "Notice",
     "Plan",
     "PlanItem",
     "PolicyResult",
+    "RefusedException",
     "Settings",
     "decide",
     "load_compromised",
@@ -543,4 +609,5 @@ __all__ = [
     "load_ledger",
     "plan_json",
     "policy_files",
+    "term_problem",
 ]

@@ -79,10 +79,30 @@ def weekly_report(files: dict[str, bytes]) -> str:
         f"| For a person to review | {c['to_a_person']} |",
         f"| Under a current exception | {c['excepted']} |",
         f"| Exceptions past their expiry | {c['exceptions_expired']} |",
+        f"| Exceptions refused (over {run['exception_max_days']} days, or no expiry) "
+        f"| {c['exceptions_refused']} |",
         f"| Slack nudge drafts | {c['nudges']} |",
         f"| Changes made / messages sent | {run['changes_made']} / {run['messages_sent']} |",
         "",
     ]
+    if run["exceptions_refused"]:
+        lines += [
+            "## IT exceptions refused",
+            "",
+            f"An exception lasts at most {run['exception_max_days']} days, from its approval "
+            "date to its expiry date. These entries of IT's exception list were refused when "
+            "it was loaded. They protect nothing, and none was shortened; IT can approve a new "
+            "one that fits.",
+            "",
+            "| Entry | App | For | Approved | Expires | Why refused |",
+            "|---|---|---|---|---|---|",
+        ]
+        lines += [
+            f"| {r['entry']} | {r['app']} | {'one person' if r['user_key'] else 'everyone'} "
+            f"| {r['approved_on'] or 'none'} | {r['expires'] or 'none'} | {r['why']} |"
+            for r in run["exceptions_refused"]
+        ]
+        lines.append("")
     _plan(lines, "Emergency: compromised apps (a person must trigger this plan)", urgent)
     _plan(lines, "After-notice removal plan", after)
 

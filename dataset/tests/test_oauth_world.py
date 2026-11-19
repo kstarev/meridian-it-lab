@@ -22,7 +22,7 @@ from meridian_dataset.oauth.__main__ import main
 from meridian_dataset.oauth.apps import ALL_APPS, PLANTED
 
 # Moves only when the OAuth generator changes on purpose, in the same pull request.
-GOLDEN_MANIFEST_SHA256 = "dd39c111b593921dc6db2d472a3e1efcb40840c30344aa00a27afb7de325fd3d"
+GOLDEN_MANIFEST_SHA256 = "a0e0ef03b7be863e30266c6d82ad85061f7b58ee30c7103436837d37555ac1c5"
 
 
 def personas_digest() -> str:
@@ -126,9 +126,14 @@ def test_every_grant_has_activity_and_last_use_is_not_after_the_snapshot() -> No
     assert max(times) <= inputs["world.json"]["reference_time"]
 
 
-def test_two_exceptions_one_expired() -> None:
+def test_three_exceptions_one_expired_and_one_over_90_days() -> None:
     exceptions = generate_oauth_world().radar_inputs()["exceptions.json"]["exceptions"]
-    assert [e["expires"] for e in exceptions] == ["2027-01-31", "2026-11-01"]
+    assert [(e["approved_on"], e["expires"]) for e in exceptions] == [
+        ("2026-11-02", "2027-01-31"),
+        ("2026-08-03", "2026-11-01"),
+        ("2026-06-01", "2027-06-01"),
+    ]
+    assert [e["user_key"] is None for e in exceptions] == [False, False, True]
 
 
 def test_write_and_the_command_line(tmp_path: Path) -> None:
