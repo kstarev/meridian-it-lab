@@ -33,7 +33,7 @@ OWN_ACCOUNT_CHECK_SCHEMA: dict[str, Any] = {
 # "guide_draft" is milestone 4's weekly job: the model drafts a guide from resolved tickets with
 # personal details removed. The draft is never a reply: it goes to a pull request, and nobody
 # sees its steps until a person on the IT team approves it (ADR-005, ADR-035).
-type Task = Literal["triage", "own_account_check", "guide_pick", "guide_draft"]
+type Task = Literal["triage", "own_account_check", "guide_pick", "guide_draft", "howto_gate"]
 
 
 @dataclass(frozen=True, slots=True)
