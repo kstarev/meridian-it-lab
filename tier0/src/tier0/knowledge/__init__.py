@@ -12,6 +12,8 @@ the message to a person. The model never sees a guide's steps and never writes a
     sealed.py   the sealed how-to test: nothing runs on it before its final test
     guide_screen.py  a code-only check that a guide's text holds no instruction or trap
     wiring.py   the path in the Slack flow, after triage says "other"; off by default
+    review.py   the draft in #it-team and its buttons: a guide is posted only after one click
+                from a person in IT (ADR-053, on by default)
 
 The weekly job that drafts guides from resolved tickets (ADR-005) lives here too:
 
@@ -19,5 +21,6 @@ The weekly job that drafts guides from resolved tickets (ADR-005) lives here too
     scrub.py    removes personal details before anything reaches the drafting model
 
 The Slack flow uses it only when the agent is given a `GuidePicker` (the `guide_picker`
-option, default off), on the mocks; off, every "other" goes to a person as before.
+option, default off), on the mocks; off, every "other" goes to a person as before. On, a chosen
+guide waits for one click from a person in IT until a blind month passes (ADR-053).
 """
