@@ -234,8 +234,8 @@ def decide(
                     grant.client_id,
                     grant.display_text,
                     grant.scopes,
-                    f"Security lists the app as compromised ({advisory.advisory}, "
-                    f"{advisory.published.isoformat()}).",
+                    f"Security lists the app as compromised, {advisory.published.isoformat()}: "
+                    f"{advisory.advisory}",
                     None,
                 )
             )
