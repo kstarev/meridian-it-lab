@@ -47,6 +47,7 @@ def facts(**changes: object) -> AppFacts:
         "in_it_catalogue": True,
         "it_status": "approved",
         "it_ai_tag": False,
+        "vendor_ai": False,
         "banned_reason": None,
         "approved_alternative": None,
     }

@@ -6,8 +6,9 @@ location, whether an approved alternative exists". The plain English is the scop
 
 - `app_info.json`: a vendor directory, with Google's verified-publisher flag:
   `{"apps": [{"client_id", "name", "vendor", "category", "ai", "verified_publisher",
-  "data_location", "vendor_maturity"}]}`. An app missing from it is unknown: no vendor, and
-  its publisher counts as not verified.
+  "data_location", "vendor_maturity"}]}`. Its `ai` flag is the rubric's AI signal (OAR-008).
+  An app missing from it is unknown: no vendor, no AI flag, and its publisher counts as not
+  verified.
 - `it_app_catalogue.json`: the apps IT has reviewed: `{"apps": [{"client_id", "name",
   "category", "ai", "status", "reviewed_on"}]}`. `status` is "approved" or "not approved".
 - `banned_apps.json`: IT's banned list, in the milestone-0 shape (`load.load_banned_apps`).
@@ -84,6 +85,7 @@ class Knowledge:
             in_it_catalogue=reviewed is not None,
             it_status=reviewed.status if reviewed else None,
             it_ai_tag=reviewed.ai if reviewed else None,
+            vendor_ai=vendor.ai if vendor else None,
             banned_reason=self.banned.get(client_id),
             approved_alternative=alternative,
         )
@@ -102,6 +104,7 @@ class AppFacts:
     in_it_catalogue: bool
     it_status: str | None
     it_ai_tag: bool | None
+    vendor_ai: bool | None
     banned_reason: str | None
     approved_alternative: str | None
 

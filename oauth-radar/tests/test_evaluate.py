@@ -28,7 +28,7 @@ def evaluation(tmp_path_factory: pytest.TempPathFactory) -> Evaluation:
 
 def test_marked_high_by_the_rubric(evaluation: Evaluation) -> None:
     c = evaluation.high
-    assert (c.planted, c.found, c.flagged, c.false_alarms) == (6, 5, 178, 173)
+    assert (c.planted, c.found, c.flagged, c.false_alarms) == (6, 5, 33, 28)
 
 
 def test_acted_on_by_the_radar(evaluation: Evaluation) -> None:

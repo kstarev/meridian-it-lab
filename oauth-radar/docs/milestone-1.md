@@ -5,7 +5,7 @@
 1. Collector: a mock Google Admin token API and a collector that pages through it.
 2. OAuth grants for the shared Meridian people, as a tuning world.
 3. Scope explainer.
-4. Risk rubric from OAR-002 (Proposed, not yet accepted by the owner).
+4. Risk rubric from OAR-002 (since 2026-11-19: OAR-008, accepted by the owner).
 5. Dry-run policy engine.
 6. Slack nudge drafts as files.
 7. Weekly report.
@@ -41,6 +41,8 @@ Evidence: [`test_scopes.py`](../tests/test_scopes.py): the catalogue's examples,
 **Honest limits.** The classes follow Google's restricted and sensitive scope lists as recalled on 2026-11-19, without a network to check them; a person should check them against Google's current lists. The table covers the common Workspace scopes, not all of them.
 
 ## 4. Risk rubric from OAR-002
+
+**Update, 2026-11-19:** the owner accepted the rubric with two changes, recorded in [OAR-008](adr/008-risk-rubric-with-the-owners-changes.md) and built in `rubric.py`: an app IT approved is never high because of its reach alone (it is medium, and the score says why), and the AI signal is the vendor directory's AI flag, with the word list only for apps the directory doesn't know. IT's own AI tag no longer counts. The text below is as milestone 1 built it.
 
 **Proposed (OAR-002), not yet accepted by the owner.** [`rubric.py`](../src/meridian_oauth_radar/rubric.py) builds OAR-002's rubric exactly as [OAR-002](adr/002-risk-model-rules-first.md) states it: scope breadth 3/2/0 (the broadest scope, not the sum; an unknown scope counts as broad), unverified publisher +2, reach +1 for 5 to 24 people and +2 for 25 or more, AI app +1, not reviewed by IT +1; a banned app or a leaver's grant above sign-in is always high; 5 points or more is high, 3 to 4 medium, 2 or fewer low. Every score lists all five signals with their points and a plain reason, so it can be recomputed by hand. The catalogue's own rubric (scope sensitivity times users times dormancy times vendor maturity) is not built; that is the owner's call (R14).
 

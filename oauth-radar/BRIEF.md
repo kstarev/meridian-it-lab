@@ -117,7 +117,7 @@ Each rate comes with its count and a 95% interval. Every number on a results pag
 - **The key and the radar share a builder,** so one misreading could end up in both and look like agreement. Whether a blind referee is needed, as Access-as-Code added, is the owner's call in milestone 3.
 - **An export is a snapshot.** A grant made and taken back between two exports is never seen.
 - **A scope says what an app may reach, not what it took.** The radar can't see data that already left.
-- **AI apps are known from IT's catalogue and a short word list.** A new AI app with a plain name, no catalogue entry and narrow scopes scores low. "Not reviewed" points and "an unknown scope counts as broad" are the safety nets.
+- **AI apps are known from the vendor directory's AI flag, and a short word list for apps it doesn't know** ([OAR-008](docs/adr/008-risk-rubric-with-the-owners-changes.md)). A new AI app with a plain name, unknown to the directory and with narrow scopes, scores low. "Not reviewed" points and "an unknown scope counts as broad" are the safety nets.
 - **Small numbers.** 100% of 20 planted grants still has a 95% interval that starts at about 84%. The report shows both.
 - **Compliance notes are a mapping, not a claim of compliance**, and not legal advice.
 

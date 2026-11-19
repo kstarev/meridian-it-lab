@@ -280,9 +280,8 @@ def decide(
             routed.append(Routed(score, "Holds a restricted scope, with no record of use."))
             continue
         if score.tier in (HIGH, MEDIUM):
-            routed.append(
-                Routed(score, f"Rated {score.tier} by the rubric ({score.total} points).")
-            )
+            why = f"Rated {score.tier} by the rubric ({score.total} points)."
+            routed.append(Routed(score, f"{why} {score.tier_note}" if score.tier_note else why))
             continue
         no_action += 1
 

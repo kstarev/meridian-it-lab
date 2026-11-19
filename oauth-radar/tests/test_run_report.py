@@ -48,7 +48,7 @@ def test_the_report_says_it_is_a_dry_run(world: Path) -> None:
     report = run_files(world)["report.md"].decode()
     assert report.startswith("# Shadow AI Radar: weekly report, 2026-11-16\n")
     assert "**A dry run:** nothing was removed and no message was sent." in report
-    assert "Proposed (OAR-002), not yet accepted by the owner" in report
+    assert "OAR-008, accepted by the owner on 2026-11-19" in report
     assert "| Changes made / messages sent | 0 / 0 |" in report
     assert "## Emergency: compromised apps (a person must trigger this plan)" in report
 
