@@ -12,7 +12,10 @@ from tier0.evals import gate_dev
 from tier0.knowledge.gate import GATE_SCHEMA, GATE_VERSIONS, gate_request, parse_gate
 from tier0.models.base import ModelError, ModelRequest, ModelResponse
 
-FROZEN = {"G1": "36a62b6c56f7e8f8798d078b06259fecc56387d4d60918fc333881df5d9915aa"}
+FROZEN = {
+    "G1": "36a62b6c56f7e8f8798d078b06259fecc56387d4d60918fc333881df5d9915aa",
+    "G2": "35491c1b5616330111e24c14368612ab838e3cf8f2b6a98319006ae190b682f8",
+}
 
 
 def _reply(text: str, finish: str = "stop") -> ModelResponse:
