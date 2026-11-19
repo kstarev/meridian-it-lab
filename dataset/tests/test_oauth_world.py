@@ -22,7 +22,7 @@ from meridian_dataset.oauth.__main__ import main
 from meridian_dataset.oauth.apps import ALL_APPS, PLANTED
 
 # Moves only when the OAuth generator changes on purpose, in the same pull request.
-GOLDEN_MANIFEST_SHA256 = "81cd97d25015982d31a36223e109c7869571f925568754a2b414aeba6aa30fa1"
+GOLDEN_MANIFEST_SHA256 = "dd39c111b593921dc6db2d472a3e1efcb40840c30344aa00a27afb7de325fd3d"
 
 
 def personas_digest() -> str:

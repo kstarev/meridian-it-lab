@@ -141,6 +141,7 @@ class OAuthWorld:
                         "client_id": app.client_id,
                         "name": app.name,
                         "category": app.category,
+                        "ai": app.ai,
                         "status": app.it_status,
                         "reviewed_on": APPROVED_ON,
                     }
