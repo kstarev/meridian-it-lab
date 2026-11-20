@@ -43,7 +43,7 @@ import os
 import sys
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -922,6 +922,142 @@ ARM_ROUTE: dict[str, dict[str, int]] = {
 SEALED_ARMS = ("haiku-3d2", "sonnet-3d2")
 SEALED_K = 3
 
+# --- the whole requests, beyond the prompts' text (the 3f review's Q3) -----------------------
+# A prompt's SHA-256 holds its words only. The rest of each call can change a month's outcome
+# too: the user turn's wrapper, the schema, the reply limit, the task, the picker's guide list,
+# and how the runner reads the reply. A plan can pin those as well, as the runner builds them:
+# the requests the gate and the picker send for one fixed probe message, and what the runner
+# makes of a fixed table of replies. Nothing is called and no ticket is read.
+REQUEST_PROBE = "How do I add the office printer to my work laptop?"
+ASK_PICKER = "picker"  # the gate let the message through to the picker
+_GUIDE_PICKED = "KB-017"  # any approved guide the picker could pick
+_GATE_YES = '{"plain_how_to": true}'
+_PICK = '{"request_type": "how_to", "guide": "KB-017"}'
+# (reply text, finish reason, what the runner makes of it). A text of None: the call fails.
+type ReplyCase = tuple[str | None, str, Any]
+# The gate (`gate_route`): ASK_PICKER, or the stage that hands off.
+GATE_REPLY_CASES: tuple[ReplyCase, ...] = (
+    (_GATE_YES, "stop", ASK_PICKER),
+    ('{"plain_how_to": false}', "stop", GATE_NO),
+    (' {"plain_how_to": true}\n', "stop", ASK_PICKER),  # white space around the object
+    ('{"plain_how_to": false, "plain_how_to": true}', "stop", ASK_PICKER),  # the last key wins
+    (_GATE_YES, "length", GATE_FAILED),
+    (_GATE_YES, "refusal", GATE_FAILED),
+    (_GATE_YES, "end_turn", GATE_FAILED),  # a provider's raw finish reason
+    ('{"plain_how_to": true, "why": "a how-to"}', "stop", GATE_FAILED),
+    ('{"plain_how_to": "true"}', "stop", GATE_FAILED),
+    ('{"plain_how_to": 1}', "stop", GATE_FAILED),
+    ('{"plain_how_to": null}', "stop", GATE_FAILED),
+    ('{"plainHowTo": true}', "stop", GATE_FAILED),
+    ("{}", "stop", GATE_FAILED),
+    ("[true]", "stop", GATE_FAILED),
+    ("true", "stop", GATE_FAILED),
+    ("yes", "stop", GATE_FAILED),
+    ('```json\n{"plain_how_to": true}\n```', "stop", GATE_FAILED),
+    ("", "stop", GATE_FAILED),
+    (None, "", GATE_FAILED),
+)
+# The picker (its stage, as `route_ticket` calls it): (kind, guide).
+PICKER_REPLY_CASES: tuple[ReplyCase, ...] = (
+    (_PICK, "stop", (GUIDE, _GUIDE_PICKED)),
+    ('{"guide": "KB-017", "request_type": "how_to"}', "stop", (GUIDE, _GUIDE_PICKED)),
+    ('{"request_type": "how_to", "guide": "none"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "incident", "guide": "KB-017"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "account_or_access", "guide": "KB-017"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "someone_else", "guide": "KB-017"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "other", "guide": "KB-017"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "how_to", "guide": "KB-999"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "how_to", "guide": 17}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "HOW_TO", "guide": "KB-017"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "how_to"}', "stop", (STAGE_HAND_OFF, None)),
+    ('{"request_type": "how_to", "guide": "KB-017", "why": "x"}', "stop", (STAGE_HAND_OFF, None)),
+    (_PICK, "length", (STAGE_HAND_OFF, None)),
+    (_PICK, "refusal", (STAGE_HAND_OFF, None)),
+    ("KB-017", "stop", (STAGE_HAND_OFF, None)),
+    ("", "stop", (STAGE_HAND_OFF, None)),
+    (None, "", (STAGE_HAND_OFF, None)),
+)
+
+
+class _Probe:
+    """A model that keeps every request it gets and answers each with one reply (text, finish),
+    or fails each call when the reply is None. It calls nothing."""
+
+    provider = "probe"
+    model = "probe"
+    temperature = None
+    seed = None
+    supports_seed = False
+
+    def __init__(self, reply: tuple[str, str] | None) -> None:
+        self.reply = reply
+        self.requests: list[ModelRequest] = []
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        self.requests.append(request)
+        if self.reply is None:
+            raise ModelError("the probe's call fails")
+        return ModelResponse(self.reply[0], self.model, 0, 0, self.reply[1], None)
+
+    def describe(self) -> dict[str, str]:
+        return {}
+
+
+def probe_gate(
+    version: str, reply: tuple[str, str] | None = (_GATE_YES, "stop")
+) -> tuple[str, list[ModelRequest]]:
+    """What the runner's gate (`gate_route`) makes of `reply` to the probe message, and the
+    requests it sent."""
+    model = _Probe(reply)
+    stopped = gate_route(REQUEST_PROBE, model, gate_for(version))
+    return (ASK_PICKER if stopped is None else stopped), model.requests
+
+
+def probe_picker(
+    prompt: str, reply: tuple[str, str] | None = (_PICK, "stop")
+) -> tuple[tuple[str, str | None], list[ModelRequest]]:
+    """What the runner's picker (`knowledge_picker`'s stage, on the sealed arms) makes of
+    `reply` to the probe message, and the requests it sent. The default reply picks a guide, so
+    a second call after it (a fit check) would be sent and kept too."""
+    model = _Probe(reply)
+    outcome = knowledge_picker(ALL_SETUPS[SEALED_ARMS[0]], model, prompt).stage(REQUEST_PROBE)
+    return outcome, model.requests
+
+
+def requests_sha256(requests: Sequence[ModelRequest]) -> str:
+    """The SHA-256 of requests with every field, in order: task, system, user, json_schema,
+    max_tokens, and any field added later. Keys are not sorted: a schema's property order is
+    part of what the model is sent."""
+    body = json.dumps([asdict(r) for r in requests], ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def cases_sha256(cases: Sequence[ReplyCase]) -> str:
+    """The SHA-256 of a reply table, so that a case can't be dropped or its verdict changed
+    without the pin noticing."""
+    body = json.dumps(cases, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def _check_replies(
+    what: str,
+    cases: Sequence[ReplyCase],
+    pin: str,
+    read: Callable[[tuple[str, str] | None], Any],
+    set_name: str,
+) -> str | None:
+    if cases_sha256(cases) != pin:
+        return f"the {what}'s reply table is not the one frozen for {set_name}"
+    for n, (text, finish, frozen) in enumerate(cases, 1):
+        got = read(None if text is None else (text, finish))
+        if got != frozen:
+            reply = "a failed call" if text is None else f"{text!r} with finish {finish!r}"
+            return (
+                f"the runner now reads the {what}'s reply {n} ({reply}) as {got!r}; "
+                f"{set_name}'s frozen plan reads it as {frozen!r}"
+            )
+    return None
+
 
 @dataclass(frozen=True)
 class SealedPlan:
@@ -934,6 +1070,12 @@ class SealedPlan:
     # None for the months before it, which ran without one.
     gate: str | None = None
     gate_sha256: str | None = None
+    # The whole requests and how their replies are read (above), pinned by SHA-256. None: not
+    # pinned. The months before month3 pinned the prompts' text only.
+    gate_request_sha256: str | None = None  # requests_sha256 of probe_gate's requests
+    gate_replies_sha256: str | None = None  # cases_sha256(GATE_REPLY_CASES)
+    picker_request_sha256: str | None = None  # requests_sha256 of probe_picker's requests
+    picker_replies_sha256: str | None = None  # cases_sha256(PICKER_REPLY_CASES)
 
 
 # Each sealed set's frozen plan. A sealed set with no plan here is refused.
@@ -951,6 +1093,9 @@ _KS6A_H = SealedPlan(
 #   triage model. G3 is the only version that passed the selection rule committed before any
 #   version was scored, on both models (docs/evals/2026-11-20-m3f-gate-dev.md). Frozen here
 #   before the rehearsal; month3's rules and stop rule: docs/plans/milestone-3f-month3-rules.md.
+#   The gate's and the picker's whole requests and the reading of their replies are pinned too,
+#   as the rehearsal ran them (docs/evals/2026-11-20-m3f-rehearsal-*.md, commit a768ab2): the
+#   same digests come out of that commit's code and today's.
 SEALED_PLANS: dict[str, SealedPlan] = {
     "held_out_month1": SealedPlan(None, None, prompt_cache=False),
     "held_out_month2": _KS6A_H,
@@ -961,6 +1106,10 @@ SEALED_PLANS: dict[str, SealedPlan] = {
         prompt_cache=True,
         gate="G3",
         gate_sha256="55e797391967757e336ed644ee41e9ca02e83db7359e66aa2aa483bcdfe65733",
+        gate_request_sha256="4a8eb78b2b58c1734a020525a5882b38fe4b50f450e3dc3d601f6d288fc16d03",
+        gate_replies_sha256="7aa8531e5df15b4357ff9525072620923c42fdc3e932865c576220dbd8c91d4a",
+        picker_request_sha256="395fc6601ed62af557670a9a0115e5736644b2f553db6ffba59f31e8c0243cc6",
+        picker_replies_sha256="2e7cd48c9629861f0df40bd9a7a778db64a9461e4c5121b1bc292ec5b2183675",
     ),
 }
 FROZEN_PLAN_SETS: frozenset[str] = frozenset(SEALED_PLANS)
@@ -1114,8 +1263,51 @@ def check_sealed_plan(
         text = importlib.import_module("tier0.knowledge.gate").GATE_VERSIONS[plan.gate]
         if hashlib.sha256(text.encode()).hexdigest() != plan.gate_sha256:
             return f"gate {plan.gate}'s text no longer matches the SHA-256 frozen for {set_name}"
+    refusal = check_frozen_requests(set_name, plan)
+    if refusal is not None:
+        return refusal
     if k != SEALED_K:
         return f"{set_name} runs only at k = {SEALED_K}, not {k}"
+    return None
+
+
+def check_frozen_requests(set_name: str, plan: SealedPlan) -> str | None:
+    """A reason to refuse, or None. Each whole-request pin of the plan, against the requests
+    today's runner builds and the way it reads replies. A pin of None is not checked."""
+    gate, picker = plan.gate or "", plan.picker_prompt or PICKER_PROMPT
+    pin = plan.gate_request_sha256
+    if pin is not None and requests_sha256(probe_gate(gate)[1]) != pin:
+        return (
+            f"gate {gate}'s whole request (its user turn, schema, reply limit and task) no "
+            f"longer matches the SHA-256 frozen for {set_name}"
+        )
+    if plan.gate_replies_sha256 is not None:
+        refusal = _check_replies(
+            "gate",
+            GATE_REPLY_CASES,
+            plan.gate_replies_sha256,
+            lambda reply: probe_gate(gate, reply)[0],
+            set_name,
+        )
+        if refusal is not None:
+            return refusal
+    try:
+        pin = plan.picker_request_sha256
+        if pin is not None and requests_sha256(probe_picker(picker)[1]) != pin:
+            return (
+                f"the picker's whole request with {picker} (its guide list, user turn, schema, "
+                f"reply limit and task) no longer matches the SHA-256 frozen for {set_name}"
+            )
+        if plan.picker_replies_sha256 is not None:
+            return _check_replies(
+                "picker",
+                PICKER_REPLY_CASES,
+                plan.picker_replies_sha256,
+                lambda reply: probe_picker(picker, reply)[0],
+                set_name,
+            )
+    except PickerUnavailable as exc:
+        return f"{set_name}'s frozen picker can't be built: {exc}"
     return None
 
 
