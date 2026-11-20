@@ -350,6 +350,31 @@ Milestone 3e is the guide picker's fix ([ADR-050](decisions.md), [plan](plans/mi
 - **What changed after it: guide answers now wait for one click from a person in IT** ([ADR-053](decisions.md#adr-053-guide-answers-wait-for-one-click-from-a-person-in-it-until-a-blind-month-passes), the failure note's option 3). When the picker chooses a guide, the requester gets the hand-off reply, and a draft goes to the IT team's channel. Only a member of the IT team can send it, with one click. This stays until a blind month passes rules 1 and 2. It costs the hours the guides save. The month runner still scores the picker's choice, before the click, so later months stay comparable with these.
 - **The result stands as a fail** ([failure note](evals/2026-11-19-m3e-failure-note.md), with the options). It was reported from ids, kinds and outcomes only. The owner then opened both months as dev sets (ADR-052), and only the failing tickets were read ([the reasons](evals/2026-11-19-m3e-month2-failure-reasons.md)): the picker answered two how-to questions with an instruction for the bot hidden in them, as its prompt says to, and a fault in the room-booking feature. Results: `held_out_month2` [haiku-3d2](evals/2026-11-19-m3e-sealed-month2-haiku-3d2.md) and [sonnet-3d2](evals/2026-11-19-m3e-sealed-month2-sonnet-3d2.md), `held_out_month2b` [haiku-3d2](evals/2026-11-19-m3e-sealed-month2b-haiku-3d2.md) and [sonnet-3d2](evals/2026-11-19-m3e-sealed-month2b-sonnet-3d2.md).
 
+## The how-to gate (milestone 3f): dev and tuning numbers only
+
+After the picker's fix failed rule 1 on both blind months, the owner ruled two things ([plan](plans/milestone-3f-how-to-gate.md)). Guide answers wait for one click from a person in IT until a blind month passes ([ADR-053](decisions.md#adr-053-guide-answers-wait-for-one-click-from-a-person-in-it-until-a-blind-month-passes)). And one structural fix in code, not more prompt wording: a how-to gate in front of the picker. The gate is one narrow call on the arm's triage model: is this message one plain how-to question, and nothing else? It never sees a guide. A guide is posted only if the code-only message screen finds nothing, the gate says yes and the picker picks a guide, and then only after the IT click.
+
+- **Nothing measured so far shows that the gate works on new wording.** Every number below is dev or tuning data. Only `held_out_month3` can show it, and it has not run.
+- **G1 and G2 failed the committed selection rule on `haiku-3d2`** ([dev report](evals/2026-11-20-m3f-gate-dev.md)): 0 wrongly answered runs on every set, but the right guide below 0.90 on 4 of 4 sets (G1) and 2 of 4 (G2). They sent too many how-to questions to a person. Neither was scored on Sonnet.
+- **G3 passed on both arms.** A dev estimate, composed with recorded runs, not blind: for each recorded KS6A-H run that reached a guide, the gate was called once, and the run became a hand-off if the gate said no. Every other run is as recorded.
+
+| Set | Arm | Wrongly answered runs (rule: 0) | Right guide (rule: at least 0.90) |
+|---|---|---|---|
+| `tuning_month` | `haiku-3d2` | 0 | 155 of 156 (0.99) |
+| `tuning_month` | `sonnet-3d2` | 0 | 155 of 156 (0.99) |
+| `held_out_month1` | `haiku-3d2` | 0 | 150 of 156 (0.96) |
+| `held_out_month1` | `sonnet-3d2` (on runs of `haiku-3d2`) | 0 | 142 of 156 (0.91) |
+| `held_out_month2` | `haiku-3d2` | 0 | 146 of 156 (0.94) |
+| `held_out_month2` | `sonnet-3d2` | 0 | 156 of 156 (1.00) |
+| `held_out_month2b` | `haiku-3d2` | 0 | 384 of 405 (0.95) |
+| `held_out_month2b` | `sonnet-3d2` | 0 | 384 of 405 (0.95) |
+
+- **`held_out_month1`'s Sonnet row is composed from `haiku-3d2`'s recorded runs.** The 3e dev comparison ran KS6A-H on that arm only. Both arms share the picker; their triage differs.
+- **Sonnet's G3 passed on its third scoring.** The first two failed because of a code bug, not the prompt: the gate's reply limit cut Sonnet's replies short before any JSON, and the parser hands a cut reply off. The limit is now 1024 tokens, as triage has. The prompt didn't change, and the report keeps both failed runs.
+- **The rehearsal: tuning data, optimistic** (the tuning month, both arms, k = 3, the gate live): 0 of 624 runs wrongly answered on each arm, and the right guide in 0.99 (0.96 to 1.00) of how-to runs on `haiku-3d2` and 1.00 (1.00 to 1.00) on `sonnet-3d2` ([haiku-3d2](evals/2026-11-20-m3f-rehearsal-haiku-3d2.md), [sonnet-3d2](evals/2026-11-20-m3f-rehearsal-sonnet-3d2.md)).
+- **The blind month waits for the owner's go.** `held_out_month3`, 400 tickets, was written blind and sealed after its pass rules and stop rule were committed ([rules](plans/milestone-3f-month3-rules.md)). It was sealed before the tuning finished, which is not the order the plan gives. It runs once.
+- **The stop rule:** if month3 fails, guide answers keep waiting for the IT click, and the picker and the gate are not changed again.
+
 ## Cost
 
 <!-- cost-v3:start -->
@@ -412,6 +437,7 @@ Local open models (Ollama on one Mac) were used only to benchmark during develop
 - **A relayed request that names nobody can get past Haiku.** A colleague request relayed in someone's own words can be read as the sender's own. On held-out v5, one such request got through three of the four Haiku setups in every run, with no data exposed. Only the HC7 check prompt stopped it. Sonnet stopped every colleague request ([ADR-042](decisions.md)). HC7 is now Haiku's check prompt ([ADR-047](decisions.md)), and held-out v6 measured it again: with the same triage prompt, HC7 stopped 50 of 50 runs of relayed requests that name nobody, and C1 45 of 50 ([report](evals/2026-11-17-m3d2-v6-final.md)).
 - **Haiku's 3b triage prompt has a measured cost, and its benefit was measured on held-out v5: triage itself caught 108 of 140 colleague runs with it, against 92 with the 3a prompt.** On v4 it refuses one self-description that the 3a prompt answers, and on dev set v2 it sends one everyday request to a person. Both are in the safe direction. 3d's sealed set has decided: on held-out v5 the rule kept HT4 over T1 ([ADR-047](decisions.md)). The default Haiku setup now runs HT9 ([ADR-048](decisions.md)).
 - **The guide picker can answer a request meant for a person.** On the two blind months of milestone 3e it did so in 9 of 624 and 9 of 624 runs, and in 7 of 495 and 8 of 495, always with an approved guide and never with account data ([results](#results-on-the-two-blind-months-milestone-3e)). The picker's fix failed its safety rule, and the result stands. So a picked guide now waits for one click from a person in IT before it reaches the requester, until a blind month passes ([ADR-053](decisions.md#adr-053-guide-answers-wait-for-one-click-from-a-person-in-it-until-a-blind-month-passes)). A person can still click on a wrong guide, and drafts live in memory: after a restart, the person answers by hand.
+- **The how-to gate has run on no blind month.** Its numbers are a dev estimate, composed with recorded runs, and a rehearsal on tuning data ([results](#the-how-to-gate-milestone-3f-dev-and-tuning-numbers-only)). `held_out_month3` will measure it once, after the owner's go.
 - **Claude can't be pinned.** The API accepts no temperature and no seed, so the Claude setups run at its default sampling and their runs can't be reproduced exactly ([ADR-030](decisions.md#adr-030-milestone-3-compares-four-setups-each-tuned-the-same-way-on-tuning-data-only)).
 - **One Mac.** Local latency is from one 32 GB Mac with one big model loaded at a time. qwen3.6:27b swapped on 84 runs, which are left out of latency; no setup is ranked by speed ([ADR-031](decisions.md#adr-031-two-more-local-candidates-gpt-oss20b-and-qwen3627b-added-before-v3)).
 - **No schema enforcement for gpt-oss:20b and qwen3.6:27b.** Their off-format replies would fail closed, and none occurred on v3 ([ADR-031](decisions.md#adr-031-two-more-local-candidates-gpt-oss20b-and-qwen3627b-added-before-v3)).

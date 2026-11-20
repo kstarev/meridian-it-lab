@@ -1,6 +1,8 @@
 """The hand-written sentences about the sealed tests after held-out v3, checked against their
 sources: held-out v5's summary JSON, held-out v6's generated report (it has no JSON sibling),
-the sealed month's two result files and the guide screen fix's plan.
+the sealed month's two result files and the guide screen fix's plan. Milestone 3f's how-to gate
+is checked against its dev result files (a composed estimate, not blind), its rehearsal's two
+result files (tuning data) and the generator's constants for its sealed month, which has not run.
 
 They are in the README ("What's next" and the follow-up bullets) and in docs/how-it-works.md
 (the how-to test's bullets, the held-out v6 and sealed-month sections, and two limits). Each
@@ -13,6 +15,15 @@ import re
 from functools import cache
 from pathlib import Path
 from typing import Any
+
+from meridian_dataset.month import (
+    EXTRA_TICKETS,
+    HELD_OUT_MONTH3,
+    MONTH_SIZE,
+    SEALED_SETS,
+    SPENT_SETS,
+)
+from tier0.knowledge.gate import GATE_VERSIONS, gate_request
 
 ROOT = Path(__file__).resolve().parents[2]
 README = ROOT / "README.md"
@@ -315,3 +326,176 @@ def test_doc_the_limit_states_the_picker_fixs_misses() -> None:
         "with an approved guide and never with account data"
     )
     assert "(#results-on-the-two-blind-months-milestone-3e)" in DOC.read_text()
+
+
+# The how-to gate (milestone 3f): dev and tuning numbers only. Its blind month has not run.
+
+M3F_GATE = "docs/evals/2026-11-20-m3f-gate-dev/gate-{version}-{arm}{run}.json"
+M3F_REHEARSAL = "docs/evals/2026-11-20-m3f-rehearsal-{arm}.json"
+M3F_SETS = ("tuning_month", "held_out_month1", "held_out_month2", "held_out_month2b")
+M3F_SECTION = "## The how-to gate (milestone 3f): dev and tuning numbers only"
+
+
+@cache
+def _m3f_gate(version: str, arm: str, run: str = "") -> dict[str, Any]:
+    """One scoring of a gate version: a dev estimate, composed with recorded runs."""
+    report = json.loads((ROOT / M3F_GATE.format(version=version, arm=arm, run=run)).read_text())
+    assert (report["version"], report["arm"]) == (version, arm) and "not blind" in report["label"]
+    assert [s["set"] for s in report["sets"]] == list(M3F_SETS)
+    for s in report["sets"]:  # the committed selection rule, set by set
+        assert s["passes"] == (s["wrongly_answered_runs"] == 0 and s["right_guide"] >= 0.90)
+    assert report["passes_every_set"] == all(s["passes"] for s in report["sets"])
+    return report
+
+
+@cache
+def _m3f_rehearsal(arm: str) -> dict[str, Any]:
+    m = json.loads((ROOT / M3F_REHEARSAL.format(arm=arm)).read_text())
+    config = m["config"]
+    assert (config["set"], config["sealed"], config["setup"]) == ("tuning_month", False, arm)
+    assert (config["gate"], config["gate_model"]) == ("G3", config["triage_model"])
+    assert config["calls"]["howto_gate"] > 0 and config["failed_calls"] == {}  # the gate was live
+    return m
+
+
+def _m3f_failed_versions() -> dict[str, str]:
+    """G1 and G2, on Haiku only: rule 1 held everywhere, coverage failed on some sets."""
+    low = {}
+    for version in ("G1", "G2"):
+        report = _m3f_gate(version, "haiku-3d2")
+        assert not report["passes_every_set"]
+        assert all(s["wrongly_answered_runs"] == 0 for s in report["sets"])
+        assert not (ROOT / M3F_GATE.format(version=version, arm="sonnet-3d2", run="")).exists()
+        failed = [s for s in report["sets"] if s["right_guide"] < 0.90]
+        low[version] = f"{len(failed)} of {len(report['sets'])}"
+    return low
+
+
+def _m3f_month3_size() -> int:
+    """held_out_month3's size, from the generator's constants: never from the sealed file."""
+    assert HELD_OUT_MONTH3 in SEALED_SETS and HELD_OUT_MONTH3 not in SPENT_SETS  # not run
+    assert not [p.name for p in (ROOT / "docs/evals").iterdir() if "month3" in p.name]
+    return MONTH_SIZE + sum(EXTRA_TICKETS[HELD_OUT_MONTH3].values())
+
+
+def _m3f_rehearsal_wrong() -> str:
+    wrong = {_m3f_rehearsal(a)["scores"]["wrongly_answered"]["runs"] for a in DEFAULTS}
+    (of_runs,) = {_m3f_rehearsal(a)["scores"]["wrongly_answered"]["of_runs"] for a in DEFAULTS}
+    (each,) = wrong  # the same on each arm
+    return f"{each} of {of_runs}"
+
+
+def test_readme_the_how_to_gate_is_not_measured_on_new_wording() -> None:
+    _m3f_failed_versions()
+    g3 = [s for arm in DEFAULTS for s in _m3f_gate("G3", arm)["sets"]]
+    assert all(_m3f_gate("G3", arm)["passes_every_set"] for arm in DEFAULTS)
+    (wrong,) = {s["wrongly_answered_runs"] for s in g3}
+    low, high = min(s["right_guide"] for s in g3), max(s["right_guide"] for s in g3)
+    _readme_says(
+        "   - **Next: one fix in code, not yet measured on new wording.** A how-to gate now sits "
+        "in front of the guide picker. It is one more AI question, and it never sees a guide: is "
+        "this message one plain how-to question, and nothing else? A guide is suggested only if a "
+        "code check of the message finds nothing risky, the gate says yes and the picker picks a "
+        "guide. "
+        "Three versions were tried. The first two sent too many how-to questions to a person on "
+        "Claude Haiku, and failed the selection rule written before the tuning. The third passed "
+        f"on both Claude setups: {wrong} runs wrongly answered on each of {len(M3F_SETS)} months "
+        f"already used, and the right guide in {low:.2f} to {high:.2f} of how-to runs. That is an "
+        "estimate from recorded runs, not a locked-away test. A practice run with the gate live "
+        f"answered {_m3f_rehearsal_wrong()} runs of requests meant for a person on each setup, but "
+        "on practice data, so it is optimistic. A new locked-away month of "
+        f"{_m3f_month3_size()} requests is sealed, and its one run waits for the owner's go. If it "
+        "fails, guide answers keep waiting for the IT click, and the picker isn't changed again "
+        "([plan](docs/plans/milestone-3f-how-to-gate.md))."
+    )
+
+
+def test_doc_the_how_to_gate_table() -> None:
+    _doc_says("| Set | Arm | Wrongly answered runs (rule: 0) | Right guide (rule: at least 0.90) |")
+    for month in M3F_SETS:
+        for arm in DEFAULTS:
+            report = _m3f_gate("G3", arm)
+            assert report["passes_every_set"]
+            (s,) = [s for s in report["sets"] if s["set"] == month]
+            name = f"`{arm}`"
+            if s["runs_from"] != arm:  # month1's Sonnet row, composed from the Haiku arm's runs
+                name += f" (on runs of `{s['runs_from']}`)"
+            _doc_says(
+                f"| `{month}` | {name} | {s['wrongly_answered_runs']} | {s['right_guide_runs']} of "
+                f"{s['how_to_runs']} ({s['right_guide']:.2f}) |"
+            )
+
+
+def test_doc_the_how_to_gate_bullets() -> None:
+    _doc_says(M3F_SECTION)
+    _doc_says("- **Nothing measured so far shows that the gate works on new wording.**")
+    low = _m3f_failed_versions()
+    _doc_says(
+        "- **G1 and G2 failed the committed selection rule on `haiku-3d2`** ([dev report]"
+        "(evals/2026-11-20-m3f-gate-dev.md)): 0 wrongly answered runs on every set, but the right "
+        f"guide below 0.90 on {low['G1']} sets (G1) and {low['G2']} (G2). They sent too many "
+        "how-to questions to a person. Neither was scored on Sonnet."
+    )
+    _doc_says(
+        "- **G3 passed on both arms.** A dev estimate, composed with recorded runs, not blind: for "
+        "each recorded KS6A-H run that reached a guide, the gate was called once"
+    )
+    # month1's Sonnet row: composed from the Haiku arm's recorded runs, as the dev report says.
+    runs_from = {s["set"]: s["runs_from"] for s in _m3f_gate("G3", "sonnet-3d2")["sets"]}
+    assert runs_from["held_out_month1"] == "haiku-3d2"
+    dev = (ROOT / "docs/evals/2026-11-20-m3f-gate-dev.md").read_text()
+    assert "the 3e dev comparison ran KS6A-H on that arm only" in dev
+    _doc_says("The 3e dev comparison ran KS6A-H on that arm only.")
+    # Sonnet's two scorings cut short by the reply limit, then the fix: the same version.
+    for run in ("-max16", "-max64"):
+        assert not _m3f_gate("G3", "sonnet-3d2", run)["passes_every_set"]
+    assert "A code bug, found and fixed during the tuning, not a prompt change." in dev
+    assert gate_request("x", GATE_VERSIONS["G3"]).max_tokens == 1024
+    _doc_says(
+        "- **Sonnet's G3 passed on its third scoring.** The first two failed because of a code "
+        "bug, not the prompt"
+    )
+    _doc_says("The limit is now 1024 tokens, as triage has.")
+    # The rehearsal: tuning data.
+    (k,) = {_m3f_rehearsal(arm)["config"]["k"] for arm in DEFAULTS}
+    right = {
+        arm: "{:.2f} ({:.2f} to {:.2f})".format(
+            _m3f_rehearsal(arm)["scores"]["right_guide"]["value"],
+            *_m3f_rehearsal(arm)["scores"]["right_guide"]["interval"],
+        )
+        for arm in DEFAULTS
+    }
+    _doc_says(
+        f"- **The rehearsal: tuning data, optimistic** (the tuning month, both arms, k = {k}, the "
+        f"gate live): {_m3f_rehearsal_wrong()} runs wrongly answered on each arm, and the right "
+        f"guide in {right['haiku-3d2']} of how-to runs on `haiku-3d2` and {right['sonnet-3d2']} on "
+        "`sonnet-3d2`"
+    )
+    for arm in DEFAULTS:
+        assert (ROOT / f"docs/evals/2026-11-20-m3f-rehearsal-{arm}.md").exists()
+        _doc_says(f"(evals/2026-11-20-m3f-rehearsal-{arm}.md)")
+    # The blind month and its stop rule, as committed before its seal.
+    _doc_says(
+        f"- **The blind month waits for the owner's go.** `held_out_month3`, {_m3f_month3_size()} "
+        "tickets, was written blind and sealed after its pass rules and stop rule were committed"
+    )
+    rules = (ROOT / "docs/plans/milestone-3f-month3-rules.md").read_text()
+    stop = rules.split("<!-- stop-rule:start -->")[1].split("<!-- stop-rule:end -->")[0]
+    assert "If month3 fails, guide answers keep waiting for one click from a person in IT" in stop
+    assert "The picker and the gate are not changed again" in stop
+    _doc_says(
+        "- **The stop rule:** if month3 fails, guide answers keep waiting for the IT click, and "
+        "the picker and the gate are not changed again."
+    )
+
+
+def test_doc_the_limit_states_the_gate_has_run_on_no_blind_month() -> None:
+    _m3f_month3_size()
+    _doc_says(
+        "- **The how-to gate has run on no blind month.** Its numbers are a dev estimate, composed "
+        "with recorded runs, and a rehearsal on tuning data ([results]"
+        "(#the-how-to-gate-milestone-3f-dev-and-tuning-numbers-only)). `held_out_month3` will "
+        "measure it once, after the owner's go."
+    )
+    slug = re.sub(r"[^\w\- ]", "", M3F_SECTION.removeprefix("## ").lower()).replace(" ", "-")
+    assert slug == "the-how-to-gate-milestone-3f-dev-and-tuning-numbers-only"
