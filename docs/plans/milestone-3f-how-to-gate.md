@@ -83,6 +83,7 @@ Each paid step runs under a watchdog that stops it before its own estimate plus 
 
 - **The pick: G3 on both arms**, the only version that passed the selection rule on either model ([the dev report](../evals/2026-11-20-m3f-gate-dev.md)). It is frozen for month3 by name and SHA-256 in the month runner, before the rehearsal.
 - **A code bug was found during the tuning and fixed:** the gate's reply limit cut Sonnet's replies short. The prompts didn't change; the report keeps both cut-short runs.
+- **Month3's result will report how many replies were cut short, per task** (triage, the own-account check, the gate and the picker), because the frozen picker's reply limit stays at 64 tokens.
 - **The rehearsal passed both rules in both arms,** with the gate live ([haiku-3d2](../evals/2026-11-20-m3f-rehearsal-haiku-3d2.md), [sonnet-3d2](../evals/2026-11-20-m3f-rehearsal-sonnet-3d2.md)). It is tuning data, so its numbers are optimistic.
 - **Month3 was written and sealed before the tuning finished,** which is not the order this plan gives. It is stated in its pull request.
 - **Stopped here,** as the owner ruled. The sealed run needs the owner's go.

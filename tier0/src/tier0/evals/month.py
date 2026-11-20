@@ -313,7 +313,10 @@ def knowledge_picker(setup: Setup, model: ModelAdapter, prompt: str | None = Non
 
 
 class CountedModel:
-    """Passes every call through and counts calls and tokens per task, for the report."""
+    """Passes every call through and counts calls and tokens per task, for the report. It also
+    counts the replies that didn't finish normally: `cut_short` when the reply limit cut it
+    (finish "length"), `not_stop` for any other finish but "stop" (a refusal, say). It only
+    counts: the reply goes on unchanged, and its parser decides, as before."""
 
     def __init__(self, inner: ModelAdapter) -> None:
         self._inner = inner
@@ -321,6 +324,8 @@ class CountedModel:
         self.model = inner.model
         self.calls: Counter[str] = Counter()
         self.failed: Counter[str] = Counter()
+        self.cut_short: Counter[str] = Counter()
+        self.not_stop: Counter[str] = Counter()
         self.input_tokens: Counter[str] = Counter()
         self.output_tokens: Counter[str] = Counter()
         self.cache_write_tokens: Counter[str] = Counter()
@@ -353,6 +358,10 @@ class CountedModel:
         self.output_tokens[request.task] += response.output_tokens
         self.cache_write_tokens[request.task] += getattr(response, "cache_write_tokens", 0)
         self.cache_read_tokens[request.task] += getattr(response, "cache_read_tokens", 0)
+        if response.finish_reason == "length":
+            self.cut_short[request.task] += 1
+        elif response.finish_reason != "stop":
+            self.not_stop[request.task] += 1
         return response
 
     def describe(self) -> dict[str, str]:
@@ -1348,10 +1357,26 @@ def render(result: dict[str, Any], command: str) -> str:
         "- Model calls: "
         + (", ".join(f"{task} {n:,}" for task, n in c["calls"].items()) or "none")
         + f". Cost from the reported tokens: ${c['cost_usd']:.4f}.",
+        *_finish_lines(c),
         *_cache_lines(c),
         "",
     ]
     return "\n".join(lines)
+
+
+def _finish_lines(c: Mapping[str, Any]) -> list[str]:
+    """The bullet for replies that didn't finish normally, per task, zeros included. Only a run
+    that counted them has it (2026-11-20 on): an older result renders as it was written."""
+    if "cut_short" not in c:
+        return []
+
+    def by_task(key: str) -> str:
+        return ", ".join(f"{task} {c[key].get(task, 0):,}" for task in c["calls"]) or "none"
+
+    return [
+        f'- Replies cut short by the reply limit (finish "length"): {by_task("cut_short")}. '
+        f'Other replies that did not finish with "stop" (a refusal, say): {by_task("not_stop")}.'
+    ]
 
 
 def _cache_lines(c: Mapping[str, Any]) -> list[str]:
@@ -1691,6 +1716,8 @@ def main(
     usd = 0.0
     calls: Counter[str] = Counter()
     failed: Counter[str] = Counter()
+    cut_short: Counter[str] = Counter()
+    not_stop: Counter[str] = Counter()
     tokens_in: Counter[str] = Counter()
     tokens_out: Counter[str] = Counter()
     cache_written: Counter[str] = Counter()
@@ -1714,12 +1741,18 @@ def main(
             )
         calls.update(m.calls)
         failed.update(m.failed)
+        cut_short.update(m.cut_short)
+        not_stop.update(m.not_stop)
         tokens_in.update(m.input_tokens)
         tokens_out.update(m.output_tokens)
         cache_written.update(m.cache_write_tokens)
         cache_read.update(m.cache_read_tokens)
     config |= {
         "calls": {task: calls[task] for task in sorted(calls)},
+        # Per task, zeros included: replies cut short by the reply limit, and other replies
+        # that didn't finish with "stop". Counted only; their routing is unchanged.
+        "cut_short": {task: cut_short[task] for task in sorted(calls)},
+        "not_stop": {task: not_stop[task] for task in sorted(calls)},
         "failed_calls": dict(failed),
         "input_tokens": dict(tokens_in),
         "output_tokens": dict(tokens_out),
