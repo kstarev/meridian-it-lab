@@ -1,3 +1,11 @@
+# Every path has a code owner, so every pull request into main needs the owner's review (or the
+# owner's own bypass). Without this line, a pull request that touches no line below could be
+# merged with one approval from any account with write access, and the plan bot's GitHub App
+# has write access and can approve pull requests. Later lines win; they name the same owner and
+# say why those paths matter most.
+* @kstarev
+# This file and dependabot.yml: who counts as a code owner, here and in the Plan approvals check.
+/.github/ @kstarev
 # Protect the access policy: every change needs a review from the code owner (AAC-007).
 /access/policy/ @kstarev
 /access/src/meridian_access/policy/ @kstarev

@@ -80,7 +80,9 @@ def test_apply_has_no_secrets_and_no_real_system_setting():
 def test_approvals_always_runs_on_pr_and_review_events_and_says_what_protects_it():
     data, triggers = load(APPROVALS)
     assert set(triggers) == {"pull_request", "pull_request_review"}
-    assert set(triggers["pull_request"]["types"]) == {"opened", "synchronize", "reopened"}
+    # `edited` covers a change of base branch: the check must run again against the new base.
+    assert set(triggers["pull_request"]["types"]) == {"opened", "synchronize", "reopened", "edited"}
+    assert "Changing the base branch counts as an edit" in comment(APPROVALS)
     (job,) = data["jobs"].values()
     assert "if" not in job  # always runs, so it can be a required check
     text = comment(APPROVALS)
@@ -144,6 +146,21 @@ def test_codeowners_cover_the_workflows_and_the_plan_directory():
     assert owned["/.github/workflows/"] == ["@kstarev"]
     assert owned["/access/plan/"] == ["@kstarev"]
     assert owned["/access/policy/"] == ["@kstarev"]
+
+
+def test_codeowners_cover_every_path_and_the_file_itself():
+    """Every pull request needs the owner's review: the plan bot's App has write access and can
+    approve, so one approval from any account must never be enough. The `*` line comes first,
+    because GitHub uses the last line that matches a path."""
+    lines = [
+        ln.split()
+        for ln in (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.startswith("#")
+    ]
+    assert lines[0] == ["*", "@kstarev"]
+    assert ["/.github/", "@kstarev"] in lines
+    # Every line names the owner and no one else, so no later line takes a path away from them.
+    assert all(owners == ["@kstarev"] for _, *owners in lines)
 
 
 def test_approvals_check_the_part_the_pull_request_touches_and_fail_on_both():

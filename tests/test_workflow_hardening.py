@@ -6,6 +6,7 @@ on a small broken workflow, to show that it can fail.
 """
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -389,3 +390,115 @@ def test_the_docs_page_names_only_tests_that_are_in_this_file():
     named = set(re.findall(r"`(test_\w+)`", page))
     assert len(named) >= 10
     assert named <= {name for name in globals() if name.startswith("test_")}
+
+
+# Two more rules from the review of 2026-11-20: where the paid runs take their spend ledger
+# from, and what the Pages workflow publishes.
+
+RUN_LOOKUP = "gh run list"
+MAIN_RUNS_ONLY = ("--branch main", "--event workflow_dispatch")
+PAGES_WORKFLOW = WORKFLOW_DIR / "pages.yml"
+
+
+def run_lookups_off_main(text):
+    """`gh run list` commands that could pick a run started on another branch.
+
+    The paid workflows take the spend ledger from the newest earlier run. A run of the same
+    workflow file started on another branch runs that branch's version of the file, so it could
+    upload a ledger with less spend in it. Only main's own manual runs may be used.
+    """
+    data, _ = parse(text)
+    found = []
+    for job_id, job in data["jobs"].items():
+        for step in job.get("steps", []):
+            script = str(step.get("run", "")).replace("\\\n", " ")
+            for line in script.splitlines():
+                if RUN_LOOKUP in line and not all(flag in line for flag in MAIN_RUNS_ONLY):
+                    found.append(f"{job_id}: {line.strip()}")
+    return found
+
+
+def unsafe_site_entries(listing):
+    """Entries of `git ls-files -s -- site` that must never be published.
+
+    actions/upload-pages-artifact packs the folder with `tar --dereference`, so a link in site/
+    would publish the file it points to, a sealed set included. A submodule or a file with a
+    sealed set's name has no place on the site either.
+    """
+    found = []
+    for line in listing.splitlines():
+        meta, _, path = line.partition("\t")
+        if meta.split()[0] in {"120000", "160000"}:
+            found.append(f"{path}: a link or a submodule")
+        elif path.rsplit("/", 1)[-1].startswith("held_out_"):
+            found.append(f"{path}: a sealed set's name")
+    return found
+
+
+def a_workflow_that_runs(script):
+    lines = "\n".join(f"          {line}" for line in script.splitlines())
+    return f"""\
+on:
+  workflow_dispatch:
+permissions: {{}}
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+    steps:
+      - name: Fetch the ledger
+        run: |
+{lines}
+"""
+
+
+def test_every_run_lookup_takes_mains_own_manual_runs_only():
+    with_lookups = {p.name for p in WORKFLOWS if RUN_LOOKUP in p.read_text(encoding="utf-8")}
+    # The three paid workflows look the ledger up, so the rule can't pass by finding none.
+    assert with_lookups >= PAID_WORKFLOWS
+    assert across_the_repo(run_lookups_off_main) == {}
+
+
+def test_the_run_lookup_rule_fails_without_the_branch_or_the_event():
+    lookup = "gh run list --workflow x.yml --status completed --limit 1"
+    assert run_lookups_off_main(a_workflow_that_runs(lookup))
+    assert run_lookups_off_main(a_workflow_that_runs(f"{lookup} --branch main"))
+    assert run_lookups_off_main(a_workflow_that_runs(f"{lookup} --event workflow_dispatch"))
+    both = f"{lookup} --branch main --event workflow_dispatch"
+    assert run_lookups_off_main(a_workflow_that_runs(both)) == []
+    # A command split over lines with `\` is read as one line.
+    split = f"{lookup} \\\n  --branch main --event workflow_dispatch \\\n  --json databaseId"
+    assert run_lookups_off_main(a_workflow_that_runs(split)) == []
+    assert run_lookups_off_main(a_workflow_that_runs(f"{lookup} \\\n  --branch main"))
+
+
+def test_the_pages_workflow_publishes_site_only_and_site_holds_no_link_or_sealed_name():
+    data, _ = parse(PAGES_WORKFLOW.read_text(encoding="utf-8"))
+    uploads = [
+        step
+        for job in data["jobs"].values()
+        for step in job.get("steps", [])
+        if "upload-pages-artifact" in str(step.get("uses", ""))
+    ]
+    assert [step["with"]["path"] for step in uploads] == ["site"]
+    listing = subprocess.run(
+        ["git", "ls-files", "-s", "--", "site"],  # noqa: S607 - git from PATH, fixed arguments
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "site/index.html" in listing  # the listing is real, so the rule can't pass on nothing
+    assert unsafe_site_entries(listing) == []
+
+
+def test_the_site_rule_fails_on_a_link_a_submodule_and_a_sealed_name():
+    ok = "100644 0123456789abcdef0123456789abcdef01234567 0\tsite/index.html"
+    assert unsafe_site_entries(ok) == []
+    link = "120000 0123456789abcdef0123456789abcdef01234567 0\tsite/data.json"
+    assert unsafe_site_entries(link)
+    submodule = "160000 0123456789abcdef0123456789abcdef01234567 0\tsite/vendor"
+    assert unsafe_site_entries(submodule)
+    sealed = "100644 0123456789abcdef0123456789abcdef01234567 0\tsite/held_out_x.jsonl"
+    assert unsafe_site_entries(sealed)

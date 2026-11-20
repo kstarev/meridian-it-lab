@@ -48,7 +48,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p out
-          id=$(gh run list --workflow access-ai-compare.yml --status completed --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          # Main's own runs only: a run of this file started on another branch could upload a
+          # ledger with less spend in it.
+          id=$(gh run list --workflow access-ai-compare.yml --status completed --limit 1 --branch main --event workflow_dispatch --json databaseId --jq '.[0].databaseId // empty')
           if [ -n "$id" ]; then
             gh run download "$id" -n access-ai-ledger -D out/
           else
