@@ -13,6 +13,8 @@ test_apply_properties.py.
 
 Gap G2 (the owner's ruling, 2026-11-19: protection covers every name of a protected account,
 aliases included) was pinned by the `test_g2_*` tests as strict xfails and is fixed by AAC-018.
+Gap G7 (found in review, 2026-11-20: a Slack record the person can edit spreads that protection to
+their own HR address) is pinned by the `test_g7_*` tests as strict xfails.
 
 The runs are fixed (derandomize) and keep no example database.
 """
@@ -35,6 +37,7 @@ from meridian_access.mocks import GoogleMock, OktaMock, SlackMock
 from meridian_access.models import Account
 from meridian_access.plan import Plan
 from meridian_access.policy.load import load_policy
+from meridian_dataset.access.model import HrisEvent, HrisRecord
 
 SETTINGS = settings(derandomize=True, max_examples=200, database=None, deadline=None)
 BASE = load_policy()
@@ -452,3 +455,209 @@ def test_g2_apply_drops_every_change_that_names_a_protected_account(system, name
     assert result.dropped_break_glass == [row]
     assert result.applied == []
     assert (mocks.okta.data, mocks.slack.data) == before
+
+
+# --- gap G7: protection spread through a record the person can edit -----------------------------
+#
+# Found in review (2026-11-20, finding F2). Since AAC-018 every record that shares a name is one
+# account, whoever controls the record. A person can edit their own Slack profile (its email, and
+# the userName a Slack user can plant). So a leaver who sets their Slack email to a break-glass
+# address, or their Slack userName to a break-glass name, links their own HR work address to it:
+# matching marks their Okta and Google users break-glass, the diff's last word and apply's guard
+# drop their suspension, and each never_touch row says "listed in the break-glass policy", which
+# their address is not. They are never offboarded. These are strict xfails until the owner rules.
+
+G7_BG = f"breakglass-01@{D}"  # listed in POLICY
+G7_HR = f"ana.smith@{D}"  # the leaver's HR work address
+G7_SLACK = {
+    "slack email": Account(system="slack", account="ana.smith", email=G7_BG),
+    "slack userName": Account(system="slack", account="breakglass-01", email=G7_HR),
+}
+G7_OKTA = Account(system="okta", account=G7_HR, email=G7_HR)
+G7_GOOGLE = Account(system="google", account=G7_HR, email=G7_HR)
+G7_BG_OKTA = Account(system="okta", account=G7_BG, email=G7_BG)  # the real break-glass user
+G7_GAP = (
+    "gap G7: a Slack record the person can edit spreads break-glass protection to their HR address"
+)
+g7 = pytest.mark.xfail(strict=True, reason=G7_GAP)
+g7_slack = pytest.mark.parametrize("slack", G7_SLACK.values(), ids=G7_SLACK)
+
+
+def _g7_leaver() -> HrisRecord:
+    return HrisRecord(
+        employee_id="E1",
+        given_name="Ana",
+        family_name="Smith",
+        preferred_name="",
+        work_email=G7_HR,
+        personal_email="ana@mail.example",
+        job_title="Backend Engineer",
+        department="Engineering",
+        team="Core",
+        manager_id="",
+        country="DE",
+        hub="x",
+        employment_type="employee",
+        status="terminated",
+        start_date="2025-01-01",
+        end_date="2026-11-10",
+        leave_start="",
+        leave_end="",
+    )
+
+
+G7_EVENTS = (HrisEvent(9, "2026-11-10", "E1", "terminate", (), "hr"),)
+
+
+def _g7_state(slack: Account) -> ActualState:
+    return ActualState((G7_OKTA, G7_GOOGLE, slack, G7_BG_OKTA), (), None)
+
+
+def _g7_changes(slack: Account, matches: MatchResult | None = None):
+    leaver = _g7_leaver()
+    actual = _g7_state(slack)
+    if matches is None:
+        matches = match_accounts(actual.accounts, [leaver], POLICY)
+    desired = desired_state([leaver], G7_EVENTS, POLICY)
+    return build_changes(desired, actual, matches, POLICY, records=[leaver], events=G7_EVENTS)
+
+
+def _suspended(result) -> set[tuple[str, str]]:
+    return {(c.system, c.account) for c in (*result.changes, *result.held) if c.action == "suspend"}
+
+
+@g7
+@g7_slack
+def test_g7_matching_places_a_leavers_own_records_on_them_whatever_their_slack_record_says(slack):
+    result = match_accounts(_g7_state(slack).accounts, [_g7_leaver()], POLICY)
+    for a in (G7_OKTA, G7_GOOGLE):
+        m = result.matches.get(a.key)
+        assert m is not None and (m.employee_id, m.rule) == ("E1", "exact_email")
+
+
+@g7
+@g7_slack
+def test_g7_a_leaver_is_offboarded_whatever_their_slack_record_says(slack):
+    result = _g7_changes(slack)
+    assert {("okta", G7_HR), ("google", G7_HR)} <= _suspended(result)
+    assert [c for c in result.changes if c.action == "never_touch" and c.account == G7_HR] == []
+
+
+@g7
+@g7_slack
+def test_g7_the_diffs_last_word_keeps_a_leavers_suspension(slack):
+    # matching placed the leaver's records on them: the last word must not drop the suspension
+    owner = Match("E1", "exact_email", 1.0)
+    marked = Match("", "break_glass", 1.0, "listed")
+    matches = MatchResult(
+        {G7_OKTA.key: owner, G7_GOOGLE.key: owner, slack.key: marked, G7_BG_OKTA.key: marked},
+        [],
+        [],
+    )
+    result = _g7_changes(slack, matches)
+    assert {("okta", G7_HR), ("google", G7_HR)} <= _suspended(result)
+    assert not [w for w in result.warnings if "dropped: break-glass account" in w]
+
+
+def _g7_mocks(slack: Account) -> Mocks:
+    okta = {
+        "users": [
+            {
+                "id": uid,
+                "status": "ACTIVE",
+                "created": "2025-01-01T00:00:00.000Z",
+                "lastLogin": None,
+                "profile": {"login": login, "email": login, "firstName": "", "lastName": ""},
+            }
+            for uid, login in (("00u1", G7_HR), ("00u2", G7_BG))
+        ],
+        "apps": [],
+        "assignments": [],
+        "system_log": [],
+    }
+    google = {
+        "users": [
+            {
+                "id": "g1",
+                "primaryEmail": G7_HR,
+                "name": {"givenName": "Ana", "familyName": "Smith", "fullName": "Ana Smith"},
+                "suspended": False,
+                "orgUnitPath": "/",
+                "aliases": [],
+                "creationTime": "",
+                "lastLoginTime": "",
+            }
+        ]
+    }
+    slack_data = {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+        "totalResults": 1,
+        "Resources": [
+            {
+                "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+                "id": "U1",
+                "userName": slack.account,
+                "displayName": "Ana Smith",
+                "emails": [{"value": slack.email, "primary": True}],
+                "active": True,
+            }
+        ],
+    }
+    return Mocks(OktaMock(okta), GoogleMock(google), SlackMock(slack_data))
+
+
+@g7
+@g7_slack
+def test_g7_apply_suspends_a_leaver_whatever_their_slack_record_says(slack):
+    mocks = _g7_mocks(slack)
+    row = {
+        "type": "leaver_access_left",
+        "employee_id": "E1",
+        "account": G7_HR,
+        "system": "okta",
+        "app_id": "",
+        "app_name": "",
+        "action": "suspend",
+        "reason": "test",
+        "evidence": [],
+        "cause_date": "2026-11-10",
+        "hold": "",
+    }
+    plan = Plan(
+        {
+            "version": 2,
+            "part": "main",
+            "as_of": "2026-12-01",
+            "actual_state_sha256": actual_state(mocks, POLICY, sleep=lambda s: None).digest(),
+            "changes": [row],
+            "held": [],
+            "warnings": [],
+            "manual_tasks": [],
+            "approvals_required": 1,
+        }
+    )
+    result = apply_plan(
+        plan,
+        mocks,
+        mode="mock-live",
+        approvals=2,
+        policy=POLICY,
+        write_token=issue_write_tokens(mocks),
+        sleep=lambda s: None,
+        rebuild=lambda state: plan,
+    )
+    assert not result.refused_reason
+    assert result.dropped_break_glass == []
+    assert result.applied == [row]
+    status = {u["profile"]["login"]: u["status"] for u in mocks.okta.data["users"]}
+    assert status == {G7_HR: "SUSPENDED", G7_BG: "ACTIVE"}
+
+
+@g7
+@g7_slack
+def test_g7_break_glass_evidence_says_listed_only_for_a_name_the_policy_lists(slack):
+    rows = [c for c in _g7_changes(slack).changes if c.action == "never_touch"]
+    assert rows  # the real break-glass user, at least
+    for c in rows:
+        if "listed in the break-glass policy" in c.evidence:
+            assert policy_kind(POLICY, c.account) == "listed", (c.system, c.account, c.evidence)
