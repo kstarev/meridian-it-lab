@@ -7,8 +7,9 @@
 - If a request failed after being sent, or its usage can't be read, the worst-case cost is
   written to the ledger (the money may have been spent). The SDK client has no retries and
   a 60 s timeout, so one call is one request.
-- A refusal, a cut-off answer (max_tokens), malformed JSON, JSON that doesn't fit the
-  schema, or any API error gives None: no suggestion, never a guess.
+- A refusal, a cut-off answer (max_tokens), malformed JSON, an object that names a key
+  twice (`reply_json`), JSON that doesn't fit the schema, or any API error gives None: no
+  suggestion, never a guess.
 - Before every call the worst-case cost is checked against the spend ledger (SpendCapReached
   is not swallowed); the actual cost is recorded after.
 """
@@ -20,6 +21,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from meridian_access.ai.pricing import HAIKU, worst_case_usd
+from meridian_access.ai.reply_json import loads_reply
 from meridian_access.ai.spend import SpendLedger
 
 INPUT_OVERHEAD_TOKENS = 512
@@ -155,7 +157,7 @@ class ClaudeClient:
             return None  # on a refusal the content is not read
         try:
             text = "".join(b.text for b in response.content if b.type == "text")
-            data = json.loads(text)
+            data = loads_reply(text)  # a doubled key is a ValueError, as malformed JSON is
         except (AttributeError, TypeError, ValueError):
             return None
         if not isinstance(data, dict) or not Draft202012Validator(schema).is_valid(data):
