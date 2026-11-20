@@ -129,7 +129,7 @@ Allowed before, blocked now: Grep with no path in a folder that holds a sealed f
 
 ### The review of 2026-11-20
 
-An adversarial review tried more than 150 crafted calls on throwaway repositories with dummy sealed files. 105 were allowed and printed the dummy text. All of those are blocked now, except the ones listed in "What it misses". Allowed before, blocked now:
+An adversarial review tried crafted calls on throwaway repositories with dummy sealed files, and ran each one the hook allowed. Many printed the dummy text. They are blocked now, except the ones listed in "What it misses". Allowed before, blocked now:
 
 - Options that swallowed the file: `cat -e`, `sort -f`, `tail -f`, `xxd -e`, `diff -e`. A file read through an option: `jq -f x`, `sed -f x`, `diff --from-file=x`, `dd if=x`.
 - `( cat x )`, `echo "$(cat x)"`, `x="$(grep -rn foo pools)"`, `$(<x)`, `tr a b < x`, `while read l; do ...; done < x`, `cat<x`, `exec 3<x`.
