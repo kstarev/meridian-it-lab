@@ -149,3 +149,20 @@ def test_the_reply_has_room_on_every_model() -> None:
     """At 16 and at 64 tokens Sonnet's replies were cut short (finish "length") before any
     JSON. The gate gets what triage gets."""
     assert gate_request("x", GATE_VERSIONS["G3"]).max_tokens == 1024
+
+
+def test_the_dev_report_is_the_result_files_rendered() -> None:
+    """Every row of the published table comes from its result file."""
+    root = Path(__file__).resolve().parents[2] / "docs" / "evals"
+    files = ("G1-haiku-3d2", "G2-haiku-3d2", "G3-haiku-3d2", "G3-sonnet-3d2")
+    results = [
+        json.loads((root / "2026-11-20-m3f-gate-dev" / f"gate-{f}.json").read_text()) for f in files
+    ]
+    report = (root / "2026-11-20-m3f-gate-dev.md").read_text()
+    table = gate_dev.render(results).split("## Notes")[0]
+    assert table in report
+    by = {(r["version"], r["arm"]): r for r in results}
+    assert by[("G3", "haiku-3d2")]["passes_every_set"]
+    assert by[("G3", "sonnet-3d2")]["passes_every_set"]
+    assert not by[("G1", "haiku-3d2")]["passes_every_set"]
+    assert not by[("G2", "haiku-3d2")]["passes_every_set"]
