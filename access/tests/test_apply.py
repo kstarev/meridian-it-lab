@@ -1140,3 +1140,98 @@ def test_hr_flags_are_not_manual_tasks_anywhere(world_dir, policy):
     result, _ = run_hand(hand, world_dir, policy, mocks, approvals=1)
     assert result.manual_tasks == [] and [c["account"] for c in result.not_applied] == ["E1"]
     assert not any(line.startswith("manual task") for line in result.log)
+
+
+# ---------------------------------------------------------------- one name, one account
+
+
+def _slack_twin(world_dir: Path, plan: Plan, dst: Path) -> tuple[dict, dict]:
+    """A copy of the world with one more Slack user, listed first: its userName is a leaver's in
+    capitals, and its email is an active person's work email, so matching gives it to that
+    person, who keeps Slack. Returns (the leaver's Slack change, the twin user)."""
+    shutil.copytree(world_dir, dst)
+    leaver = next(
+        c
+        for c in plan.changes
+        if c["system"] == "slack" and c["type"] == "leaver_access_left" and c["action"] == "remove"
+    )
+    hris = json.loads((dst / "hris.json").read_text(encoding="utf-8"))
+    slack = json.loads((dst / "slack_scim.json").read_text(encoding="utf-8"))
+    emails = {e["value"].casefold() for u in slack["Resources"] for e in u.get("emails", [])}
+    active = next(
+        r
+        for r in hris["records"]
+        if r["status"] == "active" and r["work_email"].casefold() in emails
+    )
+    twin = {
+        **slack["Resources"][0],
+        "id": "UTWIN000001",
+        "userName": leaver["account"].upper(),
+        "displayName": "twin",
+        "emails": [{"value": active["work_email"], "primary": True}],
+        "active": True,
+    }
+    assert twin["userName"] != leaver["account"]
+    slack["Resources"].insert(0, twin)
+    slack["totalResults"] = len(slack["Resources"])
+    (dst / "slack_scim.json").write_text(json.dumps(slack), encoding="utf-8")
+    return leaver, twin
+
+
+def test_a_case_twin_listed_first_is_left_alone_and_the_named_account_is_changed(
+    plan, world_dir, policy, tmp_path
+):
+    dst = tmp_path / "world"
+    leaver, twin = _slack_twin(world_dir, plan, dst)
+    main, _ = split_plan(build_plan(dst, policy), policy)
+    same_name = [
+        c
+        for c in main.changes
+        if c["system"] == "slack" and c["account"].casefold() == leaver["account"].casefold()
+    ]
+    assert [(c["account"], c["action"]) for c in same_name] == [(leaver["account"], "remove")]
+    mocks = make_mocks(dst)
+    result, _ = run(main, dst, policy, mocks, approvals=1)
+    assert not result.refused_reason and not result.failed
+    users = {u["id"]: u for u in mocks.slack.data["Resources"]}
+    own = next(u for u in users.values() if u["userName"] == leaver["account"])
+    assert users[twin["id"]]["active"] is True  # the active person keeps their Slack
+    assert own["active"] is False  # the leaver loses theirs
+    sent = [c["call"] for c in result.applied if c["system"] == "slack"]
+    assert f"PATCH /scim/v2/Users/{own['id']}" in sent
+    assert f"PATCH /scim/v2/Users/{twin['id']}" not in sent
+
+
+def test_a_second_okta_app_with_the_same_name_gets_no_assignment(plan, world_dir, policy):
+    add = next(c for c in plan.changes if c["system"] == "okta" and c["action"] == "add")
+    mocks = make_mocks(world_dir)
+    real = next(a["id"] for a in mocks.okta.data["apps"] if a["name"] == add["app_id"])
+    # made after the plan was built; with no assignments it does not change the state's hash
+    twin = {"id": "0oaTWIN000000001", "label": "Look-alike", "name": add["app_id"]}
+    mocks.okta.data["apps"].append({**twin, "status": "ACTIVE"})
+    assert (
+        actual_state(mocks, policy, world_dir / "exports").digest()
+        == (plan.data["actual_state_sha256"])
+    )
+    writes = write_calls(mocks)
+    result, _ = run(plan, world_dir, policy, mocks, approvals=1)
+    assert not any(a["appId"] == twin["id"] for a in mocks.okta.data["assignments"])
+    for app in (real, twin["id"]):
+        assert ("POST", f"/api/v1/apps/{app}/users") not in writes
+    failed = [c for c in result.failed if c["action"] == "add" and c["app_id"] == add["app_id"]]
+    assert failed and all("2 Okta apps are named" in c["error"] for c in failed)
+    assert not any(c["app_id"] == add["app_id"] for c in result.applied if c["action"] == "add")
+
+
+def test_the_cli_fails_when_an_account_changed_that_no_change_names(
+    parts, world_dir, tmp_path, monkeypatch, capsys
+):
+    plan, _ = parts
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(plan.json(), encoding="utf-8")
+    seen = apply_mod.ApplyResult(mode="mock-live")
+    seen.unexpected.append({"system": "google", "account": BG, "was": "active", "now": "x"})
+    monkeypatch.setattr(apply_mod, "apply_plan", lambda *a, **kw: seen)
+    argv = ["--plan", str(plan_file), "--world", str(world_dir), "--approvals", "1"]
+    assert apply_mod.main(argv) == 1
+    assert "changed outside the plan: 1" in capsys.readouterr().out

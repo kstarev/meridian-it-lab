@@ -12,7 +12,10 @@ The rules checked here, on a tiny made-up world of three mocks:
 - no change names a break-glass account (listed, by pattern, by its email or a Google alias,
   in any case or with spaces) and reaches a mock: it is dropped, and no write touches it;
 - apply refuses, before any write, a plan with fewer approvals than the larger of what the
-  file claims and what its changes need, and a plan whose state changed.
+  file claims and what its changes need, and a plan whose state changed;
+- a change changes only the account it names: when two accounts go by its name (case and
+  spaces ignored), the one with exactly its name, and when no single one has, neither, and the
+  change fails; an account that changed although no change names it is reported.
 
 Each run builds fresh mocks. No world, no network. The runs are fixed (derandomize) and keep no
 example database.
@@ -743,3 +746,178 @@ def test_later_changes_in_one_plan_see_what_earlier_ones_did():
     assert len(result.applied) == 5 and len(result.skipped_already_done) == 3
     ana = next(u for u in mocks.okta.data["users"] if u["id"] == "00u1")
     assert ana["status"] == "DEPROVISIONED"
+
+
+# --- one name, one account -----------------------------------------------------------------------
+
+
+def _slack_user(sid, name, email):
+    return {
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "id": sid,
+        "userName": name,
+        "displayName": name,
+        "emails": [{"value": email, "primary": True}],
+        "active": True,
+    }
+
+
+def _with_slack_first(*users):
+    mocks = make_mocks(ALL_ACTIVE)
+    mocks.slack.data["Resources"][:0] = list(users)
+    mocks.slack.data["totalResults"] = len(mocks.slack.data["Resources"])
+    return mocks
+
+
+def _active(mocks, sid):
+    return next(u["active"] for u in mocks.slack.data["Resources"] if u["id"] == sid)
+
+
+def test_a_name_that_only_case_tells_apart_changes_the_account_it_names_exactly():
+    mocks = _with_slack_first(_slack_user("U9", "ANA", f"ana.two@{D}"))
+    writes = spy_writes(mocks)
+    result = apply(mocks, [change("slack", "suspend", "ana")])
+    assert [p for _, p, _ in writes] == ["/scim/v2/Users/U1"]
+    assert _active(mocks, "U9") is True and _active(mocks, "U1") is False
+    assert not result.failed
+
+
+@SETTINGS
+@given(st.sampled_from(("Ana", " aNa ", "ANA ")))
+def test_a_name_two_accounts_go_by_and_neither_exactly_changes_neither(name):
+    mocks = _with_slack_first(_slack_user("U9", "ANA", f"ana.two@{D}"))
+    if name.strip() == "ANA":  # exactly the twin's name: it is the one named
+        mocks.slack.data["Resources"][0]["userName"] = "AnA"
+    before = snapshot(mocks)
+    writes = spy_writes(mocks)
+    result = apply(mocks, [change("slack", "suspend", name)])
+    assert writes == [] and snapshot(mocks) == before
+    assert [c["account"] for c in result.failed] == [name]
+    assert "2 accounts go by this name" in result.failed[0]["error"]
+    assert any(line.startswith("failed:") and "none was changed" in line for line in result.log)
+
+
+def test_one_exact_name_on_two_ids_changes_neither():
+    mocks = _with_slack_first(_slack_user("U9", "ana", f"ana.two@{D}"))
+    before = snapshot(mocks)
+    writes = spy_writes(mocks)
+    result = apply(mocks, [change("slack", "remove", "ana")], mode="dry-run")
+    assert result.applied == [] and [c["account"] for c in result.failed] == ["ana"]
+    live = apply(mocks, [change("slack", "remove", "ana")])
+    assert writes == [] and snapshot(mocks) == before
+    assert [c["account"] for c in live.failed] == ["ana"]
+
+
+def test_an_okta_add_for_a_name_two_users_go_by_assigns_nobody():
+    mocks = make_mocks(ALL_ACTIVE)
+    mocks.okta.data["users"].insert(
+        0,
+        {
+            "id": "00u9",
+            "status": "ACTIVE",
+            "created": "2025-01-01T00:00:00.000Z",
+            "lastLogin": None,
+            "profile": {"login": f"ANA@{D}", "email": f"ana.two@{D}"},
+        },
+    )
+    mocks.okta.data["assignments"] = []
+    writes = spy_writes(mocks)
+    result = apply(mocks, [change("okta", "add", f"Ana@{D}", "github")])
+    assert writes == [] and mocks.okta.data["assignments"] == []
+    assert [c["action"] for c in result.failed] == ["add"]
+
+
+def _misrouted_google_mocks():
+    """breakglass-01's Google user, listed first, has an alias that is cara's user id. The
+    Directory mock finds a user by id, primary email or alias, in list order, so a PATCH to
+    cara's id changes the break-glass user instead."""
+    mocks = make_mocks(ALL_ACTIVE)
+    users = mocks.google.data["users"]
+    bg = next(u for u in users if u["primaryEmail"] == f"breakglass-01@{D}")
+    users.remove(bg)
+    users.insert(0, {**bg, "aliases": ["g3"]})
+    return mocks
+
+
+def test_a_write_that_changes_an_account_the_plan_does_not_name_is_reported():
+    mocks = _misrouted_google_mocks()
+    result = apply(mocks, [change("google", "suspend", f"cara@{D}")])
+    google = {u["primaryEmail"]: u["suspended"] for u in mocks.google.data["users"]}
+    assert google[f"breakglass-01@{D}"] is True  # the mock really changed it
+    assert [c["account"] for c in result.failed] == [f"cara@{D}"]  # cara is not suspended
+    unexpected = result.to_dict().get("unexpected", [])
+    assert [(u["system"], u["account"], u["was"], u["now"]) for u in unexpected] == [
+        ("google", f"breakglass-01@{D}", "active", "suspended")
+    ]
+    assert (
+        f"failed: breakglass-01@{D} (google) changed during the apply (active -> suspended), "
+        "but no change in the plan names it"
+    ) in result.log
+
+
+def test_an_okta_write_that_also_changes_another_okta_user_is_reported():
+    mocks = make_mocks(ALL_ACTIVE)
+    original = mocks.okta.request
+
+    def also_ben(method, path, **kw):
+        response = original(method, path, **kw)
+        if method == "POST" and path.endswith("/lifecycle/suspend"):
+            next(u for u in mocks.okta.data["users"] if u["id"] == "00u2")["status"] = "SUSPENDED"
+        return response
+
+    mocks.okta.request = also_ben
+    result = apply(mocks, [change("okta", "suspend", f"ana@{D}")])
+    assert [c["account"] for c in result.applied] == [f"ana@{D}"]
+    rows = [(u["account"], u["app_id"], u["was"], u["now"]) for u in result.unexpected]
+    # ben's user and both of ben's app assignments; ana's (named by the plan) are not listed
+    assert rows == [
+        (f"ben@{D}", "", "active", "suspended"),
+        (f"ben@{D}", "github", "active", "suspended"),
+        (f"ben@{D}", "jira", "active", "suspended"),
+    ]
+    assert any(f"ben@{D} (okta/github) changed during the apply" in line for line in result.log)
+
+
+def test_changes_made_by_a_write_that_failed_are_still_looked_for():
+    mocks = make_mocks(ALL_ACTIVE)
+    original = mocks.slack.request
+
+    def lost(method, path, **kw):
+        if method == "PATCH":  # the write lands on another user, and every answer is lost
+            next(u for u in mocks.slack.data["Resources"] if u["id"] == "U3")["active"] = False
+            return type(original("GET", "/nope", token=kw["token"]))(503, {}, {})
+        return original(method, path, **kw)
+
+    mocks.slack.request = lost
+    result = apply(mocks, [change("slack", "suspend", "ana")])
+    assert result.applied == [] and [c["account"] for c in result.failed] == ["ana"]
+    unexpected = result.to_dict().get("unexpected", [])
+    assert [(u["account"], u["was"], u["now"]) for u in unexpected] == [
+        ("cara", "active", "deprovisioned")
+    ]
+
+
+def test_a_malformed_answer_when_reading_the_state_after_the_writes_keeps_the_record():
+    mocks = make_mocks(ALL_ACTIVE)
+    plan = hand_plan(mocks, [change("google", "suspend", f"ana@{D}")])
+    original, wrote = mocks.google.request, []
+
+    def fake(method, path, **kw):
+        response = original(method, path, **kw)
+        if method != "GET":
+            wrote.append(path)
+        elif wrote and path == "/admin/directory/v1/users":  # a user with no primaryEmail
+            users = [
+                {k: v for k, v in u.items() if k != "primaryEmail"} for u in response.json["users"]
+            ]
+            return type(response)(200, {}, {**response.json, "users": users})
+        return response
+
+    mocks.google.request = fake
+    result = apply(mocks, [], plan=plan)
+    assert wrote == ["/admin/directory/v1/users/g1"]
+    assert result.applied == [] and [c["account"] for c in result.failed] == [f"ana@{D}"]
+    assert (
+        result.failed[0]["error"] == "could not read the state to verify: KeyError 'primaryEmail'"
+    )
+    assert result.log[-1].startswith("applied 0,")
