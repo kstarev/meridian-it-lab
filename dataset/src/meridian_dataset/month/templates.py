@@ -22,13 +22,15 @@ TUNING_MONTH = "tuning_month"
 HELD_OUT_MONTH1 = "held_out_month1"
 HELD_OUT_MONTH2 = "held_out_month2"
 HELD_OUT_MONTH2B = "held_out_month2b"
-TEMPLATE_SETS = (TUNING_MONTH, HELD_OUT_MONTH1, HELD_OUT_MONTH2, HELD_OUT_MONTH2B)
-# Sets a model may run on only by their own name, at their one final test. None is sealed until
-# the next blind month is added. held_out_month2 and held_out_month2b were written blind and
-# sealed on 2026-11-18 after their pass rules were committed
-# (docs/plans/milestone-3e-month2-rules.md, docs/plans/milestone-3e-month2b-rules.md), ran once
-# on 2026-11-19 and are spent (ADR-052).
-SEALED_SETS: frozenset[str] = frozenset()
+HELD_OUT_MONTH3 = "held_out_month3"
+TEMPLATE_SETS = (TUNING_MONTH, HELD_OUT_MONTH1, HELD_OUT_MONTH2, HELD_OUT_MONTH2B, HELD_OUT_MONTH3)
+# Sets a model may run on only by their own name, at their one final test. held_out_month3 was
+# written blind from docs/plans/briefs/month3-brief.md and sealed on 2026-11-19, after its pass
+# rules and stop rule were committed (docs/plans/milestone-3f-month3-rules.md). held_out_month2
+# and held_out_month2b were written blind and sealed on 2026-11-18 after their pass rules were
+# committed (docs/plans/milestone-3e-month2-rules.md, docs/plans/milestone-3e-month2b-rules.md),
+# ran once on 2026-11-19 and are spent (ADR-052).
+SEALED_SETS: frozenset[str] = frozenset({HELD_OUT_MONTH3})
 # Sets that had their one final test, with its date. Each is a dev set since: it may be read
 # and tuned on, and every number measured on it from then on is "dev, not blind".
 SPENT_SETS: dict[str, str] = {
@@ -43,6 +45,12 @@ DEFAULT_SEEDS = {
     HELD_OUT_MONTH1: 7411,
     HELD_OUT_MONTH2: 2718,
     HELD_OUT_MONTH2B: 3141,
+    HELD_OUT_MONTH3: 4813,
+}
+# Tickets a set's month adds on top of the realistic mix of MONTH_SIZE, per kind. Only
+# held_out_month3 has any: 25 more of each of the four kinds its rules name, 400 tickets in all.
+EXTRA_TICKETS: dict[str, dict[str, int]] = {
+    HELD_OUT_MONTH3: {"prompt_injection": 25, "app_issue": 25, "hardware": 25, "chitchat": 25},
 }
 
 KINDS: tuple[str, ...] = (
