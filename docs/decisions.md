@@ -808,7 +808,7 @@ No model had run on held-out v2 and no results existed, so it could still grow.
 
 ## ADR-035: Milestone 4, Knowledge: answers from approved runbooks, picked by the AI and posted by code
 
-**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job was built on 2026-11-17, code only, on the stub and a mock of GitHub, with no scheduled workflow ([as built](plans/milestone-4-knowledge.md#the-weekly-drafting-job-as-built)). Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person).
+**Date:** 2026-11-14 · **Status:** Accepted. Built and tuned on tuning data on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md)); the sealed how-to test ran on 2026-11-16: rules 2 and 5 failed, and nothing was posted to a person (ADR-046, which makes Sonnet the picker's model); on 2026-11-17 the picker was wired into the Slack flow after triage, behind the agent option `guide_picker`, off by default, on mock adapters only ([as wired](plans/milestone-4-knowledge.md#as-wired)); the weekly drafting job was built on 2026-11-17, code only, on the stub and a mock of GitHub, with no scheduled workflow ([as built](plans/milestone-4-knowledge.md#the-weekly-drafting-job-as-built)). Adds a milestone to the frozen scope (2026-11-08), so it needs this ADR. Amended on 2026-11-16 by ADR-040 (how the sealed test runs) and ADR-041 (broken hardware, app errors and several requests go to a person). Amended on 2026-11-19 by ADR-053: a picked guide waits for one click from a person in IT before it is posted.
 
 **Context:** tier0 answers one request type today. How-to questions are common, and their answers already live in the IT team's guides. ADR-005 (the weekly learning loop) and ADR-010 (memory as a reviewed Git repo) set where that knowledge comes from and how it's reviewed. They don't say how tier0 answers from it, what it must never answer, or how that is tested.
 
@@ -1468,3 +1468,37 @@ Nothing leaked, but the answer key wants a person for both.
 - **No month is sealed in the month runner until `held_out_month3` is added.** The runner's checks for a sealed set stay, tested with these months standing in for sealed sets.
 - **Nothing measured on these months can show that a fix works.** That takes `held_out_month3`, written blind, with its pass rules and a stop rule committed before its seal (the owner's ruling 12 (a)).
 - **The other sealed sets are untouched.**
+
+## ADR-053: Guide answers wait for one click from a person in IT until a blind month passes
+
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling 12b of 2026-11-19: "guide answers wait for one click from a person in IT until a blind month passes"). Option 3 of the [failure note](evals/2026-11-19-m3e-failure-note.md). Amends ADR-035: code no longer posts a picked guide on its own. Follows ADR-052.
+
+**Context:**
+- The picker's fix, KS6A-H on `claude-sonnet-5-5`, failed rule 1 on both blind months, `held_out_month2` and `held_out_month2b`, in both arms. It answered some requests meant for a person with an approved guide. Rule 2 held, and no username was given out ([results](how-it-works.md#results-on-the-two-blind-months-milestone-3e), [failure note](evals/2026-11-19-m3e-failure-note.md)).
+- The first sealed month failed the same way, at the same picker (ADR-049).
+- ADR-052 then opened both months as dev sets, and only their failing tickets were read.
+- The failure note lists four options. The owner chose option 3: the picker's choice becomes a suggestion that someone on the IT team confirms before it is posted.
+
+**Decision:**
+- **A picked guide is a suggestion.** When the picker chooses a guide that every code gate allows, tier0 does not post it to the requester. Instead:
+  - the requester gets the existing hand-off reply, which says that the IT team will reply, with no new promise such as a time;
+  - the ticket goes to the queue for a person, as any hand-off does, with the hand-off code `guide_waits_for_it_click`;
+  - a draft goes to `#it-team`, the channel that already gets the proactive posts' previews (ADR-020). It holds the reply word for word and two buttons, "Send this guide" and "Take it over". It names the ticket and the guide, not the message or the requester.
+- **One click from a person in IT sends it, once.** A click counts only when:
+  - Slack signed it;
+  - it came from `#it-team`;
+  - the clicker is an active member of the IT team: the directory's IT department, the same people the weekly drafting job asks to review guides.
+
+  Anyone else's click is refused and written to the audit log, with who clicked and why. A second click does nothing. "Take it over" leaves the ticket with the person, and tier0 sends nothing. With the kill switch on, no click sends anything. A click on a ticket that a person has already moved out of the queue sends nothing.
+- **The output guard checks the reply twice:** before the draft is made, and again when the guide is sent. A guide it blocks never becomes a draft.
+- **One setting, on by default:** `GUIDE_ANSWERS_NEED_IT_CLICK` in `tier0/src/tier0/controls.py`, next to the kill switch and the rate limit. Turning it off is a deliberate change: that line, or the agent option `guide_answers_need_it_click=False`. Nothing reads it from the environment, a message or a model. Off, a picked guide is posted at once, as before.
+- **The stop condition:** the setting stays on until a blind month passes rules 1 and 2, in both arms. Turning it off then needs the owner's ruling and a new decision record.
+- **The evals don't change.** The month runner and the how-to eval score the picker's choice, as before. The click comes after the picker, and they leave it out on purpose. Their results stay comparable with every published one, and a blind month measures the same thing it measured before. Nothing was re-run for this, and no paid call was made.
+
+**Consequences:**
+- **It costs the hours the guides save.** A how-to question that a guide answers now waits for someone in IT, like a hand-off. Nobody on the IT team works in Asia-Pacific, so a requester there can wait for Berlin or Toronto to start work. What IT has to do is one click, not write the answer.
+- **A wrong guide no longer reaches a requester on the picker's choice alone.** A person sees the draft first. That person can still click on a wrong guide: the click is the safeguard, and how well people read drafts is not measured.
+- **Drafts are kept in memory.** After a restart, a click finds no draft and is refused. The ticket is already with a person, who answers by hand.
+- **The guide picker is still off by default** (the agent option `guide_picker`, ADR-035). This decision changes what happens when it is on.
+- **Mocks only.** The draft and the click run on the Slack mock, with the mock's signed button request. No real Slack call is made. A real Slack app would read the IT team from the directory or a Slack user group at click time.
+- **The site's demo shows the new flow:** the hand-off reply, the draft in `#it-team`, the click, then the guide.

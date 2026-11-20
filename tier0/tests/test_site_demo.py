@@ -74,11 +74,23 @@ def test_the_story_is_the_one_the_notes_describe() -> None:
     assert run["pick"]["guide"] == run["guide"]["id"] == run["source"]["expected_guide"]
     assert run["guide"]["approved"] and not run["guide"]["flagged"]
     assert run["tokens_issued"] == run["tool_calls"] == 0
+    # ADR-053, the default: the requester first gets the hand-off reply, with the AI disclosure
+    # and no guide, and the ticket waits with a person; the draft goes to #it-team.
+    assert "AI assistant" in run["handoff"]["text"]
+    assert run["guide"]["title"] not in run["handoff"]["text"]
+    assert run["ticket"]["state_after_draft"] == "Triage"
+    assert run["draft"]["channel"] == "#it-team"
+    assert run["draft"]["buttons"] == ["Send this guide", "Take it over"]
+    assert run["draft"]["reply"] in run["reply"]["text"]
+    # Then one signed click from #it-team by a member of the IT team sends the guide.
+    assert run["click"]["by"]["department"] == "IT"
+    assert run["click"]["in_it_team"] and run["click"]["signed_by_slack"]
+    assert (run["click"]["button"], run["click"]["result"]) == ("Send this guide", "sent")
+    # The reply is code's: the guide's title and link, after the hand-off reply.
+    assert "AI assistant" not in run["reply"]["text"]
+    assert run["guide"]["title"] in run["reply"]["text"]
     assert run["ticket"]["state_after_reply"] == "Awaiting reply"
     assert run["ticket"]["state_at_close"] == "Done"
-    # The reply is code's: the AI disclosure, then the guide's title and link.
-    assert "AI assistant" in run["reply"]["text"]
-    assert run["guide"]["title"] in run["reply"]["text"]
 
 
 def test_the_page_is_labelled_and_says_what_ran() -> None:
@@ -86,8 +98,10 @@ def test_the_page_is_labelled_and_says_what_ran() -> None:
     label = "Simulated Slack, fake data"
     hero = page.index('<div class="hero">')
     assert page.index(label, hero) < page.index("<h1>")
-    # Every Slack-style message carries the label too.
-    assert page.count('class="slack-bar"') == page.count(label) - 1 == 3
+    # Every Slack-style message carries the label too: the question, the hand-off reply, the
+    # draft in #it-team, the guide and the closing note.
+    assert page.count('class="slack-bar"') == page.count(label) - 1 == 5
+    assert page.count('class="msg-actions"') == 1  # only the draft has buttons
     assert "no AI model made the pick" in page
     assert "offline stub" in page
 

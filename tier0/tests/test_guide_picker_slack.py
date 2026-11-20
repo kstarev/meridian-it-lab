@@ -2,6 +2,11 @@
 
 The option is `guide_picker` (default off). Every picker here is a fake, so no test makes a
 model call that costs money. The messages are written in this file; no pool wording is used.
+
+Since ADR-053 a chosen guide waits for one click from a person in IT by default
+(`GUIDE_ANSWERS_NEED_IT_CLICK`). The tests here of the picker's own path, where the guide is
+posted at once, turn that off explicitly (`DIRECT`); the rest run on the default.
+tier0/tests/test_guide_it_click.py tests the draft and the click.
 """
 
 import dataclasses
@@ -18,7 +23,14 @@ from meridian_dataset import World
 from meridian_dataset.knowledge import Guide, load_runbooks
 from meridian_dataset.model import Person, Ticket
 from tier0 import replies
-from tier0.agent import ANSWER_GUIDE, KILL_SWITCH_ON, RATE_LIMITED_CODE, Features, Outcome
+from tier0.agent import (
+    ANSWER_GUIDE,
+    DRAFT_GUIDE,
+    KILL_SWITCH_ON,
+    RATE_LIMITED_CODE,
+    Features,
+    Outcome,
+)
 from tier0.clock import parse_time
 from tier0.controls import RateLimitSettings
 from tier0.guard import check_reply
@@ -47,6 +59,8 @@ RESET_MFA = "Please reset my MFA, I got a new phone."
 COLLEAGUE = "How do I set up the printer for my colleague?"
 OWN_USERNAME = "what's my username? i can't find it."
 IT_LEAD = "U0ITLEAD"
+# The picker's own path, as before ADR-053: a chosen guide is posted at once, with no IT click.
+DIRECT: dict[str, Any] = {"guide_answers_need_it_click": False}
 # The one-line header of a guide reply, in each language (decision 7 of the plan).
 HEADERS = {
     "en": "Here's our guide for that:",
@@ -234,7 +248,7 @@ def test_a_how_to_question_gets_the_guide_word_for_word_and_closes_like_an_answe
         swept = rt.agent.sweep()
         return rt, outcome, state, swept
 
-    rt, outcome, state, swept = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome, state, swept = _run(world, body, guide_picker=GuidePicker(model=picker), **DIRECT)
     assert (outcome.status, outcome.action, outcome.category, outcome.state) == (
         "handled",
         ANSWER_GUIDE,
@@ -292,7 +306,8 @@ def test_the_header_follows_the_requesters_language(
         await _ask(rt, person, WIFI)
         return rt
 
-    rt = _run(world, body, guide_picker=GuidePicker(model=FakePicker({WIFI: ("how_to", "KB-001")})))
+    picker = GuidePicker(model=FakePicker({WIFI: ("how_to", "KB-001")}))
+    rt = _run(world, body, guide_picker=picker, **DIRECT)
     (answer,) = _sent(rt)
     assert _body(answer) == reply_text(guide, language)
     assert _body(answer).splitlines()[0] == HEADERS[language]
@@ -542,8 +557,9 @@ def test_only_the_guide_reply_is_exempt_and_only_for_its_code_built_link(
             rt.clock.advance_to(parse_time(ticket.received_at))
             await rt.agent.handle(rt.slack.message_event(ticket))
 
-    _run(world, asks, guide_picker=GuidePicker(model=picker))
-    _run(world, tickets, guide_picker=GuidePicker(model=picker))
+    # With the IT click on (the default), tier0/tests/test_guide_it_click.py pins the same.
+    _run(world, asks, guide_picker=GuidePicker(model=picker), **DIRECT)
+    _run(world, tickets, guide_picker=GuidePicker(model=picker), **DIRECT)
     exempt = [(text, links) for text, links in calls if links]
     assert len(exempt) == 1
     text, links = exempt[0]
@@ -629,7 +645,7 @@ def test_the_rate_limit_stops_a_request_before_the_picker(world: World) -> None:
         rate_limits=RateLimitSettings(per_requester_limit=1, global_limit=100),
         guide_picker=GuidePicker(model=picker),
     )
-    assert first.action == ANSWER_GUIDE
+    assert first.action == DRAFT_GUIDE
     assert (second.reason, second.action, second.state) == (RATE_LIMITED_CODE, "escalate", TRIAGE)
     assert len(picker.requests) == 1
 
@@ -765,13 +781,16 @@ def test_with_part_2_on_a_how_to_gets_the_same_guide_as_without_it(world: World)
     for features in (Features(), Features(tier_c=True)):
         picker = FakePicker({WIFI: ("how_to", "KB-001")})
 
-        async def body(rt: Runtime) -> Outcome:
-            return await _ask(rt, person, WIFI)
+        async def body(rt: Runtime) -> tuple[Outcome, list[dict[str, Any]]]:
+            return await _ask(rt, person, WIFI), _events(rt, "tier0.guide.drafted")
 
-        outcome = _run(world, body, guide_picker=GuidePicker(model=picker), features=features)
+        outcome, drafted = _run(
+            world, body, guide_picker=GuidePicker(model=picker), features=features
+        )
         assert len(picker.requests) == 1
-        results.append((outcome.action, outcome.state))
-    assert results[0] == results[1] == (ANSWER_GUIDE, AWAITING_REPLY)
+        results.append((outcome.action, outcome.state, drafted))
+    # By default the guide waits for IT's click (ADR-053), with part 2 on or off.
+    assert results[0] == results[1] == (DRAFT_GUIDE, TRIAGE, [{"guide": "KB-001"}])
 
 
 @pytest.mark.parametrize(
