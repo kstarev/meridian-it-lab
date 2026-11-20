@@ -13,6 +13,10 @@ A guide the picker chooses waits for one click from a person in IT before it is
 posted (ADR-053, `GUIDE_ANSWERS_NEED_IT_CLICK`, on by default): the requester
 gets the hand-off reply, #it-team gets a draft, and `handle_interaction` sends
 the guide once, on a click by a member of the IT team.
+
+With a how-to gate set (milestone 3f, `HOW_TO_GATE_VERSION` in tier0.knowledge.wiring,
+None until the tuning picks one), the code-only message screen and then the gate,
+on triage's own model, run before the picker is asked. Each can only hand off.
 """
 
 import contextlib
@@ -43,7 +47,16 @@ from tier0.identity.slack_signature import SignatureError, verify_slack_request
 from tier0.identity.tokens import TokenIssuer
 from tier0.knowledge import review
 from tier0.knowledge.answer import GUIDE, reply_text
-from tier0.knowledge.wiring import NOT_POSTABLE, GuidePicker, code_link, postable_guide
+from tier0.knowledge.screen import hand_off_signal
+from tier0.knowledge.wiring import (
+    GATE_FAILED,
+    GATE_NO,
+    NOT_POSTABLE,
+    SCREEN_FIRST,
+    GuidePicker,
+    code_link,
+    postable_guide,
+)
 from tier0.mcp_server.client import McpAuthError, McpToolError, open_session
 from tier0.mentions import MentionCheck
 from tier0.mocks.slack import SlackHttpRequest
@@ -110,6 +123,12 @@ GUIDE_HAND_OFF = "guide_"
 # as a draft and the ticket to a person, and the hand-off code that ticket gets.
 DRAFT_GUIDE = "draft_guide_for_it"
 GUIDE_WAITS_FOR_IT = f"{GUIDE_HAND_OFF}waits_for_it_click"
+# Milestone 3f, only with a how-to gate set: the hand-off codes of the two steps before the
+# picker. The screen found something (no gate call, no picker call); the gate said no; the
+# gate's call failed or its reply was off the schema (no picker call either way).
+GUIDE_SCREEN_FIRST = f"{GUIDE_HAND_OFF}{SCREEN_FIRST}"
+GUIDE_GATE_NO = f"{GUIDE_HAND_OFF}{GATE_NO}"
+GUIDE_GATE_FAILED = f"{GUIDE_HAND_OFF}{GATE_FAILED}"
 # A draft's states. Only a waiting draft can be sent or taken over, so a second click does nothing.
 DRAFT_WAITING = "waiting"
 DRAFT_SENT = "sent"
@@ -336,8 +355,9 @@ def parse_own_account_check(response: ModelResponse | None) -> bool | None:
 
 
 class _TracedModel:
-    """The guide picker's model, called inside the session's chat span, so its call is traced
-    like every other model call (codes and token counts, no content unless asked for)."""
+    """A model the knowledge path calls (the guide picker's, or triage's own for the how-to
+    gate), called inside the session's chat span, so its call is traced like every other model
+    call (codes and token counts, no content unless asked for)."""
 
     def __init__(self, session: Session, inner: ModelAdapter) -> None:
         self._session = session
@@ -385,7 +405,8 @@ class ServiceDeskAgent:
         calls "other" may get an approved guide (tier0.knowledge.wiring). None, the default,
         leaves it off, and every "other" goes to a person as before. With part 2's `tier_c`
         on, the reset signal runs first and the picker is asked only about what part 2 would
-        plainly hand off.
+        plainly hand off. With the picker's `gate_version` set (milestone 3f), the message
+        screen and then the how-to gate, on `model` (triage's own), run before the picker.
 
         `guide_answers_need_it_click` (ADR-053) is on by default: a chosen guide goes to
         #it-team as a draft, and only a click by someone in `it_team` (Slack user ids) sends
@@ -1028,7 +1049,14 @@ class ServiceDeskAgent:
         The model only picks; `answer_question`'s gates decide in code. Nothing here reads or
         changes an account: no token, no tool call, no directory lookup. So the verification
         ladder, which checks a request about the sender's own account, is not walked; identity
-        binding, the kill switch and the rate limit ran before triage, as for every request."""
+        binding, the kill switch and the rate limit ran before triage, as for every request.
+
+        With a how-to gate set (milestone 3f), the message screen and the gate come first, and
+        the picker is asked only if both let the message through (`_before_picker`)."""
+        if picker.gate_version is not None:
+            stopped = self._before_picker(s, identifier, picker, text)
+            if stopped is not None:
+                return self._escalate(s, identifier, channel, bound, stopped)
         outcome = picker.answer(text, model=_TracedModel(s, picker.model))
         pick = outcome.pick
         request_type = pick.request_type if pick is not None else "none"
@@ -1079,6 +1107,35 @@ class ServiceDeskAgent:
         )
         self._tickets.set_state(identifier, AWAITING_REPLY)
         return ANSWER_GUIDE, AWAITING_REPLY
+
+    def _before_picker(
+        self, s: Session, identifier: str, picker: GuidePicker, text: str
+    ) -> str | None:
+        """Milestone 3f's two steps before the picker, with a how-to gate set: the hand-off
+        code that stops the message, or None to ask the picker. Each step can only hand off.
+
+        The code-only message screen runs first: it costs nothing, and if it finds anything the
+        gate and the picker are never called. Then the gate, on triage's own model, never the
+        picker's: it must say exactly yes. A failed call, a refusal or a reply off the schema
+        is a hand-off. The gate never sees a guide (docs/plans/milestone-3f-how-to-gate.md)."""
+        screen = hand_off_signal(text)
+        if screen is not None:
+            s.event("tier0.guide.screen_first", screen=screen)
+            self._tickets.add_comment(
+                identifier, f"tier0: message screen {screen}; the guide picker was not asked."
+            )
+            return GUIDE_SCREEN_FIRST
+        version = picker.gate_version or ""
+        verdict = picker.ask_gate(text, model=_TracedModel(s, self._model))
+        said = "failed" if verdict is None else "yes" if verdict else "no"
+        s.event("tier0.guide.gate", version=version, plain_how_to=said)
+        self._tickets.add_comment(identifier, f"tier0: how-to gate {version}: plain how-to {said}.")
+        if self._stopped():
+            # The switch flipped during the gate's call: the picker is not asked.
+            return KILL_SWITCH_ON
+        if verdict is None:
+            return GUIDE_GATE_FAILED
+        return None if verdict else GUIDE_GATE_NO
 
     # --- ADR-053: a guide answer waits for one click from a person in IT ----------
 
