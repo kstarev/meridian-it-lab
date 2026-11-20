@@ -357,3 +357,91 @@ def test_fold_transliterates_letters_nfkd_cannot_decompose():
     assert fold("Østergaard") == "ostergaard"
     assert fold("Æsir ß Łukasz Đorđe Þór Œuvre") == "aesir ss lukasz dorde thor oeuvre"
     assert fold("ø æ ł đ þ œ") == "o ae l d th oe"
+
+
+# --- gap G6: case folding and NFD turn some look-alikes into plain ASCII ------------------------
+#
+# Found in review (2026-11-20, finding F1). Rule 1 (the exact address) and rule 3's exact alias
+# branch key an address with str.casefold, which turns the ligatures U+FB00-FB06, the long s
+# U+017F and the Kelvin sign U+212A into plain ASCII letters. So a look-alike made with one of
+# them is placed on the real person as `exact_email` (or `google_alias`). Rule 2 refuses the
+# ligatures and the long s, but rule 1 runs first; and rule 2 itself lets the Kelvin sign through,
+# since str.lower and NFD both make it `k` with no accent to strip. AAC-016 says ligatures and
+# other look-alikes are refused and stay orphans. These are strict xfails until the owner rules.
+
+G6_GAP = "gap G6: case folding or NFD turns a look-alike into ASCII, so rules 1-3 place it"
+g6 = pytest.mark.xfail(strict=True, reason=G6_GAP)
+
+# (given, family, the person's address, a look-alike of it)
+G6_LOOKALIKES = {
+    "ff ligature": ("Effie", "Laffer", "effie.laffer", "e\ufb00ie.laffer"),
+    "fi ligature": ("Fiona", "Kerr", "fiona.kerr", "\ufb01ona.kerr"),
+    "fl ligature": ("Flora", "Diaz", "flora.diaz", "\ufb02ora.diaz"),
+    "ffi ligature": ("Ffion", "Jones", "ffion.jones", "\ufb03on.jones"),
+    "ffl ligature": ("Ana", "Ruffle", "ana.ruffle", "ana.ru\ufb04e"),
+    "long s t ligature": ("Ana", "Stone", "ana.stone", "ana.\ufb05one"),
+    "st ligature": ("Ana", "Stone", "ana.stone", "ana.\ufb06one"),
+    "long s": ("Ana", "Smith", "ana.smith", "ana.\u017fmith"),
+    "kelvin sign": ("Fiona", "Kerr", "fiona.kerr", "fiona.\u212aerr"),
+}
+G6_CASES = pytest.mark.parametrize(
+    ("given", "family", "local", "lookalike"), G6_LOOKALIKES.values(), ids=G6_LOOKALIKES
+)
+G6_D = "@meridian.example"
+
+
+def test_g6_each_look_alike_case_folds_to_the_persons_address():
+    for _, _, local, lookalike in G6_LOOKALIKES.values():
+        assert not lookalike.isascii() and lookalike.casefold() == local
+
+
+@g6
+@G6_CASES
+def test_g6_rule_1_does_not_place_a_case_folding_look_alike(
+    policy, given, family, local, lookalike
+):
+    people = [rec("E1", given, family, email=local + G6_D)]
+    a = acct("okta", lookalike + G6_D)
+    res = match_accounts([a], people, policy)
+    assert res.unmatched == [a.key] and not res.matches and not res.ambiguous
+
+
+@g6
+@G6_CASES
+def test_g6_rule_3_does_not_place_a_case_folding_look_alike_alias(
+    policy, given, family, local, lookalike
+):
+    people = [rec("E1", given, family, email=local + G6_D)]
+    g = acct("google", "zz" + G6_D, aliases=(lookalike + G6_D,))
+    res = match_accounts([g], people, policy)
+    assert res.unmatched == [g.key] and not res.matches and not res.ambiguous
+
+
+@g6
+@pytest.mark.parametrize(
+    ("alias", "lookalike"),
+    [("fiona.k", "\ufb01ona.k"), ("ana.s", "ana.\u017f"), ("fiona.k", "fiona.\u212a")],
+    ids=["fi ligature", "long s", "kelvin sign"],
+)
+def test_g6_rule_3_does_not_place_a_look_alike_of_a_google_alias(policy, alias, lookalike):
+    # the Google user's alias is the person's; an Okta login that only case-folds to it is not
+    given, family = ("Fiona", "Kerr") if alias == "fiona.k" else ("Ana", "Smith")
+    people = [rec("E1", given, family)]
+    google = acct("google", people[0].work_email, aliases=(alias + G6_D,))
+    okta = acct("okta", lookalike + G6_D)
+    res = match_accounts([google, okta], people, policy)
+    assert res.matches[google.key].rule == "exact_email"
+    assert res.unmatched == [okta.key]
+
+
+@pytest.mark.parametrize(
+    "lookalike",
+    [
+        pytest.param(lookalike + G6_D, marks=g6 if name == "kelvin sign" else (), id=name)
+        for name, (_, _, _, lookalike) in G6_LOOKALIKES.items()
+    ],
+)
+def test_g6_rule_2_refuses_a_case_folding_look_alike(lookalike):
+    # rule 2 already refuses the ligatures and the long s (NFD keeps them); only the Kelvin sign,
+    # which NFD turns into `k` with no accent, gets through
+    assert norm_email(lookalike) is None
