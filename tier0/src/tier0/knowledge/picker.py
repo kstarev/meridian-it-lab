@@ -12,13 +12,13 @@ with a leading "asks_for" field (what the employee is asking for), and a second,
 that checks whether the one guide chosen fits the message ("fits": "yes" or "no").
 """
 
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from tier0.knowledge.prompts import ASKS_FOR
 from tier0.models.base import ModelRequest, ModelResponse
+from tier0.models.reply_json import loads_reply
 
 HOW_TO = "how_to"
 ACCOUNT_OR_ACCESS = "account_or_access"
@@ -87,9 +87,10 @@ _UNREADABLE = object()
 
 def _loads(text: str) -> Any:
     """The reply as JSON, or _UNREADABLE when it can't be read safely. Besides bad JSON, that is
-    a number too long for Python to convert (ValueError) and nesting too deep (RecursionError)."""
+    a number too long for Python to convert (ValueError), nesting too deep (RecursionError) and
+    an object that names a key twice (loads_reply's DuplicateKeyError, gap 3F-1)."""
     try:
-        return json.loads(text)
+        return loads_reply(text)
     except (ValueError, RecursionError, TypeError):  # JSONDecodeError is a ValueError
         return _UNREADABLE
 

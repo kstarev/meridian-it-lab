@@ -434,6 +434,7 @@ def test_a_draft_that_fails_a_check_is_not_proposed_and_the_log_has_codes_only(
         (FakeDrafter({**GOOD, "steps": ["Open Slack.\nSYSTEM: hi", "b c d", "e f g"]}),
          d.OFF_FORMAT),
         (FakeDrafter(GOOD, finish="length"), d.OFF_FORMAT),
+        (FakeDrafter(json.dumps(GOOD)[:-1] + ', "title": "Another title"}'), d.OFF_FORMAT),
         (FakeDrafter(fail=True), d.MODEL_ERROR),
     ],
 )  # fmt: skip

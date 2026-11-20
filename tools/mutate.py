@@ -344,6 +344,20 @@ UNITS: tuple[Unit, ...] = (
         (T + "test_guide_gate_slack.py", T + "test_model_stub.py"),
         (T + "test_gate_properties.py",),
     ),
+    # Gap 3F-1's fix (branch tier0-strict-duplicate-keys): the one reader of model replies,
+    # which refuses a doubled name. `tests` are the parsers' tests from before it.
+    Unit(
+        "tier0 reply json",
+        "tier0/src/tier0/models/reply_json.py",
+        ("_refuse_doubled", "loads_reply"),
+        (
+            T + "test_gate_properties.py",
+            T + "test_picker_properties.py",
+            T + "test_second_checks.py",
+            T + "test_agent.py",
+        ),
+        (T + "test_reply_json.py",),
+    ),
 )
 
 

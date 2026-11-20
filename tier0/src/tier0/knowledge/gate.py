@@ -18,10 +18,10 @@ Each version is written from tuning data only (the tuning month and the how-to t
 before it is scored, and kept here unchanged once scored. A test pins each version's SHA-256.
 """
 
-import json
 from typing import Any
 
 from tier0.models.base import ModelRequest, ModelResponse
+from tier0.models.reply_json import loads_reply
 
 GATE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -192,11 +192,12 @@ def gate_request(text: str, system: str) -> ModelRequest:
 def parse_gate(response: ModelResponse | None) -> bool | None:
     """True for exactly {"plain_how_to": true}, False for exactly {"plain_how_to": false}, from
     a reply that finished normally. None for anything else (no reply, a refusal, a reply cut
-    short or off the schema). Only True lets the picker be asked; None and False hand off."""
+    short or off the schema, as is one that names the key twice: loads_reply refuses it, gap
+    3F-1). Only True lets the picker be asked; None and False hand off."""
     if response is None or response.finish_reason != "stop":
         return None
     try:
-        data = json.loads(response.text)
+        data = loads_reply(response.text)
     except (ValueError, RecursionError, TypeError):
         return None
     if not isinstance(data, dict) or set(data) != {"plain_how_to"}:

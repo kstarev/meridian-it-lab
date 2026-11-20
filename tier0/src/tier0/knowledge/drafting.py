@@ -64,6 +64,7 @@ from tier0.mocks.github import (
     MemoryRepo,
 )
 from tier0.models.base import ModelAdapter, ModelError, ModelRequest, ModelResponse
+from tier0.models.reply_json import loads_reply
 from tier0.models.stub import StubModel
 
 # The learning loop's GitHub App (ADR-010): the only identity that opens these pull requests.
@@ -471,7 +472,7 @@ def parse_draft(response: ModelResponse) -> DraftText | None:
     if response.finish_reason != "stop":
         return None
     try:
-        data = json.loads(response.text)
+        data = loads_reply(response.text)
     except (json.JSONDecodeError, TypeError):
         return None
     if not isinstance(data, dict) or set(data) != {"title", "summary", "steps", "tags"}:

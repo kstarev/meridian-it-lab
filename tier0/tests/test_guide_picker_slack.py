@@ -333,6 +333,18 @@ def test_the_header_follows_the_requesters_language(
         (FakePicker(raw="Sure! Try KB-001."), "guide_off_format"),
         (FakePicker(raw='{"request_type": "how_to", "guide": "KB-999"}'), "guide_off_format"),
         (FakePicker({NO_GUIDE: ("other", "KB-001")}), "guide_not_a_how_to"),
+        # A doubled name: json.loads kept the last, so these were an exact how-to pick of an
+        # approved guide (gap 3F-1's kin). Off format now (tier0.models.reply_json).
+        (
+            FakePicker(
+                raw='{"request_type": "other", "request_type": "how_to", "guide": "KB-001"}'
+            ),
+            "guide_off_format",
+        ),
+        (
+            FakePicker(raw='{"request_type": "how_to", "guide": "none", "guide": "KB-001"}'),
+            "guide_off_format",
+        ),
     ],
 )
 def test_no_guide_hands_off_exactly_as_without_the_option(
@@ -422,10 +434,17 @@ def test_someone_else_and_username_requests_never_reach_the_picker(
     assert _no_guide_posted(rt)
 
 
-@pytest.mark.parametrize(
-    "triage_text",
-    ['{"category": "other", "tier": "A"}', "other", '{"category": "unknown"}'],
+OFF_FORMAT_TRIAGES = (
+    '{"category": "other", "tier": "A"}',
+    "other",
+    '{"category": "unknown"}',
+    # A doubled name: json.loads kept the last, so this was triage's own "other" and the picker
+    # was asked (gap 3F-1's kin). Off format now (tier0.models.reply_json).
+    '{"category": "about_someone_else", "category": "other"}',
 )
+
+
+@pytest.mark.parametrize("triage_text", OFF_FORMAT_TRIAGES)
 def test_an_off_format_triage_goes_to_a_person_without_the_picker(
     world: World, triage_text: str
 ) -> None:
@@ -813,10 +832,7 @@ def test_with_part_2_on_a_how_to_gets_the_same_guide_as_without_it(world: World)
     assert results[0] == results[1] == (DRAFT_GUIDE, TRIAGE, [{"guide": "KB-001"}])
 
 
-@pytest.mark.parametrize(
-    "triage_text",
-    ['{"category": "other", "tier": "A"}', "other", '{"category": "unknown"}'],
-)
+@pytest.mark.parametrize("triage_text", OFF_FORMAT_TRIAGES)
 def test_with_part_2_on_a_triage_that_gave_no_clean_label_never_reaches_the_picker(
     world: World, triage_text: str
 ) -> None:
