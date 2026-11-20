@@ -1,10 +1,12 @@
-"""Mutation testing for the safety code (docs/evals/2026-11-18-safety-mutation-testing.md, and
-for Access-as-Code's targets, all named "access ...",
+"""Mutation testing for the safety code (docs/evals/2026-11-18-safety-mutation-testing.md, with
+its later pass on milestone 3f's how-to gate, the targets named "tier0 gate ..."; and for
+Access-as-Code's targets, all named "access ...",
 docs/evals/2026-11-19-access-safety-mutation-testing.md).
 
     uv run --locked python tools/mutate.py run                   # every target, all tests
     uv run --locked python tools/mutate.py run --target ladder   # one target
     uv run --locked python tools/mutate.py run --target "access "   # Access-as-Code only
+    uv run --locked python tools/mutate.py run --target "tier0 gate"   # the how-to gate only
     uv run --locked python tools/mutate.py run --baseline        # only the tests from before
     uv run --locked python tools/mutate.py list                  # print the mutants, run nothing
     uv run --locked python tools/mutate.py show 17               # print mutant 17 as a diff
@@ -32,7 +34,7 @@ The changes (one at a time):
     yield       a `yield` statement, removed
 
 Not changed: text constants, type annotations, the inside of an f-string (message text), and
-any code outside the named functions.
+any code outside the named functions (or outside the named statement, for `function/start`).
 """
 
 import argparse
@@ -62,7 +64,10 @@ TIMED_OUT = "timed_out"
 
 @dataclass(frozen=True)
 class Unit:
-    """One file to mutate: the functions to change and the tests that should notice."""
+    """One file to mutate: the functions to change and the tests that should notice.
+
+    A function is named as `name` (all of it) or `name/start` (only one statement inside it:
+    the one whose code starts with `start`, with everything nested in it)."""
 
     target: str
     path: str
@@ -285,6 +290,60 @@ UNITS: tuple[Unit, ...] = (
         (A + "test_apply.py",),
         (A + "test_apply_properties.py",),
     ),
+    # Milestone 3f's how-to gate, added 2026-11-20 on the branch with the gate on in the live
+    # path (#140): the screen first, then the gate on triage's model, then the picker. `tests`
+    # are the ones on that branch, `new_tests` the ones added with this pass.
+    Unit(
+        "tier0 gate parser",
+        "tier0/src/tier0/knowledge/gate.py",
+        ("gate_request", "parse_gate"),
+        (
+            T + "test_gate.py",
+            T + "test_month_gate.py",
+            T + "test_guide_gate_slack.py",
+            T + "test_model_stub.py",
+        ),
+        (T + "test_gate_properties.py",),
+    ),
+    Unit(
+        "tier0 gate month runner",
+        "tier0/src/tier0/evals/month.py",
+        (
+            "gate_route",
+            "route_ticket/if gate is not None",
+            "check_sealed_plan/if gate != plan.gate",
+            "check_sealed_plan/if plan.gate is not None",
+        ),
+        (
+            T + "test_month_gate.py",
+            T + "test_guide_gate_slack.py",
+            T + "test_month.py",
+            T + "test_month_picker.py",
+            T + "test_sealed_guards_properties.py",
+        ),
+        (T + "test_gate_properties.py",),
+    ),
+    Unit(
+        "tier0 gate live path",
+        "tier0/src/tier0/agent.py",
+        (
+            "ServiceDeskAgent._answer_from_guide/if picker.gate_version is not None",
+            "ServiceDeskAgent._before_picker",
+        ),
+        (
+            T + "test_guide_gate_slack.py",
+            T + "test_guide_picker_slack.py",
+            T + "test_guide_it_click.py",
+        ),
+        (T + "test_gate_properties.py",),
+    ),
+    Unit(
+        "tier0 gate live path",
+        "tier0/src/tier0/knowledge/wiring.py",
+        ("GuidePicker.ask_gate",),
+        (T + "test_guide_gate_slack.py", T + "test_model_stub.py"),
+        (T + "test_gate_properties.py",),
+    ),
 )
 
 
@@ -425,6 +484,26 @@ def _functions(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     return found
 
 
+def _part(unit: Unit, functions: dict[str, ast.FunctionDef], name: str) -> ast.AST:
+    """The code `name` stands for: a whole function, or for `function/start` the one
+    statement inside it whose code starts with `start`."""
+    function, _, start = name.partition("/")
+    if function not in functions:
+        raise SystemExit(f"{unit.path} has no function {function}")
+    if not start:
+        return functions[function]
+    found = [
+        node
+        for node in ast.walk(functions[function])
+        if isinstance(node, ast.stmt)
+        and node is not functions[function]
+        and ast.unparse(node).startswith(start)
+    ]
+    if len(found) != 1:
+        raise SystemExit(f"{unit.path}: {function} has {len(found)} statements starting {start!r}")
+    return found[0]
+
+
 def mutants_of(unit: Unit) -> list[Mutant]:
     source = (ROOT / unit.path).read_bytes()
     starts = [0]
@@ -435,9 +514,7 @@ def mutants_of(unit: Unit) -> list[Mutant]:
     seen: set[bytes] = set()
     counts: dict[tuple[str, str, str, str], int] = {}
     for name in unit.functions:
-        if name not in functions:
-            raise SystemExit(f"{unit.path} has no function {name}")
-        for node, operator, changed in _changes(functions[name]):
+        for node, operator, changed in _changes(_part(unit, functions, name)):
             # ast offsets count UTF-8 bytes, so the file is cut as bytes.
             start = starts[node.lineno - 1] + node.col_offset
             end = starts[node.end_lineno - 1] + node.end_col_offset
