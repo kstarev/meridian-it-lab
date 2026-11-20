@@ -11,11 +11,21 @@ forbid a doubled name, so the schema a model is held to doesn't rule one out.
 reads that as a reply it can't use and fails closed, as for any other reply off the schema.
 Every other text reads exactly as `json.loads` reads it, and raises what it raises.
 
+`READ_ERRORS` is what `loads_reply` raises for a reply it can't read. Every parser catches all
+of it and reads the reply as off its schema, so such a reply fails closed and doesn't crash
+the caller.
+
 Only model replies go through here. Files, configs and HTTP bodies are read with `json.loads`.
 """
 
 import json
 from typing import Any
+
+#: What `loads_reply` can raise for a reply it can't read: bad JSON and a doubled name
+#: (`json.JSONDecodeError`, a `ValueError`), a number too long for Python to convert (a plain
+#: `ValueError`, past 4,300 digits), nesting too deep (`RecursionError`) and a text that isn't a
+#: str (`TypeError`). The gate and the picker catch the same three, written out.
+READ_ERRORS: tuple[type[Exception], ...] = (ValueError, RecursionError, TypeError)
 
 
 class DuplicateKeyError(json.JSONDecodeError):

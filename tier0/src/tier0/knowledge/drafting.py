@@ -64,7 +64,7 @@ from tier0.mocks.github import (
     MemoryRepo,
 )
 from tier0.models.base import ModelAdapter, ModelError, ModelRequest, ModelResponse
-from tier0.models.reply_json import loads_reply
+from tier0.models.reply_json import READ_ERRORS, loads_reply
 from tier0.models.stub import StubModel
 
 # The learning loop's GitHub App (ADR-010): the only identity that opens these pull requests.
@@ -468,12 +468,13 @@ class DraftText:
 
 
 def parse_draft(response: ModelResponse) -> DraftText | None:
-    """Strict: anything but exactly the expected object, within its limits, is None."""
+    """Strict: anything but exactly the expected object, within its limits, is None. So is a
+    reply that can't be read safely (too deep, a number too long, not a str)."""
     if response.finish_reason != "stop":
         return None
     try:
         data = loads_reply(response.text)
-    except (json.JSONDecodeError, TypeError):
+    except READ_ERRORS:
         return None
     if not isinstance(data, dict) or set(data) != {"title", "summary", "steps", "tags"}:
         return None

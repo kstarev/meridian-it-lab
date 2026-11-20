@@ -37,6 +37,12 @@ from tier0.tracing import summarize
 
 YES = '{"own_account_only": true}'
 NO = '{"own_account_only": false}'
+# Replies Python can't read safely: nesting past the recursion limit (RecursionError) and a
+# number past 4,300 digits (a plain ValueError). The deep ones raised out of the check before;
+# the check already caught the long number.
+TOO_DEEP = "[" * 100_000 + "]" * 100_000
+TOO_DEEP_VALUE = '{"own_account_only": ' + TOO_DEEP + "}"
+TOO_LONG_VALUE = '{"own_account_only": ' + "1" * 5000 + "}"
 
 
 class Model:
@@ -144,6 +150,11 @@ def _resp(text: str, finish: str = "stop") -> ModelResponse:
         # A doubled name: json.loads kept the last, so these were a yes (gap 3F-1's kin).
         (_resp('{"own_account_only": false, "own_account_only": true}'), None),
         (_resp('{"own_account_only": true, "own_account_only": true}'), None),
+        # Too deep or too long to read: a failed check, not an exception.
+        (_resp(TOO_DEEP), None),
+        (_resp(TOO_DEEP_VALUE), None),
+        (_resp(TOO_LONG_VALUE), None),
+        (_resp("[" * 100_000), None),
     ],
 )
 def test_parse(response: ModelResponse | None, expected: bool | None) -> None:
@@ -272,8 +283,20 @@ def test_unnamed_colleague_with_no_role_word_relies_on_the_model_check(
         Model(check=YES, check_finish="refusal"),
         Model(check='{"own_account_only": true, "extra": 1}'),
         Model(check='{"own_account_only": false, "own_account_only": true}'),
+        Model(check=TOO_DEEP),
+        Model(check=TOO_DEEP_VALUE),
+        Model(check=TOO_LONG_VALUE),
     ],
-    ids=["garbage", "model_error", "refusal", "extra_key", "doubled_key"],
+    ids=[
+        "garbage",
+        "model_error",
+        "refusal",
+        "extra_key",
+        "doubled_key",
+        "too_deep",
+        "too_deep_value",
+        "number_too_long",
+    ],
 )
 def test_check_failure_goes_to_a_person(world: World, model: Model) -> None:
     rt, outcome = _go(world, "TKT-001", model)
