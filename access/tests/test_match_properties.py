@@ -17,6 +17,10 @@ The last one used to fail (gap G1): `fold` dropped every character NFKD can't tu
 ASCII, so an address with an extra zero-width or Cyrillic character was matched to the
 person without it. Rule 2 now refuses such an address (AAC-016).
 
+Gap G4 does not hold yet: rules 4 and 5 still compare usernames through `fold`, so a Slack
+userName or an export username with such a character is matched to the person without it. Its
+tests (`test_g4_*`, at the end) are strict xfails; the source is unchanged.
+
 Made-up people at meridian.example only, no world, no network. The runs are fixed
 (derandomize) and keep no example database.
 """
@@ -461,3 +465,50 @@ def test_an_address_that_is_another_google_user_s_alias_finds_that_user_s_person
         o = account("okta", f"as@{DOMAIN}")
         m = match_accounts([g, o], [r], POLICY).matches[o.key]
         assert (m.employee_id, m.rule) == ("E001", "google_alias"), primary
+
+
+# --- gap G4: rules 4 and 5 fold usernames ---------------------------------------------------------
+#
+# Rule 2 refuses an address with a non-ASCII character that is not an accent (AAC-016), but rules
+# 4 and 5 still compare usernames through fold(), which drops such a character. A Slack userName
+# with no email, or an export username, with one of OTHER_CHARACTERS added is matched to the
+# person without it. Each test first checks that the username without the character is matched
+# by its rule, so a failure is the gap, not the setup. Strict xfails; the source is unchanged.
+
+G4_REASON = (
+    "gap G4: rules 4 and 5 still fold() usernames, so a username with a non-accent, non-ASCII "
+    "character is matched to the person without it"
+)
+ANA = record("E001", "Ana", "Smith", f"ana.smith@{DOMAIN}")
+ANA_SMYTH = record("E002", "Ana", "Smyth", f"ana.smyth@{DOMAIN}")  # "anas" is firstl for both
+
+
+def _g4_match(a, records):
+    m = match_accounts([a], records, POLICY).matches.get(a.key)
+    return m and (m.employee_id, m.rule)
+
+
+@pytest.mark.xfail(strict=True, reason=G4_REASON)
+@pytest.mark.parametrize("extra", OTHER_CHARACTERS.values(), ids=OTHER_CHARACTERS)
+def test_g4_rule_4_does_not_ignore_characters_other_than_accents(extra):
+    assert _g4_match(account("slack", "ana.smith"), [ANA]) == ("E001", "slack_username")
+    a = account("slack", f"ana.smith{extra}")  # a Slack user with no email
+    assert _g4_match(a, [ANA]) is None
+
+
+@pytest.mark.xfail(strict=True, reason=G4_REASON)
+@pytest.mark.parametrize("extra", OTHER_CHARACTERS.values(), ids=OTHER_CHARACTERS)
+def test_g4_rule_5_does_not_ignore_characters_other_than_accents(extra):
+    assert _g4_match(account("github", "asmith", email=""), [ANA]) == ("E001", "username")
+    a = account("github", f"asmith{extra}", email="")
+    assert _g4_match(a, [ANA]) is None
+
+
+@pytest.mark.xfail(strict=True, reason=G4_REASON)
+@pytest.mark.parametrize("extra", OTHER_CHARACTERS.values(), ids=OTHER_CHARACTERS)
+def test_g4_rule_5_with_row_names_does_not_ignore_characters_other_than_accents(extra):
+    people = [ANA, ANA_SMYTH]
+    plain = account("github", "anas", email="", family="Smyth")
+    assert _g4_match(plain, people) == ("E002", "username_names")
+    a = account("github", f"anas{extra}", email="", family="Smyth")
+    assert _g4_match(a, people) is None
