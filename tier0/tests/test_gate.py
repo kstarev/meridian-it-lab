@@ -15,6 +15,7 @@ from tier0.models.base import ModelError, ModelRequest, ModelResponse
 FROZEN = {
     "G1": "36a62b6c56f7e8f8798d078b06259fecc56387d4d60918fc333881df5d9915aa",
     "G2": "35491c1b5616330111e24c14368612ab838e3cf8f2b6a98319006ae190b682f8",
+    "G3": "55e797391967757e336ed644ee41e9ca02e83db7359e66aa2aa483bcdfe65733",
 }
 
 
@@ -142,3 +143,9 @@ def test_month1_is_composed_from_the_haiku_arms_runs_for_both_arms() -> None:
 def test_a_paid_run_needs_the_budget_item(capsys: pytest.CaptureFixture[str]) -> None:
     assert gate_dev.main(["run", "--version", "G1", "--arm", "haiku-3d2"], env={}) == 2
     assert "tier0-3e" in capsys.readouterr().err
+
+
+def test_the_reply_has_room_on_every_model() -> None:
+    """At 16 and at 64 tokens Sonnet's replies were cut short (finish "length") before any
+    JSON. The gate gets what triage gets."""
+    assert gate_request("x", GATE_VERSIONS["G3"]).max_tokens == 1024
