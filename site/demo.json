@@ -48,9 +48,35 @@
     "approved": true,
     "flagged": false
   },
+  "handoff": {
+    "at": "2026-11-02T09:00:00.000Z",
+    "text": "Hi Anika, I'm tier0, Meridian's AI assistant for IT requests.\n\nI've passed this to the IT team. Someone will reply here."
+  },
+  "draft": {
+    "at": "2026-11-02T09:00:00.000Z",
+    "channel": "#it-team",
+    "header": "Guide draft for IT-1. The guide picker chose KB-001, *Connect to the office Wi-Fi*. The requester has only been told that IT will look at it. *Send this guide* posts the reply below to them, word for word. *Take it over* leaves the ticket with you, and tier0 sends nothing.",
+    "reply": "Here's our guide for that:\n*Connect to the office Wi-Fi*\n1. Open your Wi-Fi settings and choose the network Meridian-Staff.\n2. When asked to sign in, use your work email address and your normal work sign-in.\n3. Accept the certificate named meridian-radius if your device asks about it.\n4. If the network does not appear, turn Wi-Fi off and on again and move closer to the centre of the floor.\n5. Still stuck after two tries? Post in #it-help and say which office and floor you are on.\nhttps://memory.meridian.example/runbooks/office-wifi.md",
+    "buttons": [
+      "Send this guide",
+      "Take it over"
+    ]
+  },
+  "click": {
+    "at": "2026-11-02T09:00:00.000Z",
+    "by": {
+      "name": "Sofia Rahman",
+      "department": "IT"
+    },
+    "button": "Send this guide",
+    "from_channel": "#it-team",
+    "signed_by_slack": true,
+    "in_it_team": true,
+    "result": "sent"
+  },
   "reply": {
     "at": "2026-11-02T09:00:00.000Z",
-    "text": "Hi Anika, I'm tier0, Meridian's AI assistant for IT requests.\n\nHere's our guide for that:\n*Connect to the office Wi-Fi*\n1. Open your Wi-Fi settings and choose the network Meridian-Staff.\n2. When asked to sign in, use your work email address and your normal work sign-in.\n3. Accept the certificate named meridian-radius if your device asks about it.\n4. If the network does not appear, turn Wi-Fi off and on again and move closer to the centre of the floor.\n5. Still stuck after two tries? Post in #it-help and say which office and floor you are on.\nhttps://memory.meridian.example/runbooks/office-wifi.md"
+    "text": "Hi Anika.\n\nHere's our guide for that:\n*Connect to the office Wi-Fi*\n1. Open your Wi-Fi settings and choose the network Meridian-Staff.\n2. When asked to sign in, use your work email address and your normal work sign-in.\n3. Accept the certificate named meridian-radius if your device asks about it.\n4. If the network does not appear, turn Wi-Fi off and on again and move closer to the centre of the floor.\n5. Still stuck after two tries? Post in #it-help and say which office and floor you are on.\nhttps://memory.meridian.example/runbooks/office-wifi.md"
   },
   "guard": "passed",
   "tokens_issued": 0,
@@ -58,11 +84,16 @@
   "ticket": {
     "id": "IT-1",
     "queue": "service-desk",
-    "state_after_reply": "Awaiting reply",
-    "comments_after_reply": [
+    "state_after_draft": "Triage",
+    "comments_after_draft": [
       "tier0: triaged as other; policy: Tier A, action escalate.",
       "tier0: guide picker KS5: request type how_to, guide KB-001; message screen none.",
-      "tier0: answered with the approved guide KB-001: its steps word for word and its link."
+      "tier0: handed to a person (guide_waits_for_it_click).",
+      "tier0: the guide picker chose the approved guide KB-001. It waits in #it-team for one click from a person in IT, who can send it word for word or take the ticket over (ADR-053). The requester has the hand-off reply only."
+    ],
+    "state_after_reply": "Awaiting reply",
+    "comments_after_reply": [
+      "tier0: answered with the approved guide KB-001: its steps word for word and its link, after one click by a person in IT (U2DXDGL3MOD)."
     ],
     "comments_at_close": [
       "tier0: closed after 3 days with no reply."

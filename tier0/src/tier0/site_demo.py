@@ -10,6 +10,11 @@ with the guide picker on. No model costs money and nothing leaves the process:
 - the guide pick comes from `ScriptedPicker`, the fake the code-only guide check uses, set to
   the answer key's guide. The page says so.
 
+The run uses the default setting, so the guide waits for one click from a person in IT
+(ADR-053): the requester gets the hand-off reply, the draft goes to #it-team, and a member of
+the IT team (the first, by Slack id) presses "Send this guide" through the mock's signed
+button request. Only then does code post the guide.
+
 The message is one template of the tuning month, word for word. Every fact on the page (the
 labels, the checks, the guide, the replies, the ticket's comments and states) comes from the
 run log; only the short notes beside each step are written here. If the agent stops going
@@ -21,6 +26,7 @@ fails if either file drifts from what this module makes.
 import argparse
 import html
 import json
+import re
 from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
@@ -33,13 +39,16 @@ from meridian_dataset import DEFAULT_SEED, World, generate
 from meridian_dataset.knowledge import load_runbooks
 from meridian_dataset.model import Person, Ticket
 from meridian_dataset.month import TUNING_MONTH, load_templates
-from tier0.agent import ANSWER_GUIDE
+from tier0.agent import DRAFT_GUIDE, GUIDE_WAITS_FOR_IT
 from tier0.clock import format_time, parse_time
 from tier0.evals.knowledge import ScriptedPicker
 from tier0.identity.binding import GATEWAY_PRINCIPAL
+from tier0.knowledge import review
+from tier0.knowledge.answer import reply_text
 from tier0.knowledge.guide_screen import flag_guide
 from tier0.knowledge.picker import HOW_TO
 from tier0.knowledge.wiring import GuidePicker
+from tier0.mocks.slack import CHANNELS
 from tier0.models import StubModel
 from tier0.runtime import offline_runtime
 from tier0.sealed import require_unsealed
@@ -76,9 +85,10 @@ async def _run(world: World) -> dict[str, Any]:
     async with offline_runtime(
         world, model=triage_model, guide_picker=GuidePicker(model=picker_model)
     ) as rt:
+        dm = rt.slack.dm_channel_for(person.slack_user_id)
         ticket = Ticket(
             id=template.id,
-            channel=rt.slack.dm_channel_for(person.slack_user_id),
+            channel=dm,
             sender_slack_user_id=person.slack_user_id,
             sender_team_id=world.slack_team.team_id,
             text=template.text,
@@ -86,25 +96,48 @@ async def _run(world: World) -> dict[str, Any]:
         )
         outcome = await rt.agent.handle(rt.slack.message_event(ticket))
         _require(outcome.status == "handled", f"the event was {outcome.status}")
-        _require(outcome.action == ANSWER_GUIDE, f"the action was {outcome.action}")
+        _require(outcome.action == DRAFT_GUIDE, f"the action was {outcome.action}")
         identifier = outcome.ticket or ""
         record = rt.tickets.get_ticket(identifier)
+        drafted_state = record.state
+        drafted_comments = [c.body for c in record.comments]
+        (handoff,) = [m for m in rt.slack.sent_messages if m.channel == dm]
+        (draft,) = [m for m in rt.slack.sent_messages if m.channel == CHANNELS["it-team"]]
+        (buttons,) = [b["elements"] for b in draft.blocks if b["type"] == "actions"]
+        _require(
+            [b["action_id"] for b in buttons] == list(review.ACTIONS), "the draft's buttons changed"
+        )
+        drafted_at = rt.clock.now()
+
+        # A member of the IT team presses "Send this guide" in #it-team.
+        clicker_id = sorted(review.it_team(world))[0]
+        clicker = next(p for p in world.people if p.slack_user_id == clicker_id)
+        press = rt.slack.button_click(
+            channel=review.IT_TEAM_CHANNEL,
+            user=clicker_id,
+            action_id=review.SEND_GUIDE_ACTION,
+            value=identifier,
+        )
+        clicked = rt.agent.handle_interaction(press)
+        _require(clicked == "sent", f"the click did {clicked}")
+        record = rt.tickets.get_ticket(identifier)
         answered_state = record.state
-        answered_comments = [c.body for c in record.comments]
-        (reply,) = rt.slack.sent_messages
+        answered_comments = [c.body for c in record.comments][len(drafted_comments) :]
+        _, reply = [m for m in rt.slack.sent_messages if m.channel == dm]
         replied_at = rt.clock.now()
 
         rt.clock.advance(timedelta(days=3, minutes=1))
         (swept,) = rt.agent.sweep()
         _require(swept.action == "close", f"the sweep did {swept.action}")
         record = rt.tickets.get_ticket(identifier)
-        _, closing = rt.slack.sent_messages
+        *_, closing = [m for m in rt.slack.sent_messages if m.channel == dm]
 
         spans = rt.tracer.finished_spans()
         events = [(e.name, dict(e.attributes or {})) for s in spans for e in s.events]
         names = [name for name, _ in events]
         _require("tier0.identity.unbound" not in names, "the sender was not verified")
-        _require("tier0.escalated" not in names, "the request was handed to a person")
+        escalated = [a["reason"] for n, a in events if n == "tier0.escalated"]
+        _require(escalated == [GUIDE_WAITS_FOR_IT], "the request went to a person another way")
         _require("tier0.guard.blocked" not in names, "the reply guard blocked a message")
         (policy,) = [a for n, a in events if n == "tier0.policy.decision"]
         (pick,) = [a for n, a in events if n == "tier0.guide.pick"]
@@ -114,6 +147,8 @@ async def _run(world: World) -> dict[str, Any]:
         _require(principals == [GATEWAY_PRINCIPAL], "something but the identity check read data")
         tool_calls = sum(s.name.startswith("execute_tool") for s in spans)
         _require(not rt.issuer.issued and not tool_calls, "a token or a tool call was used")
+        (sent,) = rt.controls.audit.events("guide_draft.sent")
+        _require(sent.actor == clicker_id, "someone else's click sent the guide")
         return {
             "label": LABEL,
             "source": {
@@ -148,6 +183,26 @@ async def _run(world: World) -> dict[str, Any]:
                 "approved": guide.approved,
                 "flagged": flag_guide(guide) is not None,
             },
+            "handoff": {"at": format_time(drafted_at), "text": handoff.text},
+            "draft": {
+                "at": format_time(drafted_at),
+                "channel": "#it-team",
+                "header": review.draft_header(identifier, guide),
+                "reply": reply_text(guide, "en"),
+                "buttons": [b["text"]["text"] for b in buttons],
+            },
+            "click": {
+                "at": format_time(replied_at),
+                "by": {
+                    "name": f"{clicker.given_name} {clicker.family_name}",
+                    "department": clicker.department,
+                },
+                "button": buttons[0]["text"]["text"],
+                "from_channel": "#it-team",
+                "signed_by_slack": True,
+                "in_it_team": clicker_id in review.it_team(world),
+                "result": clicked,
+            },
             "reply": {"at": format_time(replied_at), "text": reply.text},
             "guard": "passed",
             "tokens_issued": len(rt.issuer.issued),
@@ -155,9 +210,13 @@ async def _run(world: World) -> dict[str, Any]:
             "ticket": {
                 "id": identifier,
                 "queue": record.queue,
+                "state_after_draft": drafted_state,
+                "comments_after_draft": drafted_comments,
                 "state_after_reply": answered_state,
                 "comments_after_reply": answered_comments,
-                "comments_at_close": [c.body for c in record.comments][len(answered_comments) :],
+                "comments_at_close": [c.body for c in record.comments][
+                    len(drafted_comments) + len(answered_comments) :
+                ],
                 "state_at_close": record.state,
             },
             "close": {"at": format_time(rt.clock.now()), "text": closing.text},
@@ -187,16 +246,17 @@ def _clock(at: str) -> str:
     return f"{parse_time(at):%H:%M}"
 
 
+_BOLD = re.compile(r"\*([^*\n]+)\*")
+
+
 def _slack_text(text: str) -> str:
     """Slack's own formatting, as Slack shows it: *bold*, and a link on its own line."""
     out = []
     for line in text.split("\n"):
-        if len(line) > 2 and line.startswith("*") and line.endswith("*"):
-            out.append(f"<strong>{_e(line[1:-1])}</strong>")
-        elif line.startswith("https://"):
+        if line.startswith("https://"):
             out.append(f'<span class="url">{_e(line)}</span>')
         else:
-            out.append(_e(line))
+            out.append(_BOLD.sub(r"<strong>\1</strong>", _e(line)))
     return "<br>".join(out)
 
 
@@ -204,18 +264,35 @@ def _initials(name: str) -> str:
     return "".join(part[0] for part in name.split()[:2]).upper()
 
 
-def _message(who: str, avatar: str, at: str, text: str, *, app: bool = False) -> str:
+def _message(
+    who: str,
+    avatar: str,
+    at: str,
+    text: str,
+    *,
+    app: bool = False,
+    where: str = "Direct message with tier0",
+    buttons: Sequence[str] = (),
+) -> str:
     tag = '<span class="app">APP</span>' if app else ""
     cls = "avatar bot" if app else "avatar"
+    actions = ""
+    if buttons:
+        first, *rest = buttons
+        spans = f'<span class="btn primary">{_e(first)}</span>' + "".join(
+            f'<span class="btn">{_e(b)}</span>' for b in rest
+        )
+        actions = f'<p class="msg-actions">{spans}</p>'
     return (
         '<div class="slack">'
-        f'<p class="slack-bar"><strong>Direct message with tier0</strong><span>{LABEL}</span></p>'
+        f'<p class="slack-bar"><strong>{_e(where)}</strong><span>{LABEL}</span></p>'
         '<div class="msg">'
         f'<span class="{cls}" aria-hidden="true">{avatar}</span>'
         '<div class="msg-body">'
         f'<p class="msg-head"><strong>{_e(who)}</strong>{tag}'
         f'<time datetime="{_e(at)}">{_clock(at)}</time></p>'
         f'<p class="msg-text">{_slack_text(text)}</p>'
+        f"{actions}"
         "</div></div></div>"
     )
 
@@ -237,6 +314,7 @@ def _comments(comments: Sequence[str]) -> str:
 def _who(kind: str) -> str:
     text = {
         "person": "The employee",
+        "it": "A person in IT",
         "code": "Code decided",
         "both": "Model suggested, code decided",
     }[kind]
@@ -270,6 +348,7 @@ def render(run: dict[str, Any]) -> str:
     """The page, from the run log alone."""
     src, req, msg, chk = run["source"], run["requester"], run["message"], run["checks"]
     pick, guide, tk = run["pick"], run["guide"], run["ticket"]
+    draft, click = run["draft"], run["click"]
     name = req["name"]
     template_link = (
         f'<a href="{REPO}/dataset/src/meridian_dataset/month/pools/{_e(src["template_set"])}.json">'
@@ -354,7 +433,7 @@ def render(run: dict[str, Any]) -> str:
                     (f"{guide['id']} flagged by the guide screen", _yes(guide["flagged"])),
                     (
                         "Outcome",
-                        "post the guide" if pick["outcome"] == "guide" else pick["outcome"],
+                        "a draft for IT" if pick["outcome"] == "guide" else pick["outcome"],
                     ),
                 ],
             ),
@@ -362,9 +441,12 @@ def render(run: dict[str, Any]) -> str:
                 "The model sees only each guide's id, title and summary, never its steps. It "
                 f"names one guide, <strong>{_e(pick['guide'])}</strong> "
                 f"({_e(guide['title'])}), or none.",
-                "Code decides whether to post it: the message screen found nothing that needs "
-                "a person, and the guide is approved by a person and not flagged. Any no would "
-                "have sent the request to a person instead.",
+                "Code decides whether the guide may be used: the message screen found nothing "
+                "that needs a person, and the guide is approved by a person and not flagged. Any "
+                "no would have sent the request to a person instead.",
+                "A yes does not post the guide. Guide answers wait for one click from a person in "
+                "IT until a sealed month of tests passes, because the guide picker failed its "
+                "safety rule on the last two (ADR-053).",
                 "On this page no AI model made the pick: a scripted stand-in "
                 f"(<code>{_e(run['models']['guide_pick'])}</code>) names the guide from the "
                 "tuning month's answer key. In the lab the picker is Claude Sonnet 5.5, and it "
@@ -373,7 +455,66 @@ def render(run: dict[str, Any]) -> str:
         ),
         _step(
             5,
-            "Code posts the reply",
+            "The requester hears that IT will look at it",
+            "code",
+            _message("tier0", "T0", run["handoff"]["at"], run["handoff"]["text"], app=True),
+            _p(
+                "Code sends the same reply as for any request that goes to a person. It makes no "
+                "new promise, such as a time. The greeting uses the first name from the "
+                "directory, and the first message says that tier0 is an AI assistant.",
+                "The guide is not in this message. The ticket is in the queue for a person.",
+            ),
+        ),
+        _step(
+            6,
+            "A draft waits in the IT team's channel",
+            "code",
+            _message(
+                "tier0",
+                "T0",
+                draft["at"],
+                f"{draft['header']}\n\n{draft['reply']}",
+                app=True,
+                where=draft["channel"],
+                buttons=draft["buttons"],
+            ),
+            _p(
+                f"Code posts a draft to {_e(draft['channel'])}: the reply tier0 would send, "
+                "word for word, and two buttons. The draft names the ticket and the guide. It "
+                "does not repeat the message or the requester's name.",
+                f"<strong>{_e(draft['buttons'][0])}</strong> sends the guide. "
+                f"<strong>{_e(draft['buttons'][1])}</strong> leaves the ticket with the person, "
+                "and tier0 sends nothing.",
+            ),
+        ),
+        _step(
+            7,
+            "A person in IT clicks once",
+            "it",
+            _log(
+                "The click, before code acts on it",
+                [
+                    ("Button", click["button"]),
+                    ("Clicked by", f"{click['by']['name']} ({click['by']['department']})"),
+                    ("Signed by Slack", _yes(click["signed_by_slack"])),
+                    (f"From {click['from_channel']}", "yes"),
+                    ("Clicker is on the IT team", _yes(click["in_it_team"])),
+                    ("Result", click["result"]),
+                ],
+            ),
+            _p(
+                f"{_e(click['by']['name'])}, a fake person on the IT team, presses "
+                f"<strong>{_e(click['button'])}</strong>.",
+                "Code counts the click only if Slack signed it, it came from the IT team's "
+                "channel, and the person is on the IT team in the directory. Anyone else's click "
+                "is refused and logged. A second click sends nothing.",
+                "The requester waits until someone in IT clicks. On the lab's clock the click "
+                "comes at once.",
+            ),
+        ),
+        _step(
+            8,
+            "Code posts the guide",
             "code",
             _message("tier0", "T0", run["reply"]["at"], run["reply"]["text"], app=True)
             + _log(
@@ -385,30 +526,34 @@ def render(run: dict[str, Any]) -> str:
                 ],
             ),
             _p(
-                "Code wrote every word of this reply. The greeting uses the first name from "
-                "the directory. The first message says that tier0 is an AI assistant. The "
-                "header comes from a fixed template, and the steps are the approved guide's, "
-                "word for word, with its link.",
-                "The reply guard checked the message before it was sent. Tier0 asked for no "
-                "access token and called no tool, because a guide reads no account.",
+                "Code wrote every word of this reply. The header comes from a fixed template, "
+                "and the steps are the approved guide's, word for word, with its link. It is the "
+                "reply from the draft.",
+                "The reply guard checked the message again before it was sent. Tier0 asked for "
+                "no access token and called no tool, because a guide reads no account.",
             ),
         ),
         _step(
-            6,
+            9,
             "The ticket records what happened",
             "code",
             f'<div class="log"><p class="log-title">Ticket {_e(tk["id"])} · queue '
-            f"{_e(tk['queue'])} · {_e(tk['state_after_reply'])}</p>"
+            f"{_e(tk['queue'])} · {_e(tk['state_after_draft'])}</p>"
+            f"{_comments(tk['comments_after_draft'])}</div>"
+            f'<div class="log"><p class="log-title">Ticket {_e(tk["id"])} · after the click · '
+            f"{_e(tk['state_after_reply'])}</p>"
             f"{_comments(tk['comments_after_reply'])}</div>",
             _p(
                 "Tier0 opens a ticket for every request and notes each step on it, so a "
                 "person on the IT team can see what tier0 did and why.",
-                "The ticket now waits for a reply: "
+                "Until the click, the ticket is in "
+                f"<strong>{_e(tk['state_after_draft'])}</strong>, the queue for a person. After "
+                "it, the ticket waits for a reply: "
                 f"<strong>{_e(tk['state_after_reply'])}</strong>.",
             ),
         ),
         _step(
-            7,
+            10,
             "Three days later, code closes the ticket",
             "code",
             _message("tier0", "T0", run["close"]["at"], run["close"]["text"], app=True)

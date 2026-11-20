@@ -860,6 +860,7 @@ def test_a_real_sealed_run_on_another_arm_is_refused_before_anything_is_loaded(
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.usefixtures("sealed_month2")
 def test_held_out_month2_runs_only_as_frozen_on_2026_11_18() -> None:
     """The owner's pick (KS6A-H, by the dev rule committed before the runs) and R-3E-3."""
     import hashlib
@@ -895,6 +896,7 @@ def test_held_out_month2_runs_with_the_cache_and_refuses_it_off() -> None:
     assert mo.sealed_cache_default(HELD_OUT_MONTH1) is False
 
 
+@pytest.mark.usefixtures("sealed_month2")
 def test_a_frozen_prompt_whose_text_changed_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
     from meridian_dataset.month import HELD_OUT_MONTH2
     from tier0.knowledge import prompts
@@ -904,6 +906,7 @@ def test_a_frozen_prompt_whose_text_changed_is_refused(monkeypatch: pytest.Monke
     assert refusal is not None and "SHA-256" in refusal
 
 
+@pytest.mark.usefixtures("sealed_month2")
 def test_a_real_month2_run_refuses_the_cache_off_before_anything_is_built(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

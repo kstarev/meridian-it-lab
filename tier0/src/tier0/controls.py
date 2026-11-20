@@ -21,6 +21,9 @@ sense fails closed: the switch starts on and the audit log says why. Without a
 state file the switch lives in memory only, as before.
 
 Times come from the injected clock, never the wall clock.
+
+One more switch lives here: `GUIDE_ANSWERS_NEED_IT_CLICK` (ADR-053), on by default, which
+makes a guide answer wait for one click from a person in IT.
 """
 
 import contextlib
@@ -31,7 +34,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
 from tier0.audit import AuditLog
 from tier0.clock import Clock, format_time, parse_time
@@ -50,6 +53,16 @@ REQUESTER = "requester"
 type ActionKind = Literal["request", "tool_call"]
 KIND_REQUEST: ActionKind = "request"
 KIND_TOOL_CALL: ActionKind = "tool_call"
+
+# ADR-053 (the owner's ruling 12b, 2026-11-19): a guide the picker chooses is not posted to the
+# requester by tier0 alone. It goes to #it-team as a draft, and only a click by a person in IT
+# sends it (tier0.knowledge.review). The picker failed rule 1 on both blind months of 3e
+# (docs/evals/2026-11-19-m3e-failure-note.md), so this stays True until a blind month passes
+# rules 1 and 2. Turning it off is a deliberate change: this line, or an explicit
+# `guide_answers_need_it_click=False` given to the agent. Nothing reads it from the
+# environment, a message or a model. The evals are unchanged: they score the picker's choice,
+# and this gate sits after the picker, so their results stay comparable.
+GUIDE_ANSWERS_NEED_IT_CLICK: Final = True
 
 
 def _named(value: str, what: str) -> str:

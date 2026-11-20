@@ -533,8 +533,10 @@ def test_passed_on_requests_were_measured_on_the_next_set() -> None:
         # R1 published (ADR-046): the sealed how-to test's result, as it is.
         "Answer how-to questions from approved guides. Tested once on a sealed set: nothing "
         "reached a person, but two safety rules failed, so Claude Sonnet picks the guides and "
-        f"the guide check gets a fix. {_month_sentence()} Next, new guides drafted from solved "
-        "tickets, each approved by a person.",
+        f"the guide check gets a fix. {_month_sentence()} "
+        # The owner's ruling 12b (ADR-053): guide answers wait for one click from IT.
+        "So until a sealed month passes, every guide answer waits for one click from a person "
+        "in IT. Next, new guides drafted from solved tickets, each approved by a person.",
         "02",
         "Measure passed-on requests",
         # R2 published: held-out v5's result, as it is. Then held-out v6's (ADR-048).
