@@ -70,9 +70,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p out
+          # Main's own runs only: a run of one of these files started on another branch could
+          # upload a ledger with less spend in it.
           runs=$(
             for wf in access-ai-final.yml access-ai-compare.yml access-red-team.yml; do
               gh run list --workflow "$wf" --status completed --limit 5 \
+                --branch main --event workflow_dispatch \
                 --json databaseId,createdAt --jq '.[] | "\(.createdAt) \(.databaseId)"'
             done | sort -r | cut -d' ' -f2
           )

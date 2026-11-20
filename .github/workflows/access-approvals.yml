@@ -19,11 +19,15 @@
 # review, with CODEOWNERS covering .github/workflows/ and access/plan/), plus the re-check that
 # apply does itself before it changes anything. The owner must also mark "Plan approvals" as a
 # required check in the ruleset. That is an owner step and is not done here.
+#
+# It also runs when a pull request is edited. Changing the base branch counts as an edit, and the
+# check reads its code, policy and code owners from the base branch. So a result worked out
+# against another base must not stay green after the pull request is moved onto main.
 name: Access approvals
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
   pull_request_review:
     types: [submitted, dismissed, edited]
 
