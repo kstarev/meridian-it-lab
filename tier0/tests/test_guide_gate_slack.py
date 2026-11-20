@@ -199,8 +199,9 @@ def test_the_gate_is_on_by_default_with_g3_from_the_3f_dev_tuning() -> None:
     assert DEFAULT_GATE in GATE_VERSIONS
     assert GuidePicker(model=FakePicker()).gate_version == DEFAULT_GATE
     assert GuidePicker(model=FakePicker(), gate_version=None).gate_version is None
-    # The live picker is still KS5; the evals measured KS6A-H. That is the owner's call.
-    assert wiring.PICKER_VERSION == "KS5"
+    # The live picker is KS6A-H, the prompt the blind months measure behind the gate
+    # (test_live_picker_is_the_months.py pins it to the month runner's call).
+    assert wiring.PICKER_VERSION == "KS6A-H"
 
 
 def test_an_unknown_gate_version_is_refused_and_a_picker_without_a_gate_has_none_to_ask() -> None:
@@ -352,7 +353,7 @@ def test_a_gate_yes_asks_the_picker_and_the_guide_waits_for_the_it_click_as_toda
     comments = _comments(rt, outcome)
     assert f"tier0: how-to gate {GATE}: plain how-to yes." in comments
     assert comments.index(f"tier0: how-to gate {GATE}: plain how-to yes.") < next(
-        i for i, c in enumerate(comments) if c.startswith("tier0: guide picker KS5")
+        i for i, c in enumerate(comments) if c.startswith("tier0: guide picker KS6A-H")
     )
     (draft,) = [m for m in rt.slack.sent_messages if m.channel == CHANNELS["it-team"]]
     guide = BY_ID[GUIDE_ID]

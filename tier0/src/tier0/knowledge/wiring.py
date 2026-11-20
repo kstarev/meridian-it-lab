@@ -17,16 +17,22 @@ screen (if it finds anything, the picker is never asked), then the gate on triag
 (tier0.knowledge.gate), which must say exactly yes. A failed call, a refusal or a reply off the
 schema hands off. With `gate_version=None` on the picker, the path runs exactly as before.
 
-Then `answer_question` decides, with every gate it has: the frozen picker (KS5 on Claude
-Sonnet 5.5, ADR-046), the code-only message screen, and the posting gate (a guide approved by
-a person and not flagged by the guide screen). The model sees ids, titles and summaries, never
-steps. Code posts the approved steps word for word, or the message goes to a person. Since
-ADR-053, by default, the guide goes first to #it-team as a draft, and code posts it only after
-one click from a person in IT (tier0.knowledge.review); the requester gets the hand-off reply.
+Then `answer_question` decides, with every gate it has: the picker (KS6A-H on Claude Sonnet
+5.5, the prompt the blind months measure; ADR-046 as amended), the code-only message screen,
+and the posting gate (a guide approved by a person and not flagged by the guide screen). The
+model sees ids, titles and summaries, never steps. Code posts the approved steps word for
+word, or the message goes to a person. Since ADR-053, by default, the guide goes first to
+#it-team as a draft, and code posts it only after one click from a person in IT
+(tier0.knowledge.review); the requester gets the hand-off reply.
 
 The picker's model is injected, so tests use a fake and the lab makes no paid call. A real
 Claude model must be Sonnet 5.5: the prompt is frozen for it, and Haiku failed the sealed
 test's rule 2 (ADR-046).
+
+The picker's call is the month runner's call (tier0.evals.month.knowledge_picker) for the same
+prompt: the same system prompt, the same mode (one plain call: no asks_for field, no fit check,
+no pointer guide) and the same guide list, so the request is the same. A test pins this, and
+pins the prompt's SHA-256 to month3's frozen plan.
 """
 
 import re
@@ -36,12 +42,17 @@ from dataclasses import dataclass, field
 from meridian_dataset.knowledge import MEMORY_REPO_URL, Guide, load_runbooks
 from tier0.knowledge.answer import Outcome, answer_question, postable
 from tier0.knowledge.gate import GATE_VERSIONS, gate_request, parse_gate
-from tier0.knowledge.prompts import FROZEN, PICKER_VERSIONS
+from tier0.knowledge.prompts import PICKER_VERSIONS
 from tier0.models.base import ModelAdapter, ModelError
 
-# ADR-046: the guide picker runs on Claude Sonnet 5.5, with its frozen prompt.
+# ADR-046: the guide picker runs on Claude Sonnet 5.5. Its prompt was KS5, milestone 4's frozen
+# pick (prompts.FROZEN, which still holds it for the sealed how-to test). It is KS6A-H by the
+# owner's answer to "Move the live flow to KS6A-H?", which amends ADR-046. It is the prompt
+# the blind months measure in the month runner: held_out_month2 and month2b ran it, and
+# month3's frozen plan pins it (SHA-256 04fdb994...0888). KS6A-H failed rule 1 on month2 and
+# month2b, so a picked guide still waits for one click from a person in IT (ADR-053).
 PICKER_MODEL = "claude-sonnet-5-5"
-PICKER_VERSION = FROZEN[PICKER_MODEL]
+PICKER_VERSION = "KS6A-H"
 # Milestone 3f: the how-to gate's version (tier0.knowledge.gate), asked on triage's own model
 # before the picker. G3 is the version the 3f dev tuning picked on both arms, by the plan's
 # selection rule (docs/plans/milestone-3f-how-to-gate.md); the blind month3 will measure it.

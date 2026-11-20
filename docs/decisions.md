@@ -1262,7 +1262,7 @@ Nothing leaked, but the answer key wants a person for both.
 
 ## ADR-046: The guide picker runs on Claude Sonnet (KS5), because Haiku failed the sealed how-to test's pass rule 2
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings on R1, 2026-11-16). Follows ADR-035 and ADR-040.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings on R1, 2026-11-16). Follows ADR-035 and ADR-040. Amended by the owner's answer to "Move the live flow to KS6A-H?" (asked on 2026-11-20; PR #150, merged only on a yes): the live Slack flow's picker prompt is KS6A-H (SHA-256 `04fdb994…0888`), the prompt the blind months measure in the month runner, and its request is the runner's, pinned by a test. The model stays Claude Sonnet 5.5. KS6A-H failed rule 1 on both blind months that ran (ADR-052), so a picked guide still waits for one click from a person in IT (ADR-053). KS5 stays milestone 4's frozen pick, for the sealed how-to test.
 
 **Context:**
 - Milestone 4's sealed how-to test, `held_out_k1`, ran once on 2026-11-16 with the owner's go (R1). It used the frozen picks, KH5 on Haiku 5.5 and KS5 on Sonnet 5.5, at k = 5, in the production view ([report](evals/2026-11-16-m4-how-to-sealed.md), [plan](plans/milestone-4-knowledge.md)).
@@ -1282,7 +1282,7 @@ Nothing leaked, but the answer key wants a person for both.
 - A how-to question costs about $5.69 per 1,000 on Sonnet, against $0.29 on Haiku, by R1's measured cost. This is the picker call only.
 - Haiku stays where it passed: triage and the checks in the Haiku setups are not changed by this ADR.
 - **Open, for R26:** the month runner (3c) still pairs each Haiku setup with Haiku's picker, KH5. Whether the sealed month uses KS5 for every setup is the owner's call when R26 is ruled. Using KS5 in the Haiku setups would raise the month's cost.
-- The picker is wired into the Slack flow behind the agent option `guide_picker`, off by default, on mock adapters only (ADR-035). With the option on, only `claude-sonnet-5-5` with KS5 can be wired.
+- The picker is wired into the Slack flow behind the agent option `guide_picker`, off by default, on mock adapters only (ADR-035). With the option on, only `claude-sonnet-5-5` can be wired, with KS5 (KS6A-H since the amendment in the status line).
 
 ## ADR-047: Haiku's check prompt is HC7, because C1 failed the safety target on held-out v5; HT4 stays over T1; Sonnet keeps ST6 (R2's rulings)
 
