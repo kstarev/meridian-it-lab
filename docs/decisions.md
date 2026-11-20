@@ -1447,3 +1447,24 @@ Nothing leaked, but the answer key wants a person for both.
   - They are not re-run or re-scored. The triage sets (held-out v2 to v6 and v4b) and Access's sets don't run this screen.
 - **The widened screen's first sealed measurement will be the next blind month.**
 - #101 also widened the guide screen the same way and made the picker's reply parser treat unreadable replies as off-format. The sealed how-to test's code-only result used the old guide screen too.
+
+## ADR-052: The two blind months (`held_out_month2`, `held_out_month2b`) are spent and are dev sets; their results stand as fails
+
+**Date:** 2026-11-19 · **Status:** Accepted (the owner's ruling 11 of 2026-11-19, after the months' runs). Follows ADR-049.
+
+**Context:**
+- Both months ran once on 2026-11-19 on the frozen system (KS6A-H, `haiku-3d2` and `sonnet-3d2`, k = 3, prompt cache on). **Both failed rule 1 in both arms** ([result](plans/milestone-3e-picker-fix.md#the-sealed-runs-result-2026-11-19)). The result was reported from ids, kinds and counts only ([failure note](evals/2026-11-19-m3e-failure-note.md)).
+- By their rules the months were spent, but the code still sealed them and nobody had read them until this ruling.
+
+**Decision:**
+- **The results stand as fails.** They are not re-scored. No answer key is changed, and no rule is softened.
+- **Both months are dev sets from 2026-11-19** (`SPENT_SETS`, and `OPENED` in `tools/sealed_paths.py`). They may be read and tuned on.
+- **Every number measured on them from now on is "dev, not blind".** The runner labels it so and names the result files `-dev`.
+- **The files stay pinned by their SHA-256.** The published results were measured on exactly those bytes.
+- **The sealed result files stay as published.**
+
+**Consequences:**
+- **Only the failing tickets were read:** the 7 wrongly answered tickets and the 7 tickets of template B009, whose how-to runs were all handed off ([the reasons](evals/2026-11-19-m3e-month2-failure-reasons.md)).
+- **No month is sealed in the month runner until `held_out_month3` is added.** The runner's checks for a sealed set stay, tested with these months standing in for sealed sets.
+- **Nothing measured on these months can show that a fix works.** That takes `held_out_month3`, written blind, with its pass rules and a stop rule committed before its seal (the owner's ruling 12 (a)).
+- **The other sealed sets are untouched.**
