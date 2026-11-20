@@ -39,6 +39,10 @@
   "triage": {
     "category": "other"
   },
+  "how_to_gate": {
+    "version": null,
+    "calls": 0
+  },
   "policy": {
     "tier": "A",
     "action": "escalate"

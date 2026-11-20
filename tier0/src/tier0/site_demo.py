@@ -25,6 +25,10 @@ The run uses the default setting, so the guide waits for one click from a person
 the IT team (the first, by Slack id) presses "Send this guide" through the mock's signed
 button request. Only then does code post the guide.
 
+The run has no how-to gate step (milestone 3f). It was recorded on 2026-11-19, before the gate
+was turned on, so the recording holds no gate call: the replay builds the picker with no gate,
+explicitly (GATE_VERSION), and the page says so. Showing the gate would take a new recording.
+
 The message is one template of the tuning month, word for word. Every fact on the page (the
 labels, the checks, the guide, the replies, the ticket's comments and states) comes from the
 run log; only the short notes beside each step are written here. If the agent stops going
@@ -90,6 +94,11 @@ RECORDING = "demo-recorded-run.json"
 ARM = SETUPS_3D2["haiku-3d2"]
 PICKER_MODEL = SONNET
 PICKER_PROMPT = "KS6A-H"
+# The recording was made before the how-to gate was turned on (the agent's default is now G3,
+# tier0.knowledge.wiring.HOW_TO_GATE_VERSION), so it holds no gate call. The run builds the
+# picker with no gate, explicitly, and the page says the run has no gate step. A gate here would
+# take a new recording: one more paid run, with the owner's go.
+GATE_VERSION: str | None = None
 # The owner allowed one paid run, from this budget item, under this much in total.
 BUDGET_ITEM = "tier0-3e"
 RECORD_LIMIT_USD = 0.05
@@ -319,7 +328,7 @@ async def _run(
         model=triage_model,
         prompts=ARM.prompts(),
         features=ARM.features(),
-        guide_picker=Picker3e(model=picker_model),
+        guide_picker=Picker3e(model=picker_model, gate_version=GATE_VERSION),
     ) as rt:
         dm = rt.slack.dm_channel_for(person.slack_user_id)
         ticket = Ticket(
@@ -375,6 +384,11 @@ async def _run(
         escalated = [a["reason"] for n, a in events if n == "tier0.escalated"]
         _require(escalated == [GUIDE_WAITS_FOR_IT], "the request went to a person another way")
         _require("tier0.guard.blocked" not in names, "the reply guard blocked a message")
+        gate_calls = names.count("tier0.guide.gate")
+        _require(
+            gate_calls == 0 and "tier0.guide.screen_first" not in names,
+            "the how-to gate's steps ran, and the page shows no gate step",
+        )
         (policy,) = [a for n, a in events if n == "tier0.policy.decision"]
         (pick,) = [a for n, a in events if n == "tier0.guide.pick"]
         (posted,) = [a for n, a in events if n == "tier0.guide.posted"]
@@ -408,6 +422,7 @@ async def _run(
                 "rate_limit": "allowed",
             },
             "triage": {"category": outcome.category},
+            "how_to_gate": {"version": GATE_VERSION, "calls": gate_calls},
             "policy": {k: policy[k] for k in ("tier", "action")},
             "pick": {k: pick[k] for k in ("version", "request_type", "guide", "screen", "outcome")},
             "guide": {
@@ -600,7 +615,8 @@ def record_once(
 # --- the page ---------------------------------------------------------------------------
 
 _e = html.escape
-# The page around the steps; $label, $when, $steps and $repo are filled in.
+# The page around the steps; $label, $recorded, $gate, $recording, $when, $steps and $repo are
+# filled in.
 _PAGE = Template((Path(__file__).parent / "site_demo.html").read_text())
 
 
@@ -719,6 +735,19 @@ def recorded_line(models: dict[str, Any]) -> str:
         f"Recorded once on {models['recorded_on']} with {model_name(triage['model'])} "
         f"(triage) and {model_name(pick['model'])} (guide picker); the page replays that run, "
         "it doesn't call a model."
+    )
+
+
+def gate_line(run: dict[str, Any]) -> str:
+    """The page's plain statement that the run has no how-to gate step, and why. The page has no
+    gate step to show, so a run log with a gate in it can't be drawn."""
+    gate = run["how_to_gate"]
+    if gate != {"version": None, "calls": 0}:
+        raise RuntimeError(f"the page shows no how-to gate step, but the run had one: {gate}")
+    return (
+        f"This run was recorded on {run['models']['recorded_on']}, before the how-to gate was "
+        "turned on, so the page shows no gate step. With the gate on, triage's model is asked "
+        "one more question before the guide picker: is the message one plain how-to question?"
     )
 
 
@@ -961,6 +990,7 @@ def render(run: dict[str, Any]) -> str:
     return _PAGE.substitute(
         label=_e(run["label"]),
         recorded=html.escape(recorded_line(models), quote=False),
+        gate=html.escape(gate_line(run), quote=False),
         recording=_e(models["recording"]),
         when=_e(_when(msg["at"])),
         steps="\n".join(steps),

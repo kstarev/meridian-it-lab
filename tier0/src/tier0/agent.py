@@ -15,7 +15,7 @@ gets the hand-off reply, #it-team gets a draft, and `handle_interaction` sends
 the guide once, on a click by a member of the IT team.
 
 With a how-to gate set (milestone 3f, `HOW_TO_GATE_VERSION` in tier0.knowledge.wiring,
-None until the tuning picks one), the code-only message screen and then the gate,
+G3 by default, picked by the 3f dev tuning), the code-only message screen and then the gate,
 on triage's own model, run before the picker is asked. Each can only hand off.
 """
 

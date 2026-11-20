@@ -13,7 +13,7 @@ the message to a person. The model never sees a guide's steps and never writes a
     guide_screen.py  a code-only check that a guide's text holds no instruction or trap
     wiring.py   the path in the Slack flow, after triage says "other"; off by default
     gate.py     the how-to gate, asked on triage's own model before the picker (milestone 3f);
-                off in the Slack flow until the tuning sets wiring.HOW_TO_GATE_VERSION
+                on in the Slack flow with G3 (wiring.HOW_TO_GATE_VERSION), from the 3f dev tuning
     review.py   the draft in #it-team and its buttons: a guide is posted only after one click
                 from a person in IT (ADR-053, on by default)
 

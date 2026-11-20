@@ -6,7 +6,8 @@ owner's ruling 10). These tests fail if either file drifts from a new replay, if
 calls a model or asks for a call the recording doesn't hold, if the page doesn't state the
 recording's models and date, if the guide shown isn't the recorded pick, if the message is not
 a tuning template word for word, or if the page loses its "Simulated Slack, fake data" label or
-its link from the Tier0 case study.
+its link from the Tier0 case study. The recording was made before the how-to gate was turned
+on, so the demo runs with no gate, and the page must say so.
 """
 
 import copy
@@ -24,6 +25,7 @@ from meridian_dataset.month import SEALED_SETS, SPENT_SETS, TUNING_MONTH, load_t
 from tier0 import site_demo
 from tier0.evals.month import SEALED_PLANS
 from tier0.evals.setups import HAIKU, SONNET
+from tier0.knowledge import wiring
 from tier0.knowledge.prompts import PICKER_MODES, sha256
 from tier0.models import ModelRequest, ModelResponse
 from tier0.models.claude import ClaudeModel
@@ -147,6 +149,34 @@ def test_the_page_states_the_recordings_models_and_date() -> None:
     for model_id in (triage, pick):
         assert f"<dd>{model_id}</dd>" in page
     assert "<code>HT9</code>" in page and "<code>KS6A-H</code>" in page
+
+
+def test_the_run_has_no_gate_step_and_the_page_says_why() -> None:
+    """The live default is G3, but the recording (2026-11-19) holds no gate call: the demo
+    builds its picker with no gate, explicitly, and the page says the run predates the gate."""
+    rec, run, page = _recording(), _published(), _page()
+    assert wiring.HOW_TO_GATE_VERSION == "G3"
+    assert site_demo.GATE_VERSION is None
+    assert "howto_gate" not in {c["request"]["task"] for c in rec["calls"]}
+    assert run["how_to_gate"] == {"version": None, "calls": 0}
+    line = (
+        f"This run was recorded on {rec['recorded_on']}, before the how-to gate was turned on, "
+        "so the page shows no gate step."
+    )
+    assert rec["recorded_on"] == "2026-11-19"
+    assert site_demo.gate_line(run).startswith(line)
+    hero = page.index('<div class="hero">')
+    assert hero < page.index(line) < page.index('id="replay"')
+    with pytest.raises(RuntimeError, match="no how-to gate step"):
+        site_demo.render({**run, "how_to_gate": {"version": "G3", "calls": 1}})
+
+
+def test_with_the_gate_on_the_replay_stops_for_a_call_the_recording_doesnt_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(site_demo, "GATE_VERSION", wiring.HOW_TO_GATE_VERSION)
+    with pytest.raises(site_demo.ReplayMismatch, match="no more"):
+        site_demo.replay(_recording())
 
 
 def test_the_recordings_guide_and_label_are_the_ones_shown() -> None:

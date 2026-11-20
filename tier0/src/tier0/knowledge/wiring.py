@@ -11,11 +11,11 @@ On, a message goes the knowledge way only when all of these hold:
   as "other", but it goes to a person and the picker never sees it (as in the month's routing);
 - the policy table still says "escalate" for "other".
 
-With a how-to gate set (milestone 3f, `HOW_TO_GATE_VERSION`; None, the default, until the
-tuning picks a version), two steps come first, and each can only hand off: the code-only
-message screen (if it finds anything, the picker is never asked), then the gate on triage's own
-model (tier0.knowledge.gate), which must say exactly yes. A failed call, a refusal or a reply off
-the schema hands off. With no gate set, the path runs exactly as before.
+With a how-to gate set (milestone 3f, `HOW_TO_GATE_VERSION`; G3 by default, the version the
+3f dev tuning picked), two steps come first, and each can only hand off: the code-only message
+screen (if it finds anything, the picker is never asked), then the gate on triage's own model
+(tier0.knowledge.gate), which must say exactly yes. A failed call, a refusal or a reply off the
+schema hands off. With `gate_version=None` on the picker, the path runs exactly as before.
 
 Then `answer_question` decides, with every gate it has: the frozen picker (KS5 on Claude
 Sonnet 5.5, ADR-046), the code-only message screen, and the posting gate (a guide approved by
@@ -43,9 +43,10 @@ from tier0.models.base import ModelAdapter, ModelError
 PICKER_MODEL = "claude-sonnet-5-5"
 PICKER_VERSION = FROZEN[PICKER_MODEL]
 # Milestone 3f: the how-to gate's version (tier0.knowledge.gate), asked on triage's own model
-# before the picker. None: no gate, and the path runs exactly as before. The tuning pull request
-# sets it to the version the plan's selection rule picks (docs/plans/milestone-3f-how-to-gate.md).
-HOW_TO_GATE_VERSION: str | None = None
+# before the picker. G3 is the version the 3f dev tuning picked on both arms, by the plan's
+# selection rule (docs/plans/milestone-3f-how-to-gate.md); the blind month3 will measure it.
+# A picker built with gate_version=None has no gate, and its path runs exactly as before.
+HOW_TO_GATE_VERSION: str | None = "G3"
 # Why a message was handed off before the picker was asked, with a gate set. The agent's
 # hand-off codes are these after "guide_" (guide_screen_first, ...); "guide_screen" stays the
 # code for the screen firing after a picker call, with no gate.

@@ -7,6 +7,10 @@ Since ADR-053 a chosen guide waits for one click from a person in IT by default
 (`GUIDE_ANSWERS_NEED_IT_CLICK`). The tests here of the picker's own path, where the guide is
 posted at once, turn that off explicitly (`DIRECT`); the rest run on the default.
 tier0/tests/test_guide_it_click.py tests the draft and the click.
+
+Since milestone 3f the how-to gate (G3) runs before the picker by default. These tests are of
+the picker's own path, so each builds its picker with no gate (`gate_version=None`);
+tier0/tests/test_guide_gate_slack.py tests the gate and the default.
 """
 
 import dataclasses
@@ -248,7 +252,9 @@ def test_a_how_to_question_gets_the_guide_word_for_word_and_closes_like_an_answe
         swept = rt.agent.sweep()
         return rt, outcome, state, swept
 
-    rt, outcome, state, swept = _run(world, body, guide_picker=GuidePicker(model=picker), **DIRECT)
+    rt, outcome, state, swept = _run(
+        world, body, guide_picker=GuidePicker(model=picker, gate_version=None), **DIRECT
+    )
     assert (outcome.status, outcome.action, outcome.category, outcome.state) == (
         "handled",
         ANSWER_GUIDE,
@@ -281,7 +287,7 @@ def test_the_picker_runs_the_frozen_prompt_and_never_sees_a_step(world: World) -
     async def body(rt: Runtime) -> Outcome:
         return await _ask(rt, _person(world), WIFI)
 
-    _run(world, body, guide_picker=GuidePicker(model=picker))
+    _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     (request,) = picker.requests
     assert FROZEN[PICKER_MODEL] == "KS5"
     assert request.system.startswith(PICKER_VERSIONS["KS5"])
@@ -306,7 +312,7 @@ def test_the_header_follows_the_requesters_language(
         await _ask(rt, person, WIFI)
         return rt
 
-    picker = GuidePicker(model=FakePicker({WIFI: ("how_to", "KB-001")}))
+    picker = GuidePicker(model=FakePicker({WIFI: ("how_to", "KB-001")}), gate_version=None)
     rt = _run(world, body, guide_picker=picker, **DIRECT)
     (answer,) = _sent(rt)
     assert _body(answer) == reply_text(guide, language)
@@ -338,7 +344,7 @@ def test_no_guide_hands_off_exactly_as_without_the_option(
         return rt, await _ask(rt, person, NO_GUIDE)
 
     off_rt, off = _run(world, body)
-    on_rt, on = _run(world, body, guide_picker=GuidePicker(model=picker))
+    on_rt, on = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     # The requester sees the same hand-off, and the ticket goes to a person the same way.
     assert (on.status, on.action, on.category, on.state) == (
         off.status,
@@ -370,7 +376,7 @@ def test_a_must_hand_off_request_typed_how_to_is_still_handed_off_by_code(
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _ask(rt, _person(world), text)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert _escalated_codes(rt) == ["guide_screen"]
     (pick,) = _events(rt, "tier0.guide.pick")
@@ -392,7 +398,7 @@ def test_a_guide_picked_for_a_request_that_isnt_a_how_to_is_never_posted(
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _ask(rt, _person(world), WIFI)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert _escalated_codes(rt) == ["guide_not_a_how_to"]
     assert _no_guide_posted(rt)
@@ -410,7 +416,7 @@ def test_someone_else_and_username_requests_never_reach_the_picker(
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _ask(rt, _person(world), text)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     assert (outcome.action, outcome.state) == (action, state)
     assert picker.requests == []
     assert _no_guide_posted(rt)
@@ -434,7 +440,7 @@ def test_an_off_format_triage_goes_to_a_person_without_the_picker(
         world,
         body,
         model=TriageModel(triage_text=triage_text),
-        guide_picker=GuidePicker(model=picker),
+        guide_picker=GuidePicker(model=picker, gate_version=None),
     )
     assert (outcome.action, outcome.category, outcome.state) == ("escalate", "other", TRIAGE)
     assert _escalated_codes(rt) == ["policy_escalate"]
@@ -459,7 +465,9 @@ def test_an_unapproved_or_flagged_guide_is_never_shown_or_posted(world: World, b
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _ask(rt, _person(world), WIFI)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, guides=guides))
+    rt, outcome = _run(
+        world, body, guide_picker=GuidePicker(model=picker, guides=guides, gate_version=None)
+    )
     (request,) = picker.requests
     assert bad.id not in request.system and bad.title not in request.system
     # The model named a guide that isn't on its list: off format, a hand-off.
@@ -480,7 +488,9 @@ def test_the_output_guard_still_checks_a_guides_steps(world: World) -> None:
         return rt, await _ask(rt, _person(world), WIFI)
 
     rt, outcome = _run(
-        world, body, guide_picker=GuidePicker(model=picker, guides=(*RUNBOOKS, leaky))
+        world,
+        body,
+        guide_picker=GuidePicker(model=picker, guides=(*RUNBOOKS, leaky), gate_version=None),
     )
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert len(_events(rt, "tier0.guard.blocked")) == 1
@@ -558,8 +568,8 @@ def test_only_the_guide_reply_is_exempt_and_only_for_its_code_built_link(
             await rt.agent.handle(rt.slack.message_event(ticket))
 
     # With the IT click on (the default), tier0/tests/test_guide_it_click.py pins the same.
-    _run(world, asks, guide_picker=GuidePicker(model=picker), **DIRECT)
-    _run(world, tickets, guide_picker=GuidePicker(model=picker), **DIRECT)
+    _run(world, asks, guide_picker=GuidePicker(model=picker, gate_version=None), **DIRECT)
+    _run(world, tickets, guide_picker=GuidePicker(model=picker, gate_version=None), **DIRECT)
     exempt = [(text, links) for text, links in calls if links]
     assert len(exempt) == 1
     text, links = exempt[0]
@@ -582,7 +592,7 @@ def test_an_outsider_never_reaches_the_picker(world: World) -> None:
         second = await _ask(rt, leaver, WIFI, 2)
         return rt, first, second
 
-    rt, first, second = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, first, second = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     _assert_verify_identity(rt, first)
     _assert_verify_identity(rt, second)
     assert picker.requests == []
@@ -597,7 +607,9 @@ def test_with_the_kill_switch_on_there_is_no_picker_call(world: World) -> None:
         rt.controls.kill_switch.turn_on(by=IT_LEAD, reason="drill")
         return rt, await _ask(rt, _person(world), WIFI)
 
-    rt, outcome = _run(world, body, model=model, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(
+        world, body, model=model, guide_picker=GuidePicker(model=picker, gate_version=None)
+    )
     assert (outcome.reason, outcome.action, outcome.state) == (KILL_SWITCH_ON, "escalate", TRIAGE)
     assert model.requests == [] and picker.requests == []
     assert _no_guide_posted(rt)
@@ -611,7 +623,9 @@ def test_a_kill_switch_flipped_during_triage_stops_the_picker(world: World) -> N
         model.on_triage = lambda: rt.controls.kill_switch.turn_on(by=IT_LEAD, reason="drill")
         return rt, await _ask(rt, _person(world), WIFI)
 
-    rt, outcome = _run(world, body, model=model, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(
+        world, body, model=model, guide_picker=GuidePicker(model=picker, gate_version=None)
+    )
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert _escalated_codes(rt) == [KILL_SWITCH_ON]
     assert picker.requests == []
@@ -625,7 +639,7 @@ def test_a_kill_switch_flipped_during_the_picker_call_posts_nothing(world: World
         picker.on_call = lambda: rt.controls.kill_switch.turn_on(by=IT_LEAD, reason="drill")
         return rt, await _ask(rt, _person(world), WIFI)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert _escalated_codes(rt) == [KILL_SWITCH_ON]
     assert len(picker.requests) == 1
@@ -643,7 +657,7 @@ def test_the_rate_limit_stops_a_request_before_the_picker(world: World) -> None:
         world,
         body,
         rate_limits=RateLimitSettings(per_requester_limit=1, global_limit=100),
-        guide_picker=GuidePicker(model=picker),
+        guide_picker=GuidePicker(model=picker, gate_version=None),
     )
     assert first.action == DRAFT_GUIDE
     assert (second.reason, second.action, second.state) == (RATE_LIMITED_CODE, "escalate", TRIAGE)
@@ -688,7 +702,7 @@ def test_the_worlds_tickets_run_the_same_with_the_option_on(world: World) -> Non
         return [dataclasses.replace(o, trace_id=None) for o in outcomes], _sent(rt), states
 
     off = _run(world, body)
-    on = _run(world, body, guide_picker=GuidePicker(model=picker))
+    on = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     assert on == off
     assert picker.requests == []
 
@@ -703,7 +717,7 @@ def test_the_picker_call_is_traced_like_any_model_call_with_codes_only(world: Wo
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _ask(rt, person, WIFI)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     chats = [
         s
         for s in rt.tracer.finished_spans()
@@ -768,7 +782,10 @@ def test_with_part_2_on_a_reset_goes_to_a_person_and_the_picker_is_never_asked(
         return rt, await _ask(rt, person, RESET_MFA)
 
     rt, outcome = _run(
-        world, body, guide_picker=GuidePicker(model=picker), features=Features(tier_c=True)
+        world,
+        body,
+        guide_picker=GuidePicker(model=picker, gate_version=None),
+        features=Features(tier_c=True),
     )
     assert outcome.action == "prepare_tier_c" and outcome.state == TRIAGE
     assert picker.requests == []
@@ -785,7 +802,10 @@ def test_with_part_2_on_a_how_to_gets_the_same_guide_as_without_it(world: World)
             return await _ask(rt, person, WIFI), _events(rt, "tier0.guide.drafted")
 
         outcome, drafted = _run(
-            world, body, guide_picker=GuidePicker(model=picker), features=features
+            world,
+            body,
+            guide_picker=GuidePicker(model=picker, gate_version=None),
+            features=features,
         )
         assert len(picker.requests) == 1
         results.append((outcome.action, outcome.state, drafted))
@@ -809,7 +829,7 @@ def test_with_part_2_on_a_triage_that_gave_no_clean_label_never_reaches_the_pick
         world,
         body,
         model=TriageModel(triage_text=triage_text),
-        guide_picker=GuidePicker(model=picker),
+        guide_picker=GuidePicker(model=picker, gate_version=None),
         features=Features(tier_c=True),
     )
     assert outcome.action == "escalate" and outcome.state == TRIAGE
