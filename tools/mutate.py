@@ -250,15 +250,20 @@ UNITS: tuple[Unit, ...] = (
     # the diff's last word and apply's guard ask it (in match_accounts, build_changes and
     # apply_plan). It replaced match._break_glass, diff._break_glass_strings and
     # _touches_break_glass, and apply._break_glass_names, _is_listed and _touches_break_glass.
+    # The proposed amendment (gap G7) adds it_controlled, _keys, Unlinked.warning and evidence.
     Unit(
         "access break-glass",
         "access/src/meridian_access/break_glass.py",
         (
             "name_forms",
             "policy_kind",
+            "it_controlled",
             "_names_of",
+            "_keys",
+            "Unlinked.warning",
             "BreakGlass.protects",
             "BreakGlass.account_kind",
+            "BreakGlass.evidence",
             "break_glass",
         ),
         (A + "test_match.py", A + "test_diff.py", A + "test_apply.py"),

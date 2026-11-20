@@ -16,8 +16,8 @@ main part `approvals_default`. Changes held for bad HR data are never applied. A
 part makes the other one stale: both were built from the same actual state, and the apply
 changes it, so the other part is refused as "stale" and must be built again and approved
 again. A final break-glass
-guard drops any change that names a break-glass account, by any of its names
-(`break_glass.py`), whatever the diff did. Every change
+guard drops any change that names a break-glass account, by any of its names, or a
+break-glass record by its key (`break_glass.py`), whatever the diff did. Every change
 checks the current state first, so a second run does nothing. Suspension comes before removal
 where the API allows it.
 After a mock-live apply the state is read again and every applied change is checked to have
@@ -269,7 +269,9 @@ def apply_plan(
     for c in data["changes"]:
         if c["action"] == "never_touch":
             continue  # a report-only entry for a break-glass account
-        if protected.protects(c.get("account", "")):
+        if protected.protects(
+            c.get("account", ""), system=c.get("system", ""), app_id=c.get("app_id", "")
+        ):
             result.dropped_break_glass.append(dict(c))
             result.log.append(
                 f"warning: dropped a {c['action']} change for {c['account'].strip()}: "

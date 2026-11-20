@@ -14,7 +14,10 @@ test_apply_properties.py.
 Gap G2 (the owner's ruling, 2026-11-19: protection covers every name of a protected account,
 aliases included) was pinned by the `test_g2_*` tests as strict xfails and is fixed by AAC-018.
 Gap G7 (found in review, 2026-11-20: a Slack record the person can edit spreads that protection to
-their own HR address) is pinned by the `test_g7_*` tests as strict xfails.
+their own HR address) was pinned by the `test_g7_*` tests as strict xfails. The proposed amendment
+to AAC-018 makes them pass: only records IT controls (Okta, Google) link names into one account;
+a Slack user or an export row that carries a protected name is left alone, by its name and its
+key, protects no other name, and is named in a warning.
 
 The runs are fixed (derandomize) and keep no example database.
 """
@@ -28,7 +31,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from meridian_access.apply import apply_plan, issue_write_tokens
-from meridian_access.break_glass import break_glass, name_forms, policy_kind
+from meridian_access.break_glass import break_glass, it_controlled, name_forms, policy_kind
 from meridian_access.collect import ActualState, Mocks, actual_state
 from meridian_access.desired import desired_state
 from meridian_access.diff import build_changes
@@ -465,7 +468,8 @@ def test_g2_apply_drops_every_change_that_names_a_protected_account(system, name
 # address, or their Slack userName to a break-glass name, links their own HR work address to it:
 # matching marks their Okta and Google users break-glass, the diff's last word and apply's guard
 # drop their suspension, and each never_touch row says "listed in the break-glass policy", which
-# their address is not. They are never offboarded. These are strict xfails until the owner rules.
+# their address is not. They were never offboarded. These were strict xfails until the proposed
+# amendment to AAC-018: only records IT controls (Okta, Google) link names into one account.
 
 G7_BG = f"breakglass-01@{D}"  # listed in POLICY
 G7_HR = f"ana.smith@{D}"  # the leaver's HR work address
@@ -476,10 +480,6 @@ G7_SLACK = {
 G7_OKTA = Account(system="okta", account=G7_HR, email=G7_HR)
 G7_GOOGLE = Account(system="google", account=G7_HR, email=G7_HR)
 G7_BG_OKTA = Account(system="okta", account=G7_BG, email=G7_BG)  # the real break-glass user
-G7_GAP = (
-    "gap G7: a Slack record the person can edit spreads break-glass protection to their HR address"
-)
-g7 = pytest.mark.xfail(strict=True, reason=G7_GAP)
 g7_slack = pytest.mark.parametrize("slack", G7_SLACK.values(), ids=G7_SLACK)
 
 
@@ -526,7 +526,6 @@ def _suspended(result) -> set[tuple[str, str]]:
     return {(c.system, c.account) for c in (*result.changes, *result.held) if c.action == "suspend"}
 
 
-@g7
 @g7_slack
 def test_g7_matching_places_a_leavers_own_records_on_them_whatever_their_slack_record_says(slack):
     result = match_accounts(_g7_state(slack).accounts, [_g7_leaver()], POLICY)
@@ -535,7 +534,6 @@ def test_g7_matching_places_a_leavers_own_records_on_them_whatever_their_slack_r
         assert m is not None and (m.employee_id, m.rule) == ("E1", "exact_email")
 
 
-@g7
 @g7_slack
 def test_g7_a_leaver_is_offboarded_whatever_their_slack_record_says(slack):
     result = _g7_changes(slack)
@@ -543,7 +541,6 @@ def test_g7_a_leaver_is_offboarded_whatever_their_slack_record_says(slack):
     assert [c for c in result.changes if c.action == "never_touch" and c.account == G7_HR] == []
 
 
-@g7
 @g7_slack
 def test_g7_the_diffs_last_word_keeps_a_leavers_suspension(slack):
     # matching placed the leaver's records on them: the last word must not drop the suspension
@@ -606,7 +603,6 @@ def _g7_mocks(slack: Account) -> Mocks:
     return Mocks(OktaMock(okta), GoogleMock(google), SlackMock(slack_data))
 
 
-@g7
 @g7_slack
 def test_g7_apply_suspends_a_leaver_whatever_their_slack_record_says(slack):
     mocks = _g7_mocks(slack)
@@ -653,7 +649,6 @@ def test_g7_apply_suspends_a_leaver_whatever_their_slack_record_says(slack):
     assert status == {G7_HR: "SUSPENDED", G7_BG: "ACTIVE"}
 
 
-@g7
 @g7_slack
 def test_g7_break_glass_evidence_says_listed_only_for_a_name_the_policy_lists(slack):
     rows = [c for c in _g7_changes(slack).changes if c.action == "never_touch"]
@@ -661,3 +656,212 @@ def test_g7_break_glass_evidence_says_listed_only_for_a_name_the_policy_lists(sl
     for c in rows:
         if "listed in the break-glass policy" in c.evidence:
             assert policy_kind(POLICY, c.account) == "listed", (c.system, c.account, c.evidence)
+
+
+# --- the proposed amendment to AAC-018: only records IT controls link names (gap G7) ------------
+#
+# A record IT does not control (a Slack user, an export row) that carries a protected name is
+# still break-glass itself: nothing changes it, by its name or by its key. But its other names are
+# not protected through it, the plan warns and names it, and each never_touch row says how its
+# protection was reached.
+
+
+def test_only_okta_and_google_records_are_it_controlled():
+    assert it_controlled(Account(system="okta", account="a"))
+    assert it_controlled(Account(system="okta", account="a", app_id="github"))  # an assignment
+    assert it_controlled(Account(system="google", account=f"a@{D}"))
+    assert it_controlled(Account(system=" Google ", account=f"a@{D}"))
+    assert not it_controlled(Account(system="slack", account="a"))
+    assert not it_controlled(Account(system="github", account="a", app_id="github"))
+    assert not it_controlled(Account(system="google", account="a", app_id="google"))  # an export
+
+
+@g7_slack
+def test_g7_the_slack_record_itself_is_still_left_alone(slack):
+    result = _g7_changes(slack)
+    rows = [c for c in result.changes if (c.system, c.account) == ("slack", slack.account)]
+    assert [(c.type, c.action) for c in rows] == [("break_glass", "never_touch")]
+    want = {
+        "slack email": f"its email {G7_BG} is listed in the break-glass policy",
+        "slack userName": "listed in the break-glass policy",  # its own name is listed
+    }
+    assert rows[0].evidence == (want["slack email" if slack.email == G7_BG else "slack userName"],)
+
+
+@g7_slack
+def test_g7_the_plan_warns_about_the_slack_record_and_names_the_address_it_carries(slack):
+    warned = [w for w in _g7_changes(slack).warnings if w.startswith(f"{slack.account} (slack) ")]
+    assert len(warned) == 1
+    (w,) = warned
+    protected = G7_BG if slack.email == G7_BG else slack.account
+    assert f"carries the break-glass name {protected} and also " in w
+    assert G7_HR in w and "not a record IT controls" in w
+
+
+@g7_slack
+def test_g7_both_guards_still_stop_a_change_to_the_slack_record_itself(slack):
+    protected = break_glass(POLICY, _g7_state(slack).accounts)
+    assert protected.protects(slack.account, system="slack")
+    assert protected.protects(f" {slack.account.upper()} ", system="SLACK", app_id="")
+    assert not protected.protects(G7_HR) and not protected.protects(G7_HR, system="okta")
+    # elsewhere its name is protected only if the policy protects that name itself
+    elsewhere = protected.protects(slack.account, system="github", app_id="github")
+    assert elsewhere == (policy_kind(POLICY, slack.account) is not None)
+    # the diff's last word: matching missed the Slack record, so it is a leaver's account
+    owner = Match("E1", "exact_email", 1.0)
+    matches = MatchResult(
+        {
+            G7_OKTA.key: owner,
+            G7_GOOGLE.key: owner,
+            slack.key: owner,
+            G7_BG_OKTA.key: Match("", "break_glass", 1.0, "listed"),
+        },
+        [],
+        [],
+    )
+    result = _g7_changes(slack, matches)
+    assert not [c for c in (*result.changes, *result.held) if c.system == "slack"]
+    assert f"change for {slack.account} dropped: break-glass account" in result.warnings
+    assert {("okta", G7_HR), ("google", G7_HR)} <= _suspended(result)
+
+
+@g7_slack
+def test_g7_apply_drops_a_change_to_the_slack_record_itself(slack):
+    mocks = _g7_mocks(slack)
+    row = {
+        "type": "leaver_access_left",
+        "employee_id": "E1",
+        "account": slack.account,
+        "system": "slack",
+        "app_id": "",
+        "app_name": "",
+        "action": "remove",
+        "reason": "test",
+        "evidence": [],
+        "cause_date": "2026-11-10",
+        "hold": "",
+    }
+    plan = Plan(
+        {
+            "version": 2,
+            "part": "main",
+            "as_of": "2026-12-01",
+            "actual_state_sha256": actual_state(mocks, POLICY, sleep=lambda s: None).digest(),
+            "changes": [row],
+            "held": [],
+            "warnings": [],
+            "manual_tasks": [],
+            "approvals_required": 1,
+        }
+    )
+    before = copy.deepcopy(mocks.slack.data)
+    result = apply_plan(
+        plan,
+        mocks,
+        mode="mock-live",
+        approvals=2,
+        policy=POLICY,
+        write_token=issue_write_tokens(mocks),
+        sleep=lambda s: None,
+        rebuild=lambda state: plan,
+    )
+    assert not result.refused_reason
+    assert result.dropped_break_glass == [row] and result.applied == []
+    assert mocks.slack.data == before
+
+
+def test_the_warning_names_the_record_its_system_and_every_name_it_carries():
+    # an export row's system is its app id; a record may carry two protected names
+    row = Account(system="github", account=f"BreakGlass-01@{D}", app_id="github")
+    two = Account(
+        system="slack", account="breakglass-01", email=f"Vault.Admin@{D}", aliases=(f"ana@{D}",)
+    )
+    protected = break_glass(POLICY, [row, two, Account(system="github", account="zed")])
+    assert [u.warning() for u in protected.unlinked] == [
+        f"breakglass-01 (slack) carries the break-glass names breakglass-01, vault.admin@{D} "
+        f"and also ana, ana@{D}: not a record IT controls, so it is left alone but protects "
+        "nothing else; check who set it"
+    ]  # the export row carries one name, in both forms: nothing else to warn about
+    assert protected.protects(row.account, system="GitHub", app_id="github")
+    assert protected.evidence(row) == "listed in the break-glass policy"
+
+
+def test_the_evidence_says_how_each_record_is_protected():
+    slack_ops = Account(system="slack", account="ops", email="team@mail.example")
+    slack_root = Account(system="slack", account="root-login")
+    state = [G2_GOOGLE, G2_OKTA, slack_ops, slack_root, G7_BG_OKTA]
+    protected = break_glass(POLICY, state)
+    assert protected.evidence(G7_BG_OKTA) == "listed in the break-glass policy"
+    assert protected.evidence(G2_OKTA) == (
+        f"its email vault.admin@{D} is listed in the break-glass policy"
+    )
+    assert protected.evidence(G2_GOOGLE) == (
+        f"its alias breakglass-01@{D} is listed in the break-glass policy"
+    )
+    assert protected.evidence(slack_ops) == (
+        f"another name of its account, breakglass-01@{D}, is listed in the break-glass policy"
+    )
+    assert protected.evidence(slack_root) == (
+        f"another name of its account, vault.admin@{D}, is listed in the break-glass policy"
+    )
+    pattern = Account(system="okta", account="x", email=f"breakglass-7@{D}")
+    assert break_glass(POLICY, [pattern]).evidence(pattern) == (
+        f"its email breakglass-7@{D} matches a break-glass pattern"
+    )
+    assert protected.evidence(Account(system="slack", account="ana")) is None
+
+
+def test_the_evidence_names_a_listed_name_when_the_record_itself_only_matches_the_pattern():
+    okta = Account(system="okta", account=f"breakglass-77@{D}", email=f"breakglass-77@{D}")
+    google = Account(
+        system="google",
+        account=f"breakglass-77@{D}",
+        email=f"breakglass-77@{D}",
+        aliases=(f"breakglass-01@{D}",),
+    )
+    protected = break_glass(POLICY, [okta, google])
+    assert protected.evidence(okta) == (
+        f"another name of its account, breakglass-01@{D}, is listed in the break-glass policy"
+    )
+    assert break_glass(POLICY, [okta]).evidence(okta) == "pattern in the break-glass policy"
+
+
+# A state of records IT controls, some protected, and one more record IT does not control.
+IT_RECORDS = st.lists(
+    st.builds(
+        Account,
+        system=st.sampled_from(("okta", "google")),
+        account=st.sampled_from((*LISTED, *PATTERNED, *G2_NAMES, f"ana@{D}", "bob")),
+        email=st.sampled_from(("", *LISTED, f"ana@{D}", f"bob@{D}", "x@mail.example")),
+        aliases=st.lists(st.sampled_from((*LISTED, f"it-ops@{D}", f"ana2@{D}")), max_size=2).map(
+            tuple
+        ),
+    ),
+    max_size=5,
+)
+OTHER_RECORD = st.builds(
+    Account,
+    system=st.sampled_from(("slack", "github")),
+    account=st.sampled_from(("ana", "breakglass-01", "ops", "zed", f"carol@{D}")),
+    email=st.sampled_from(("", *LISTED, f"ana@{D}", f"carol@{D}", f"breakglass-5@{D}")),
+    app_id=st.just(""),
+)
+
+
+@SETTINGS
+@given(IT_RECORDS, OTHER_RECORD)
+def test_a_record_it_does_not_control_protects_no_other_name(records, other):
+    before = break_glass(POLICY, records)
+    after = break_glass(POLICY, [*records, other])
+    own = {f for v in (other.account, other.email) if policy_kind(POLICY, v) for f in name_forms(v)}
+    assert set(after.names) - set(before.names) <= own
+    # it is break-glass itself exactly when it carries a protected name
+    carries = any(f in after.names for v in (other.account, other.email) for f in name_forms(v))
+    assert (after.account_kind(other) is not None) == carries
+    assert after.protects(other.account, system=other.system) == (
+        carries or after.protects(other.account)
+    )
+    # and the plan is told when it carries another name too
+    others = {f for v in (other.account, other.email) for f in name_forms(v)} - set(after.names)
+    warned = [u for u in after.unlinked if (u.system, u.account) == (other.system, other.account)]
+    assert bool(warned) == (carries and bool(others))

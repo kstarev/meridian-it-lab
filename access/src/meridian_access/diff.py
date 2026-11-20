@@ -616,7 +616,8 @@ class _Builder:
     # ------------------------------------------------------------------ run
 
     def run(self) -> None:
-        bg_seen: dict[tuple[str, str], tuple[str, str]] = {}
+        protected = break_glass(self.policy, self.actual.accounts)
+        bg_seen: dict[tuple[str, str], tuple[str, str, str]] = {}
         seen: set[tuple[str, str, str]] = set()
         accounts = sorted(
             self.actual.accounts,
@@ -631,7 +632,8 @@ class _Builder:
             seen.add(key)
             m = self.matches.matches.get(key)
             if m is not None and m.rule == "break_glass":
-                bg_seen.setdefault((a.system, _norm(a.account)), (a.account, m.note))
+                how = protected.evidence(a) or f"{m.note} in the break-glass policy"
+                bg_seen.setdefault((a.system, _norm(a.account)), (a.account, m.note, how))
                 continue
             if m is not None:
                 p = self.people.get(m.employee_id)
@@ -658,7 +660,7 @@ class _Builder:
                     "plan date; treated as active until then, changes held"
                 )
         warned: set[str] = set()
-        for (system, account_norm), (account, kind) in sorted(bg_seen.items()):
+        for (system, account_norm), (account, kind, how) in sorted(bg_seen.items()):
             self.add(
                 "break_glass",
                 "",
@@ -667,7 +669,7 @@ class _Builder:
                 "",
                 "never_touch",
                 "break-glass account; report only",
-                [f"{kind} in the break-glass policy"],
+                [how],
             )
             if kind == "pattern" and account_norm not in warned:
                 warned.add(account_norm)
@@ -754,12 +756,15 @@ def build_changes(
                 ("HRIS terminate events",),
             )
         )
-    # last word: nothing but a never_touch entry may name a break-glass account, by any name
+    # last word: nothing but a never_touch entry may name a break-glass account, by any name,
+    # or a break-glass record by its key
     protected = break_glass(policy, actual.accounts)
-    extra_warnings: list[str] = []
+    extra_warnings = [u.warning() for u in protected.unlinked]
 
     def keep(c: Change) -> bool:
-        if c.type == "break_glass" or not protected.protects(c.account):
+        if c.type == "break_glass" or not protected.protects(
+            c.account, system=c.system, app_id=c.app_id
+        ):
             return True
         extra_warnings.append(f"change for {c.account.strip()} dropped: break-glass account")
         return False
