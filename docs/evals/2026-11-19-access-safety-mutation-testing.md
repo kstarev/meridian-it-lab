@@ -114,6 +114,35 @@ No surviving mutant showed a bug. The property tests found one place where the c
 
 1. **Rule 2 of identity matching ignores more than case, accents and a `+tag`.** `match.py:83`, `fold` runs NFKD and drops every character that is not ASCII, so a zero-width space, a soft hyphen, a Cyrillic or a CJK letter disappears. `ana.smith\u200b@meridian.example` is matched to the person `ana.smith@meridian.example` by `normalised_email`. An account under such an address is attributed to a real person, so it is never reported as an orphan. Pinned by `test_match_properties.py::test_rule_2_does_not_ignore_characters_other_than_accents` (4 cases).
 
+### G8 and the open questions from the live apply review
+
+Found in the review of the live apply path on 2026-11-20, after PR #163. Each is a strict xfail in `access/tests/test_live_apply_review_questions.py`. The source is unchanged.
+
+**G8: an Okta app assignment whose user is not listed is removed under its raw id.**
+
+- **Rule:** no plan changes a break-glass account ([AAC-007](../../access/docs/adr/007-safety-rails.md)).
+- **What happens:** the collector names an app assignment by its user's login. When the users list does not have that user (a short page, or Okta leaving out deactivated users), it uses the raw user id. The diff then plans the assignment as an orphan removal. On a copy of the tuning world whose users list leaves out `breakglass-01@meridian.example`, the held part removes that user's `lumen-board` assignment. Apply's guard sees only `00u…`, so it does not drop the change.
+- **Pinned:** `test_g8_an_okta_assignment_whose_user_is_not_listed_is_never_removed`. It also passes if the collector refuses such a state (`CollectorError`), the other answer the review offers.
+
+**Open questions (yes/no, for the owner):**
+
+| Question | Pinned by |
+|---|---|
+| Q1. Should the actual-state hash cover the Okta app list? | `test_q1_an_okta_app_replaced_after_the_plan_makes_the_plan_stale` |
+| Q2. Should apply read each target again just before its write? | `test_q2_a_target_renamed_to_break_glass_after_the_state_read_is_not_changed` |
+| Q3. When a person's removal fails, should apply hold their adds in the same run? | `test_q3_a_person_whose_removal_failed_gets_no_new_access_in_the_same_run` |
+| Q4. Should apply count the approvals on the merged head itself? | no test: a stand-in by design today |
+| Q5. Should apply compare the whole plan file with the rebuild? | `test_q5_a_plan_file_edited_outside_its_changes_is_refused` |
+| Q6. Should an assignment whose user is not listed be refused or held? | gap G8, above |
+| Q7. Should the diff keep one change per account, by its exact name? | `test_q7_a_leaver_with_two_accounts_that_only_case_tells_apart_gets_two_changes` |
+| Q8. Should the leaver drill count an account as covered only by a change with its exact name? | `test_q8_the_leaver_drill_counts_each_account_by_its_exact_name` |
+| Q9. Should PLAN.md show fields from the world as text, with line breaks flattened? | `test_q9_plan_md_shows_a_field_with_an_html_comment_as_text`, `test_q9_plan_md_keeps_a_line_break_in_a_field_from_making_a_heading` |
+| Q10. Should the summary check refuse markup and @-mentions? | `test_q10_a_model_summary_with_markup_or_a_mention_falls_back_to_the_template` (3 cases) |
+| Q11a. Should plan_pr act only on a pull request it opened? | `test_q11a_the_bot_leaves_alone_a_pull_request_from_its_branch_that_it_did_not_open` (2 cases) |
+| Q11b. Should "unchanged" also need the bot branch to hold only its two files? | no test: it needs a GitHub call plan_pr does not have, and Q11a's answer |
+| Q12. Should apply check a stop switch before each write, and cap writes per run? | no test: apply writes only to in-process mocks today |
+| Q13. Should `parse_codeowners` take only the last matching line, as GitHub does? | `test_q13_the_approvals_check_uses_the_last_codeowners_line_as_github_does` |
+
 ## Property tests
 
 All use hypothesis with `derandomize=True` and `database=None`. Every person, account and plan is made up; apply runs on tiny in-process mocks.
