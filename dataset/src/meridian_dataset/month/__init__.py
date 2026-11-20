@@ -29,11 +29,13 @@ from meridian_dataset.month.templates import (
     ANSWER_USERNAME,
     DEFAULT_SEEDS,
     EXPECTED,
+    EXTRA_TICKETS,
     HAND_OFF,
     HAND_OFF_REASONS,
     HELD_OUT_MONTH1,
     HELD_OUT_MONTH2,
     HELD_OUT_MONTH2B,
+    HELD_OUT_MONTH3,
     KINDS,
     LANGS,
     SEALED_SETS,
@@ -47,12 +49,14 @@ from meridian_dataset.month.templates import (
 
 
 def month_for(name: str, *, seed: int | None = None, size: int = MONTH_SIZE) -> Month:
-    """The month of a named template set, at its fixed seed unless another is given."""
+    """The month of a named template set, at its fixed seed unless another is given. A set in
+    EXTRA_TICKETS gets those tickets on top of the realistic mix."""
     return build_month(
         load_templates(name),
         seed=DEFAULT_SEEDS[name] if seed is None else seed,
         size=size,
         name=name,
+        extra=EXTRA_TICKETS.get(name),
     )
 
 
@@ -61,11 +65,13 @@ __all__ = [
     "ANSWER_USERNAME",
     "DEFAULT_SEEDS",
     "EXPECTED",
+    "EXTRA_TICKETS",
     "HAND_OFF",
     "HAND_OFF_REASONS",
     "HELD_OUT_MONTH1",
     "HELD_OUT_MONTH2",
     "HELD_OUT_MONTH2B",
+    "HELD_OUT_MONTH3",
     "KINDS",
     "LANGS",
     "MONTH_GENERATOR_VERSION",

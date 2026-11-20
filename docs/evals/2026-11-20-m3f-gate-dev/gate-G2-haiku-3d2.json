@@ -1,0 +1,95 @@
+{
+  "version": "G2",
+  "arm": "haiku-3d2",
+  "gate_model": "claude-haiku-5-5",
+  "picker": "KS6A-H",
+  "label": "composed dev estimate: the gate on recorded KS6A-H runs (dev, not blind)",
+  "sets": [
+    {
+      "set": "tuning_month",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 144,
+      "right_guide": 0.9231,
+      "right_guide_without_slowness_only": 0.9231,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 12,
+        "how_to_guide:yes": 144
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "T054": 6,
+        "T057": 6
+      },
+      "runs_from": "haiku-3d2",
+      "passes": true
+    },
+    {
+      "set": "held_out_month1",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 126,
+      "right_guide": 0.8077,
+      "right_guide_without_slowness_only": 0.8077,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 30,
+        "how_to_guide:yes": 126
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "M008": 6,
+        "M063": 6,
+        "M067": 3,
+        "M093": 9,
+        "M104": 6
+      },
+      "runs_from": "haiku-3d2",
+      "passes": false
+    },
+    {
+      "set": "held_out_month2",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 147,
+      "right_guide": 0.9423,
+      "right_guide_without_slowness_only": 0.9423,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 9,
+        "how_to_guide:yes": 147,
+        "prompt_injection:no": 9
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "N042": 6,
+        "N046": 3
+      },
+      "runs_from": "haiku-3d2",
+      "passes": true
+    },
+    {
+      "set": "held_out_month2b",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 405,
+      "right_guide_runs": 336,
+      "right_guide": 0.8296,
+      "right_guide_without_slowness_only": 0.8203,
+      "gate_calls_by_kind": {
+        "app_issue:no": 7,
+        "how_to_guide:no": 48,
+        "how_to_guide:yes": 336
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "B011": 24,
+        "B021": 24
+      },
+      "runs_from": "haiku-3d2",
+      "passes": false
+    }
+  ],
+  "passes_every_set": false
+}

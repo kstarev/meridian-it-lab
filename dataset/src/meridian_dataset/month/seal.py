@@ -26,6 +26,13 @@ template and changed nothing else (first seal f4fbe811…8402a86; the owner's ru
 docs/plans/milestone-3e-month2b-rules.md)."""
 
 
+HELD_OUT_MONTH3_SHA256 = "048015c72b2a0d2c836902500e25beb07010ae5ef9670532754eee3ceb047097"
+"""Set on 2026-11-19, when the file was copied in byte for byte from the blind writer's output,
+after its pass rules and stop rule were committed and before any model ran on it. Nobody tuning
+tier0 reads its wording; every check on it prints counts, ids, kinds, languages and booleans
+only."""
+
+
 def file_digest(name: str) -> str:
     """SHA-256 hex digest of a template set's file, byte for byte."""
     return hashlib.sha256((POOLS / f"{name}.json").read_bytes()).hexdigest()

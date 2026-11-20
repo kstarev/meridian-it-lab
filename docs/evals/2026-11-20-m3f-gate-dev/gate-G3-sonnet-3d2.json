@@ -1,0 +1,84 @@
+{
+  "version": "G3",
+  "arm": "sonnet-3d2",
+  "gate_model": "claude-sonnet-5-5",
+  "picker": "KS6A-H",
+  "label": "composed dev estimate: the gate on recorded KS6A-H runs (dev, not blind)",
+  "sets": [
+    {
+      "set": "tuning_month",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 155,
+      "right_guide": 0.9936,
+      "right_guide_without_slowness_only": 0.9936,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 1,
+        "how_to_guide:yes": 155
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "T056": 1
+      },
+      "runs_from": "sonnet-3d2",
+      "passes": true
+    },
+    {
+      "set": "held_out_month1",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 142,
+      "right_guide": 0.9103,
+      "right_guide_without_slowness_only": 0.9103,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 14,
+        "how_to_guide:yes": 142
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "M008": 4,
+        "M049": 5,
+        "M104": 5
+      },
+      "runs_from": "haiku-3d2",
+      "passes": true
+    },
+    {
+      "set": "held_out_month2",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 156,
+      "right_guide": 1.0,
+      "right_guide_without_slowness_only": 1.0,
+      "gate_calls_by_kind": {
+        "how_to_guide:yes": 156,
+        "prompt_injection:no": 9
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {},
+      "runs_from": "sonnet-3d2",
+      "passes": true
+    },
+    {
+      "set": "held_out_month2b",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 405,
+      "right_guide_runs": 384,
+      "right_guide": 0.9481,
+      "right_guide_without_slowness_only": 0.9453,
+      "gate_calls_by_kind": {
+        "app_issue:no": 8,
+        "how_to_guide:yes": 384
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {},
+      "runs_from": "sonnet-3d2",
+      "passes": true
+    }
+  ],
+  "passes_every_set": true
+}

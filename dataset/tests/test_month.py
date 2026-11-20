@@ -14,6 +14,7 @@ from meridian_dataset.month import (
     ANSWER_USERNAME,
     DEFAULT_SEEDS,
     EXPECTED,
+    EXTRA_TICKETS,
     HAND_OFF,
     KINDS,
     LANGS,
@@ -147,7 +148,9 @@ def test_kind_weights_add_up_and_counts_are_exact() -> None:
 def test_the_mix_is_in_the_briefs_range(month: Month) -> None:
     _realistic(month)
     tickets = month.tickets
-    assert len(tickets) == month.size == MONTH_SIZE
+    # held_out_month3 adds tickets of four kinds on top of the mix (EXTRA_TICKETS).
+    extra = sum(EXTRA_TICKETS.get(month.template_set, {}).values())
+    assert len(tickets) == month.size == MONTH_SIZE + extra
     username = sum(t.kind in USERNAME_KINDS for t in tickets) / len(tickets)
     assert 0.10 <= username <= 0.15
     hand_off = sum(t.expected == HAND_OFF for t in tickets) / len(tickets)

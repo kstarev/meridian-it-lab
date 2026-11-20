@@ -25,7 +25,7 @@ import dataclasses
 import hashlib
 import json
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
@@ -217,8 +217,10 @@ def build_month(
     size: int = MONTH_SIZE,
     name: str = "custom",
     personas: Sequence[Persona] | None = None,
+    extra: Mapping[str, int] | None = None,
 ) -> Month:
-    """About `size` tickets of a 230-person company's month, from these templates."""
+    """About `size` tickets of a 230-person company's month, from these templates, plus `extra`
+    tickets of the kinds it names on top of the mix (held_out_month3)."""
     rng = random.Random(seed)
     people = tuple(personas) if personas is not None else build_personas()
     senders: dict[str, list[Persona]] = {}
@@ -239,6 +241,10 @@ def build_month(
     }
     base = size - sum(repeats_wanted.values())
     counts = kind_counts([t.kind for t in templates], base)
+    for kind, more in (extra or {}).items():
+        if kind not in counts:
+            raise ValueError(f"extra tickets for a kind the set doesn't have: {kind}")
+        counts[kind] += more
 
     picks: list[Template] = []
     for kind in KINDS:
