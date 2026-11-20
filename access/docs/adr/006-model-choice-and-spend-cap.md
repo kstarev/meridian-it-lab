@@ -27,3 +27,14 @@
 - AI help is measured, not assumed: rules only vs rules + AI is a headline result.
 - A suggestion takes a day longer to have an effect, because it's reviewed before anything depends on it.
 - If the cap is reached, the project keeps working; it only loses the AI's help until the cap is raised.
+
+**Proposed amendment (2026-11-20; needs the owner's ruling, not in force until it is merged): a reply that names a key twice is a malformed answer.**
+
+- **Gap:** the client read the model's reply with `json.loads`, which keeps the last of two members with one name. So `{"employee_id": "none", "employee_id": "E-1042", ...}` read as a match, and the schema check after it can't see the doubled name. A JSON schema can't forbid one, so structured output doesn't rule it out. tier0 has the same gap (gap 3F-1, lab PR #154).
+- **Change:** `ai/reply_json.py` reads every model reply. An object that names a key twice, at any depth, raises an error the client already treats as malformed JSON, so `complete_json` gives None. Any other reply reads exactly as before. It is Access's own copy of the idea; nothing is imported from tier0. Files, configs and exports still use `json.loads`.
+- **Where it fails closed,** in each job, as a reply off the schema does today:
+  - job titles: no role suggestion, so no map entry; the title stays unmapped;
+  - account owners: the AI suggestion is dropped; the account stays unmatched, as the rules left it;
+  - the plan summary: no model paragraph; the template summary is used;
+  - in the comparison it counts as failed or refused, in the final run's answers as None, and in the red-team harness as no answer.
+- **What doesn't move:** the request, the prompts, the twelve pins and the freeze digest (`e48df223…`). Nothing published is re-scored. The recorded replies of the final score and the red team were not opened, so whether one of them had a doubled key is not known.
