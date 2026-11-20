@@ -386,6 +386,11 @@ def test_wrong_triage_still_only_returns_the_requesters_own_username(
         # own_username and the username was sent. Off the schema now (tier0.models.reply_json).
         ScriptedModel(triage='{"category": "about_someone_else", "category": "own_username"}'),
         ScriptedModel(triage='{"category": "own_username", "category": "own_username"}'),
+        # Too deep (RecursionError) or a number too long (ValueError) to read. The deep ones
+        # raised out of `handle` before: the ticket went to Triage, but no reply was sent.
+        ScriptedModel(triage="[" * 100_000 + "]" * 100_000),
+        ScriptedModel(triage='{"category": ' + "[" * 100_000 + "]" * 100_000 + "}"),
+        ScriptedModel(triage='{"category": ' + "1" * 5000 + "}"),
     ],
     ids=[
         "extra_key",
@@ -395,6 +400,9 @@ def test_wrong_triage_still_only_returns_the_requesters_own_username(
         "model_error",
         "doubled_key",
         "doubled_key_same_value",
+        "too_deep",
+        "too_deep_value",
+        "number_too_long",
     ],
 )
 def test_bad_triage_escalates(world: World, model: ScriptedModel) -> None:

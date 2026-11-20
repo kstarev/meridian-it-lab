@@ -5,6 +5,7 @@ import json
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -384,6 +385,10 @@ def test_the_stub_never_copies_the_questions_into_a_draft() -> None:
     assert marker not in next(iter(pull.files.values())) and marker not in pull.body
 
 
+# Replies Python can't read safely: nested past the recursion limit, and a number past 4,300
+# digits.
+TOO_DEEP = "[" * 100_000 + "]" * 100_000
+TOO_LONG = "1" * 5000
 GOOD = {
     "title": "Schedule and remind in Slack",
     "summary": "Set reminders and schedule messages in Slack.",
@@ -435,6 +440,12 @@ def test_a_draft_that_fails_a_check_is_not_proposed_and_the_log_has_codes_only(
          d.OFF_FORMAT),
         (FakeDrafter(GOOD, finish="length"), d.OFF_FORMAT),
         (FakeDrafter(json.dumps(GOOD)[:-1] + ', "title": "Another title"}'), d.OFF_FORMAT),
+        # Too deep (RecursionError) or a number too long (a plain ValueError) to read: these
+        # raised out of the job before.
+        (FakeDrafter(TOO_DEEP), d.OFF_FORMAT),
+        (FakeDrafter(json.dumps({**GOOD, "steps": "@"}).replace('"@"', TOO_DEEP)), d.OFF_FORMAT),
+        (FakeDrafter(json.dumps({**GOOD, "title": "@"}).replace('"@"', TOO_LONG)), d.OFF_FORMAT),
+        (FakeDrafter(TOO_LONG), d.OFF_FORMAT),
         (FakeDrafter(fail=True), d.MODEL_ERROR),
     ],
 )  # fmt: skip
@@ -442,6 +453,35 @@ def test_off_format_drafts_and_model_errors_are_not_proposed(model, code) -> Non
     report, repo, _ = _run(_slack(0), model=model)
     assert _outcomes(report) == {"topic:slack": code}
     assert repo.pulls == []
+
+
+class FirstReplyUnreadable(FakeDrafter):
+    """The first draft call gets a reply nested too deep to read; every later one the stub's."""
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        if not self.requests:
+            self.requests.append(request)
+            return ModelResponse(TOO_DEEP, self.model, 100, 50, "stop", "r1")
+        return super().complete(request)
+
+
+def test_an_unreadable_draft_reply_doesnt_stop_the_job_for_the_other_groups() -> None:
+    report, repo, model = _run([*_slack(0), *_vpn(20)], model=FirstReplyUnreadable())
+    assert len(model.requests) == 2
+    assert sorted(_outcomes(report).values()) == sorted([d.OFF_FORMAT, d.PROPOSED])
+    assert len(repo.pulls) == 1 and report.proposed == [repo.pulls[0].number]
+
+
+def test_before_the_wider_catch_an_unreadable_draft_reply_stopped_the_job() -> None:
+    """With the catch the draft parser had before (JSONDecodeError and TypeError), the job
+    raised on the first group, and the second was never drafted."""
+    model = FirstReplyUnreadable()
+    with (
+        patch.object(d, "READ_ERRORS", (json.JSONDecodeError, TypeError)),
+        pytest.raises(RecursionError),
+    ):
+        _run([*_slack(0), *_vpn(20)], model=model)
+    assert len(model.requests) == 1
 
 
 def test_an_update_that_changes_nothing_is_not_proposed() -> None:
