@@ -648,7 +648,7 @@ def test_g7_apply_suspends_a_leaver_whatever_their_slack_record_says(slack):
     )
     assert not result.refused_reason
     assert result.dropped_break_glass == []
-    assert result.applied == [row]
+    assert [{k: v for k, v in c.items() if k != "call"} for c in result.applied] == [row]
     status = {u["profile"]["login"]: u["status"] for u in mocks.okta.data["users"]}
     assert status == {G7_HR: "SUSPENDED", G7_BG: "ACTIVE"}
 
