@@ -12,6 +12,8 @@ It keeps the rules that make a guide's approval a person's act:
 - **Only the App's pull requests can be merged.** A required check fails any other (ADR-010).
 - **A draft can't approve itself.** A required check fails a pull request whose guide file
   already says `approved: true`.
+- **One id, one guide.** A required check fails a pull request whose guide file has no id, or
+  the id of another guide file on main, so a merge never leaves two guides with one id.
 - **The merge is the approval.** Merging writes `approved: true`, who approved it and the date
   into each guide file the pull request changes. Until then a drafted guide says
   `approved: false`, and code never posts it (`tier0.knowledge.answer.postable`).
@@ -55,6 +57,7 @@ NO_CODE_OWNER_APPROVAL = "no_code_owner_approval"
 CHANGES_REQUESTED = "changes_requested"
 NOT_OPENED_BY_APP = "not_opened_by_app"
 DRAFT_CLAIMS_APPROVAL = "draft_claims_approval"
+DUPLICATE_GUIDE_ID = "duplicate_guide_id"
 UNKNOWN_EVENT = "unknown_event"
 BRANCH_HAS_PULL = "branch_has_pull"
 
@@ -326,6 +329,8 @@ class GitHubSession:
             raise GitHubRefused(NOT_OPENED_BY_APP)
         if any(_claims_approval(path, text) for path, text in pull.files.items()):
             raise GitHubRefused(DRAFT_CLAIMS_APPROVAL)
+        if any(_reuses_an_id(repo.main, path, text) for path, text in pull.files.items()):
+            raise GitHubRefused(DUPLICATE_GUIDE_ID)
         latest: dict[str, str] = {}
         for login, event in pull.reviews:
             if event != COMMENT:
@@ -361,6 +366,23 @@ def _claims_approval(path: str, text: str) -> bool:
         return json.loads(text).get("approved") is not False
     except (json.JSONDecodeError, AttributeError):
         return True
+
+
+def _guide_id(text: str) -> object:
+    try:
+        return json.loads(text).get("id")
+    except (json.JSONDecodeError, AttributeError):
+        return None
+
+
+def _reuses_an_id(main: Mapping[str, str], path: str, text: str) -> bool:
+    """A guide file with no id, or with the id of another guide file on main."""
+    if not _is_guide(path):
+        return False
+    guide_id = _guide_id(text)
+    if not isinstance(guide_id, str) or not guide_id:
+        return True
+    return any(p != path and _is_guide(p) and _guide_id(t) == guide_id for p, t in main.items())
 
 
 def _approved(path: str, text: str, reviewer: str, today: str) -> str:
