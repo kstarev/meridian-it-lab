@@ -9,20 +9,29 @@ what is held. These tests check what it adds on top of the builder, on made-up p
   its type, and nothing else's;
 - a reviewed map entry places an account only on a current person.
 
+Gap G5 does not hold: when a caller passes an AI-sourced match, a reviewed map entry that points
+at an unknown or superseded employee id makes its account an orphan instead of holding it. Its
+tests (`test_g5_*`, at the end) are two strict xfails, and one normal test that shows build_plan
+can't reach it today. The source is unchanged.
+
 Written for the mutation pass of build_changes
 (docs/evals/2026-11-19-access-safety-mutation-testing.md). The runs are fixed (derandomize) and
 keep no example database. No world, no network.
 """
 
+import dataclasses
+import json
 import re
 
+import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
+from meridian_access import plan as plan_mod
 from meridian_access.collect import ActualState
 from meridian_access.desired import desired_state
-from meridian_access.diff import build_changes
-from meridian_access.match import match_accounts
+from meridian_access.diff import apply_reviewed_map, build_changes
+from meridian_access.match import CONFIDENCE, Match, MatchResult, match_accounts
 from meridian_access.models import Account
 from meridian_access.policy.load import load_policy
 from meridian_dataset.access.model import HrisEvent, HrisRecord
@@ -275,3 +284,116 @@ def test_a_reviewed_entry_naming_the_old_record_of_a_rehire_is_not_used():
     assert [(c.type, c.employee_id) for c in to_new.changes if c.account == "zz9"] == [
         ("rehire", "E2")
     ]
+
+
+# --- gap G5: a bad reviewed entry under an AI match -----------------------------------------------
+#
+# apply_reviewed_map does not use a reviewed map entry that points at an unknown or superseded
+# employee id: it warns and holds the account (ambiguous), never orphans it. But when the caller
+# also passes an AI-sourced match for that account, the match is dropped (nothing usable backs it)
+# and the account is listed as unmatched: an orphan, which for an Okta user is a removal.
+# build_plan can't reach this today: it passes match_accounts' result straight on, and
+# match_accounts makes no AI match (the last test). Strict xfails; the source is unchanged.
+
+G5_REASON = (
+    "gap G5: with an AI-sourced match, a reviewed map entry that points at an unknown or "
+    "superseded employee id makes the account an orphan instead of holding it"
+)
+G5_NEW = rec("E2", "Ada", "Stone", start_date="2026-11-03")
+G5_OLD = rec("E1", "Ada", "Stone", status="terminated", end_date="2026-04-01")  # superseded
+G5_RECORDS = [G5_OLD, G5_NEW]
+G5_EVENTS = [ev("E2", "rehire", 2, work_email=G5_NEW.work_email)]
+GHOST = okta(f"ghost@{D}")  # an Okta user the rules place on nobody
+HELD = f"{GHOST.account} (okta): ambiguous owner, needs a map entry"
+
+
+def _reviewed_ai_entry(value: str) -> dict:
+    """An AI suggestion for GHOST that a person set to reviewed, with the owner `value`."""
+    return {**_entry(GHOST, value), "source": "ai", "model": "fake-model"}
+
+
+@pytest.mark.xfail(strict=True, reason=G5_REASON)
+@pytest.mark.parametrize("rule", ["ai", "ai_suggestion"])
+def test_g5_a_bad_reviewed_entry_holds_an_account_an_ai_match_placed(rule):
+    entries = [_reviewed_ai_entry("E999")]
+    # with no AI match, the bad entry holds the account
+    plain, _, _ = apply_reviewed_map(MatchResult({}, [GHOST.key], []), entries, {"E2"})
+    assert (plain.unmatched, plain.ambiguous) == ([], [GHOST.key])
+    ai = MatchResult({GHOST.key: Match("E2", rule, 0.5)}, [], [])
+    result, _, warnings = apply_reviewed_map(ai, entries, {"E2"})
+    assert len(warnings) == 1 and "points at E999, an unknown or superseded" in warnings[0]
+    assert GHOST.key not in result.matches  # nothing usable backs the AI match
+    assert (result.unmatched, result.ambiguous) == ([], [GHOST.key])  # held, not an orphan
+
+
+@pytest.mark.xfail(strict=True, reason=G5_REASON)
+@pytest.mark.parametrize("bad", ["E999", "E1"], ids=["unknown", "superseded"])
+def test_g5_build_changes_does_not_remove_that_okta_account(bad):
+    desired = desired_state(G5_RECORDS, G5_EVENTS, POLICY)
+    actual = ActualState((okta(G5_NEW.work_email), GHOST), (), None)
+    rules = match_accounts(actual.accounts, G5_RECORDS, POLICY)
+    assert GHOST.key in rules.unmatched
+    # the AI's owner on top of the rules, as ai/final.py combines them for scoring
+    with_ai = MatchResult(
+        {**rules.matches, GHOST.key: Match("E2", "ai", 0.5)},
+        [k for k in rules.unmatched if k != GHOST.key],
+        list(rules.ambiguous),
+    )
+    result = build_changes(
+        desired,
+        actual,
+        with_ai,
+        POLICY,
+        records=G5_RECORDS,
+        events=G5_EVENTS,
+        map_entries=[_reviewed_ai_entry(bad)],
+    )
+    assert any(f"points at {bad}, an unknown or superseded" in w for w in result.warnings)
+    ghost = [
+        (c.type, c.action) for c in (*result.changes, *result.held) if c.account == GHOST.account
+    ]
+    assert ghost == []  # today: [("orphaned_account", "remove")]
+    assert HELD in result.warnings
+
+
+@pytest.mark.parametrize("bad", ["E999", "E1"], ids=["unknown", "superseded"])
+def test_g5_build_plan_cannot_reach_it_today(bad, tmp_path, monkeypatch):
+    """build_plan hands build_changes what match_accounts gives, and match_accounts makes no AI
+    match (its rules are CONFIDENCE's, none from an AI). So in a plan the same reviewed entry
+    holds the account. If an AI match ever reaches build_plan, this fails and G5 is live."""
+    assert [rule for rule in CONFIDENCE if rule.startswith("ai")] == []
+    hris = {
+        "records": [dataclasses.asdict(r) for r in G5_RECORDS],
+        "events": [
+            {
+                "day": e.day,
+                "date": e.date,
+                "employee_id": e.employee_id,
+                "kind": e.kind,
+                "fields": dict(e.fields),
+                "source": e.source,
+            }
+            for e in G5_EVENTS
+        ],
+    }
+    (tmp_path / "hris.json").write_text(json.dumps(hris))
+    passed: list[MatchResult] = []
+
+    def spy(desired, actual, matches, policy, **kw):
+        passed.append(matches)
+        return build_changes(desired, actual, matches, policy, **kw)
+
+    monkeypatch.setattr(plan_mod, "build_changes", spy)
+    state = ActualState((okta(G5_NEW.work_email), GHOST), (), None)
+    built = plan_mod.build_plan(
+        tmp_path, POLICY, state=state, map_entries=[_reviewed_ai_entry(bad)]
+    )
+    (matches,) = passed
+    assert [m.rule for m in matches.matches.values() if m.rule.startswith("ai")] == []
+    assert GHOST.key in matches.unmatched
+    rows = [
+        c for c in (*built.data["changes"], *built.data["held"]) if c["account"] == GHOST.account
+    ]
+    assert rows == []
+    assert HELD in built.data["warnings"]
+    assert any(f"points at {bad}, an unknown or superseded" in w for w in built.data["warnings"])

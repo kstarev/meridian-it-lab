@@ -194,6 +194,15 @@ The new tests (hypothesis, `derandomize=True`, `database=None`; made-up people, 
 - A change's cause date is the date of its own person's last HR event of the kind behind its type (the rule written out in the test), whatever the event order; events that name nobody or have no kind give no change a date.
 - A reviewed map entry places an account on the current person it names; one naming the old record of a rehire warns and leaves the account held as ambiguous.
 
+### G5: a bad reviewed entry under an AI match makes an orphan
+
+Not from a survivor: found next to this pass, in `apply_reviewed_map`, which the pass does not mutate.
+
+- **Rule:** `apply_reviewed_map`'s own: a reviewed map entry that points at an unknown or superseded employee id is not used. It warns, and its account is held as ambiguous, never made an orphan.
+- **What happens:** when the caller also passes an AI-sourced match for that account (a rule starting with `ai`), the match is dropped, since no usable reviewed entry backs it, and the account is listed as unmatched. The diff then makes it an orphan. For an Okta user that is `orphaned_account` / `remove`.
+- **Can it happen today:** no. `build_plan` is the only caller of `build_changes`. It passes what `match_accounts` gives, and `match_accounts` never makes an AI match. The AI's owners (rule `ai`) are only used to score matching (`ai/compare.py`, `ai/final.py`).
+- **Pinned:** the `test_g5_*` tests in `test_build_changes_properties.py`: 4 strict xfails (2 call `apply_reviewed_map` directly, 2 go through `build_changes` and show the Okta removal), and 1 normal test (2 cases) that shows `build_plan` can't reach it today. The source is unchanged.
+
 ## What was not covered
 
 - `diff.build_changes` in the run above: its break-glass filter is a function nested in a 100-line function whose other mutants are about holds. The diff's `_touches_break_glass` and `_break_glass_strings`, which the filter calls, are covered. It has its own pass, [above](#later-pass-diffbuild_changes).
