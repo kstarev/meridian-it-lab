@@ -633,6 +633,18 @@ def score(
             ),
             "handed_off_runs": sum(r["outcome"] == HAND_OFF for t in guides for r in runs[t.id]),
         },
+        # Milestone 3f, held_out_month3's rule 4: how-to runs the how-to gate handed off (it
+        # said no, or its call failed), and those the message screen, which runs first, handed
+        # off before it. All 0 for a run without a gate.
+        "how_to_gate": {
+            "how_to_runs": len(guides) * k,
+            "gate_no_runs": sum(r["stage"] == GATE_NO for t in guides for r in runs[t.id]),
+            "gate_failed_runs": sum(r["stage"] == GATE_FAILED for t in guides for r in runs[t.id]),
+            "screen_runs": sum(r["stage"] == SCREEN for t in guides for r in runs[t.id]),
+            "handed_off": _interval(
+                guides, share(lambda r: r["stage"] in (GATE_NO, GATE_FAILED)), **iv
+            ),
+        },
         "repeats": {
             "username": {
                 "tickets": len(username_repeats),
@@ -1198,6 +1210,30 @@ def render(result: dict[str, Any], command: str) -> str:
     sealed = c["sealed"]
     tier_c = bool(c.get("tier_c"))
     sig = s.get("reset_signal") or {}
+    # Milestone 3f: a run with the how-to gate, scored with its counts. A result scored before
+    # the counts existed (the 3f rehearsal) renders as the run wrote it.
+    gate = s.get("how_to_gate") if c.get("gate") else None
+    gate_lines = (
+        [
+            f"**With the how-to gate {c['gate']}** on {c['gate_model']} (milestone 3f): for a "
+            'message triage calls "other", the code-only message screen runs first, then the '
+            "gate. Each can only hand off, and the picker is asked only if both let the "
+            "message through.",
+            "",
+        ]
+        if gate
+        else []
+    )
+    gate_rows = (
+        [
+            f"| How-to runs the how-to gate handed off ({gate['handed_off']['tickets']} tickets) "
+            f"| {_fmt(gate['handed_off'])}: {gate['gate_no_runs']} said no and "
+            f"{gate['gate_failed_runs']} failed, of {gate['how_to_runs']} runs; the message "
+            f"screen, which runs first, handed off {gate['screen_runs']} |"
+        ]
+        if gate
+        else []
+    )
     lines = [
         (
             f"# Realistic month: {c['set']} (dev, not blind), {c['setup']}, k = {c['k']}"
@@ -1222,6 +1258,7 @@ def render(result: dict[str, Any], command: str) -> str:
             "templates."
         ),
         "",
+        *gate_lines,
         (
             "**Final test on the sealed set.** Result files hold ids, kinds and outcomes only."
             if sealed
@@ -1252,6 +1289,7 @@ def render(result: dict[str, Any], command: str) -> str:
         f"| How-to answered with the right guide ({s['right_guide']['tickets']} tickets) "
         f"| {_fmt(s['right_guide'])}; {s['right_guide']['wrong_guide_runs']} runs with a wrong "
         "guide |",
+        *gate_rows,
         f"| Same-day repeats, own username: answered | {rep['username']['answered_runs']} of "
         f"{rep['username']['runs']} runs |",
         f"| Same-day repeats, password reset: handed off | "
@@ -1393,6 +1431,10 @@ def _command(args: argparse.Namespace) -> str:
         parts.append(f"--picker-prompt {args.picker_prompt}")
     if getattr(args, "picker_on_own_model", False):
         parts.append("--picker-on-own-model")
+    if getattr(args, "gate", None):
+        # Milestone 3f: without it, the recorded command would run without the gate, and
+        # held_out_month3's frozen plan refuses that.
+        parts.append(f"--gate {args.gate}")
     if args.final_test:
         parts.append(f"--final-test={args.final_test}")
     if getattr(args, "kinds", None):
