@@ -37,7 +37,7 @@ Apply really deactivated the Slack user `ops`, and deprovisioned the Okta user `
 
 ## Proposed amendment (2026-11-20): protection spreads only through records IT controls
 
-**Status:** Proposed. Needs the owner's ruling. Gap G7, pinned in PR #151.
+**Status:** Proposed. Needs the owner's ruling. Gap G7, pinned in PR #151; built in PR #156.
 
 **Context:** The decision above links every record that shares a name into one account, whoever can edit the record. A person can edit their own Slack profile email, and a Slack user can plant their userName ([red-team.md](../red-team.md)). So a leaver who set their Slack email to `breakglass-01@meridian.example` made their own Okta and Google users break-glass:
 
