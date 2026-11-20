@@ -1061,7 +1061,7 @@ The likely cause is a mistake in the helper's brief, written by the tuning agent
 
 ## ADR-040: Milestone 4 as built; its sealed test shows the picker what production shows it, and poisoned steps are a code-only result
 
-**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md), PR #48) and the owner's rulings since. Adds to ADR-035.
+**Date:** 2026-11-16 · **Status:** Accepted (the owner's rulings, 2026-11-16). Records what was built overnight on 2026-11-15/16 ([plan](plans/milestone-4-knowledge.md), PR #48) and the owner's rulings since. Adds to ADR-035. Amended by ADR-051: the message screen also reads look-alike and hidden-character forms; its patterns are unchanged.
 
 **Context:** Milestone 4 was built and tuned on tuning data overnight, with its decisions in its plan. Its sealed how-to test, `held_out_k1`, was then written blind and sealed. In the test as built, the poisoned-guide questions showed the picker every guide's steps, which production never does. That made the test harder than real use, and it treated the model as a defence against poisoned steps.
 
@@ -1425,3 +1425,25 @@ Nothing leaked, but the answer key wants a person for both.
   - With the cache on for the sealed run, it costs about $1.10, and the plan comes to about $6.50. Whether a sealed run may use the cache is the owner's ruling; until then it is off.
 - **No planned work loses money.** The two items that give up cap are finished and unapproved. Access keeps $18 of cap in its two approved items, of which $3.14 is spent.
 - **The buffer is $6.** A new blind red-team set for Access, if the owner chooses that option, would need its own item from it.
+
+## ADR-051: The message screen also reads look-alike and hidden-character forms (PR #101); the widened screen has run on no sealed set
+
+**Date:** 2026-11-19 · **Status:** Accepted (owner, 2026-11-19). Amends [ADR-040](#adr-040-milestone-4-as-built-its-sealed-test-shows-the-picker-what-production-shows-it-and-poisoned-steps-are-a-code-only-result)'s message screen.
+
+**Context:**
+- Property tests found messages that got past the frozen message screen with no new wording ([report](evals/2026-11-18-safety-mutation-testing.md)): mathematical bold capitals (it lower-cased before NFKD), a zero-width character or soft hyphen inside a word, and Cyrillic or Greek look-alike letters.
+- [PR #101](https://github.com/kstarev/meridian-it-lab/pull/101) (branch `tier0-screen-gaps`, merged 2026-11-19 21:00 UTC) closed these gaps. ADR-040 froze the screen as it was when its sealed counts were seen, so the change needs this ADR.
+
+**Decision:**
+- **The screen reads more forms of each message.** `tier0/src/tier0/knowledge/screen.py` reads the text the old way first (`_normalise`), then in the forms `tier0/src/tier0/knowledge/lookalikes.py` makes: NFKD before casefold, look-alike letters of other scripts mapped to Latin ones, and hidden characters removed or turned into spaces. The first reading that fires gives the kind. So it can only fire more, and a message that fired before keeps its kind.
+- **The pattern list and its hash are unchanged.** `test_the_screen_is_frozen` (`tier0/tests/test_knowledge.py`) still pins `SCREEN_SHA256`.
+- **It fires the same on tuning data.** #101 added `test_both_screens_still_give_what_the_old_reading_gives` (`tier0/tests/test_guide_screen_properties.py`): whatever the old reading flags, the screen flags with the same kind. On the tuning month and the tuning how-to questions, the same items fire with the same kinds before and after (#101's before/after table; checked again for this ADR). `test_the_screen_on_the_tuning_set` passes unchanged.
+
+**Consequences:**
+- **The widened screen has run on no sealed set.** Every sealed result published so far that runs the message screen used it as it was before #101, so those results describe the old screen:
+  - `held_out_k1`, the sealed how-to test, 2026-11-16 ([result](evals/2026-11-16-m4-how-to-sealed.md));
+  - `held_out_month1`, 2026-11-17 ([Haiku](evals/2026-11-17-m3c-sealed-month-haiku-3d2.md), [Sonnet](evals/2026-11-17-m3c-sealed-month-sonnet-3d2.md));
+  - `held_out_month2` and `held_out_month2b`, run on 2026-11-19 before #101 merged; the commit that adds their results does not contain #101 ([month2 Haiku](evals/2026-11-19-m3e-sealed-month2-haiku-3d2.md), [month2 Sonnet](evals/2026-11-19-m3e-sealed-month2-sonnet-3d2.md), [month2b Haiku](evals/2026-11-19-m3e-sealed-month2b-haiku-3d2.md), [month2b Sonnet](evals/2026-11-19-m3e-sealed-month2b-sonnet-3d2.md)).
+  - They are not re-run or re-scored. The triage sets (held-out v2 to v6 and v4b) and Access's sets don't run this screen.
+- **The widened screen's first sealed measurement will be the next blind month.**
+- #101 also widened the guide screen the same way and made the picker's reply parser treat unreadable replies as off-format. The sealed how-to test's code-only result used the old guide screen too.
