@@ -1211,7 +1211,9 @@ class ServiceDeskAgent:
         requester, word for word, once: a draft that was sent or taken over takes no second
         action. "Take it over" leaves the ticket with the person, and tier0 sends nothing.
         With the kill switch on, nothing is sent. Every click is written to the audit log with
-        who clicked, and a refused one with why."""
+        who clicked, and a refused one with why. That holds when Slack or the ticket system
+        fails too: the entry comes before the ticket is updated, and a click that fails on an
+        error is logged as failed before the error goes up."""
         try:
             verify_slack_request(
                 request.headers, request.body, signing_secret=self._secret, now=self._clock.now()
@@ -1227,6 +1229,15 @@ class ServiceDeskAgent:
         if action not in review.ACTIONS:
             return "ignored"  # another handler's button, such as the proactive posts' Cancel
         who = _safe_id(user)
+        try:
+            return self._act_on_click(action, ticket, user, channel, who)
+        except Exception:
+            # The ticket system or Slack failed. The click is still in the audit log.
+            self._audit_click("guide_draft.click_failed", who, ticket, "error")
+            raise
+
+    def _act_on_click(self, action: str, ticket: str, user: str, channel: str, who: str) -> str:
+        """A signed click on one of the draft's buttons: refuse it, or send or take over."""
         if user not in self._it_team:
             return self._refuse_click(who, ticket, CLICK_NOT_IT)
         if channel != review.IT_TEAM_CHANNEL:
@@ -1253,6 +1264,8 @@ class ServiceDeskAgent:
     def _take_over(self, draft: _GuideDraft, who: str) -> str:
         """The person keeps the ticket, which is already in the human queue; nothing is sent."""
         draft.state = DRAFT_TAKEN_OVER
+        # The audit entry first, so a failure in the ticket system can't lose it.
+        self._audit_click("guide_draft.taken_over", who, draft.ticket, None, guide=draft.guide)
         with self._tracer.session(ticket_id=draft.ticket, kind="it_click") as s:
             s.event("tier0.guide.taken_over", guide=draft.guide)
         self._tickets.add_comment(
@@ -1260,7 +1273,6 @@ class ServiceDeskAgent:
             f"tier0: a person in IT ({who}) took the ticket over; the guide {draft.guide} was "
             "not sent, and tier0 sends nothing more on it.",
         )
-        self._audit_click("guide_draft.taken_over", who, draft.ticket, None, guide=draft.guide)
         return DRAFT_TAKEN_OVER
 
     def _send_draft(self, draft: _GuideDraft, who: str) -> str:
@@ -1280,11 +1292,28 @@ class ServiceDeskAgent:
                 self._audit_click("guide_draft.not_sent", who, draft.ticket, "guard_blocked")
                 return "not sent: blocked by the output guard"
             except _SendFailed:
-                # Nothing was posted, so the draft keeps waiting and a new click may send it.
+                # Slack said no, so nothing was posted: the draft keeps waiting and a new click
+                # may send it.
                 s.event("tier0.reply.not_sent", reason="send_failed")
                 self._audit_click("guide_draft.not_sent", who, draft.ticket, "send_failed")
                 return "not sent: Slack did not take it"
+            except Exception:
+                # A real Slack client raises on API and network errors, and then nobody knows
+                # whether the guide reached the requester. It is never sent again, so a second
+                # click can't post it twice. The ticket is with a person, who answers by hand.
+                draft.state = DRAFT_CLOSED
+                s.event("tier0.guide.send_error", guide=draft.guide)
+                self._audit_click("guide_draft.send_error", who, draft.ticket, "slack_error")
+                self._tickets.add_comment(
+                    draft.ticket,
+                    f"tier0: Slack gave an error when IT clicked to send the guide {draft.guide}; "
+                    "it may or may not have reached the requester. tier0 will not send it again. "
+                    "A person answers by hand.",
+                )
+                return "not sent again: Slack gave an error"
             draft.state = DRAFT_SENT
+            # The audit entry first, so a failure in the ticket system can't lose it.
+            self._audit_click("guide_draft.sent", who, draft.ticket, None, guide=draft.guide)
             s.event("tier0.guide.posted", guide=draft.guide)
         self._tickets.add_comment(
             draft.ticket,
@@ -1292,7 +1321,6 @@ class ServiceDeskAgent:
             f"its link, after one click by a person in IT ({who}).",
         )
         self._tickets.set_state(draft.ticket, AWAITING_REPLY)
-        self._audit_click("guide_draft.sent", who, draft.ticket, None, guide=draft.guide)
         return DRAFT_SENT
 
     def _refuse_click(self, who: str, ticket: str, why: str) -> str:

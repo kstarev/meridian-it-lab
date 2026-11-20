@@ -12,9 +12,11 @@ click; tier0/tests/test_guide_gate_slack.py tests the gate.
 import dataclasses
 import inspect
 import json
+import threading
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 import anyio
 import pytest
@@ -31,13 +33,14 @@ from tier0.agent import (
     Outcome,
     ServiceDeskAgent,
 )
+from tier0.identity.binding import IdentityBinder
 from tier0.knowledge import review
 from tier0.knowledge.answer import reply_text
 from tier0.knowledge.wiring import GuidePicker, code_link
-from tier0.mocks.slack import CHANNELS, SentMessage, SlackHttpRequest
+from tier0.mocks.slack import APP_ID, CHANNELS, MockSlack, SentMessage, SlackHttpRequest
 from tier0.models import ModelRequest, ModelResponse
 from tier0.runtime import Runtime, offline_runtime
-from tier0.tickets.adapter import AWAITING_REPLY, DONE, TRIAGE
+from tier0.tickets.adapter import AWAITING_REPLY, DONE, IN_PROGRESS, TRIAGE, TicketError
 
 RUNBOOKS = load_runbooks()
 BY_ID = {g.id: g for g in RUNBOOKS}
@@ -560,3 +563,437 @@ def test_no_message_text_or_address_reaches_the_traces_or_the_audit_log(world: W
     assert "@meridian.example" not in dump
     assert person.directory_id not in dump
     assert not any(step in dump for step in BY_ID[GUIDE_ID].steps)
+
+
+# --- the security review of 2026-11-20: more ways to try to break the click --------------------
+#
+# Fake Slack requests against the mocks, as in the tests above. The first group passed before the
+# review and pins what it found fine. The second group failed before the review's fixes. The
+# third is open design questions for the owner, marked xfail until they rule.
+
+
+def _picker() -> GuidePicker:
+    return GuidePicker(model=FakePicker(), gate_version=None)
+
+
+def _times_sent(rt: Runtime, person: Person, guide: Guide) -> int:
+    return sum(guide.steps[0] in text for text in _dm(rt, person))
+
+
+def test_a_click_signed_with_another_secret_edited_or_from_the_future_is_rejected(
+    world: World,
+) -> None:
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, list[str]]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        real = rt.slack.button_click(
+            channel=review.IT_TEAM_CHANNEL,
+            user=member,
+            action_id=review.SEND_GUIDE_ACTION,
+            value=ticket,
+        )
+        other_app = MockSlack(world, rt.clock, signing_secret=b"another app's secret" * 2)
+        ts = int(rt.clock.now().timestamp())
+        attempts = [
+            other_app.button_click(
+                channel=review.IT_TEAM_CHANNEL,
+                user=member,
+                action_id=review.SEND_GUIDE_ACTION,
+                value=ticket,
+            ),
+            # The value edited after Slack signed the body.
+            SlackHttpRequest(headers=real.headers, body=real.body.replace(b"IT-", b"IT-9")),
+            # Signed, but dated more than five minutes ahead.
+            SlackHttpRequest(
+                headers={
+                    **real.headers,
+                    "X-Slack-Request-Timestamp": str(ts + 301),
+                    "X-Slack-Signature": rt.slack.sign(real.body, ts + 301),
+                },
+                body=real.body,
+            ),
+        ]
+        results = [rt.agent.handle_interaction(r) for r in attempts]
+        assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 0
+        rt.clock.advance(timedelta(minutes=4, seconds=59))
+        results.append(rt.agent.handle_interaction(real))  # inside the window: it counts
+        results.append(rt.agent.handle_interaction(real))  # the same request again
+        return rt, results
+
+    rt, results = _run(world, body, guide_picker=_picker())
+    assert results == [
+        "rejected: bad_signature",
+        "rejected: bad_signature",
+        "rejected: stale_timestamp",
+        "sent",
+        "already sent",
+    ]
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 1
+    assert [(event, who) for event, who, _ in _clicks(rt)][:3] == [
+        ("guide_draft.click_rejected", "unverified")
+    ] * 3
+
+
+def test_a_click_value_that_names_no_waiting_draft_is_refused(world: World) -> None:
+    # Slack signs the value tier0 put on the button, so these can only come from a forged
+    # request; the draft lookup refuses them anyway. A guide that is not approved or is flagged
+    # never becomes a draft, so its ticket has none to send.
+    person = _requester(world)
+    member = _it_member(world)
+    unapproved = dataclasses.replace(BY_ID[GUIDE_ID], id="KB-905", approved=False)
+
+    async def body(rt: Runtime) -> tuple[Runtime, list[str]]:
+        waiting = (await _ask(rt, person)).ticket or ""
+        values = [GUIDE_ID, f"{waiting} ", waiting.lower(), f"{waiting}:{GUIDE_ID}"]
+        return rt, [_click(rt, value, member) for value in values]
+
+    rt, results = _run(world, body, guide_picker=_picker())
+    assert results == ["refused: unknown_draft"] * 4
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 0
+
+    async def unapproved_pick(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        return rt, _click(rt, ticket, member)
+
+    rt, result = _run(
+        world,
+        unapproved_pick,
+        guide_picker=GuidePicker(
+            model=FakePicker(unapproved.id), guides=(*RUNBOOKS, unapproved), gate_version=None
+        ),
+    )
+    assert result == "refused: unknown_draft"
+    assert _in(rt, CHANNELS["it-team"]) == []
+
+
+def test_nothing_from_the_click_reaches_the_requester_and_the_guide_goes_to_their_dm_only(
+    world: World,
+) -> None:
+    person = _requester(world)
+    member = _it_member(world)
+    planted = "PLANTED reset your password at https://login.evil.example"
+
+    async def body(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        # A signed click whose every other field carries text, as if Slack had sent it.
+        payload = {
+            "type": "block_actions",
+            "team": {"id": rt.slack.team_id},
+            "user": {"id": member, "name": planted},
+            "channel": {"id": review.IT_TEAM_CHANNEL, "name": planted},
+            "message": {"text": planted, "thread_ts": "1.000001"},
+            "state": {"values": {"b": {"a": {"value": planted}}}},
+            "response_url": "https://hooks.evil.example/reply",
+            "actions": [
+                {
+                    "type": "button",
+                    "action_id": review.SEND_GUIDE_ACTION,
+                    "value": ticket,
+                    "text": {"type": "plain_text", "text": planted},
+                },
+                {"type": "button", "action_id": review.SEND_GUIDE_ACTION, "value": planted},
+            ],
+        }
+        raw = urlencode({"payload": json.dumps(payload)}).encode()
+        ts = int(rt.clock.now().timestamp())
+        signed = SlackHttpRequest(
+            headers={
+                "X-Slack-Request-Timestamp": str(ts),
+                "X-Slack-Signature": rt.slack.sign(raw, ts),
+            },
+            body=raw,
+        )
+        return rt, rt.agent.handle_interaction(signed)
+
+    rt, result = _run(world, body, guide_picker=_picker())
+    assert result == "sent"
+    dm = rt.slack.dm_channel_for(person.slack_user_id)
+    to_requester = [m for m in rt.slack.sent_messages if m.channel != CHANNELS["it-team"]]
+    assert [(m.channel, m.thread_ts) for m in to_requester] == [(dm, None), (dm, None)]
+    assert to_requester[1].text == replies.compose(
+        reply_text(BY_ID[GUIDE_ID], "en"), "en", first_name=person.given_name, first=False
+    )
+    assert not any("PLANTED" in m.text or "evil" in m.text for m in rt.slack.sent_messages)
+    assert not any("PLANTED" in c for c in _comments(rt, "IT-1"))
+
+
+def test_the_draft_holds_no_id_or_name_of_the_requester(world: World) -> None:
+    person = _requester(world)
+
+    async def body(rt: Runtime) -> Runtime:
+        await _ask(rt, person)
+        return rt
+
+    rt = _run(world, body, guide_picker=_picker())
+    (draft,) = _in(rt, CHANNELS["it-team"])
+    shown = draft.text + json.dumps(draft.blocks)
+    for private in (
+        person.slack_user_id,
+        person.directory_id,
+        rt.slack.dm_channel_for(person.slack_user_id),
+        person.given_name,
+        person.family_name,
+        person.primary_email.split("@", 1)[0],
+        WIFI,
+    ):
+        assert private not in shown
+
+
+def test_two_clicks_at_the_same_time_act_once(world: World) -> None:
+    person = _requester(world)
+    team = sorted(review.it_team(world))
+
+    async def body(rt: Runtime) -> tuple[Runtime, list[str]]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        dm = rt.slack.dm_channel_for(person.slack_user_id)
+        real_post = rt.slack.chat_post_message
+        posting, go_on = threading.Event(), threading.Event()
+
+        def slow_post(**kwargs: Any) -> dict[str, Any]:
+            if kwargs["channel"] == dm:
+                posting.set()
+                go_on.wait(timeout=5)  # the first click is still sending
+            return real_post(**kwargs)
+
+        rt.slack.chat_post_message = slow_post  # type: ignore[method-assign]
+        presses = [
+            rt.slack.button_click(
+                channel=review.IT_TEAM_CHANNEL, user=user, action_id=action, value=ticket
+            )
+            for user, action in (
+                (team[0], review.SEND_GUIDE_ACTION),
+                (team[1], review.SEND_GUIDE_ACTION),
+                (team[1], review.TAKE_OVER_ACTION),
+            )
+        ]
+        results: list[str] = []
+        threads = [
+            threading.Thread(target=lambda r=r: results.append(rt.agent.handle_interaction(r)))
+            for r in presses
+        ]
+        threads[0].start()
+        assert posting.wait(timeout=5)
+        for thread in threads[1:]:
+            thread.start()
+        threads[1].join(timeout=0.2)  # give the other two time to reach the draft
+        go_on.set()
+        for thread in threads:
+            thread.join(timeout=5)
+        return rt, results
+
+    rt, results = _run(world, body, guide_picker=_picker())
+    assert sorted(results) == ["already sent", "already sent", "sent"]
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 1
+
+
+def test_after_a_restart_a_click_finds_no_draft_and_is_refused(world: World) -> None:
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        # A new agent on the same Slack, tickets and secret: drafts lived in the old one's memory.
+        restarted = ServiceDeskAgent(
+            slack=rt.slack,
+            signing_secret=rt.slack.signing_secret,
+            binder=IdentityBinder(
+                slack=rt.slack,
+                directory=rt.directory,
+                team_id=world.slack_team.team_id,
+                app_id=APP_ID,
+                domain=world.domain,
+            ),
+            tickets=rt.tickets,
+            issuer=rt.issuer,
+            mcp_app=rt.mcp_app,
+            model=rt.model,
+            tracer=rt.tracer,
+            clock=rt.clock,
+            domain=world.domain,
+            recovery_url=world.identity_recovery_url,
+            controls=rt.controls,
+            guide_picker=_picker(),
+            it_team=review.it_team(world),
+        )
+        press = rt.slack.button_click(
+            channel=review.IT_TEAM_CHANNEL,
+            user=member,
+            action_id=review.SEND_GUIDE_ACTION,
+            value=ticket,
+        )
+        return rt, restarted.handle_interaction(press)
+
+    rt, result = _run(world, body, guide_picker=_picker())
+    assert result == "refused: unknown_draft"
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 0
+    assert _clicks(rt) == [("guide_draft.click_refused", member, "unknown_draft")]
+    assert rt.tickets.get_ticket("IT-1").state == TRIAGE
+
+
+def test_a_click_on_a_ticket_a_person_has_picked_up_posts_nothing(world: World) -> None:
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        rt.tickets.set_state(ticket, IN_PROGRESS)
+        return rt, _click(rt, ticket, member)
+
+    rt, result = _run(world, body, guide_picker=_picker())
+    assert result == "refused: ticket_moved_on"
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 0
+
+
+# These failed before the review's fixes.
+
+
+def test_a_slack_error_on_send_is_logged_and_the_guide_is_never_sent_twice(
+    world: World,
+) -> None:
+    # A real Slack client raises on API and network errors, and Slack may have posted the
+    # message before its answer was lost. Before the fix the click left no audit entry and the
+    # draft kept waiting, so a second click posted the guide again.
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, str, list[str]]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        dm = rt.slack.dm_channel_for(person.slack_user_id)
+        real_post = rt.slack.chat_post_message
+        lost = []
+
+        def answer_lost(**kwargs: Any) -> dict[str, Any]:
+            response = real_post(**kwargs)
+            if kwargs["channel"] == dm and not lost:
+                lost.append(True)
+                raise TimeoutError("Slack took the message, but its answer was lost")
+            return response
+
+        rt.slack.chat_post_message = answer_lost  # type: ignore[method-assign]
+        results = [_click(rt, ticket, member), _click(rt, ticket, member)]
+        return rt, ticket, results
+
+    rt, ticket, results = _run(world, body, guide_picker=_picker())
+    assert results == ["not sent again: Slack gave an error", "already closed"]
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 1
+    assert _clicks(rt) == [
+        ("guide_draft.send_error", member, "slack_error"),
+        ("guide_draft.click_repeated", member, "closed"),
+    ]
+    assert rt.tickets.get_ticket(ticket).state == TRIAGE  # a person answers by hand
+    assert _comments(rt, ticket)[-1] == (
+        f"tier0: Slack gave an error when IT clicked to send the guide {GUIDE_ID}; it may or may "
+        "not have reached the requester. tier0 will not send it again. A person answers by hand."
+    )
+    assert _events(rt, "tier0.guide.posted") == []
+
+
+@pytest.mark.parametrize(
+    ("action", "broken", "logged"),
+    [
+        (review.SEND_GUIDE_ACTION, "add_comment", ["guide_draft.sent", "guide_draft.click_failed"]),
+        (
+            review.TAKE_OVER_ACTION,
+            "add_comment",
+            ["guide_draft.taken_over", "guide_draft.click_failed"],
+        ),
+        (review.SEND_GUIDE_ACTION, "get_ticket", ["guide_draft.click_failed"]),
+    ],
+    ids=["sent, then the comment fails", "taken over, then the comment fails", "lookup fails"],
+)
+def test_a_click_is_logged_even_when_the_ticket_system_fails(
+    world: World, action: str, broken: str, logged: list[str]
+) -> None:
+    # Before the fix the entry came after the ticket's update, so a failure there lost the
+    # entry for a guide that had already reached the requester.
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> Runtime:
+        ticket = (await _ask(rt, person)).ticket or ""
+
+        def down(*args: Any, **kwargs: Any) -> Any:
+            raise TicketError("the ticket system is down")
+
+        setattr(rt.tickets, broken, down)
+        with pytest.raises(TicketError):
+            _click(rt, ticket, member, action=action)
+        return rt
+
+    rt = _run(world, body, guide_picker=_picker())
+    assert [event for event, _, _ in _clicks(rt)] == logged
+    assert {who for _, who, _ in _clicks(rt)} == {member}
+    assert _clicks(rt)[-1] == ("guide_draft.click_failed", member, "error")
+
+
+# Open design questions (the review of 2026-11-20). Each test shows the current behaviour by
+# failing; a "yes" ruling makes it pass, and then the mark comes off.
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="design question: may a member of IT send a guide in answer to their own request? "
+    "Today they can; the draft is for someone else to confirm",
+)
+def test_an_it_member_cannot_send_a_guide_for_their_own_request(world: World) -> None:
+    asker = next(p for p in world.people if p.slack_user_id == _it_member(world))
+
+    async def body(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, asker)).ticket or ""
+        return rt, _click(rt, ticket, asker.slack_user_id)
+
+    rt, result = _run(world, body, guide_picker=_picker())
+    assert result.startswith("refused: ")
+    assert _times_sent(rt, asker, BY_ID[GUIDE_ID]) == 0
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="design question: should a person's own comment on the ticket stop a late click, as "
+    "it stops the 3-day close? Today only the ticket's state does",
+)
+def test_a_click_after_a_person_commented_on_the_ticket_posts_nothing(world: World) -> None:
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        rt.tickets.add_comment(ticket, "Called them; it works now.", author="it-person")
+        return rt, _click(rt, ticket, member)
+
+    rt, result = _run(world, body, guide_picker=_picker())
+    assert result.startswith("refused: ")
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 0
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="design question: the IT team is read once, when tier0 starts (ADR-053 leaves the "
+    "click-time read to a real Slack app). Should a click also ask Slack's users.info, so a "
+    "member deactivated after the start can't send?",
+)
+def test_a_click_by_an_it_member_deactivated_after_the_start_is_refused(world: World) -> None:
+    person = _requester(world)
+    member = _it_member(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, str]:
+        ticket = (await _ask(rt, person)).ticket or ""
+        real_info = rt.slack.users_info
+
+        def deactivated(user: str, **kwargs: Any) -> dict[str, Any]:
+            info = real_info(user, **kwargs)
+            if user == member:
+                info["user"]["deleted"] = True
+            return info
+
+        rt.slack.users_info = deactivated  # type: ignore[method-assign]
+        return rt, _click(rt, ticket, member)
+
+    rt, result = _run(world, body, guide_picker=_picker())
+    assert result.startswith("refused: ")
+    assert _times_sent(rt, person, BY_ID[GUIDE_ID]) == 0
