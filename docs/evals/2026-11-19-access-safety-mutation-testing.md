@@ -115,6 +115,16 @@ No surviving mutant showed a bug. The property tests found one place where the c
 1. **Rule 2 of identity matching ignores more than case, accents and a `+tag`.** `match.py:83`, `fold` runs NFKD and drops every character that is not ASCII, so a zero-width space, a soft hyphen, a Cyrillic or a CJK letter disappears. `ana.smith\u200b@meridian.example` is matched to the person `ana.smith@meridian.example` by `normalised_email`. An account under such an address is attributed to a real person, so it is never reported as an orphan. Pinned by `test_match_properties.py::test_rule_2_does_not_ignore_characters_other_than_accents` (4 cases).
    - **Update, 2026-11-19:** fixed under the owner's ruling 5 ([AAC-016](../../access/docs/adr/016-rule-2-refuses-non-ascii-addresses.md)). Rule 2 now refuses such an address and the account stays an orphan; the test is no longer an xfail.
 
+### G6: case folding and NFD still turn some look-alikes into ASCII
+
+- **Rule:** AAC-016: rule 2 ignores case, accents and a `+tag`. Ligatures, full-width and mathematical letters are look-alikes, not accents, so they are refused and the account stays an orphan.
+- **What happens:** rule 1 (the exact address) and rule 3's exact alias lookups key an address with `str.casefold`. It turns the ligatures `ﬀ ﬁ ﬂ ﬃ ﬄ ﬅ ﬆ` (U+FB00-FB06), the long s `ſ` (U+017F) and the Kelvin sign `K` (U+212A) into plain ASCII.
+  - `ﬁona.kerr@meridian.example` is placed on the person `fiona.kerr@meridian.example` by `exact_email`, the strongest rule. So are the other eight.
+  - A Google user with such an alias, and an Okta login that only case-folds to another Google user's alias, are placed by `google_alias`.
+  - Rule 2 already refuses the ligatures and the long s, but rule 1 runs first. Rule 2 itself lets the Kelvin sign through: `str.lower` and NFD both make it `k`, with no accent to strip.
+- **Why it matters:** as with G1, such an account is attributed to a real person, so it is never reported as an orphan. Found in review on 2026-11-20 (finding F1). It is not a regression: main matches them the same way.
+- **Pinned:** the `test_g6_*` tests in `test_match.py` (22 strict xfails: rule 1 and rule 3's alias, each for the 9 characters; rule 3's reverse lookup for 3; rule 2 for the Kelvin sign). The 8 rule-2 cases for the ligatures and the long s pass already and are kept as normal tests. The source is unchanged.
+
 ## Property tests
 
 All use hypothesis with `derandomize=True` and `database=None`. Every person, account and plan is made up; apply runs on tiny in-process mocks.
