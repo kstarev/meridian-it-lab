@@ -13,7 +13,8 @@ block as a whole, so that no text with a number in it can be added there without
 The key numbers and the results heading are scoped to the test they come from, the first
 sealed comparison (held-out v3). The later sealed tests the "What's next" cards report are
 checked against their own result files: held-out v6's generated report and the sealed month's
-two result files.
+two result files. The how-to gate's sealed month (milestone 3f) has not run: its size comes from
+the generator's constants, never from the sealed file.
 
 Not checked here: og.png (tier0/tests/test_site_og.py checks it) and the design settings under
 "Under the hood" (the 5-minute token, the 3-day auto-close), which are settings, not results.
@@ -28,8 +29,16 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+from meridian_dataset.month import (
+    EXTRA_TICKETS,
+    HELD_OUT_MONTH3,
+    MONTH_SIZE,
+    SEALED_SETS,
+    SPENT_SETS,
+)
 from tier0.evals import compare_many as cm
 from tier0.evals import paired_summary as ps
+from tier0.knowledge.wiring import HOW_TO_GATE_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "site/index.html"
@@ -534,9 +543,11 @@ def test_passed_on_requests_were_measured_on_the_next_set() -> None:
         "Answer how-to questions from approved guides. Tested once on a sealed set: nothing "
         "reached a person, but two safety rules failed, so Claude Sonnet picks the guides and "
         f"the guide check gets a fix. {_month_sentence()} "
-        # The owner's ruling 12b (ADR-053): guide answers wait for one click from IT.
+        # The owner's ruling 12b (ADR-053): guide answers wait for one click from IT. Then 12a,
+        # milestone 3f: the how-to gate, and its sealed month, which has not run.
         "So until a sealed month passes, every guide answer waits for one click from a person "
-        "in IT. Next, new guides drafted from solved tickets, each approved by a person.",
+        f"in IT. {_m3f_sentence()} Next, new guides drafted from solved tickets, each approved "
+        "by a person.",
         "02",
         "Measure passed-on requests",
         # R2 published: held-out v5's result, as it is. Then held-out v6's (ADR-048).
@@ -594,6 +605,20 @@ def _m3e_sentence(sealed: str) -> str:
         f"both Claude setups: in {first} runs of such requests on each setup in the first, and "
         f"{runs['month2b', 'haiku-3d2']} and {runs['month2b', 'sonnet-3d2']} in the second. No "
         "username was given out, and no how-to question got a wrong guide."
+    )
+
+
+def _m3f_sentence() -> str:
+    """Milestone 3f (the owner's ruling 12a): the how-to gate is built and its sealed month has not
+    run. The month's size comes from the generator's constants, never from the sealed file."""
+    assert HOW_TO_GATE_VERSION == "G3"  # built, and on whenever the picker is on
+    assert HELD_OUT_MONTH3 in SEALED_SETS and HELD_OUT_MONTH3 not in SPENT_SETS
+    assert not [p.name for p in (ROOT / "docs/evals").iterdir() if "month3" in p.name]
+    size = MONTH_SIZE + sum(EXTRA_TICKETS[HELD_OUT_MONTH3].values())
+    return (
+        "One fix in code is built: a how-to gate in front of the picker, which never sees a "
+        f"guide. Nothing shows yet that it works on new wording: its sealed month of {size} "
+        "requests waits for the owner's go."
     )
 
 

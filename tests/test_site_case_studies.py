@@ -11,7 +11,9 @@ them, so these tests read the pages with the standard library's HTML parser and 
   exists in it;
 - the numbers that link to a JSON result file equal the values in that file (the CLAIMS table);
 - none of the banned words appears;
-- the sentences that state the two failures are there, and the failures come first.
+- the sentences that state the two failures are there, and the failures come first;
+- the how-to gate's state (milestone 3f): its dev and tuning numbers are labelled as such, and
+  its sealed month has not run (checked from code constants and file names, never the set).
 """
 
 import json
@@ -22,6 +24,15 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+
+from meridian_dataset.month import (
+    EXTRA_TICKETS,
+    HELD_OUT_MONTH3,
+    MONTH_SIZE,
+    SEALED_SETS,
+    SPENT_SETS,
+)
+from tier0.knowledge.wiring import HOW_TO_GATE_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
@@ -320,6 +331,12 @@ M3E = {  # the picker fix's two blind months (milestone 3e), each run once on 20
     for month in ("month2", "month2b")
     for arm in ("haiku", "sonnet")
 }
+M3F_GATE = E + "2026-11-20-m3f-gate-dev/gate-{version}-{arm}-3d2{run}.json"
+M3F_DEV = {  # the how-to gate's pick, G3, on the dev months: composed with recorded runs
+    arm: M3F_GATE.format(version="G3", arm=arm, run="") for arm in ("haiku", "sonnet")
+}
+M3F_REHEARSAL = {arm: E + f"2026-11-20-m3f-rehearsal-{arm}-3d2.json" for arm in ("haiku", "sonnet")}
+M3F_RULES = "docs/plans/milestone-3f-month3-rules.md"  # held_out_month3's rules: never the set
 HOW_TO = E + "2026-11-16-m4-how-to-sealed.json"
 V5 = E + "2026-11-16-m3d-v5-final.json"
 V3 = E + "2026-11-12-held-out-v3-comparison.json"
@@ -357,6 +374,25 @@ COST = {
     ("month2b", "haiku"): "$0.5788",
     ("month2b", "sonnet"): "$0.8243",
 }
+# What the page says for the how-to gate's pick, G3, on each dev month and setup (milestone 3f):
+# how-to runs with the right guide, and that share. The CLAIMS rows check each against its file.
+M3F_LABELS = {  # each dev month as the page's table names it
+    "tuning_month": "The tuning month",
+    "held_out_month1": "The realistic month of 2026-11-17",
+    "held_out_month2": "The first new month of 2026-11-19",
+    "held_out_month2b": "The second new month of 2026-11-19",
+}
+M3F_RIGHT = {
+    ("tuning_month", "haiku"): ("155 of 156 runs", "0.99"),
+    ("tuning_month", "sonnet"): ("155 of 156 runs", "0.99"),
+    ("held_out_month1", "haiku"): ("150 of 156 runs", "0.96"),
+    ("held_out_month1", "sonnet"): ("142 of 156 runs", "0.91"),
+    ("held_out_month2", "haiku"): ("146 of 156 runs", "0.94"),
+    ("held_out_month2", "sonnet"): ("156 of 156 runs", "1.00"),
+    ("held_out_month2b", "haiku"): ("384 of 405 runs", "0.95"),
+    ("held_out_month2b", "sonnet"): ("384 of 405 runs", "0.95"),
+}
+M3F_REHEARSAL_RIGHT = {"haiku": "0.99 (0.96 to 1.00)", "sonnet": "1.00 (1.00 to 1.00)"}
 
 
 # The page, the text on the page, the file, the JSON path or paths (a.b.c; "#" is a length;
@@ -393,6 +429,27 @@ CLAIMS = [
         ("tier0", "21 of 21 runs", M3E["month2b", arm],
          "scores.slowness_only.slowness_guide_runs scores.slowness_only.runs", "{} of {} runs")
         for arm in ("haiku", "sonnet")
+    ],
+    # Tier0: the how-to gate (milestone 3f). Its pick, G3, on each dev month: a dev estimate,
+    # composed with recorded runs, not blind. Then the rehearsal on the tuning month: tuning data.
+    *[
+        row
+        for (month, arm), (right, share) in M3F_RIGHT.items()
+        for row in (
+            ("tier0", "0 runs", M3F_DEV[arm], f"sets.set={month}.wrongly_answered_runs", "{} runs"),
+            ("tier0", right, M3F_DEV[arm],
+             f"sets.set={month}.right_guide_runs sets.set={month}.how_to_runs", "{} of {} runs"),
+            ("tier0", share, M3F_DEV[arm], f"sets.set={month}.right_guide", "{:.2f}"),
+        )
+    ],
+    *[
+        row
+        for arm, file in M3F_REHEARSAL.items()
+        for row in (
+            ("tier0", "0 of 624 runs", file,
+             "scores.wrongly_answered.runs scores.wrongly_answered.of_runs", "{} of {} runs"),
+            ("tier0", M3F_REHEARSAL_RIGHT[arm], file, _interval("right_guide"), RATE2),
+        )
     ],
     # Tier0: the sealed realistic month, Haiku setup.
     ("tier0", "300 tickets", MONTH_HAIKU, "scores.tickets", "{} tickets"),
@@ -732,6 +789,106 @@ def test_the_picker_fixs_misses_by_kind_and_template():
         "The two kinds that failed the first month had no answered runs in the second new month: "
         "small talk and hardware faults." in text
     )
+
+
+def test_tier0_states_the_how_to_gate_is_not_measured_on_new_wording():
+    text = _page("tier0").text
+    for sentence in (
+        "Nothing measured so far shows that the gate works on new wording.",
+        "Its one blind test is a new sealed month, and that month has not run.",
+        "the owner ruled two things. Guide answers wait for one click from a person in IT until a "
+        "sealed month passes",
+        "The gate never sees a guide",
+        "A guide is suggested only if the code check of the message finds nothing, the gate says "
+        "yes and the picker picks a guide",
+        "G1 and G2 failed the rule in the Haiku setup. They sent too many how-to questions to a "
+        "person. They were not scored in the Sonnet setup.",
+        "G3 passed the rule in both setups.",
+        "A dev estimate, composed with recorded runs, not blind.",
+        "This rehearsal is tuning data, optimistic",
+        "The blind test waits for the owner's go.",
+        "The stop rule: if the month fails, guide answers keep waiting for the IT click, and the "
+        "picker and the gate are not changed again.",
+        "It has not run on a sealed set, so nothing shows yet that it works on new wording",
+    ):
+        assert sentence in text, sentence
+
+
+def test_the_how_to_gates_versions_against_its_selection_rule():
+    """What the page says about G1, G2 and G3, from the gate's dev result files: G1 and G2 fail
+    the committed selection rule on Haiku by coverage alone, and G3 passes it on both models."""
+    folder = ROOT / E / "2026-11-20-m3f-gate-dev"
+    runs = [
+        ("G1", "haiku", ""), ("G2", "haiku", ""), ("G3", "haiku", ""),
+        ("G3", "sonnet", "-max16"), ("G3", "sonnet", "-max64"), ("G3", "sonnet", ""),
+    ]  # fmt: skip
+    # Every scoring is kept, and G1 and G2 have none on Sonnet.
+    assert sorted(p.name for p in folder.glob("*.json")) == sorted(
+        M3F_GATE.format(version=v, arm=a, run=r).rpartition("/")[2] for v, a, r in runs
+    )
+    for version, arm, run in runs:
+        report = _json(M3F_GATE.format(version=version, arm=arm, run=run))
+        assert (report["version"], report["arm"]) == (version, f"{arm}-3d2")
+        assert report["picker"] == "KS6A-H" and "not blind" in report["label"]
+        assert [s["set"] for s in report["sets"]] == list(M3F_LABELS)  # four earlier months
+        for s in report["sets"]:  # the selection rule, as committed: rule 1 and rule 2
+            assert s["passes"] == (s["wrongly_answered_runs"] == 0 and s["right_guide"] >= 0.90)
+            assert s["right_guide_runs"] / s["how_to_runs"] == pytest.approx(s["right_guide"], 1e-3)
+        assert report["passes_every_set"] == all(s["passes"] for s in report["sets"])
+        if version != "G3" or run:  # failed, by sending too many how-to questions to a person
+            assert not report["passes_every_set"]
+            assert all(s["wrongly_answered_runs"] == 0 for s in report["sets"])
+        else:
+            assert report["passes_every_set"]
+    # The Sonnet setup's realistic month is composed from the Haiku setup's recorded runs.
+    runs_from = {s["set"]: s["runs_from"] for s in _json(M3F_DEV["sonnet"])["sets"]}
+    assert runs_from.pop("held_out_month1") == "haiku-3d2"
+    assert set(runs_from.values()) == {"sonnet-3d2"}
+    assert "uses the Haiku setup's recorded runs" in _page("tier0").text
+    report = (ROOT / E / "2026-11-20-m3f-gate-dev.md").read_text(encoding="utf-8")
+    assert "**A code bug, found and fixed during the tuning, not a prompt change.**" in report
+    assert "the same version failed its first two scorings because of a code bug" in (
+        _page("tier0").text
+    )
+    assert HOW_TO_GATE_VERSION == "G3"  # "It is the version Tier0 uses when the guide step is on."
+
+
+def test_the_how_to_gate_table_puts_each_month_and_setup_in_its_own_row():
+    rows = [r for r in _page("tier0").rows if len(r) == 4 and r[1].endswith(" setup")]
+    expected = []
+    for month, label in M3F_LABELS.items():
+        for arm in ("haiku", "sonnet"):
+            s = _dig(M3F_DEV[arm], f"sets.set={month}")
+            right = f"{s['right_guide_runs']} of {s['how_to_runs']} runs ({s['right_guide']:.2f})"
+            expected.append([label, f"{arm.capitalize()} setup",
+                             f"{s['wrongly_answered_runs']} runs", right])  # fmt: skip
+    assert rows == expected
+
+
+def test_the_how_to_gates_rehearsal_is_tuning_data():
+    for arm, file in M3F_REHEARSAL.items():
+        config = _dig(file, "config")
+        assert (config["set"], config["sealed"], config["k"]) == ("tuning_month", False, 3)
+        assert (config["gate"], config["gate_model"]) == ("G3", config["triage_model"])
+        assert config["setup"] == f"{arm}-3d2" and config["failed_calls"] == {}
+        assert config["calls"]["howto_gate"] > 0  # the gate was live
+        assert _dig(file, "scores.right_guide.wrong_guide_runs") == 0
+
+
+def test_the_how_to_gates_sealed_month_has_not_run():
+    """The page's "400 tickets" and "waits for the owner's go", from code constants and the
+    committed rules. It reads no sealed file: names and constants only."""
+    assert HELD_OUT_MONTH3 in SEALED_SETS and HELD_OUT_MONTH3 not in SPENT_SETS
+    assert not [p.name for p in (ROOT / E).iterdir() if "month3" in p.name]  # no result yet
+    size = MONTH_SIZE + sum(EXTRA_TICKETS[HELD_OUT_MONTH3].values())
+    rules = (ROOT / M3F_RULES).read_text(encoding="utf-8")
+    assert f"- **{size} tickets:**" in rules
+    stop = rules.split("<!-- stop-rule:start -->")[1].split("<!-- stop-rule:end -->")[0]
+    assert "If month3 fails, guide answers keep waiting for one click from a person in IT" in stop
+    assert "The picker and the gate are not changed again" in stop
+    # Both places that give the month's size: the result card and "What comes next".
+    on_page = [text for text, href in _number_links("tier0") if _repo_path(href) == M3F_RULES]
+    assert on_page == [f"{size} tickets"] * 2
 
 
 def test_access_states_haikus_red_team_fail_and_the_unpublished_score():
