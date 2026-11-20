@@ -1,6 +1,6 @@
 # Mutation testing on the safety code
 
-**Date:** 2026-11-18 · **Cost:** $0: no model was called, and no sealed set was read · **Tool:** `tools/mutate.py` · **Results:** `out/mutation/before.json`, `out/mutation/after.json` (not tracked)
+**Date:** 2026-11-18 · **Cost:** $0: no model was called, and no sealed set was read · **Tool:** `tools/mutate.py` · **Results:** `out/mutation/before.json`, `out/mutation/after.json`, and for [the later pass on the how-to gate](#later-pass-milestone-3fs-how-to-gate) `out/mutation/gate-before.json`, `out/mutation/gate-after.json` (not tracked)
 
 A mutant is one target file with one small change inside one of the named functions. Its tests are run against it. A test that fails kills it; if none fails, it survived.
 
@@ -146,6 +146,60 @@ All use hypothesis with `derandomize=True`, `database=None` and 200 or 300 examp
 `access/tests/test_redteam_unseal_mutation.py`:
 - Any name but the stand-in's own is refused before the file is read.
 
+## Later pass: milestone 3f's how-to gate
+
+Mutated on its own on 2026-11-20, on the branch with the gate on in the live path (`tier0-3f-gate-on`, #140): the code-only message screen first, then the gate on triage's own model, then the picker. Three targets, all named "tier0 gate ...". The same tool, the same changes and the same equivalent list. The tool can now mutate one statement inside a function (`name/start` in `UNITS`), so only the gate's part of `route_ticket` and of `check_sealed_plan` is changed.
+
+| Target | File | What is mutated |
+|---|---|---|
+| tier0 gate parser | `tier0/src/tier0/knowledge/gate.py` | `gate_request`, `parse_gate` |
+| tier0 gate month runner | `tier0/src/tier0/evals/month.py` | `gate_route`; in `route_ticket`, the `if gate is not None:` block; in `check_sealed_plan`, the `if gate != plan.gate:` and `if plan.gate is not None:` blocks |
+| tier0 gate live path | `tier0/src/tier0/agent.py` | `ServiceDeskAgent._before_picker` (the screen, the gate's call, the kill switch after it); in `ServiceDeskAgent._answer_from_guide`, the `if picker.gate_version is not None:` block that runs it before the picker |
+| tier0 gate live path | `tier0/src/tier0/knowledge/wiring.py` | `GuidePicker.ask_gate`, the live path's gate call |
+
+Tests before, all on that branch: `test_gate.py`, `test_month_gate.py`, `test_guide_gate_slack.py` and `test_model_stub.py` for the parser; `test_month_gate.py`, `test_guide_gate_slack.py`, `test_month.py`, `test_month_picker.py` and `test_sealed_guards_properties.py` for the month runner; `test_guide_gate_slack.py`, `test_guide_picker_slack.py`, `test_guide_it_click.py` and `test_model_stub.py` for the live path. After: those plus `test_gate_properties.py`. No source file is changed.
+
+Before (the tests on `tier0-3f-gate-on`, 34 s):
+
+| Target | Mutants | Killed | Survived | Timed out | Equivalent or harmless | Score |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| tier0 gate parser | 19 | 19 | 0 | 0 | 0 | 100.0% |
+| tier0 gate month runner | 23 | 22 | 1 | 0 | 0 | 95.7% |
+| tier0 gate live path | 24 | 24 | 0 | 0 | 0 | 100.0% |
+| Total | 66 | 65 | 1 | 0 | 0 | 98.5% |
+
+After (with the new tests, 45 s):
+
+| Target | Mutants | Killed | Survived | Timed out | Equivalent or harmless | Score |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| tier0 gate parser | 19 | 19 | 0 | 0 | 0 | 100.0% |
+| tier0 gate month runner | 23 | 23 | 0 | 0 | 0 | 100.0% |
+| tier0 gate live path | 24 | 24 | 0 | 0 | 0 | 100.0% |
+| Total | 66 | 66 | 0 | 0 | 0 | 100.0% |
+
+The one survivor (its number is from `list --target "tier0 gate"`), and what kills it (`test_gate_properties.py`):
+
+| Mutant | Change | Killed by |
+|---|---|---|
+| 34. `month.py:425` `route_ticket`, the gate's hand-off | the hand-off route carries the guide `""` instead of `None` | `test_the_month_runner_answers_with_a_guide_only_when_screen_gate_and_picker_all_let_it`, `test_the_month_runner_stops_at_the_screen_then_at_the_gate_with_its_own_stage` |
+
+It is a hole in the tests, not a bug: the route still hands off, and `grade` scores it the same; only the record's `guide` field would change. No mutant is equivalent, and `tools/mutate_equivalent.json` is unchanged.
+
+**What the new tests found: gap 3F-1.** `parse_gate` reads the reply with `json.loads`, which keeps the last of two members with the same name. So `{"plain_how_to": false, "plain_how_to": true}` is a yes, and so is the same reply with `null` or a word before `true`. In the live path the picker is then asked, and its guide goes to #it-team as a draft; the month runner would score the same reply as a yes. A model held to `GATE_SCHEMA` is unlikely to write such a reply, and a person in IT still has to click before the guide is posted (ADR-053). The rule the parser states is that anything that isn't exactly `{"plain_how_to": true}` is no. The tests are strict xfails named "gap 3F-1" (`test_gap_3f_1_a_reply_that_names_the_key_twice_is_no_yes`, `test_gap_3f_1_a_gate_reply_that_says_false_and_then_true_never_reaches_the_picker`); the source is unchanged.
+
+Noticed, not tested here: triage's parser and the picker's `parse_pick` read a doubled key the same way, by its last value.
+
+The new tests (hypothesis, `derandomize=True`, `database=None`, 300 examples each; made-up messages and fake models only):
+- `parse_gate` gives `True` only for exactly one object with one member, `plain_how_to`, whose value is `true`, from a reply that finished with `stop`, and `False` only for the same with `false`; anything else is `None`. Checked for any reply text, any finish reason and any JSON shape: near objects, extra keys, other values, text around the object, replies too big or too deep to read, and no reply.
+- The expected object parses whatever its spacing. The gate's request puts the message in the user turn, inside its tags, with the frozen rules as its system prompt.
+- `route_ticket` with a gate, for any message, triage label, gate reply (or a failed call), picker answer, arm and gate version: a route answers with a guide only if the screen found nothing, `parse_gate` said `True` and the picker picked a guide, and a route that answers no guide carries none. The gate is asked only when the screen found nothing, and the picker only on the gate's yes. With triage's "other" (and no reset with Tier C on), the route stops at the screen, then at the gate, each with its own stage, and `gate_route` agrees.
+- The same through the agent against the offline mocks, with fake models (triage and gate on one, the picker on another), with and without Tier C, with and without the IT click: a guide is drafted to #it-team or posted only if the screen found nothing, `parse_gate` said `True` and the picker's reply was an exact how-to pick of a postable guide. Every Slack message goes to the requester's DM or #it-team. With triage's "other" (and no reset with Tier C on), the hand-off code is `guide_screen_first`, `guide_gate_failed` or `guide_gate_no`, for the step that stopped it.
+
+Not covered by this pass:
+- The "sealed-set guards" unit above mutates all of `check_sealed_plan`, so on this branch it holds the gate part's 8 mutants too, run against that unit's own tests, which don't include `test_month_gate.py`. That unit was not re-run here. Run with only its tests, some of the 8 survive, so a full `make mutation` would print them as `NOT TRIAGED` under that target, though this pass kills them all.
+- `GuidePicker.__post_init__`'s check of the gate version, the stub model's gate answer, the dev harness (`tier0/src/tier0/evals/gate_dev.py`), and the rest of `route_ticket` and `check_sealed_plan`.
+- The gate's prompts (G1 to G3) and `GATE_SCHEMA`: text constants, which the tool does not change. A test pins each prompt's SHA-256.
+
 ## What was not covered
 
 - The picker-fix candidates on the unmerged branch `tier0-3e-picker-candidates`. Only main's code was mutated.
@@ -165,3 +219,13 @@ uv run --locked python tools/mutate.py render out/mutation/before.json out/mutat
 ```
 
 It is not part of `make test` or CI. A survivor not in `tools/mutate_equivalent.json` is printed as `NOT TRIAGED`.
+
+The gate pass:
+
+```
+uv run --locked python tools/mutate.py run --target "tier0 gate" --baseline --out out/mutation/gate-before.json
+uv run --locked python tools/mutate.py run --target "tier0 gate" --out out/mutation/gate-after.json
+uv run --locked python tools/mutate.py render out/mutation/gate-before.json out/mutation/gate-after.json
+```
+
+Under a minute each with 10 jobs on 12 cores. `make mutation` runs these targets with the others.
