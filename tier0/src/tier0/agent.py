@@ -96,6 +96,11 @@ AGENT_PRINCIPAL = "tier0-agent"
 # Hand-off codes for the safety controls (ADR-008).
 KILL_SWITCH_ON = "kill_switch_on"
 RATE_LIMITED_CODE = "rate_limited"
+# A username is posted only in the requester's direct message with tier0 (Slack's
+# channel_type "im"). Asked anywhere else (a channel, a shared channel, a group DM), the
+# request goes to a person, so the username never reaches anyone but its owner.
+DIRECT_MESSAGE = "im"
+NOT_A_DIRECT_MESSAGE = "not_a_direct_message"
 # How the MCP server's refusals map to hand-off codes.
 _TOOL_REFUSALS = {ACTIONS_STOPPED: KILL_SWITCH_ON, RATE_LIMITED: RATE_LIMITED_CODE}
 # Milestone 3d part 2: a password or MFA reset is Tier C, prepared for a person. The ladder
@@ -447,11 +452,14 @@ class ServiceDeskAgent:
         if not isinstance(payload, dict):
             return Outcome("rejected", "malformed_body")
 
+        # Dedupe is the replay check inside the signature's 5-minute window, so a body
+        # without an event id is refused: Slack always sends one.
         event_id = payload.get("event_id")
-        if isinstance(event_id, str):
-            if event_id in self._seen_event_ids:
-                return Outcome("duplicate")
-            self._seen_event_ids.add(event_id)
+        if not isinstance(event_id, str) or not event_id:
+            return Outcome("rejected", "malformed_body")
+        if event_id in self._seen_event_ids:
+            return Outcome("duplicate")
+        self._seen_event_ids.add(event_id)
 
         if self._stopped():
             # The switch is on: first hand over whatever is still open with tier0. A
@@ -467,6 +475,9 @@ class ServiceDeskAgent:
         channel = event.get("channel") if isinstance(event, dict) else None
         raw_text = event.get("text", "") if isinstance(event, dict) else ""
         text = raw_text if isinstance(raw_text, str) else ""
+        # Slack's own label for where the message was sent. Anything but a direct message
+        # (or no label at all) means other people can read tier0's reply there.
+        direct = isinstance(event, dict) and event.get("channel_type") == DIRECT_MESSAGE
         user_id = bound.slack_user_id
         team_id = bound.slack_team_id or payload.get("team_id")
         if not (
@@ -481,7 +492,7 @@ class ServiceDeskAgent:
 
         if isinstance(bound, Unbound):
             return await self._handle_unbound(bound, channel, text, sender)
-        return await self._handle_bound(bound, channel, text, sender)
+        return await self._handle_bound(bound, channel, text, sender, direct=direct)
 
     async def _handle_unbound(
         self, unbound: Unbound, channel: str, text: str, sender: SlackUserRef
@@ -533,7 +544,13 @@ class ServiceDeskAgent:
             raise
 
     async def _handle_bound(
-        self, bound: BoundIdentity, channel: str, text: str, sender: SlackUserRef
+        self,
+        bound: BoundIdentity,
+        channel: str,
+        text: str,
+        sender: SlackUserRef,
+        *,
+        direct: bool,
     ) -> Outcome:
         ticket = self._tickets.open_ticket(
             title="IT request via Slack",
@@ -572,10 +589,18 @@ class ServiceDeskAgent:
                 elif rule.action == "refuse":
                     action, state = self._refuse(s, identifier, channel, bound)
                 elif rule.action == "answer":
-                    action, state = await self._answer(s, identifier, channel, bound, rule, text)
+                    action, state = await self._answer(
+                        s, identifier, channel, bound, rule, text, direct=direct
+                    )
                 elif self._features.tier_c or self._features.split:
                     action, state = await self._other(
-                        s, identifier, channel, bound, text, guide=given and category == OTHER
+                        s,
+                        identifier,
+                        channel,
+                        bound,
+                        text,
+                        guide=given and category == OTHER,
+                        direct=direct,
                     )
                 elif self._guide_picker is not None and given and category == OTHER:
                     # Milestone 4, only with the option on: the policy says escalate, but an
@@ -755,6 +780,7 @@ class ServiceDeskAgent:
         text: str,
         *,
         guide: bool = False,
+        direct: bool,
     ) -> tuple[str, str]:
         """A request triage didn't sort as a username request or a refusal. With part 2 on: a
         reset is prepared for a person as Tier C; with the split option, a message that also
@@ -775,7 +801,9 @@ class ServiceDeskAgent:
                         "tier0: several requests; the own-username part goes down the username "
                         "path, and a person handles the rest.",
                     )
-                    return await self._answer(s, identifier, channel, bound, rule, text, split=True)
+                    return await self._answer(
+                        s, identifier, channel, bound, rule, text, direct=direct, split=True
+                    )
         if guide and self._guide_picker is not None:
             # Milestone 4 with part 2 on: what part 2 would plainly hand off may get an approved
             # guide first. A reset never reaches this line.
@@ -881,12 +909,19 @@ class ServiceDeskAgent:
         rule: PolicyRule,
         text: str,
         *,
+        direct: bool,
         split: bool = False,
     ) -> tuple[str, str]:
         # Milestone 3d part 2: a reset that triage sent down the username path still goes to
         # a person, before the ladder's Tier A check and before any further model call.
         if self._features.tier_c and reset_request(text):
             return self._prepare_tier_c(s, identifier, channel, bound)
+        # The answer is posted where the request came from. Outside the requester's direct
+        # message with tier0, other people would read it, so a person handles the request:
+        # no further model call, no lookup, no token (brief: "Reveal it only to the Slack
+        # identity it belongs to").
+        if not direct:
+            return self._escalate(s, identifier, channel, bound, NOT_A_DIRECT_MESSAGE)
         # The verification ladder first: code only, no model, no directory read. The
         # sender is already bound (rung 0); the context checks (rung 1) decide whether
         # tier0 may act for them right now.

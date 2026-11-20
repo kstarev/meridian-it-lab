@@ -136,7 +136,9 @@ class IdentityBinder:
         if not info.get("ok"):
             return refuse("unknown_slack_user")
         user = info.get("user")
-        if not isinstance(user, dict):
+        # The record must be the sender's own: a record for anyone else (a stale cache, a
+        # proxy that mixes up users) would bind the sender to that person.
+        if not isinstance(user, dict) or user.get("id") != user_id:
             return refuse("unknown_slack_user")
         slack = slack_profile(user)
         locale, tz = slack.locale, slack.tz
