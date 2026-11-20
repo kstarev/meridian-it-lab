@@ -1,6 +1,6 @@
 # Milestone 3f: a how-to gate in front of the guide picker, then one blind month
 
-**Date:** 2026-11-19 · **Status:** planned; nothing built or run yet · **Decisions:** the owner's ruling 12 of 2026-11-19, ADR-049, ADR-050 (`tier0-3e`) · **Why:** [the two blind months' reasons](../evals/2026-11-19-m3e-month2-failure-reasons.md) (once #131 is merged) · **Month3's rules:** [milestone-3f-month3-rules.md](milestone-3f-month3-rules.md)
+**Date:** 2026-11-19 · **Status:** built and tuned; the rehearsal passed in both arms; **the one run of `held_out_month3` waits for the owner's go** · **Decisions:** the owner's ruling 12 of 2026-11-19, ADR-049, ADR-050 (`tier0-3e`) · **Why:** [the two blind months' reasons](../evals/2026-11-19-m3e-month2-failure-reasons.md) (once #131 is merged) · **Month3's rules:** [milestone-3f-month3-rules.md](milestone-3f-month3-rules.md)
 
 ## The owner's ruling (12, 2026-11-19)
 
@@ -78,3 +78,12 @@ The rules and the stop rule are in [milestone-3f-month3-rules.md](milestone-3f-m
 A second version for either model still fits. A third Sonnet version would not, so it isn't written: the plan stops and asks the owner instead.
 
 Each paid step runs under a watchdog that stops it before its own estimate plus 25%, and before `tier0-3e`'s cap.
+
+## Where it stands (2026-11-20)
+
+- **The pick: G3 on both arms**, the only version that passed the selection rule on either model ([the dev report](../evals/2026-11-20-m3f-gate-dev.md)). It is frozen for month3 by name and SHA-256 in the month runner, before the rehearsal.
+- **A code bug was found during the tuning and fixed:** the gate's reply limit cut Sonnet's replies short. The prompts didn't change; the report keeps both cut-short runs.
+- **The rehearsal passed both rules in both arms,** with the gate live ([haiku-3d2](../evals/2026-11-20-m3f-rehearsal-haiku-3d2.md), [sonnet-3d2](../evals/2026-11-20-m3f-rehearsal-sonnet-3d2.md)). It is tuning data, so its numbers are optimistic.
+- **Month3 was written and sealed before the tuning finished,** which is not the order this plan gives. It is stated in its pull request.
+- **Stopped here,** as the owner ruled. The sealed run needs the owner's go.
+
