@@ -75,8 +75,8 @@ def main(argv: list[str] | None = None) -> int:
         if refused:
             print(
                 f"Refused {refused} IT exception{'s' if refused != 1 else ''} at load time "
-                "(over 90 days, or no expiry): listed in report.md. A refused exception "
-                "protects nothing."
+                "(over 90 days, or a missing or backwards date): listed in report.md. A "
+                "refused exception protects nothing."
             )
         return 0
 

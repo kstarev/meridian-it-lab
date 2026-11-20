@@ -79,8 +79,8 @@ def weekly_report(files: dict[str, bytes]) -> str:
         f"| For a person to review | {c['to_a_person']} |",
         f"| Under a current exception | {c['excepted']} |",
         f"| Exceptions past their expiry | {c['exceptions_expired']} |",
-        f"| Exceptions refused (over {run['exception_max_days']} days, or no expiry) "
-        f"| {c['exceptions_refused']} |",
+        f"| Exceptions refused (over {run['exception_max_days']} days, or a missing or "
+        f"backwards date) | {c['exceptions_refused']} |",
         f"| Grants held by people HR says have left | {c['leaver_grants']} |",
         f"| Slack nudge drafts | {c['nudges']} |",
         f"| Changes made / messages sent | {run['changes_made']} / {run['messages_sent']} |",
