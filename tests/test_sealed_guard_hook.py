@@ -72,6 +72,8 @@ BLOCKED = [
     # 2. Grep on a sealed file, or with a glob that names sealed files
     ("Grep", {"pattern": "foo", "path": FAKE}),
     ("Grep", {"pattern": "foo", "glob": "held_out_*.json"}),
+    # allowed before, blocked now: Grep with no path, in a folder that holds a sealed file
+    ("Grep", {"pattern": "foo"}),
     # 3. a program that prints file content, given a sealed file
     _bash(f"cat {FAKE}"),
     _bash(f"head -5 {FAKE}"),
@@ -179,7 +181,8 @@ ALLOWED = [
     # other reads, and other tools
     ("Read", {"file_path": "pools/tuning.json"}),
     ("Grep", {"pattern": "held_out_", "path": "src"}),
-    ("Grep", {"pattern": "foo"}),
+    ("Grep", {"pattern": "foo", "path": "src", "glob": "*.py"}),
+    # Glob lists names only, never content
     ("Glob", {"pattern": "**/held_out_*"}),
     ("Edit", {"file_path": FAKE, "old_string": "a", "new_string": "b"}),
     ("SomeNewTool", {"file_path": FAKE}),
@@ -350,11 +353,123 @@ def test_the_path_lists_cover_each_case_the_owner_named():
     assert sum(why == UNSURE for _, why in PATH_LIMITED_BLOCKED) >= 25
 
 
-def test_a_folder_too_big_to_check_is_blocked(monkeypatch, repo):
+@pytest.mark.parametrize(
+    "call",
+    [("Bash", {"command": "grep -rn foo src docs"}), ("Grep", {"pattern": "foo", "glob": "*.py"})],
+)
+def test_a_folder_too_big_to_check_is_blocked(monkeypatch, repo, call):
     monkeypatch.setattr(sealed_guard, "MAX_ENTRIES", 2)
-    reason = sealed_guard.decide("Bash", {"command": "grep -rn foo src docs"}, cwd=repo)
+    reason = sealed_guard.decide(*call, cwd=repo)
     assert reason
     assert "too many files" in reason
+
+
+# --- Rule 2: the Grep tool -----------------------------------------------------------------
+# Claude Code's Grep runs ripgrep. A `glob` overrides `.rgignore` as `rg -g` does, so with a
+# glob or type, or with no path, the hook walks the path (the session's folder by default) and
+# blocks if any file the glob or type may let in is sealed. A glob judges a file by its own
+# name; a `type` counts as any file. Each blocked case also says why.
+NAMED = "names sealed files"
+
+GREP_TOOL_ALLOWED = [
+    {"pattern": "foo", "glob": "*.py"},  # no path: the repository, but no sealed .py file
+    {"pattern": "foo", "path": ".", "glob": "*.md"},
+    {"pattern": "foo", "path": ".", "glob": "*.{py,md}"},
+    {"pattern": "foo", "path": ".", "glob": "!*.md *.py"},  # a `!` glob only leaves files out
+    {"pattern": "foo", "path": ".", "glob": "pools"},  # a folder's name lets in no file below
+    {"pattern": "foo", "path": "pools", "glob": "*.md"},  # holds a sealed file the glob can't reach
+    {"pattern": "foo", "path": "pools", "glob": "tuning.json"},
+    {"pattern": "foo", "path": "pools/tuning.json", "glob": "*.json"},
+    {"pattern": "foo", "path": "src", "glob": "*.json"},  # a clean folder, a symlink loop in it
+    {"pattern": "foo", "path": "src", "type": "py"},
+    # a path and neither glob nor type: as before, `.rgignore` leaves sealed files out
+    {"pattern": "foo", "path": "pools"},
+    {"pattern": "foo", "path": "."},
+]
+
+GREP_TOOL_BLOCKED = [
+    # no path: the session's folder holds a sealed file
+    ({"pattern": "foo"}, SEALED),
+    ({"pattern": "foo", "glob": "*.json"}, SEALED),
+    ({"pattern": "foo", "type": "py"}, SEALED),  # a type counts as any file
+    # a glob that may reach a sealed file below the path
+    ({"pattern": "foo", "path": ".", "glob": "*.json"}, SEALED),
+    ({"pattern": "foo", "path": "pools", "glob": "*.json"}, SEALED),
+    ({"pattern": "foo", "path": "pools", "glob": "*.{md,json}"}, SEALED),
+    ({"pattern": "foo", "path": "pools", "glob": "*.md *.json"}, SEALED),
+    ({"pattern": "foo", "path": "pools", "glob": "*.md,*.json"}, SEALED),
+    ({"pattern": "foo", "path": "pools", "glob": "**"}, SEALED),
+    ({"pattern": "foo", "path": ".", "glob": "pools/"}, SEALED),
+    ({"pattern": "foo", "path": ".", "glob": "pools/*"}, SEALED),
+    ({"pattern": "foo", "path": ".", "glob": "**/*.JSON"}, SEALED),  # case doesn't matter
+    ({"pattern": "foo", "path": ".", "glob": "held_ou[t]_*"}, SEALED),
+    ({"pattern": "foo", "path": ".", "glob": "held\\_out_*"}, SEALED),
+    ({"pattern": "foo", "path": "pools", "glob": "!*.md"}, SEALED),  # only `!`: any file
+    ({"pattern": "foo", "path": "links", "glob": "*.json"}, SEALED),  # a symlink to one
+    ({"pattern": "foo", "path": "linkdir", "glob": "*.json"}, SEALED),  # a symlinked folder
+    ({"pattern": "foo", "path": "pools", "type": "json"}, SEALED),
+    # a sealed path, or a symlink to one (a symlink was allowed before)
+    ({"pattern": "foo", "path": FAKE, "glob": "*.md"}, SEALED),
+    ({"pattern": "foo", "path": "links/to_sealed.json"}, SEALED),
+    ({"pattern": "foo", "path": "src", "glob": "held_out_*"}, NAMED),
+    # what the hook can't check
+    ({"pattern": "foo", "path": "nowhere", "glob": "*.py"}, UNSURE),
+    ({"pattern": "foo", "path": "src", "glob": "{a,b}" * 11}, UNSURE),  # 2,048 globs
+]
+
+
+@pytest.mark.parametrize("tool_input", GREP_TOOL_ALLOWED, ids=json.dumps)
+def test_grep_with_a_glob_that_cant_reach_a_sealed_file_is_allowed(tool_input: dict, repo: str):
+    assert sealed_guard.decide("Grep", tool_input, cwd=repo) is None
+
+
+@pytest.mark.parametrize(("tool_input", "why"), GREP_TOOL_BLOCKED, ids=json.dumps)
+def test_grep_that_may_reach_a_sealed_file_is_blocked(tool_input: dict, why: str, repo: str):
+    reason = sealed_guard.decide("Grep", tool_input, cwd=repo)
+    assert reason
+    assert why in reason
+    assert "tools/search.py" in reason
+    assert "sealed wording" not in reason
+
+
+def test_grep_reads_an_opened_set_but_not_a_sealed_one_beside_it(tmp_path: Path):
+    opened = sorted(sealed_guard.OPENED)[0]
+    _tree(
+        tmp_path,
+        {
+            f"opened/{opened}.json": '["dev wording"]\n',
+            "opened/notes.md": "foo\n",
+            f"mixed/{opened}.json": '["dev wording"]\n',
+            "mixed/held_out_fake9.json": '["sealed wording"]\n',
+        },
+    )
+    top = str(tmp_path)
+    for tool_input in (
+        {"pattern": "foo", "path": "opened", "glob": "*.json"},
+        {"pattern": "foo", "path": "opened", "type": "json"},
+        {"pattern": "foo", "path": f"opened/{opened}.json", "glob": "*.json"},
+    ):
+        assert sealed_guard.decide("Grep", tool_input, cwd=top) is None
+    assert sealed_guard.decide("Grep", {"pattern": "foo"}, cwd=str(tmp_path / "opened")) is None
+    for tool_input in (
+        {"pattern": "foo", "path": "mixed", "glob": "*.json"},
+        {"pattern": "foo", "path": "mixed", "type": "json"},
+        {"pattern": "foo"},
+    ):
+        reason = sealed_guard.decide("Grep", tool_input, cwd=top)
+        assert reason
+        assert "held_out_fake9.json" in reason
+        assert opened not in reason
+
+
+def test_grep_through_the_hook_end_to_end(monkeypatch, capsys, repo):
+    for tool_input, code in (
+        ({"pattern": "foo", "path": "src", "glob": "*.py"}, 0),
+        ({"pattern": "foo", "path": "pools", "glob": "*.json"}, 2),
+    ):
+        payload = {"tool_name": "Grep", "tool_input": tool_input, "cwd": repo}
+        assert _run_main(monkeypatch, json.dumps(payload)) == code
+    assert "pools/held_out_fake.json" in capsys.readouterr().err
 
 
 def test_a_path_limited_search_goes_through_the_hook_end_to_end(monkeypatch, capsys, repo):

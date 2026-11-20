@@ -5,7 +5,10 @@ Reads one JSON object on stdin. Exit 0 allows. Exit 2 blocks, with a reason on s
 A sealed file is a `held_out_*` file whose set is not in OPENED (tools/sealed_paths.py).
 The hook blocks only these (docs/sealed-search-guard.md lists them with examples):
   1. Read of a sealed file, or of a symlink to one.
-  2. Grep whose path is a sealed file, or whose glob names `held_out_`.
+  2. Grep whose path is a sealed file or a symlink to one, or whose glob names `held_out_`;
+     and, with a `glob` or `type` or with no path, Grep whose path (the session's folder when
+     none is given) holds a sealed file the glob or type may let in. A glob overrides
+     `.rgignore`, as `rg -g` does.
   3. Bash: a program that prints file content, with a sealed file among its arguments.
   4. Bash: `git show`, `git diff`, `git blame`, `git cat-file` or `git log -p` naming a sealed
      file.
@@ -30,6 +33,7 @@ import shlex
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from sealed_paths import OPENED, is_sealed
@@ -97,6 +101,7 @@ EXPANDS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_012345
 MAX_ENTRIES = 300_000  # files and folders looked at per tool call, at most
 MAX_SECONDS = 5.0
 MAX_MATCHES = 20_000  # paths one glob may expand to
+MAX_GLOB_ALTERNATIVES = 1_000  # globs one Grep `glob` may stand for, its braces expanded
 
 # Search options, by program. Short options: flags, and those that take a value. Long options:
 # False takes no value, True takes one, None may take one after `=`, BLOCK is never allowed.
@@ -311,9 +316,15 @@ def _expand(pattern: str, base: str) -> list[str]:
     return [p for p in current if os.path.lexists(p)]
 
 
-def _holds_sealed(path: str) -> str | None:
+def _holds_sealed(path: str, admits: Callable[[str], bool] | None = None) -> str | None:
     """`path` if it is a sealed file or a symlink to one; else a sealed file, or a symlink to
-    one, anywhere below it, following every symlink; else None."""
+    one, anywhere below it, following every symlink; else None. Names only, never content.
+    With `admits`, a sealed file below counts only if `admits` its name, or the name of the
+    symlink that leads to it; a folder with a sealed name always counts."""
+
+    def counts(*names: str) -> bool:
+        return admits is None or any(admits(n) for n in names)
+
     if _sealed(path):
         return path
     real = os.path.realpath(path)
@@ -336,11 +347,13 @@ def _holds_sealed(path: str) -> str | None:
             raise Unsure(f"can't list {top}") from exc
         for entry in listed:
             _tick()
-            if _sealed(entry.name):
+            if _sealed(entry.name) and (entry.is_dir() or counts(entry.name)):
                 return entry.path
             if entry.is_symlink():
                 target = os.path.realpath(entry.path)
-                if _sealed(target):
+                if _sealed(target) and (
+                    os.path.isdir(target) or counts(entry.name, os.path.basename(target))
+                ):
                     return f"{entry.path} -> {target}"
                 if os.path.isdir(target):
                     stack.append(target)
@@ -981,6 +994,105 @@ def _find(segment: str, words: list[str], cwds: list[str | None]) -> str | None:
     return None
 
 
+# --- Rule 2: the Grep tool ---------------------------------------------------------------
+# Claude Code's Grep tool runs ripgrep. `.rgignore` leaves sealed files out of a folder, but a
+# `glob` overrides it, as `rg -g` does. ripgrep judges a file by its own name against a glob:
+# a glob that names a folder lets in none of the files below it. So only a glob's last part
+# counts, and the hook reads it loosely, so that it lets in at least what ripgrep does.
+def _brace_group(glob: str) -> tuple[int, int, list[str]] | None:
+    """The first `{...}` group in a glob (start, end, alternatives), or None."""
+    depth, start, cuts, i = 0, 0, [0], 0
+    while i < len(glob):
+        ch = glob[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "{":
+            if depth == 0:
+                start, cuts = i, [i]
+            depth += 1
+        elif ch == "," and depth == 1:
+            cuts.append(i)
+        elif ch == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                cuts.append(i)
+                return start, i, [glob[cuts[k] + 1 : cuts[k + 1]] for k in range(len(cuts) - 1)]
+        i += 1
+    return None  # none, or braces that don't balance: ripgrep refuses such a glob
+
+
+def _braces(glob: str) -> list[str]:
+    """The globs `a{b,c}d` stands for (`abd` and `acd`), nested braces too."""
+    done: list[str] = []
+    todo = [glob]
+    steps = 0
+    while todo:
+        current = todo.pop()
+        group = _brace_group(current)
+        if group is None:
+            done.append(current)
+        else:
+            start, end, alternatives = group
+            todo += [current[:start] + a + current[end + 1 :] for a in alternatives]
+        steps += 1
+        if steps > MAX_GLOB_ALTERNATIVES or len(done) + len(todo) > MAX_GLOB_ALTERNATIVES:
+            raise Unsure("a glob with too many alternatives")
+    return done
+
+
+def _grep_admits(glob: str, kind: str) -> Callable[[str], bool] | None:
+    """A test of the file names the Grep tool's `glob` may let in, or None when it may let in
+    any file: a `type` (the hook doesn't know ripgrep's type list), no glob, only `!` globs,
+    or a glob whose last part is `*`, `**` or empty (`dir/`). The glob is read whole, and also
+    split at spaces and commas, as Claude Code may split it; braces are expanded; a `[...]`
+    class or an escaped character counts as any one character; case doesn't matter. A `!`
+    glob only leaves files out, so it is skipped."""
+    if kind or not glob.strip():
+        return None
+    parts = glob.split()
+    pieces = {glob.strip(), *parts, *(p for part in parts for p in part.split(","))}
+    tests: list[Callable[[str], object]] = []
+    for piece in sorted(p for p in pieces if p and not p.startswith("!")):
+        for alternative in _braces(piece):
+            tail = alternative.rsplit("/", 1)[-1]
+            if not tail.strip("*"):
+                return None
+            tail = re.sub(r"\*+", "*", re.sub(r"\\.", "?", tail))
+            tests.append(re.compile(fnmatch.translate(_loosen(tail)), re.IGNORECASE).match)
+    if not tests:
+        return None
+    return lambda name: any(test(name) for test in tests)
+
+
+def _grep_tool(tool_input: dict, cwd: str) -> str | None:
+    """Rule 2 for the Grep tool: the reason to block, or None. With a `glob` or `type`, or
+    with no path, the path (the session's folder when none is given) is walked, names only,
+    and the call is blocked if any file the glob or type may let in is sealed. A path given
+    with neither keeps the rule from before: only a sealed path itself is blocked."""
+    path = str(tool_input.get("path") or "")
+    glob = str(tool_input.get("glob") or "")
+    kind = str(tool_input.get("type") or "")
+    tops = [os.path.join(cwd, path)] if path else [cwd]
+    if path.startswith("~"):
+        tops.append(os.path.expanduser(path))
+    if _sealed(path) or any(_sealed(os.path.realpath(top)) for top in tops):
+        return f"Grep on a sealed file ({path})"
+    if "held_out_" in glob:
+        return "Grep with a glob that names sealed files"
+    if path and not glob and not kind:
+        return None  # `.rgignore` leaves sealed files out of a folder
+    try:
+        found = [top for top in tops if os.path.lexists(top)]
+        if not found:
+            raise Unsure(f"{path} doesn't resolve to a file")
+        admits = _grep_admits(glob, kind)
+        hit = next((h for top in found if (h := _holds_sealed(top, admits))), None)
+    except Unsure as exc:
+        return f"Grep can't be checked ({exc}), so it counts as a search of sealed files"
+    return f"Grep would search a sealed file ({hit})" if hit else None
+
+
 # --- Commands ----------------------------------------------------------------------------
 def _cd(words: list[str], cwds: list[str | None]) -> list[str | None]:
     """The folders `cd`, `pushd` or `popd` may leave the shell in, from each it may be in.
@@ -1099,11 +1211,10 @@ def decide(tool_name: str, tool_input: dict, cwd: str | None = None) -> str | No
         if _sealed(path) or _sealed(real):
             reason = f"Read of a sealed file ({path})"
     elif tool_name == "Grep":
-        path = str(tool_input.get("path") or "")
-        if _sealed(path):
-            reason = f"Grep on a sealed file ({path})"
-        elif "held_out_" in str(tool_input.get("glob") or ""):
-            reason = "Grep with a glob that names sealed files"
+        try:
+            reason = _grep_tool(tool_input, cwd)
+        except Exception:  # a bug in the hook: a Grep reads content, so block it
+            reason = "the hook could not read this Grep call"
     elif tool_name == "Bash":
         command = str(tool_input.get("command", ""))
         try:
