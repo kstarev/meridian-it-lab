@@ -4,7 +4,9 @@ With `GUIDE_ANSWERS_NEED_IT_CLICK` on, the default, a guide the picker chooses g
 a draft, the requester gets the existing hand-off reply, and only a signed click from #it-team by
 a member of the IT team posts the guide, once. Everything runs on the offline mocks with a fake
 picker: no model call costs money and no real Slack call is made. The messages are written in
-this file; no pool wording is used.
+this file; no pool wording is used. Each picker is built with no how-to gate
+(`gate_version=None`), the default before milestone 3f: these tests are of the draft and the
+click; tier0/tests/test_guide_gate_slack.py tests the gate.
 """
 
 import dataclasses
@@ -184,7 +186,7 @@ def test_a_guide_pick_makes_an_it_draft_and_the_requester_gets_the_hand_off_only
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
         return rt, await _ask(rt, person)
 
-    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     ticket = outcome.ticket or ""
     assert (outcome.action, outcome.category, outcome.state) == (DRAFT_GUIDE, "other", TRIAGE)
     assert rt.tickets.get_ticket(ticket).state == TRIAGE
@@ -237,7 +239,7 @@ def test_an_it_members_click_posts_the_guide_once_and_it_closes_like_an_answer(
         return rt, ticket, result, state, rt.agent.sweep()
 
     rt, ticket, result, state, swept = _run(
-        world, body, guide_picker=GuidePicker(model=FakePicker())
+        world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None)
     )
     assert result == "sent"
     assert state == AWAITING_REPLY
@@ -276,7 +278,9 @@ def test_a_second_click_posts_nothing(world: World) -> None:
         assert len(rt.slack.sent_messages) == sent
         return rt, results, sent
 
-    rt, results, _ = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, results, _ = _run(
+        world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None)
+    )
     assert results == ["sent", "already sent", "already sent", "already sent"]
     assert len(_events(rt, "tier0.guide.posted")) == 1
     assert sum(BY_ID[GUIDE_ID].steps[0] in text for text in _dm(rt, person)) == 1
@@ -335,7 +339,9 @@ def test_a_click_by_anyone_outside_the_it_team_is_refused_and_logged(
         results.append(_click(rt, ticket, _it_member(world)))
         return rt, results, before
 
-    rt, results, _ = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, results, _ = _run(
+        world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None)
+    )
     assert results == ["refused: not_in_it_team", "refused: not_in_it_team", "sent"]
     assert _clicks(rt)[:2] == [("guide_draft.click_refused", clicker, "not_in_it_team")] * 2
 
@@ -349,7 +355,7 @@ def test_a_click_from_outside_it_team_channel_is_refused(world: World) -> None:
         dm = rt.slack.dm_channel_for(member)
         return rt, _click(rt, ticket, member, channel=dm)
 
-    rt, result = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, result = _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     assert result == "refused: wrong_channel"
     assert not _has_steps(_dm(rt, person), BY_ID[GUIDE_ID])
     assert _clicks(rt) == [("guide_draft.click_refused", member, "wrong_channel")]
@@ -376,7 +382,7 @@ def test_a_forged_or_unsigned_click_is_rejected(world: World) -> None:
         results.append(rt.agent.handle_interaction(real))  # a replay, too late
         return rt, results
 
-    rt, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     assert all(r.startswith("rejected: ") for r in results), results
     assert not _has_steps(_dm(rt, person), BY_ID[GUIDE_ID])
     assert {(event, who) for event, who, _ in _clicks(rt)} == {
@@ -390,7 +396,7 @@ def test_a_click_on_a_draft_that_does_not_exist_is_refused(world: World) -> None
     async def body(rt: Runtime) -> tuple[Runtime, str]:
         return rt, _click(rt, "IT-999", member)
 
-    rt, result = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, result = _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     assert result == "refused: unknown_draft"
     assert rt.slack.sent_messages == ()
 
@@ -408,7 +414,9 @@ def test_take_it_over_sends_nothing_and_a_later_send_does_nothing(world: World) 
         results.append(_click(rt, ticket, member))
         return rt, ticket, results
 
-    rt, ticket, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, ticket, results = _run(
+        world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None)
+    )
     assert results == ["taken_over", "already taken_over"]
     assert len(_dm(rt, person)) == 1  # the hand-off reply only
     assert rt.tickets.get_ticket(ticket).state == TRIAGE
@@ -432,7 +440,7 @@ def test_with_the_kill_switch_on_a_click_sends_nothing_until_it_is_off(world: Wo
         results.append(_click(rt, ticket, member))
         return rt, results
 
-    rt, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     assert results == [f"refused: {KILL_SWITCH_ON}", "sent"]
     assert _clicks(rt) == [
         ("guide_draft.click_refused", _it_member(world), KILL_SWITCH_ON),
@@ -449,7 +457,7 @@ def test_a_late_click_on_a_ticket_a_person_has_moved_on_posts_nothing(world: Wor
         rt.tickets.set_state(ticket, DONE)  # someone answered it by hand and closed it
         return rt, [_click(rt, ticket, member), _click(rt, ticket, member)]
 
-    rt, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt, results = _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     assert results == ["refused: ticket_moved_on", "already closed"]
     assert len(_dm(rt, person)) == 1
 
@@ -464,7 +472,9 @@ def test_a_guide_the_guard_blocks_never_becomes_a_draft(world: World) -> None:
         return rt, await _ask(rt, _requester(world))
 
     rt, outcome = _run(
-        world, body, guide_picker=GuidePicker(model=picker, guides=(*RUNBOOKS, leaky))
+        world,
+        body,
+        guide_picker=GuidePicker(model=picker, guides=(*RUNBOOKS, leaky), gate_version=None),
     )
     assert (outcome.action, outcome.state) == ("escalate", TRIAGE)
     assert len(_events(rt, "tier0.guard.blocked")) == 1
@@ -486,7 +496,7 @@ def test_with_the_setting_off_the_guide_is_posted_at_once_as_before(world: World
     rt, outcome, click = _run(
         world,
         body,
-        guide_picker=GuidePicker(model=FakePicker()),
+        guide_picker=GuidePicker(model=FakePicker(), gate_version=None),
         guide_answers_need_it_click=False,
     )
     assert (outcome.action, outcome.state) == (ANSWER_GUIDE, AWAITING_REPLY)
@@ -518,7 +528,7 @@ def test_every_exempt_link_is_the_picked_guides_own_with_the_click(
         ticket = (await _ask(rt, _requester(world))).ticket or ""
         _click(rt, ticket, _it_member(world))
 
-    _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     exempt = [(text, links) for text, links in calls if links]
     assert len(exempt) == 3
     assert all(links == (link,) and text.endswith(link) for text, links in exempt)
@@ -534,7 +544,7 @@ def test_no_message_text_or_address_reaches_the_traces_or_the_audit_log(world: W
         _click(rt, ticket, person.slack_user_id)
         return rt
 
-    rt = _run(world, body, guide_picker=GuidePicker(model=FakePicker()))
+    rt = _run(world, body, guide_picker=GuidePicker(model=FakePicker(), gate_version=None))
     dump = json.dumps(
         [
             {

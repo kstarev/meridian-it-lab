@@ -73,6 +73,8 @@ class StubModel:
             text = json.dumps({"own_account_only": self._own_account_only(request.user)})
         elif request.task == "guide_draft":
             text = json.dumps(self._draft(request.user), ensure_ascii=False)
+        elif request.task == "howto_gate":
+            text = json.dumps({"plain_how_to": self._plain_how_to(request.user)})
         else:
             raise ModelError(f"the stub has no task {request.task!r}")
         # Word counts are only an estimate, so cost spans still carry numbers.
@@ -92,6 +94,16 @@ class StubModel:
         # (a real model's check is). The stub only proves the wiring.
         lowered = user_text.lower()
         return not any(marker in lowered for marker in _ELSE_MARKERS)
+
+    @staticmethod
+    def _plain_how_to(user_text: str) -> bool:
+        # Deterministic: true exactly when the stub's own triage would call the message "other",
+        # the label a how-to question gets and the only one the picker is asked about; false for
+        # a request about the sender's username or someone else's. Like the own-account check, it
+        # uses triage's markers, so for the stub the two answers are NOT independent (a real
+        # model's gate is). The stub only proves the wiring: offline, with the how-to gate on, a
+        # message its triage calls "other" still reaches the picker.
+        return StubModel._triage(user_text) == OTHER
 
     @staticmethod
     def _draft(user_text: str) -> dict[str, object]:

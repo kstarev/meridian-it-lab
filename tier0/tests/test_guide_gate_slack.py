@@ -3,9 +3,10 @@
 With a gate set on the `GuidePicker`, a message triage calls "other" goes to the code-only
 message screen first (if it finds anything, nothing else is asked), then to the gate on
 triage's own model, and only on exactly yes to the picker, as before. Each step can only hand
-off, with its own code. With no gate set, the default until the tuning picks a version, the
-path is exactly as before. Every model here is a fake, so no test makes a call that costs
-money. The messages are written in this file; no pool wording is used.
+off, with its own code. The default is G3, the version the 3f dev tuning picked; with no gate
+set (`gate_version=None`), the path is exactly as before. Every model here is a fake or the
+offline stub, so no test makes a call that costs money. The messages are written in this file;
+no pool wording is used.
 """
 
 import json
@@ -37,13 +38,14 @@ from tier0.knowledge.gate import GATE_VERSIONS
 from tier0.knowledge.screen import ACCOUNT_ACTION, INCIDENT, hand_off_signal
 from tier0.knowledge.wiring import GuidePicker
 from tier0.mocks.slack import CHANNELS
-from tier0.models import ModelError, ModelRequest, ModelResponse
+from tier0.models import ModelError, ModelRequest, ModelResponse, StubModel
 from tier0.runtime import Runtime, offline_runtime
 from tier0.tickets.adapter import AWAITING_REPLY, TRIAGE
 
 RUNBOOKS = load_runbooks()
 BY_ID = {g.id: g for g in RUNBOOKS}
 GATE = "G2"
+DEFAULT_GATE = "G3"
 WIFI = "How do I connect to the office Wi-Fi?"
 ACCESS = "I need access to the Sales shared drive please"  # the screen: account_action
 LOST = "I lost my laptop on the train yesterday, what do I do now?"  # the screen: incident
@@ -191,10 +193,12 @@ def _no_draft(rt: Runtime) -> bool:
 # --- the setting ------------------------------------------------------------------------------
 
 
-def test_no_gate_is_set_until_the_tuning_picks_one() -> None:
-    # The tuning pull request sets HOW_TO_GATE_VERSION and changes this line on purpose.
-    assert wiring.HOW_TO_GATE_VERSION is None
-    assert GuidePicker(model=FakePicker()).gate_version is None
+def test_the_gate_is_on_by_default_with_g3_from_the_3f_dev_tuning() -> None:
+    # The 3f dev tuning picked G3 on both arms; the blind month3 will measure it.
+    assert wiring.HOW_TO_GATE_VERSION == DEFAULT_GATE == "G3"
+    assert DEFAULT_GATE in GATE_VERSIONS
+    assert GuidePicker(model=FakePicker()).gate_version == DEFAULT_GATE
+    assert GuidePicker(model=FakePicker(), gate_version=None).gate_version is None
     # The live picker is still KS5; the evals measured KS6A-H. That is the owner's call.
     assert wiring.PICKER_VERSION == "KS5"
 
@@ -204,7 +208,7 @@ def test_an_unknown_gate_version_is_refused_and_a_picker_without_a_gate_has_none
     with pytest.raises(ValueError, match="no how-to gate"):
         GuidePicker(model=FakePicker(), gate_version="G9")
     with pytest.raises(ValueError, match="no how-to gate"):
-        GuidePicker(model=FakePicker()).ask_gate(WIFI, model=TriageAndGate())
+        GuidePicker(model=FakePicker(), gate_version=None).ask_gate(WIFI, model=TriageAndGate())
 
 
 def test_the_hand_off_codes_are_distinct_and_named_like_the_other_guide_codes() -> None:
@@ -222,7 +226,7 @@ def test_with_no_gate_the_picker_is_asked_as_before_and_no_gate_call_is_made(
     world: World, text: str, code: str
 ) -> None:
     model, picker = TriageAndGate(), FakePicker()
-    rt, outcome = _ask_once(world, text, model, GuidePicker(model=picker))
+    rt, outcome = _ask_once(world, text, model, GuidePicker(model=picker, gate_version=None))
     assert model.tasks() == ["triage"]
     assert len(picker.requests) == 1
     assert _codes(rt) == [code]
@@ -391,3 +395,38 @@ def test_the_live_path_stops_where_the_month_runner_stops(
     rt, _ = _ask_once(world, text, model, GuidePicker(model=picker, gate_version=GATE))
     assert _codes(rt) == [code if code is not None else GUIDE_WAITS_FOR_IT]
     assert len(picker.requests) == (1 if code is None else 0)
+
+
+# --- the default: the live path calls the G3 gate -----------------------------------------------
+
+
+@pytest.mark.parametrize(("reply", "said", "code"), [(YES, "yes", None), (NO, "no", GUIDE_GATE_NO)])
+def test_by_default_the_live_path_asks_the_g3_gate_before_the_picker(
+    world: World, reply: str, said: str, code: str | None
+) -> None:
+    model, picker = TriageAndGate(reply), FakePicker()
+    rt, outcome = _ask_once(world, WIFI, model, GuidePicker(model=picker))
+    assert model.tasks() == ["triage", "howto_gate"]
+    (gate,) = [r for r in model.requests if r.task == "howto_gate"]
+    assert gate.system == GATE_VERSIONS[DEFAULT_GATE] == month.gate_for(DEFAULT_GATE).system
+    assert _events(rt, "tier0.guide.gate") == [{"version": DEFAULT_GATE, "plain_how_to": said}]
+    assert f"tier0: how-to gate {DEFAULT_GATE}: plain how-to {said}." in _comments(rt, outcome)
+    assert len(picker.requests) == (1 if code is None else 0)
+    assert _codes(rt) == [code if code is not None else GUIDE_WAITS_FOR_IT]
+
+
+def test_offline_on_the_stub_a_how_to_question_still_reaches_the_picker(world: World) -> None:
+    """The offline mode's model, the stub, answers the gate too: yes for what its own triage
+    calls "other", so a how-to question still gets to the picker with the default gate."""
+    picker = FakePicker()
+    person = _requester(world)
+
+    async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
+        return rt, await _ask(rt, person, WIFI)
+
+    rt, outcome = _run(world, body, guide_picker=GuidePicker(model=picker))
+    assert isinstance(rt.model, StubModel)
+    assert (outcome.action, outcome.category) == (DRAFT_GUIDE, "other")
+    assert _events(rt, "tier0.guide.gate") == [{"version": DEFAULT_GATE, "plain_how_to": "yes"}]
+    assert len(picker.requests) == 1
+    assert _codes(rt) == [GUIDE_WAITS_FOR_IT]
