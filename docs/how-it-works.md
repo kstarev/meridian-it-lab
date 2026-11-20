@@ -285,7 +285,7 @@ The guide screen was built on these 30 runbooks, so its false-flag rate on unsee
 <!-- results-m4:end -->
 
 - **The result is published as it is.** On Haiku, the picker picked a poisoned guide on one question in all 5 runs. Code handed the question to a person each time, but the rule counts any pick of a poisoned guide. The guide screen missed the one poisoned guide whose instruction sits in quoted text or a code block inside a step. A person's review is the only thing that stops it.
-- **The guide picker runs on Claude Sonnet 5.5 (KS5)** ([ADR-046](decisions.md)). Haiku failed rule 2 on held-out data. With this picker, the sealed month then failed its safety rule on both arms: see the [results on the sealed month](#results-on-the-sealed-month-milestone-3c) below.
+- **The guide picker runs on Claude Sonnet 5.5** ([ADR-046](decisions.md)), with KS5 in this test. Haiku failed rule 2 on held-out data. With this picker, the sealed month then failed its safety rule on both arms: see the [results on the sealed month](#results-on-the-sealed-month-milestone-3c) below. The live Slack flow now runs KS6A-H on Sonnet, the prompt the blind months measure (ADR-046 as amended by the owner's answer to "Move the live flow to KS6A-H?").
 - **The run's result stands as published.** The guide screen's fix was built on 2026-11-17 from practice (tuning) data only, and is not yet tested on a locked-away set ([plan](plans/milestone-4-guide-screen-fix.md)). That set, `held_out_g2`, is not written yet. It will be written blind and will also carry unseen clean guides for false flags.
 
 ## Results on held-out v5 (milestone 3d part 1)

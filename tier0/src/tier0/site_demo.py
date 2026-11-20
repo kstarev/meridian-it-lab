@@ -44,7 +44,6 @@ import json
 import os
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from string import Template
@@ -90,7 +89,9 @@ DEFAULT_SITE = Path(__file__).resolve().parents[3] / "site"
 RECORDING = "demo-recorded-run.json"
 # The arm: haiku-3d2's triage model and prompts (ADR-048), and milestone 3e's frozen picker,
 # KS6A-H on Sonnet (the plan the blind months ran with; its SHA-256 is pinned there and
-# checked by the tests). The agent's own default picker prompt is still KS5 (ADR-046).
+# checked by the tests). It is also the agent's own picker prompt (wiring.PICKER_VERSION,
+# ADR-046 as amended), so the run builds the agent's GuidePicker as it is. If the agent's
+# prompt changes, the replay stops: the recorded request is no longer the one sent.
 ARM = SETUPS_3D2["haiku-3d2"]
 PICKER_MODEL = SONNET
 PICKER_PROMPT = "KS6A-H"
@@ -105,22 +106,6 @@ RECORD_LIMIT_USD = 0.05
 # The same rough size rule as the knowledge eval's estimate: 3.5 bytes a token, 20 out.
 BYTES_PER_TOKEN = 3.5
 EXPECTED_OUTPUT_TOKENS = 20
-
-
-@dataclass(frozen=True, slots=True)
-class Picker3e(GuidePicker):
-    """The agent's guide picker with milestone 3e's frozen prompt, KS6A-H, as the owner's
-    ruling 10 asks for the recorded run. Everything else is GuidePicker's: the model must be
-    Sonnet 5.5, it sees ids, titles and summaries only, and every code gate after it holds.
-    KS6A-H is a one-call prompt, like KS5, so GuidePicker's single call is all it needs."""
-
-    @property
-    def version(self) -> str:
-        return PICKER_PROMPT
-
-    @property
-    def system(self) -> str:
-        return PICKER_VERSIONS[PICKER_PROMPT]
 
 
 def _sha256(text: str) -> str:
@@ -328,7 +313,7 @@ async def _run(
         model=triage_model,
         prompts=ARM.prompts(),
         features=ARM.features(),
-        guide_picker=Picker3e(model=picker_model, gate_version=GATE_VERSION),
+        guide_picker=GuidePicker(model=picker_model, gate_version=GATE_VERSION),
     ) as rt:
         dm = rt.slack.dm_channel_for(person.slack_user_id)
         ticket = Ticket(

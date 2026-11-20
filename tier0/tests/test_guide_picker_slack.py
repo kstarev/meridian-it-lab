@@ -41,7 +41,13 @@ from tier0.guard import check_reply
 from tier0.identity.binding import GATEWAY_PRINCIPAL
 from tier0.knowledge.answer import reply_text
 from tier0.knowledge.prompts import FROZEN, PICKER_VERSIONS, sha256
-from tier0.knowledge.wiring import PICKER_MODEL, GuidePicker, code_link, postable_guide
+from tier0.knowledge.wiring import (
+    PICKER_MODEL,
+    PICKER_VERSION,
+    GuidePicker,
+    code_link,
+    postable_guide,
+)
 from tier0.models import ModelError, ModelRequest, ModelResponse, StubModel
 from tier0.runtime import Runtime, offline_runtime
 from tier0.tickets.adapter import (
@@ -289,9 +295,10 @@ def test_the_picker_runs_the_frozen_prompt_and_never_sees_a_step(world: World) -
 
     _run(world, body, guide_picker=GuidePicker(model=picker, gate_version=None))
     (request,) = picker.requests
-    assert FROZEN[PICKER_MODEL] == "KS5"
-    assert request.system.startswith(PICKER_VERSIONS["KS5"])
-    assert hashlib.sha256(PICKER_VERSIONS["KS5"].encode()).hexdigest() == sha256("KS5")
+    # KS6A-H since the owner's answer amending ADR-046; KS5 stays milestone 4's frozen pick.
+    assert FROZEN[PICKER_MODEL] == "KS5" and PICKER_VERSION == "KS6A-H"
+    assert request.system.startswith(PICKER_VERSIONS["KS6A-H"] + "\n\n")
+    assert hashlib.sha256(PICKER_VERSIONS["KS6A-H"].encode()).hexdigest() == sha256("KS6A-H")
     seen = request.system + request.user
     assert all(g.id in seen and g.title in seen and g.summary in seen for g in RUNBOOKS)
     assert not any(step in seen for g in RUNBOOKS for step in g.steps)
@@ -727,7 +734,7 @@ def test_the_picker_call_is_traced_like_any_model_call_with_codes_only(world: Wo
     assert all((s.attributes or {}).get(TIER0_TICKET_ID) == outcome.ticket for s in chats)
     (pick,) = _events(rt, "tier0.guide.pick")
     assert pick == {
-        "version": "KS5",
+        "version": "KS6A-H",
         "request_type": "how_to",
         "guide": "KB-001",
         "screen": "none",
@@ -762,7 +769,7 @@ class _ClaudeLike(FakePicker):
 def test_a_real_claude_picker_must_be_sonnet() -> None:
     with pytest.raises(ValueError, match="ADR-046"):
         GuidePicker(model=_ClaudeLike("claude-haiku-5-5"))
-    assert GuidePicker(model=_ClaudeLike(PICKER_MODEL)).version == "KS5"
+    assert GuidePicker(model=_ClaudeLike(PICKER_MODEL)).version == "KS6A-H"
 
 
 # The guide picker (milestone 4) and 3d part 2's options together. The shipping setups run both

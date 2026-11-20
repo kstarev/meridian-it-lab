@@ -108,6 +108,8 @@ def test_the_recording_is_one_complete_run_of_the_3e_arm_under_its_limit() -> No
     assert picker["sha256"] == sha256("KS6A-H")
     assert picker["sha256"] == SEALED_PLANS["held_out_month2"].picker_prompt_sha256
     assert "KS6A-H" not in PICKER_MODES  # one call, like KS5: GuidePicker's own flow
+    # It is the agent's own picker prompt, so the replay runs the agent's GuidePicker as it is.
+    assert site_demo.PICKER_PROMPT == wiring.PICKER_VERSION
     assert _call("triage")["request"]["system_sha256"] == rec["arm_prompts"]["triage"]["sha256"]
     # The cost is the replies' token counts at the price table's rates, under the limit.
     for call in rec["calls"]:
