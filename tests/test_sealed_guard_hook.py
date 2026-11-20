@@ -42,6 +42,7 @@ def repo(tmp_path_factory: pytest.TempPathFactory) -> str:
             "tier0/src/tier0/evals/month.py": "y = 2\n",
             "old/kept.md": "kept\n",
             "old/held_out_gone.json": '["sealed wording"]\n',  # deleted by the second commit
+            ".rgignore": "held_out_*\n",  # as in the repository: Grep on a folder relies on it
         },
     )
     (root / "links").mkdir()
@@ -520,3 +521,206 @@ def test_the_settings_wire_the_hook_for_reads_and_searches_only():
     (hook,) = entry["hooks"]
     assert hook["type"] == "command"
     assert "tools/sealed_guard.py" in hook["command"]
+
+
+# --- The review of 2026-11-20: shapes that printed a dummy sealed file and were allowed -------
+# Each case below was allowed by the hook before this review and, run in a throwaway repository,
+# printed the dummy sealed text. `{blob}` is the hash of the fake sealed file's blob.
+REVIEW_BLOCKED = [
+    # a reader's option swallowed the file: -e and -f are options of their own for most readers
+    (f"cat -e {FAKE}", "cat would print"),
+    (f"sort -f {FAKE}", "sort would print"),
+    (f"tail -f {FAKE}", "tail would print"),
+    (f"xxd -e {FAKE}", "xxd would print"),
+    (f"diff -e {FAKE} src/code.py", "diff would print"),
+    # a file read through an option: a script file, or `--opt=FILE`
+    (f"jq -f {FAKE} -n", "jq would print"),
+    (f"sed -f {FAKE} docs/a.md", "sed would print"),
+    (f"awk -f {FAKE} docs/a.md", "awk would print"),
+    (f"diff --from-file={FAKE} src/code.py", "diff would print"),
+    (f"dd if={FAKE} status=none", "dd would print"),
+    # a subshell hid the program
+    (f"(cat {FAKE})", "cat would print"),
+    (f"( cat {FAKE} )", "cat would print"),
+    ("(cd pools && cat *.json)", "cat would print"),
+    ("(grep -rn foo .)", UNSURE),
+    # a command substitution inside double quotes runs too
+    (f'echo "$(cat {FAKE})"', "cat would print"),
+    ('echo "$(cat pools/*.json)"', "cat would print"),
+    ('x="$(grep -rn foo pools)"', SEALED),
+    ('echo "`cat pools/*.json`"', "cat would print"),
+    # so does one in a here-document whose delimiter is not quoted
+    (f"cat <<EOF\n$(cat {FAKE})\nEOF", "cat would print"),
+    # `<` feeds a file to any program, or to none
+    (f"echo $(<{FAKE})", "with <"),
+    (f'echo "$(<{FAKE})"', "with <"),
+    (f'while read -r l; do echo "$l"; done < {FAKE}', "with <"),
+    (f"tr a a < {FAKE}", "with <"),
+    (f"cat<{FAKE}", "with <"),
+    (f"<{FAKE} cat", "with <"),
+    (f"exec 3<{FAKE}; cat <&3", "with <"),
+    (f"git stripspace < {FAKE}", "with <"),
+    (f"python3 -c 'import sys; print(sys.stdin.read())' < {FAKE}", "with <"),
+    # programs that print a file and were not in the list
+    (f"base64 -i {FAKE}", "base64 would print"),
+    (f"rev {FAKE}", "rev would print"),
+    (f"paste {FAKE}", "paste would print"),
+    (f"iconv -f utf-8 -t utf-8 {FAKE}", "iconv would print"),
+    ("curl -s file:///x/pools/held_ou%74_fake.json", "curl would print"),
+    (f"ex -sc '%p|q!' {FAKE}", "ex would print"),
+    (f"zless {FAKE}", "zless would print"),
+    (f"tar -cf - {FAKE}", "tar would print"),
+    (f"gsed -n p {FAKE}", "gsed would print"),
+    ("pcre2grep -r foo pools", UNSURE),
+    ("mdfind -onlyin pools foo", UNSURE),
+    # wrappers that run the program after them
+    (f"xcrun cat {FAKE}", "cat would print"),
+    (f"arch -arm64 cat {FAKE}", "cat would print"),
+    (f"uv run cat {FAKE}", "cat would print"),
+    ("uv run --no-project rg -uuu foo pools", SEALED),
+    (f"script -q /dev/null cat {FAKE}", "cat would print"),
+    (f"env -S 'cat {FAKE}'", "cat would print"),
+    ("uv run --directory pools cat *.json", "a glob in a folder the hook can't follow"),
+    # brace lists and zsh globs, expanded before the program runs
+    (f"{{cat,{FAKE}}}", "cat would print"),
+    ("{grep,-rn,foo,pools}", UNSURE),
+    ("cat pools/held_ou{t,x}_fake.json", "cat would print"),
+    ("cat pools/held_ou{s..u}_fake.json", "cat would print"),
+    ("cat pools/(h)eld_out_fake.json", "cat would print"),
+    ("cat pools/(held|x)_out_fake.json", "cat would print"),
+    ("cat pools/*(.)", "cat would print"),
+    # a program the hook can't name, given a sealed file
+    (f"c=cat; $c {FAKE}", "can't name"),
+    (f"$'\\x63at' {FAKE}", "cat would print"),
+    # find -exec and xargs running a reader through a shell
+    ("find pools -name '*.json' -exec sh -c 'cat \"$1\"' _ {} \\;", "find would hand cat"),
+    ("git ls-files | xargs sh -c 'cat \"$@\"' _", "xargs would hand cat"),
+    # a sealed file run as a script, and shells that read commands from stdin
+    (f"source {FAKE}", "as a script"),
+    (f". {FAKE}", "as a script"),
+    (f"bash {FAKE}", "as a script"),
+    (f"sh <<< 'cat {FAKE}'", "cat would print"),
+    (f"bash <<'EOF'\ncat {FAKE}\nEOF", "cat would print"),
+    ("bash <<'EOF'\ngrep -rn foo pools\nEOF", SEALED),
+    (f"echo 'cat {FAKE}' | sh", "name a sealed file"),
+    (f"f() {{ cat {FAKE}; }}; f", "cat would print"),
+    # cd the hook can't follow, then a glob
+    ("d=pools; cd $d && cat *.json", "a glob in a folder the hook can't follow"),
+    ("pushd pools >/dev/null && cat *.json", "cat would print"),
+    # git: more commands that print a named file
+    (f"git annotate {FAKE}", "git annotate would print"),
+    (f"git log -L1,1:{FAKE}", "git log would print"),
+    (f"git merge-file -p {FAKE} {FAKE} {FAKE}", "git merge-file would print"),
+    (f"git archive HEAD {FAKE}", "git archive would print"),
+    # git: content past `.gitattributes`' -diff, with no file named
+    ("git log -p --text", "past .gitattributes"),
+    ("git show -a HEAD", "past .gitattributes"),
+    ("git diff --text HEAD~1", "past .gitattributes"),
+    ("git format-patch -1 --stdout --text", "past .gitattributes"),
+    ("GIT_EXTERNAL_DIFF=cat git diff HEAD~1", "past .gitattributes"),
+    ("git -c diff.external=cat diff HEAD~1", "past .gitattributes"),
+    ("git --attr-source=HEAD~1 log -p", "past .gitattributes"),
+    ("git archive HEAD", "git archive would print"),
+    ("git difftool -y -x cat HEAD~1", "git difftool"),
+    # git: objects the hook can't name
+    ("git cat-file --batch-all-objects --batch", "--batch"),
+    (f"echo HEAD:{FAKE} | git cat-file --batch", "--batch"),
+    ("git cat-file -p {blob}", "a blob by its hash"),
+    ("git cat-file blob {blob}", "a blob by its hash"),
+    ("git show {blob}", "a blob by its hash"),
+    # git: an alias set on the command line
+    (f"git -c alias.peek='!cat' peek {FAKE}", "cat would print"),
+    (f"git -c alias.peek=show peek HEAD:{FAKE}", "git show would print"),
+    ("git -c alias.g=grep g -n foo", UNSURE),
+    # an environment variable that adds options to ripgrep
+    ("RIPGREP_CONFIG_PATH=/dev/null rg -n foo src", "environment variable"),
+]
+
+REVIEW_ALLOWED = [
+    # commit messages and PR bodies in a quoted here-document, backticks and parens in them
+    "git commit -m \"$(cat <<'EOF'\nTitle\n\nWith `code`, (parens) and don't\n1) item\n"
+    '2) `grep -rn foo .` is blocked\nEOF\n)"',
+    "gh pr create --title x --body \"$(cat <<'EOF'\n- `cat held_out_x.json` is blocked)\nEOF\n)\"",
+    "cat <<EOF > x.md\n$(date)\nEOF",
+    # readers on clean files, with the options that used to swallow a file
+    "cat -e docs/a.md",
+    "sort -f docs/a.md",
+    "tail -f docs/a.md",
+    "awk -F, -v n=2 '{print $n}' docs/a.md",
+    "jq -e . docs/a.md",
+    # subshells, substitutions and shells that run nothing sealed
+    "(cd src && ls)",
+    "(cd src && uv run pytest)",
+    'echo "$(git rev-parse HEAD)"',
+    'x="$(date)"; echo "$x"',
+    "echo ls | sh",
+    "bash -c 'make test'",
+    "zsh -lc 'ls'",
+    "source /dev/null && echo ok",
+    "python3 - <<'EOF'\nprint(1)\nEOF",
+    "find . -name '*.py' -exec sh -c 'echo \"$1\"' _ {} \\;",
+    "case x in a) echo a;; *) echo b;; esac",
+    "a=(1 2 3); echo $((1 + 2))",
+    # wrappers around programs that run code
+    "uv run --locked pytest -q tests/",
+    "uv run --locked python -m tier0.evals.month run --set held_out_month2",
+    "$HOME/.local/bin/uv run python -m tier0.evals.month run --set held_out_month2",
+    "xcrun --find clang",
+    "arch -arm64 uv run pytest",
+    "pushd src >/dev/null && ls && popd",
+    # git that prints no sealed line
+    "git show HEAD",
+    "git show --stat HEAD",
+    "git show HEAD:docs/a.md",
+    "git cat-file -p HEAD",
+    "git cat-file -t {blob}",
+    "git archive -o out.tar HEAD",  # a copy, like cp
+    "git archive HEAD src",
+    "git log -p -3",
+    "git -c core.editor=true rebase --continue",
+    "git -c alias.st=status st",
+    # names, sizes and copies, as before
+    "wc -c pools/held_out_fake.json",
+    "cp pools/held_out_fake.json /tmp/",
+    "curl -s 'https://api.github.com/repos/x/y?per_page=1'",
+    "tar -czf backup.tgz src",
+]
+
+
+def _blob(repo: str) -> str:
+    return subprocess.run(  # noqa: S603
+        ["git", "rev-parse", f"HEAD:{FAKE}"],  # noqa: S607
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+@pytest.mark.parametrize(("command", "why"), REVIEW_BLOCKED)
+def test_the_review_bypasses_are_blocked(command: str, why: str, repo: str):
+    command = command.replace("{blob}", _blob(repo))
+    reason = sealed_guard.decide("Bash", {"command": command}, cwd=repo)
+    assert reason
+    assert why in reason
+    assert "tools/search.py" in reason
+    assert "sealed wording" not in reason
+    assert "could not read" not in reason  # blocked by a rule, not by a crash
+
+
+@pytest.mark.parametrize("command", REVIEW_ALLOWED)
+def test_the_review_fixes_keep_everyday_commands(command: str, repo: str):
+    command = command.replace("{blob}", _blob(repo))
+    assert sealed_guard.decide("Bash", {"command": command}, cwd=repo) is None
+
+
+def test_grep_on_a_folder_with_no_rgignore_above_it_is_walked(repo: str, places: dict):
+    # Outside the repository no `.rgignore` leaves sealed files out, so the folder is walked.
+    sealed = {"pattern": "foo", "path": f"{places['out']}/sealed"}
+    reason = sealed_guard.decide("Grep", sealed, cwd=repo)
+    assert reason
+    assert "held_out_elsewhere.json" in reason
+    clean = {"pattern": "foo", "path": f"{places['out']}/clean"}
+    assert sealed_guard.decide("Grep", clean, cwd=repo) is None
+    # Inside it, `.rgignore` still covers a folder path given with no glob or type.
+    assert sealed_guard.decide("Grep", {"pattern": "foo", "path": "pools"}, cwd=repo) is None

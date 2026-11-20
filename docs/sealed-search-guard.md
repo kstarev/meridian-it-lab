@@ -40,11 +40,11 @@ On 2026-11-17 a helper ran one `git grep` whose paths covered a sealed pool file
 |---|---|---|---|
 | 1 | Read | the file is a sealed file, or a symlink to one. The case of the name doesn't matter: macOS opens `HELD_OUT_V6.JSON` too | Read of `.../pools/held_out_v6.json` |
 | 2 | Grep | the path is a sealed file or a symlink to one, or the glob names `held_out_`. With a `glob` or `type`, or with no path: the path (the session's folder when none is given) holds a sealed file that the glob or type may let in. See below | Grep with `glob: held_out_*.json`; Grep with `path: dataset, glob: *.json`; Grep with no path in the repository |
-| 3 | Bash | a program that prints file content, with a sealed file among its arguments. A glob is expanded as zsh would, `**` included, and a symlink counts as the file it points to. The programs: `cat head tail less more bat nl tac cut sort uniq sed awk jq diff cmp strings xxd hexdump od zcat gzcat gunzip open code vim vi nano`, and the searches in row 5 | `cat x/held_out_k1.json`, `jq . x/held_out_v5.json`, `cat pools/*.json` when the pattern expands to a sealed file |
-| 4 | Bash | `git show`, `git diff`, `git blame`, `git cat-file` or `git log -p` that names a sealed file | `git show HEAD:x/held_out_v6.json` |
+| 3 | Bash | a program that prints file content, with a sealed file among its arguments or in an option's value (`--from-file=x`, `sed -f x`). A glob is expanded as zsh would: `**`, brace lists, and zsh's `(a\|b)`, `*(.)` and `<1-3>`. A symlink counts as the file it points to. The programs: `cat head tail less more bat nl tac cut sort uniq sed awk jq diff cmp strings xxd hexdump od zcat gzcat gunzip open code vim vi nano`; encoders and line tools such as `base64 uuencode rev shuf fold fmt pr paste column expand comm join look iconv dd vis curl ex view ed`; compressed files and archives (`zless xzcat gzip tar zip unzip`...); the GNU `g` tools (`gcat gsed`...); and the searches in row 5. For any program: a sealed file fed with `<` (`tr a b < x`, `$(<x)`), a sealed file run as a script by `source`, `.` or a shell, and a sealed file given to a program the hook can't name (`$c x`) | `cat x/held_out_k1.json`, `cat -e x/held_out_k1.json`, `jq . x/held_out_v5.json`, `cat pools/*.json` when the pattern expands to a sealed file, `while read l; do echo $l; done < x/held_out_k1.json` |
+| 4 | Bash | `git show`, `git diff`, `git blame`, `git annotate`, `git cat-file`, `git merge-file`, `git archive`, `git format-patch`, `git diff-tree` and the like, or `git log -p` (or `-L`, `-U3`, `--word-diff`...), that names a sealed file. Naming no file: `-a`, `--text`, `--binary` or `--ext-diff` on a command that prints diffs, and `GIT_EXTERNAL_DIFF`, `GIT_ATTR_SOURCE`, `--attr-source` or `-c diff.external` (all print past `.gitattributes`); `git difftool`; `git cat-file --batch`; `git show` or `git cat-file` of a blob given by its hash; `git archive` to stdout of a tree that holds a sealed file; and an alias set with `-c alias.x=...` that does any of this | `git show HEAD:x/held_out_v6.json`, `git log -p --text`, `git cat-file -p 3b18e51` |
 | 5 | Bash | a search, unless it is limited to explicit paths, the hook resolves every one, and none is or holds a sealed file. The searches: `grep egrep fgrep rgrep ggrep zgrep zegrep zfgrep bzgrep xzgrep rg ag ack ugrep ug`, `git grep`, and `find -exec` or `xargs` running any program in row 3. See below | `git grep foo`, `rg foo`, `grep -rn foo .`, `grep -rn foo dataset` |
 
-**Quotes.** The hook cuts a Bash command into its parts at each `|`, `||`, `&`, `&&`, `;` and new line, and judges each part. A `|`, `;` or `&&` inside single or double quotes, or after a backslash, is not a cut: `git grep -E "foo|bar" -- tier0/src` is one search. Nor is the `&` or `|` of a redirection (`2>&1`, `&>`, `>|`). A quoted word that holds such a character is judged as a command too, so `bash -c 'ls; cat x/held_out_k1.json'` is still blocked. So are the string after `bash -c`, `sh -c` or `eval`, and the command inside an unquoted `$(...)` or backticks. The lines of a here-document are text, not commands. When the quotes don't balance, the hook cuts at every such character, quoted or not, as it did before.
+**Quotes.** The hook cuts a Bash command into its parts at each `|`, `||`, `&`, `&&`, `;` and new line, and judges each part. A `|`, `;` or `&&` inside single or double quotes, or after a backslash, is not a cut: `git grep -E "foo|bar" -- tier0/src` is one search. Nor is the `&` or `|` of a redirection (`2>&1`, `&>`, `>|`). A quoted word that holds such a character is judged as a command too, so `bash -c 'ls; cat x/held_out_k1.json'` is still blocked. So are the string after `bash -c`, `sh -c`, `eval` or `env -S`, and the command inside `$(...)` or backticks, unquoted or inside double quotes (`echo "$(cat x)"`): the shell runs both. The lines of a here-document are text, not commands, unless a shell reads them (`bash <<EOF`). A `$(...)` in them runs when the delimiter is not quoted (`<<EOF`, not `<<'EOF'`), so it is judged. A here-string, or an `echo` or `printf` piped to a shell, is judged too. A subshell `( ... )`, a brace list in the program's name (`{cat,x}`), a function's body, and the program after `uv run`, `xcrun`, `arch`, `script`, `taskpolicy` or `sandbox-exec` are judged as the commands they run. When the quotes don't balance, the hook cuts at every such character, quoted or not, as it did before.
 
 ### Searches limited to explicit paths (rule 5)
 
@@ -95,7 +95,7 @@ How the hook reads a glob, so that it lets in at least what ripgrep does:
 - **A glob that starts with `!`** only leaves files out, so it is skipped. Only `!` globs let in any file.
 - **A `type`** (`py`, `json`) counts as any file: the hook doesn't know ripgrep's type list. ripgrep's `-t` does not override `.rgignore`, so this is stricter than it needs to be; it is the safe default until the owner rules.
 
-A Grep with a path and neither `glob` nor `type` keeps the rule from before: `.rgignore` leaves the sealed files out of a folder, and only a sealed path, or a symlink to one, blocks.
+A Grep with a path and neither `glob` nor `type` keeps the rule from before when an `.rgignore` (or `.ignore`) with the line `held_out_*` is in the path's real folder or a folder above it: that file leaves the sealed files out, and only a sealed path, or a symlink to one, blocks. With no such file (a folder outside the repository), the path is walked as with a `glob`.
 
 | Allowed | Blocked, and why |
 |---|---|
@@ -109,21 +109,33 @@ Allowed before, blocked now: Grep with no path in a folder that holds a sealed f
 
 ### What it never blocks
 
-- **Any program that runs code:** `python`, `pytest`, `make`, `uv`, `gh`, a shell script. So the sealed runner, the tests and CI commands are never blocked. CI doesn't run the hook at all: only Claude Code does.
+- **Any program that runs code:** `python`, `pytest`, `make`, `uv`, `gh`, a shell script. So the sealed runner, the tests and CI commands are never blocked, and a set's name given to them (`--set held_out_month2`) is fine. CI doesn't run the hook at all: only Claude Code does. Three exceptions, where the shell or a wrapper does the reading: a sealed file fed with `<` (`python x.py < held_out_k1.json`), a sealed file run as a shell script (`bash held_out_k1.json`, `source`), and a reader after `uv run` (`uv run cat ...`).
 - **Names, sizes, digests and copies:** `ls`, `git ls-files`, `wc -c`, `shasum`, `cp`, `git add`, `git commit`, `git log` without `-p`.
 - **A search limited to paths that don't hold a sealed file:** `git grep foo -- tier0 tools`, `grep -rn foo tier0/src`, `rg foo tier0`.
 - **A pattern that is a sealed file's name:** `grep held_out_k1.json docs/sealed-search-guard.md`.
 - **A set in `OPENED`,** and `names.py`.
+- **`git archive -o FILE`** (a copy, like `cp`), and `git diff`, `git log -p` or `git show` with no option that prints past `.gitattributes`.
 - **Glob, Edit, Write and every other tool.** Glob lists file names only, never content, so it may name sealed files and is not blocked; `.claude/settings.json` doesn't even send it to the hook.
 
 ### What it misses
 
-- Inline code: `python -c "..."` or a here-document that opens a sealed file. A count-only check is written that way, and the hook can't tell a count from a print.
-- A sealed file that a program which only prints (row 3) reaches through a variable, a `$(...)` result or a script: `cat "$f"`. A search in that shape is blocked.
-- A hard link or a copy of a sealed file under another name, and a sealed file inside an archive with another name.
-- Shell aliases and functions, and git aliases: the hook judges the words typed, not what an alias runs.
-- A Grep with a folder path and neither `glob` nor `type`. It relies on `.rgignore`, which goes by names, so if ripgrep follows symlinks it doesn't leave out a symlink to a sealed file that has another name.
+- Inline code: `python -c "..."`, `perl -ne`, `ruby -pe`, `node -e`, `osascript`, or a here-document given to one of them, that opens a sealed file. A count-only check is written that way, and the hook can't tell a count from a print. A reader's own script that opens a file by name is code too: `awk '{getline l < "x"}'`, `sed 'r x'`.
+- A sealed file that a program which only prints (row 3) reaches through a variable, a `$(...)` result or a script: `cat "$f"`, `for f in x; do cat $f; done`. A search in that shape is blocked, and so is a glob after a `cd` the hook can't follow.
+- A search run by a program the hook can't name: `g=grep; $g -rn foo .`.
+- A hard link, a symlink or a copy of a sealed file under another name, made by an earlier call or earlier in the same command (`ln -s x y && cat y`), and a sealed file inside an archive (`tar -xOf a.tar`, `unzip -p a.zip`).
+- Shell aliases and functions defined in an earlier call, git aliases and settings in `.git/config` (`diff.external`), and attributes in `.git/info/attributes`: the hook judges the words typed, not what an alias or a setting runs.
+- A Grep with a folder path and neither `glob` nor `type`, under an `.rgignore`. It relies on `.rgignore`, which goes by names. If ripgrep follows symlinks it doesn't leave out a symlink to a sealed file that has another name, and an `.ignore` file deeper down can let sealed files back in (`!held_out_*`).
 - Any shell outside Claude Code.
+
+### The review of 2026-11-20
+
+An adversarial review tried crafted calls on throwaway repositories with dummy sealed files, and ran each one the hook allowed. Many printed the dummy text. They are blocked now, except the ones listed in "What it misses". Allowed before, blocked now:
+
+- Options that swallowed the file: `cat -e`, `sort -f`, `tail -f`, `xxd -e`, `diff -e`. A file read through an option: `jq -f x`, `sed -f x`, `diff --from-file=x`, `dd if=x`.
+- `( cat x )`, `echo "$(cat x)"`, `x="$(grep -rn foo pools)"`, `$(<x)`, `tr a b < x`, `while read l; do ...; done < x`, `cat<x`, `exec 3<x`.
+- The programs added to row 3; the wrappers `uv run`, `xcrun`, `arch`, `script`, `env -S`; brace lists and zsh globs; `$'\x63at' x`; `$c x`; `find -exec sh -c 'cat "$1"'`; `source x`, `bash x`, `bash <<EOF`, `sh <<< 'cat x'`, `echo 'cat x' | sh`.
+- The git cases in row 4, among them `git log -p --text`, `git diff --text` (even with clean paths), `git archive HEAD`, `git cat-file --batch-all-objects --batch`, `git show <blob hash>` and `git difftool`.
+- Grep on a folder with no `.rgignore` above it, and `RIPGREP_CONFIG_PATH` with a search.
 
 ### How to turn it off
 
