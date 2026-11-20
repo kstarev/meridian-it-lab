@@ -1,9 +1,10 @@
-"""held_out_month2's and held_out_month2b's pass rules are committed before each seal (the
-owner's rulings of 2026-11-17 and 2026-11-18). This test fails if the commit that first added a
-set's rules file is not a strict ancestor of the commit that first added the sealed set, or if
-the rules section or the brief has changed since. A rule added later (AMENDMENTS) must be
-unchanged since its first commit, and that commit must be an ancestor of every later commit that
-changes the sealed set. It reads git history and file names only: never a sealed set's bytes.
+"""held_out_month2's, held_out_month2b's and held_out_month3's pass rules are committed before
+each seal (the owner's rulings of 2026-11-17, 2026-11-18 and 2026-11-19; month3's stop rule too).
+This test fails if the commit that first added a set's rules file is not a strict ancestor of the
+commit that first added the sealed set, or if the rules section or the brief has changed since. A
+rule added later (AMENDMENTS) must be unchanged since its first commit, and that commit must be an
+ancestor of every later commit that changes the sealed set. It reads git history and file names
+only: never a sealed set's bytes.
 """
 
 import subprocess
@@ -20,6 +21,10 @@ SETS = {
     "held_out_month2b": (
         "docs/plans/milestone-3e-month2b-rules.md",
         "docs/plans/briefs/held_out_month2b-brief.md",
+    ),
+    "held_out_month3": (
+        "docs/plans/milestone-3f-month3-rules.md",
+        "docs/plans/briefs/month3-brief.md",
     ),
 }
 POOLS = "dataset/src/meridian_dataset/month/pools"
@@ -138,3 +143,28 @@ def test_every_later_seal_comes_after_the_amendment(history: None, name: str) ->
             check=False,
         )
         assert done.returncode == 0, "the amendment's commit is not an ancestor of a later seal"
+
+
+# held_out_month3's stop rule (the owner's ruling 12 (a), 2026-11-19): committed with its pass
+# rules, before the seal, and unchanged since.
+STOP_RULES = {"held_out_month3": ("<!-- stop-rule:start -->", "<!-- stop-rule:end -->")}
+
+
+@pytest.mark.parametrize("name", sorted(STOP_RULES))
+def test_the_stop_rule_is_unchanged_and_comes_before_the_seal(history: None, name: str) -> None:
+    rules = SETS[name][0]
+    start, end = STOP_RULES[name]
+    first = _first_commit_with(rules, start)
+    assert first, f"{rules}: the stop rule is not committed"
+    then = _git("show", f"{first}:{rules}")
+    now = (ROOT / rules).read_text(encoding="utf-8")
+    assert _amendment(now, start, end) == _amendment(then, start, end)
+    seal = _first_commit(f"{POOLS}/{name}.json")
+    if not seal:
+        pytest.skip(f"{name} is not sealed yet")
+    assert first != seal, "the stop rule and the sealed set were added in the same commit"
+    done = subprocess.run(  # noqa: S603
+        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", first, seal],  # noqa: S607
+        check=False,
+    )
+    assert done.returncode == 0, "the stop rule's commit is not an ancestor of the seal's commit"

@@ -935,10 +935,21 @@ class SealedPlan:
 _KS6A_H = SealedPlan(
     "KS6A-H", "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888", prompt_cache=True
 )
+# - held_out_month3 (milestone 3f): the same picker, behind the how-to gate G3 on each arm's own
+#   triage model. G3 is the only version that passed the selection rule committed before any
+#   version was scored, on both models (docs/evals/2026-11-20-m3f-gate-dev.md). Frozen here
+#   before the rehearsal; month3's rules and stop rule: docs/plans/milestone-3f-month3-rules.md.
 SEALED_PLANS: dict[str, SealedPlan] = {
     "held_out_month1": SealedPlan(None, None, prompt_cache=False),
     "held_out_month2": _KS6A_H,
     "held_out_month2b": _KS6A_H,
+    "held_out_month3": SealedPlan(
+        "KS6A-H",
+        "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888",
+        prompt_cache=True,
+        gate="G3",
+        gate_sha256="55e797391967757e336ed644ee41e9ca02e83db7359e66aa2aa483bcdfe65733",
+    ),
 }
 FROZEN_PLAN_SETS: frozenset[str] = frozenset(SEALED_PLANS)
 

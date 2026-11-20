@@ -1,0 +1,121 @@
+{
+  "version": "G1",
+  "arm": "haiku-3d2",
+  "gate_model": "claude-haiku-5-5",
+  "picker": "KS6A-H",
+  "label": "composed dev estimate: the gate on recorded KS6A-H runs (dev, not blind)",
+  "sets": [
+    {
+      "set": "tuning_month",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 88,
+      "right_guide": 0.5641,
+      "right_guide_without_slowness_only": 0.5641,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 68,
+        "how_to_guide:yes": 88
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "T036": 6,
+        "T038": 9,
+        "T042": 3,
+        "T047": 8,
+        "T048": 6,
+        "T049": 9,
+        "T054": 6,
+        "T055": 9,
+        "T056": 6,
+        "T057": 6
+      },
+      "runs_from": "haiku-3d2",
+      "passes": false
+    },
+    {
+      "set": "held_out_month1",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 93,
+      "right_guide": 0.5962,
+      "right_guide_without_slowness_only": 0.5962,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 63,
+        "how_to_guide:yes": 93
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "M008": 6,
+        "M016": 6,
+        "M036": 2,
+        "M037": 6,
+        "M040": 6,
+        "M049": 3,
+        "M056": 6,
+        "M063": 6,
+        "M064": 3,
+        "M067": 6,
+        "M079": 6,
+        "M093": 1,
+        "M103": 6
+      },
+      "runs_from": "haiku-3d2",
+      "passes": false
+    },
+    {
+      "set": "held_out_month2",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 156,
+      "right_guide_runs": 107,
+      "right_guide": 0.6859,
+      "right_guide_without_slowness_only": 0.6859,
+      "gate_calls_by_kind": {
+        "how_to_guide:no": 49,
+        "how_to_guide:yes": 107,
+        "prompt_injection:no": 9
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "N037": 3,
+        "N042": 6,
+        "N046": 6,
+        "N048": 4,
+        "N049": 6,
+        "N051": 6,
+        "N055": 9,
+        "N058": 9
+      },
+      "runs_from": "haiku-3d2",
+      "passes": false
+    },
+    {
+      "set": "held_out_month2b",
+      "wrongly_answered_runs": 0,
+      "wrongly_answered_by_kind": {},
+      "wrongly_answered_tickets": [],
+      "how_to_runs": 405,
+      "right_guide_runs": 263,
+      "right_guide": 0.6494,
+      "right_guide_without_slowness_only": 0.6302,
+      "gate_calls_by_kind": {
+        "app_issue:no": 7,
+        "how_to_guide:no": 121,
+        "how_to_guide:yes": 263
+      },
+      "how_to_runs_the_gate_handed_off_by_template": {
+        "B011": 24,
+        "B019": 24,
+        "B021": 24,
+        "B036": 24,
+        "B051": 1,
+        "B058": 24
+      },
+      "runs_from": "haiku-3d2",
+      "passes": false
+    }
+  ],
+  "passes_every_set": false
+}

@@ -117,3 +117,31 @@ def test_a_gate_needs_the_picker_and_a_known_version(
     argv = [*base, "--picker", "knowledge", "--picker-prompt", "KS6A-H", "--gate", "G9"]
     assert mo.main([*argv, "--out", str(tmp_path)], env=env) == 2
     assert "no how-to gate" in capsys.readouterr().err
+
+
+def test_month3_is_frozen_to_ks6a_h_behind_g3() -> None:
+    """The selection rule's pick (docs/evals/2026-11-20-m3f-gate-dev.md), frozen before the
+    rehearsal. Any other gate, none, or a changed G3 text is refused."""
+    import hashlib
+
+    from tier0.knowledge.gate import GATE_VERSIONS
+
+    plan = mo.SEALED_PLANS["held_out_month3"]
+    assert (plan.picker_prompt, plan.prompt_cache, plan.gate) == ("KS6A-H", True, "G3")
+    assert hashlib.sha256(GATE_VERSIONS["G3"].encode()).hexdigest() == plan.gate_sha256
+    assert mo.SEALED_PLANS["held_out_month2"].gate is None
+
+
+def test_a_sealed_run_without_its_frozen_gate_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tier0.knowledge import gate as gate_module
+
+    monkeypatch.setattr(mo, "SEALED_SETS", frozenset({"held_out_month3"}))
+    kw = {"picker": "knowledge", "picker_prompt": "KS6A-H", "own_model_picker": False, "k": 3}
+    assert mo.check_sealed_plan("held_out_month3", SHIP, gate="G3", **kw) is None
+    for other in (None, "G1", "G2"):
+        refusal = mo.check_sealed_plan("held_out_month3", SHIP, gate=other, **kw)
+        assert refusal is not None and "G3" in refusal
+    changed = dict(gate_module.GATE_VERSIONS, G3=gate_module.GATE_VERSIONS["G3"] + " ")
+    monkeypatch.setattr(gate_module, "GATE_VERSIONS", changed)
+    refusal = mo.check_sealed_plan("held_out_month3", SHIP, gate="G3", **kw)
+    assert refusal is not None and "SHA-256" in refusal
