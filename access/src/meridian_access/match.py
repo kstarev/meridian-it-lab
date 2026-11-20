@@ -11,8 +11,9 @@ Rules run in a fixed order and each counts only if it gives exactly one person:
 An account with an email at the company domain that rules 1-3 don't match stops there:
 no name or username rule is tried.
 Break-glass accounts are marked and never matched to a person: every record of a protected
-account, under any of its names (`break_glass.py`). Superseded HRIS records (the old record of
-a rehire) are never candidates.
+account, under any of its names, and every record that carries a protected name; only records
+IT controls link names into one account (`break_glass.py`). Superseded HRIS records (the old
+record of a rehire) are never candidates.
 The result is deterministic: the same input gives the same output.
 """
 

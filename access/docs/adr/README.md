@@ -19,7 +19,7 @@ Short records of the choices that shape Access-as-Code, one file each, numbered 
 | [AAC-013](013-m7-frozen-prompts-and-the-owners-answers.md) | Milestone 7's prompts are frozen by hash, the final run is guarded, and the owner's answers to M7-R1 to M7-R17 | Accepted; the final score ran once on 2026-11-17, and the owner's rulings come next |
 | [AAC-014](014-line-breaks-are-flattened-before-any-prompt.md) | Line breaks in world fields are flattened in code before any prompt is built; the M7 prompts are re-frozen | Accepted; built in PR #54 |
 | [AAC-015](015-the-red-team-set.md) | A red-team set, written blind and sealed, measures attacks through the AI's three jobs; it runs after the line-break fix | Accepted; the paid run happened on 2026-11-17 ([run record](../../../docs/evals/2026-11-17-access-red-team-run.md)) |
-| [AAC-018](018-break-glass-covers-every-name-of-a-protected-account.md) | Break-glass protection covers every name of a protected account (aliases, bare usernames, company addresses, case), worked out in one place | Accepted; built in PR #129 (gap G2) |
+| [AAC-018](018-break-glass-covers-every-name-of-a-protected-account.md) | Break-glass protection covers every name of a protected account (aliases, bare usernames, company addresses, case), worked out in one place | Accepted; built in PR #129 (gap G2). Amendment proposed for gap G7: only records IT controls link names |
 
 ## Template
 

@@ -138,6 +138,10 @@ Item 1 is gap G1. One more gap was pinned later the same day.
   - The plan has no warning. The never_touch rows for the leaver's own address say "listed in the break-glass policy", which it is not.
 - **Why it matters:** one edit to a person's own Slack profile keeps their Okta and Google access after they leave. Found in review on 2026-11-20 (finding F2).
 - **Pinned:** the `test_g7_*` tests in `test_break_glass_properties.py` (10 cases: 5 tests, each for the Slack email and the Slack userName, each a strict xfail). The source is unchanged.
+- **Proposed fix, needs the owner's ruling:** the amendment at the end of [AAC-018](../../access/docs/adr/018-break-glass-covers-every-name-of-a-protected-account.md) (PR PRNUM). The 10 tests now pass.
+  - Only records IT controls link names into one account: Okta users and their app assignments, and Google users.
+  - A Slack user or an export row that carries a protected name is still left alone, and the guards also protect it by its key. It protects none of its other names, and the plan warns and names it.
+  - Each never_touch row says how its protection was reached.
 
 ## Property tests
 
