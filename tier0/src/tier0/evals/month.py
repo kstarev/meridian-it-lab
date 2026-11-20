@@ -918,6 +918,10 @@ class SealedPlan:
     picker_prompt: str | None  # None: the setup's default (PICKER_PROMPT)
     picker_prompt_sha256: str | None  # pinned when the prompt is named
     prompt_cache: bool
+    # Milestone 3f: the how-to gate the run must use (tier0.knowledge.gate), pinned by SHA-256;
+    # None for the months before it, which ran without one.
+    gate: str | None = None
+    gate_sha256: str | None = None
 
 
 # Each sealed set's frozen plan. A sealed set with no plan here is refused.
@@ -1050,9 +1054,11 @@ def check_sealed_plan(
     picker_prompt: str | None,
     own_model_picker: bool,
     k: int,
+    gate: str | None = None,
 ) -> str | None:
     """A reason to refuse, or None. A sealed set's one final run is frozen: its two arms, the
-    Sonnet picker with its frozen prompt and no override, and k = 3 (R26 (a), ADR-048)."""
+    Sonnet picker with its frozen prompt and no override, its how-to gate if it has one
+    (milestone 3f), and k = 3 (R26 (a), ADR-048)."""
     if set_name not in SEALED_SETS:
         return None
     if set_name not in FROZEN_PLAN_SETS:
@@ -1078,6 +1084,13 @@ def check_sealed_plan(
         text = importlib.import_module("tier0.knowledge.prompts").PICKER_VERSIONS[frozen]
         if hashlib.sha256(text.encode()).hexdigest() != plan.picker_prompt_sha256:
             return f"{frozen}'s text no longer matches the SHA-256 frozen for {set_name}"
+    if gate != plan.gate:
+        want = f"--gate {plan.gate}" if plan.gate else "no --gate"
+        return f"{set_name} runs only with {want}"
+    if plan.gate is not None:
+        text = importlib.import_module("tier0.knowledge.gate").GATE_VERSIONS[plan.gate]
+        if hashlib.sha256(text.encode()).hexdigest() != plan.gate_sha256:
+            return f"gate {plan.gate}'s text no longer matches the SHA-256 frozen for {set_name}"
     if k != SEALED_K:
         return f"{set_name} runs only at k = {SEALED_K}, not {k}"
     return None
@@ -1497,6 +1510,7 @@ def main(
             picker_prompt=args.picker_prompt,
             own_model_picker=args.picker_on_own_model,
             k=args.k,
+            gate=args.gate,
         ) or check_budget_item(setup, os.environ if env is None else env)
     if refusal is not None:
         print(f"refused: {refusal}", file=sys.stderr)
