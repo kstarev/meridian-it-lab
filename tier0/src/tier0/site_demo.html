@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="site.css">
 <style>
+.hero .fake a{color:#93C5FD}
 .badge{align-self:flex-start;font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:999px;border:1px solid #D97706;background:#FFF4E0;color:#92400E}
 .steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:20px}
 .step{background:#FFFFFF;border:1px solid #E3E7EE;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0}
@@ -85,6 +86,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:.88em;overflow-wrap:anywhe
 <h1>One request, from message to closed ticket</h1>
 <p class="lead">One fake employee asks Tier0 how to get onto the office Wi-Fi. Tier0 finds an approved guide, and a person in IT sends it with one click. Each step below shows what happened, with a short note on what code decided, what the AI model only suggested and what the person did.</p>
 <p class="fake"><strong>This is not a real Slack workspace.</strong> The conversation is a replay of one run of Tier0 on the lab's mocks of Slack, the staff directory and the ticket system. Every message, label and ticket note below comes from that run; none of it was written for this page. On the lab's clock, the message arrives on $when.</p>
+<p class="fake"><strong>$recorded</strong> The labels and the guide pick below are those models' own replies, saved word for word in the <a href="$recording">recording</a>.</p>
 </div>
 </div>
 
@@ -98,7 +100,7 @@ code{font-family:'JetBrains Mono',monospace;font-size:.88em;overflow-wrap:anywhe
 $steps
 </ol>
 <div class="prose col">
-<p class="small">How this page is made: <code>python -m tier0.site_demo --out site</code> runs the ticket through the real agent in process, with no paid model and no network, and writes the <a href="demo.json">run log</a> and this page. A test fails if either drifts from a new run (<a href="$repo/tier0/src/tier0/site_demo.py">the generator</a>, <a href="$repo/docs/decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned">ADR-036</a>).</p>
+<p class="small">How this page is made: <code>python -m tier0.site_demo record</code> ran the ticket once through the real agent in process, on the mocks, and saved each model's reply in the <a href="$recording">recording</a>. <code>python -m tier0.site_demo --out site</code> runs the agent again with those replies played back, with no model call and no network, and writes the <a href="demo.json">run log</a> and this page. A test fails if either drifts from a new replay, or if the agent asks for a call the recording doesn't hold (<a href="$repo/tier0/src/tier0/site_demo.py">the generator</a>, <a href="$repo/docs/decisions.md#adr-036-the-demo-is-a-replay-on-the-mocks-labelled-simulated-slack-a-real-slack-app-is-optional-not-planned">ADR-036</a>).</p>
 </div>
 </div>
 </section>

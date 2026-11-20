@@ -1,14 +1,24 @@
 """The site's simulated-Slack demo (ADR-036): one tuning ticket, end to end, as a web page.
 
-    python -m tier0.site_demo --out site
+    python -m tier0.site_demo --out site       # make site-demo: replays, calls no model
+    python -m tier0.site_demo estimate         # what one recorded run would cost, offline
+    python -m tier0.site_demo record           # the one paid run (the owner's ruling 10)
 
-writes two files: `demo.json`, the run log, and `demo.html`, the page built from it. The run
-goes through the real agent in process, on the offline mocks (Slack, the directory, Linear),
-with the guide picker on. No model costs money and nothing leaves the process:
+The page replays one real run of that ticket, recorded once in `demo-recorded-run.json`
+(RECORDING). `record` ran the ticket through the real agent in process, on the offline mocks
+(Slack, the directory, Linear), with the guide picker on and real models for one arm:
 
-- triage is the repo's offline `StubModel`, a keyword stand-in for Claude Haiku;
-- the guide pick comes from `ScriptedPicker`, the fake the code-only guide check uses, set to
-  the answer key's guide. The page says so.
+- triage and the own-account check on `haiku-3d2`'s model and prompts (Claude Haiku 5.5, HT9
+  and HC7, with part 2's reset signal), as the lab's default Haiku setup;
+- the guide picker on Claude Sonnet 5.5 with KS6A-H, milestone 3e's frozen picker prompt.
+
+It saved each call's raw reply, the model ids, the prompt versions with their SHA-256, the
+token counts, the cost and the UTC date. The default command runs the same agent again with
+those replies played back (`Replay`), with no model call and no network, and writes two files:
+`demo.json`, the run log, and `demo.html`, the page built from it. A replayed call must be the
+very request that was recorded (its task, prompt, text, schema and size, by SHA-256), and every
+recorded call must be used; otherwise the replay stops, because the page would no longer show
+what the run did.
 
 The run uses the default setting, so the guide waits for one click from a person in IT
 (ADR-053): the requester gets the hand-off reply, the draft goes to #it-team, and a member of
@@ -18,17 +28,20 @@ button request. Only then does code post the guide.
 The message is one template of the tuning month, word for word. Every fact on the page (the
 labels, the checks, the guide, the replies, the ticket's comments and states) comes from the
 run log; only the short notes beside each step are written here. If the agent stops going
-the guide way on this ticket, `record()` fails rather than draw a different story.
+the guide way on this ticket, the run fails rather than draw a different story.
 The page around the steps is `site_demo.html`, next to this file. `tier0/tests/test_site_demo.py`
 fails if either file drifts from what this module makes.
 """
 
 import argparse
+import hashlib
 import html
 import json
+import os
 import re
-from collections.abc import Sequence
-from datetime import timedelta
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from string import Template
 from typing import Any
@@ -42,14 +55,20 @@ from meridian_dataset.month import TUNING_MONTH, load_templates
 from tier0.agent import DRAFT_GUIDE, GUIDE_WAITS_FOR_IT
 from tier0.clock import format_time, parse_time
 from tier0.evals.knowledge import ScriptedPicker
+from tier0.evals.setups import SETUPS_3D2, SONNET
 from tier0.identity.binding import GATEWAY_PRINCIPAL
 from tier0.knowledge import review
 from tier0.knowledge.answer import reply_text
 from tier0.knowledge.guide_screen import flag_guide
 from tier0.knowledge.picker import HOW_TO
+from tier0.knowledge.prompts import PICKER_VERSIONS
 from tier0.knowledge.wiring import GuidePicker
 from tier0.mocks.slack import CHANNELS
-from tier0.models import StubModel
+from tier0.models import ClaudeModel, ModelAdapter, ModelRequest, ModelResponse, StubModel
+from tier0.models.claude import INPUT_OVERHEAD_TOKENS
+from tier0.models.pricing import tokens_usd, worst_case_usd
+from tier0.models.spend import ITEM_ENV, SpendCapReached, SpendLedger
+from tier0.netguard import guard_for_model, loopback_only
 from tier0.runtime import offline_runtime
 from tier0.sealed import require_unsealed
 
@@ -60,6 +79,219 @@ TEMPLATE_ID = "T035"
 ENGLISH = ("US", "CA", "GB", "IE", "PL", "NL", "SG", "AU", "IN")
 FILES = ("demo.json", "demo.html")
 REPO = "https://github.com/kstarev/meridian-it-lab/blob/main"
+# The repo's site/, where the page, its run log and the recording live.
+DEFAULT_SITE = Path(__file__).resolve().parents[3] / "site"
+
+# --- the recorded run (the owner's ruling 10, 2026-11-19) -------------------------------
+RECORDING = "demo-recorded-run.json"
+# The arm: haiku-3d2's triage model and prompts (ADR-048), and milestone 3e's frozen picker,
+# KS6A-H on Sonnet (the plan the blind months ran with; its SHA-256 is pinned there and
+# checked by the tests). The agent's own default picker prompt is still KS5 (ADR-046).
+ARM = SETUPS_3D2["haiku-3d2"]
+PICKER_MODEL = SONNET
+PICKER_PROMPT = "KS6A-H"
+# The owner allowed one paid run, from this budget item, under this much in total.
+BUDGET_ITEM = "tier0-3e"
+RECORD_LIMIT_USD = 0.05
+# The same rough size rule as the knowledge eval's estimate: 3.5 bytes a token, 20 out.
+BYTES_PER_TOKEN = 3.5
+EXPECTED_OUTPUT_TOKENS = 20
+
+
+@dataclass(frozen=True, slots=True)
+class Picker3e(GuidePicker):
+    """The agent's guide picker with milestone 3e's frozen prompt, KS6A-H, as the owner's
+    ruling 10 asks for the recorded run. Everything else is GuidePicker's: the model must be
+    Sonnet 5.5, it sees ids, titles and summaries only, and every code gate after it holds.
+    KS6A-H is a one-call prompt, like KS5, so GuidePicker's single call is all it needs."""
+
+    @property
+    def version(self) -> str:
+        return PICKER_PROMPT
+
+    @property
+    def system(self) -> str:
+        return PICKER_VERSIONS[PICKER_PROMPT]
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _prompt_texts() -> dict[str, tuple[str, str]]:
+    arm = ARM.prompts()
+    return {
+        "triage": (ARM.triage_prompt, arm.triage or ""),
+        "own_account_check": (ARM.check_prompt, arm.check or ""),
+        "guide_pick": (PICKER_PROMPT, PICKER_VERSIONS[PICKER_PROMPT]),
+    }
+
+
+def prompts() -> dict[str, dict[str, str]]:
+    """The arm's prompt for each task the run can call, by version and SHA-256."""
+    return {
+        task: {"version": version, "sha256": _sha256(text)}
+        for task, (version, text) in _prompt_texts().items()
+    }
+
+
+def _on_the_arm(request: ModelRequest) -> bool:
+    """The call's system prompt is the arm's for its task. The picker's ends with the guide
+    list, after its prompt (tier0.knowledge.picker)."""
+    _, text = _prompt_texts()[request.task]
+    if request.task == "guide_pick":
+        return request.system.startswith(text + "\n\n")
+    return request.system == text
+
+
+def _request(request: ModelRequest) -> dict[str, Any]:
+    """What identifies a call: its task, and its prompt, text and schema by SHA-256."""
+    schema = request.json_schema
+    return {
+        "task": request.task,
+        "system_sha256": _sha256(request.system),
+        "user_sha256": _sha256(request.user),
+        "schema_sha256": None if schema is None else _sha256(json.dumps(schema, sort_keys=True)),
+        "max_tokens": request.max_tokens,
+    }
+
+
+def _request_bytes(request: ModelRequest) -> int:
+    """The request's UTF-8 size, measured as ClaudeModel measures it for its worst case."""
+    return len(json.dumps([request.system, request.user, request.json_schema]).encode("utf-8"))
+
+
+def _worst_case(model: str, request: ModelRequest) -> float:
+    """The cost bound ClaudeModel checks against the ledger before it sends the call."""
+    return worst_case_usd(
+        model, _request_bytes(request) + INPUT_OVERHEAD_TOKENS, request.max_tokens
+    )
+
+
+class Recorder:
+    """Passes each call to a real model and keeps the raw reply, with the request's hashes, the
+    token counts and the cost. Before each call it refuses one whose worst case would take the
+    run past RECORD_LIMIT_USD; the ledger's own check (the budget item's cap) runs as well."""
+
+    def __init__(self, inner: ModelAdapter, calls: list[dict[str, Any]]) -> None:
+        self._inner = inner
+        self._calls = calls
+        self.provider = inner.provider
+        self.model = inner.model
+        self.temperature = inner.temperature
+        self.seed = inner.seed
+        self.supports_seed = inner.supports_seed
+
+    def describe(self) -> dict[str, str]:
+        return self._inner.describe()
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        prompt = prompts()[request.task]
+        if not _on_the_arm(request):
+            raise RuntimeError(f"the {request.task} call is not on the arm's {prompt['version']}")
+        spent = sum(float(c["cost_usd"]) for c in self._calls)
+        worst = _worst_case(self.model, request)
+        if spent + worst > RECORD_LIMIT_USD:
+            raise SpendCapReached(
+                f"the recorded run's limit: ${spent:.4f} spent, the next call could cost up to "
+                f"${worst:.4f}, limit ${RECORD_LIMIT_USD:.2f}"
+            )
+        response = self._inner.complete(request)
+        cost, _ = tokens_usd(
+            str(response.model),
+            response.input_tokens,
+            response.output_tokens,
+            cache_write_tokens=response.cache_write_tokens,
+            cache_read_tokens=response.cache_read_tokens,
+        )
+        self._calls.append(
+            {
+                "model_asked": self.model,
+                "prompt": prompt["version"],
+                "request": _request(request),
+                "reply": {
+                    "text": response.text,
+                    "model": str(response.model),
+                    "finish_reason": response.finish_reason,
+                    "response_id": response.response_id,
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "cache_write_tokens": response.cache_write_tokens,
+                    "cache_read_tokens": response.cache_read_tokens,
+                },
+                "cost_usd": round(cost, 8),
+            }
+        )
+        return response
+
+
+class ReplayMismatch(RuntimeError):
+    """The agent asked for a call the recording doesn't hold, or left one unused."""
+
+
+class Replay:
+    """Plays one model's recorded replies back, in order, and calls nothing. Each call must be
+    the very request that was recorded, by its hashes; anything else stops the replay."""
+
+    provider = "replay"
+    temperature: float | None = None
+    seed: int | None = None
+    supports_seed = False
+
+    def __init__(self, model: str, calls: Sequence[dict[str, Any]]) -> None:
+        self.model = model
+        self._calls = [c for c in calls if c["model_asked"] == model]
+
+    def describe(self) -> dict[str, str]:
+        return {"replay_of": self.model, "recording": RECORDING}
+
+    @property
+    def left(self) -> int:
+        return len(self._calls)
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        if not self._calls:
+            raise ReplayMismatch(f"the recording holds no more {self.model} calls")
+        call = self._calls.pop(0)
+        asked = _request(request)
+        if asked != call["request"]:
+            changed = sorted(k for k in asked if asked[k] != call["request"].get(k))
+            raise ReplayMismatch(
+                f"the {request.task} call differs from the recorded one in {', '.join(changed)}: "
+                "the code, a prompt or a guide changed since the run was recorded. Record it "
+                "again (one paid run, with the owner's go) or undo the change."
+            )
+        reply = call["reply"]
+        return ModelResponse(
+            text=reply["text"],
+            model=reply["model"],
+            input_tokens=reply["input_tokens"],
+            output_tokens=reply["output_tokens"],
+            finish_reason=reply["finish_reason"],
+            response_id=reply["response_id"],
+            cache_write_tokens=reply["cache_write_tokens"],
+            cache_read_tokens=reply["cache_read_tokens"],
+        )
+
+
+class _Capture:
+    """Offline: passes each call to a fake and keeps the request, for the estimate."""
+
+    def __init__(self, inner: ModelAdapter, model: str, seen: list[tuple[str, ModelRequest]]):
+        self._inner = inner
+        self._seen = seen
+        self.provider = inner.provider
+        self.model = model
+        self.temperature = inner.temperature
+        self.seed = inner.seed
+        self.supports_seed = inner.supports_seed
+
+    def describe(self) -> dict[str, str]:
+        return self._inner.describe()
+
+    def complete(self, request: ModelRequest) -> ModelResponse:
+        self._seen.append((self.model, request))
+        return self._inner.complete(request)
 
 
 def _sender(world: World) -> Person:
@@ -74,16 +306,20 @@ def _require(ok: bool, what: str) -> None:
         raise RuntimeError(f"the demo run no longer goes the way the page tells it: {what}")
 
 
-async def _run(world: World) -> dict[str, Any]:
+async def _run(
+    world: World, triage_model: ModelAdapter, picker_model: ModelAdapter, models: dict[str, Any]
+) -> dict[str, Any]:
     template = next(t for t in load_templates(TEMPLATE_SET) if t.id == TEMPLATE_ID)
     _require(template.expected_guide is not None, "the template has no guide in its answer key")
     guide_id = str(template.expected_guide)
     guide = next(g for g in load_runbooks() if g.id == guide_id)
     person = _sender(world)
-    triage_model = StubModel()
-    picker_model = ScriptedPicker(HOW_TO, guide_id)
     async with offline_runtime(
-        world, model=triage_model, guide_picker=GuidePicker(model=picker_model)
+        world,
+        model=triage_model,
+        prompts=ARM.prompts(),
+        features=ARM.features(),
+        guide_picker=Picker3e(model=picker_model),
     ) as rt:
         dm = rt.slack.dm_channel_for(person.slack_user_id)
         ticket = Ticket(
@@ -158,10 +394,7 @@ async def _run(world: World) -> dict[str, Any]:
                 "expected_guide": guide_id,
                 "world_seed": world.answer_key.seed,
             },
-            "models": {
-                "triage": f"{triage_model.provider}/{triage_model.model}",
-                "guide_pick": f"{picker_model.provider}/{picker_model.model}",
-            },
+            "models": models,
             "requester": {
                 "name": f"{person.given_name} {person.family_name}",
                 "first_name": person.given_name,
@@ -223,11 +456,145 @@ async def _run(world: World) -> dict[str, Any]:
         }
 
 
-def record(seed: int = DEFAULT_SEED) -> dict[str, Any]:
-    """The run log: one tuning ticket through the agent, on the mocks and the stub."""
+def _world(seed: int) -> World:
     world = generate(seed)
     require_unsealed(world)
-    return anyio.run(_run, world)
+    return world
+
+
+def _template_guide() -> str:
+    template = next(t for t in load_templates(TEMPLATE_SET) if t.id == TEMPLATE_ID)
+    return str(template.expected_guide)
+
+
+def load_recording(path: Path) -> dict[str, Any]:
+    """The recorded run. Only a run that went the whole way can be replayed."""
+    recording: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    if recording.get("complete") is not True:
+        raise ReplayMismatch(f"{path} is not a complete run: {recording.get('error')}")
+    return recording
+
+
+def _models(recording: dict[str, Any]) -> dict[str, Any]:
+    """Which model answered each task in the recorded run, with its prompt, and the date."""
+    by_task: dict[str, dict[str, str]] = {}
+    for call in recording["calls"]:
+        by_task.setdefault(
+            call["request"]["task"], {"model": call["reply"]["model"], "prompt": call["prompt"]}
+        )
+    return {"recorded_on": recording["recorded_on"], "recording": RECORDING, **by_task}
+
+
+def replay(recording: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The run log: the recorded run played back through the agent on the mocks. No model is
+    called and nothing leaves this machine."""
+    recording = load_recording(DEFAULT_SITE / RECORDING) if recording is None else recording
+    source = recording["source"]
+    _require(
+        (source["template_set"], source["template"]) == (TEMPLATE_SET, TEMPLATE_ID),
+        "the recording is of another ticket",
+    )
+    world = _world(source["world_seed"])
+    triage = Replay(ARM.triage_model, recording["calls"])
+    picker = Replay(PICKER_MODEL, recording["calls"])
+    with loopback_only():
+        run: dict[str, Any] = anyio.run(_run, world, triage, picker, _models(recording))
+    if triage.left or picker.left:
+        raise ReplayMismatch("the agent made fewer calls than the recorded run")
+    return run
+
+
+def estimate(seed: int = DEFAULT_SEED) -> list[dict[str, Any]]:
+    """Offline, before the paid run: the calls the run makes, found by running it with the
+    fakes (the stub's triage and the scripted pick), and what each would cost. `expected_usd`
+    is the size rule's rough figure; `worst_case_usd` is the bound the ledger checks."""
+    seen: list[tuple[str, ModelRequest]] = []
+    triage = _Capture(StubModel(), ARM.triage_model, seen)
+    picker = _Capture(ScriptedPicker(HOW_TO, _template_guide()), PICKER_MODEL, seen)
+    with loopback_only():
+        anyio.run(_run, _world(seed), triage, picker, {})
+    rows = []
+    for model, request in seen:
+        size = _request_bytes(request)
+        expected, _ = tokens_usd(model, round(size / BYTES_PER_TOKEN), EXPECTED_OUTPUT_TOKENS)
+        rows.append(
+            {
+                "task": request.task,
+                "model": model,
+                "bytes": size,
+                "expected_usd": expected,
+                "worst_case_usd": _worst_case(model, request),
+            }
+        )
+    return rows
+
+
+def record_once(
+    out: Path,
+    *,
+    seed: int = DEFAULT_SEED,
+    replace: bool = False,
+    make_model: Callable[[str], ModelAdapter] | None = None,
+    clock: Callable[[], datetime] | None = None,
+) -> dict[str, Any]:
+    """The one paid run: the ticket through the agent on real models, saved to out/RECORDING.
+
+    Before any call it refuses unless the budget item is BUDGET_ITEM, no recording is there
+    yet (or `replace`), and the run's worst case is under RECORD_LIMIT_USD. The replies are
+    saved even when the run then goes another way, so a paid call is never lost; such a
+    recording is marked incomplete, and the page can't be built from it."""
+    path = out / RECORDING
+    if path.exists() and not replace:
+        raise FileExistsError(f"{path} exists: the run is recorded once (--replace records again)")
+    item = os.environ.get(ITEM_ENV)
+    if item != BUDGET_ITEM:
+        raise SpendCapReached(f"set {ITEM_ENV}={BUDGET_ITEM}: the owner allowed this run from it")
+    worst = sum(r["worst_case_usd"] for r in estimate(seed))
+    if worst > RECORD_LIMIT_USD:
+        raise SpendCapReached(
+            f"the run could cost up to ${worst:.4f}, over its limit of ${RECORD_LIMIT_USD:.2f}"
+        )
+    make = make_model or (lambda model: ClaudeModel(model=model))
+    calls: list[dict[str, Any]] = []
+    triage = Recorder(make(ARM.triage_model), calls)
+    picker = Recorder(make(PICKER_MODEL), calls)
+    world = _world(seed)
+    started = (clock or (lambda: datetime.now(UTC)))().astimezone(UTC)
+    recording: dict[str, Any] = {
+        "what": (
+            "One real run of the demo's ticket through tier0's agent on the mocks, recorded "
+            "once for the site (the owner's ruling 10, 2026-11-19). make site-demo replays "
+            "these replies and calls no model."
+        ),
+        "recorded_at": started.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "recorded_on": started.date().isoformat(),
+        "command": "python -m tier0.site_demo record",
+        "budget_item": item,
+        "limit_usd": RECORD_LIMIT_USD,
+        "arm": ARM.name,
+        "source": {
+            "template_set": TEMPLATE_SET,
+            "template": TEMPLATE_ID,
+            "world_seed": world.answer_key.seed,
+        },
+        "prompt_cache": False,
+        "arm_prompts": prompts(),
+        "calls": calls,
+    }
+    try:
+        with guard_for_model("claude"):
+            anyio.run(_run, world, triage, picker, {})
+        recording["complete"] = True
+    except Exception as exc:
+        recording["complete"] = False
+        recording["error"] = f"{type(exc).__name__}: {exc}"
+        raise
+    finally:
+        recording["cost_usd"] = round(sum(float(c["cost_usd"]) for c in calls), 8)
+        if calls:
+            out.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(recording, indent=2, ensure_ascii=False) + "\n")
+    return recording
 
 
 # --- the page ---------------------------------------------------------------------------
@@ -336,6 +703,25 @@ def _p(*paragraphs: str) -> str:
     return "".join(f"<p>{p}</p>" for p in paragraphs)
 
 
+_MODEL_ID = re.compile(r"claude-(haiku|sonnet|opus)-(\d+)-(\d+)")
+
+
+def model_name(model_id: str) -> str:
+    """A Claude model's name as people write it: claude-haiku-5-5 is Claude Haiku 5.5."""
+    m = _MODEL_ID.fullmatch(model_id)
+    return f"Claude {m[1].title()} {m[2]}.{m[3]}" if m else model_id
+
+
+def recorded_line(models: dict[str, Any]) -> str:
+    """The page's plain statement of what ran: the date and the models, from the recording."""
+    triage, pick = models["triage"], models["guide_pick"]
+    return (
+        f"Recorded once on {models['recorded_on']} with {model_name(triage['model'])} "
+        f"(triage) and {model_name(pick['model'])} (guide picker); the page replays that run, "
+        "it doesn't call a model."
+    )
+
+
 def _yes(value: bool) -> str:
     return "yes" if value else "no"
 
@@ -348,7 +734,9 @@ def render(run: dict[str, Any]) -> str:
     """The page, from the run log alone."""
     src, req, msg, chk = run["source"], run["requester"], run["message"], run["checks"]
     pick, guide, tk = run["pick"], run["guide"], run["ticket"]
-    draft, click = run["draft"], run["click"]
+    draft, click, models = run["draft"], run["click"], run["models"]
+    triage_by, pick_by = models["triage"], models["guide_pick"]
+    recording = f'<a href="{_e(models["recording"])}">recording</a>'
     name = req["name"]
     template_link = (
         f'<a href="{REPO}/dataset/src/meridian_dataset/month/pools/{_e(src["template_set"])}.json">'
@@ -399,6 +787,8 @@ def render(run: dict[str, Any]) -> str:
             _log(
                 "Triage and the policy table",
                 [
+                    ("Model", triage_by["model"]),
+                    ("Triage prompt", triage_by["prompt"]),
                     ("Label the model gave", run["triage"]["category"]),
                     ("Policy tier", run["policy"]["tier"]),
                     ("Policy action", run["policy"]["action"]),
@@ -411,9 +801,9 @@ def render(run: dict[str, Any]) -> str:
                 "Code looks the label up in a fixed table. For this label the table says "
                 f"<strong>{_e(run['policy']['action'])}</strong>: hand it to a person, unless "
                 "an approved guide answers it.",
-                f"On this page the model is the repo's offline stub "
-                f"(<code>{_e(run['models']['triage'])}</code>), a keyword stand-in for Claude "
-                "Haiku. It costs nothing and gives the same answer every time.",
+                f"The label is {_e(model_name(triage_by['model']))}'s own reply in the recorded "
+                f"run, with triage prompt <code>{_e(triage_by['prompt'])}</code> of the lab's "
+                f"default Haiku setup. The page plays it back from the {recording}.",
             ),
         ),
         _step(
@@ -423,6 +813,8 @@ def render(run: dict[str, Any]) -> str:
             _log(
                 "Guide picker and posting gate",
                 [
+                    ("Model", pick_by["model"]),
+                    ("Picker prompt", pick["version"]),
                     ("Request type the model gave", pick["request_type"]),
                     ("Guide the model named", pick["guide"]),
                     (
@@ -447,10 +839,10 @@ def render(run: dict[str, Any]) -> str:
                 "A yes does not post the guide. Guide answers wait for one click from a person in "
                 "IT until a sealed month of tests passes, because the guide picker failed its "
                 "safety rule on the last two (ADR-053).",
-                "On this page no AI model made the pick: a scripted stand-in "
-                f"(<code>{_e(run['models']['guide_pick'])}</code>) names the guide from the "
-                "tuning month's answer key. In the lab the picker is Claude Sonnet 5.5, and it "
-                "is off unless an option turns it on.",
+                f"The pick is {_e(model_name(pick_by['model']))}'s own reply in the same "
+                f"recorded run, with picker prompt <code>{_e(pick['version'])}</code>: the "
+                "prompt that failed that safety rule on the last two blind months. In the lab "
+                "the picker is off unless an option turns it on.",
             ),
         ),
         _step(
@@ -568,27 +960,76 @@ def render(run: dict[str, Any]) -> str:
     ]
     return _PAGE.substitute(
         label=_e(run["label"]),
+        recorded=html.escape(recorded_line(models), quote=False),
+        recording=_e(models["recording"]),
         when=_e(_when(msg["at"])),
         steps="\n".join(steps),
         repo=REPO,
     )
 
 
-def files(run: dict[str, Any] | None = None) -> dict[str, str]:
-    """The two files, by name: the run log and the page built from it."""
-    run = record() if run is None else run
+def files(run: dict[str, Any] | None = None, site: Path | None = None) -> dict[str, str]:
+    """The two files, by name: the run log and the page built from it. The run log is the
+    recording in `site` (by default the repo's site/) played back."""
+    if run is None:
+        run = replay(load_recording((DEFAULT_SITE if site is None else site) / RECORDING))
     return {
         "demo.json": json.dumps(run, indent=2, ensure_ascii=False) + "\n",
         "demo.html": render(run),
     }
 
 
+def _print_estimate(rows: Sequence[dict[str, Any]]) -> None:
+    for row in rows:
+        print(
+            f"{row['task']:<18} {row['model']:<18} {row['bytes']:>6} bytes  "
+            f"about ${row['expected_usd']:.4f}, at most ${row['worst_case_usd']:.4f}"
+        )
+    expected = sum(r["expected_usd"] for r in rows)
+    worst = sum(r["worst_case_usd"] for r in rows)
+    print(
+        f"{len(rows)} calls: about ${expected:.4f}, at most ${worst:.4f} "
+        f"(limit ${RECORD_LIMIT_USD:.2f}); nothing was called"
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m tier0.site_demo", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="python -m tier0.site_demo",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        default="build",
+        choices=("build", "estimate", "record"),
+        help="build (the default) replays the recording and writes the page; estimate prints "
+        "what a recorded run would cost, offline; record makes the one paid run",
+    )
     parser.add_argument("--out", type=Path, default=Path("site"))
+    parser.add_argument(
+        "--replace", action="store_true", help="record again over the recording (another paid run)"
+    )
     args = parser.parse_args(argv)
+    if args.command == "estimate":
+        _print_estimate(estimate())
+        return 0
+    if args.command == "record":
+        _print_estimate(estimate())
+        ledger = SpendLedger()
+        print(f"recording: budget item {os.environ.get(ITEM_ENV)}, ledger {ledger.path}")
+        recording = record_once(args.out, replace=args.replace)
+        for call in recording["calls"]:
+            reply = call["reply"]
+            print(
+                f"{call['request']['task']:<18} {reply['model']:<18} {call['prompt']:<7} "
+                f"{reply['input_tokens']:>5} in {reply['output_tokens']:>4} out  "
+                f"${call['cost_usd']:.6f}"
+            )
+        print(f"wrote {args.out / RECORDING}: ${recording['cost_usd']:.6f} in all")
     args.out.mkdir(parents=True, exist_ok=True)
-    for name, text in files().items():
+    for name, text in files(site=args.out).items():
         (args.out / name).write_text(text)
         print(f"wrote {args.out / name}")
     return 0

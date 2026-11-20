@@ -1,0 +1,77 @@
+{
+  "what": "One real run of the demo's ticket through tier0's agent on the mocks, recorded once for the site (the owner's ruling 10, 2026-11-19). make site-demo replays these replies and calls no model.",
+  "recorded_at": "2026-11-19T22:48:56Z",
+  "recorded_on": "2026-11-19",
+  "command": "python -m tier0.site_demo record",
+  "budget_item": "tier0-3e",
+  "limit_usd": 0.05,
+  "arm": "haiku-3d2",
+  "source": {
+    "template_set": "tuning_month",
+    "template": "T035",
+    "world_seed": 1108
+  },
+  "prompt_cache": false,
+  "arm_prompts": {
+    "triage": {
+      "version": "HT9",
+      "sha256": "5469f3352b35f9e034eaeaf32c616d484f656a335f4a128e896f1b3ddc4df737"
+    },
+    "own_account_check": {
+      "version": "HC7",
+      "sha256": "0fc143e4f36cb40f2657be891419eb367899d40a664feccad069487d5fdeaf91"
+    },
+    "guide_pick": {
+      "version": "KS6A-H",
+      "sha256": "04fdb9942e214d3e8598c0ff1f127cc97eb28eeb51fc6d350d7417f1f1050888"
+    }
+  },
+  "calls": [
+    {
+      "model_asked": "claude-haiku-5-5",
+      "prompt": "HT9",
+      "request": {
+        "task": "triage",
+        "system_sha256": "5469f3352b35f9e034eaeaf32c616d484f656a335f4a128e896f1b3ddc4df737",
+        "user_sha256": "c77a07f75b8371a3d90d69a830be9a68c032d3bf3c8f1ab3d04bfd1549542f35",
+        "schema_sha256": "7ddc7312d7449f41a8a0ec733c51101353510f71a7cf92f13782a665fa34acb3",
+        "max_tokens": 1024
+      },
+      "reply": {
+        "text": "{\"category\": \"other\"}",
+        "model": "claude-haiku-5-5",
+        "finish_reason": "stop",
+        "response_id": "msg_011ChD6ujVWzr2naP7563zE9",
+        "input_tokens": 922,
+        "output_tokens": 9,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0
+      },
+      "cost_usd": 9.67e-05
+    },
+    {
+      "model_asked": "claude-sonnet-5-5",
+      "prompt": "KS6A-H",
+      "request": {
+        "task": "guide_pick",
+        "system_sha256": "b4d5fe0da0ccc52a9a3dcbd96d9a6a471deedf1375055aac69d21f20c97deb9e",
+        "user_sha256": "e9c609f60b2cb87ce615c1afbfa007fe52def81200932d40ae5993c8eb90350f",
+        "schema_sha256": "bbb30f4b5f17d9d9a4c81647eff1340514b8887a9adbc7d41885a9853c4cab04",
+        "max_tokens": 64
+      },
+      "reply": {
+        "text": "{\"request_type\":\"how_to\",\"guide\":\"KB-001\"}",
+        "model": "claude-sonnet-5-5",
+        "finish_reason": "stop",
+        "response_id": "msg_011ChD6uqNyV5qiW5EB7FBcs",
+        "input_tokens": 2855,
+        "output_tokens": 23,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0
+      },
+      "cost_usd": 0.00594
+    }
+  ],
+  "complete": true,
+  "cost_usd": 0.0060367
+}
