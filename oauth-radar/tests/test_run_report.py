@@ -113,6 +113,10 @@ def test_the_command_line_runs_a_world(
     assert main(["--world", str(world), "--out", str(tmp_path / "out")]) == 0
     out = capsys.readouterr().out
     assert "Nothing was removed or sent." in out
-    assert "Refused 1 IT exception at load time" in out
+    # Every reason a load refuses one (OAR-010): too long, or no expiry, no approval date, or
+    # an expiry before the approval.
+    assert (
+        "Refused 1 IT exception at load time (over 90 days, or a missing or backwards date)" in out
+    )
     assert (tmp_path / "out" / "report.md").is_file()
     assert main(["--world", str(world)]) == 2

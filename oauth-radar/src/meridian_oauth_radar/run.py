@@ -6,7 +6,7 @@ The world folder holds the radar's inputs (the shared dataset's `radar/` files).
 never reads the answer key. It writes, under `--out`:
 
 - `run.json`: the date, the settings, the counts, and any IT exception refused at load time
-  (over 90 days, or no expiry), with the reason;
+  (over 90 days, or a missing or backwards date), with the reason;
 - `scores.json`: every grant's rubric score, with the points and reason per signal;
 - `plans/after-notice-plan.json` and `plans/emergency-plan.json`: dry-run plans, never applied;
 - `notices/`: notice drafts, one per user, and `ledger.json`, which the next run reads;

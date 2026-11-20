@@ -174,19 +174,73 @@ def test_the_blast_radius_limit_refuses_the_whole_plan() -> None:
 
 
 def test_everything_else_goes_to_a_person_or_is_low() -> None:
-    no_record = scored(DRIVE, unused_days=None)
-    medium = scored(DRIVE, unused_days=2)  # reviewed, verified, full Drive, in use: 3 points
-    sign_in = scored("openid", unused_days=200)
-    calendar_only = scored(G + "calendar.readonly", unused_days=200, verified_publisher=False)
+    # Four people, so each grant keeps its own reason (one person's two Drive grants would be
+    # the same grant, and either reason would pass).
+    no_record = scored(DRIVE, unused_days=None, user="a@meridian.example")
+    medium = scored(DRIVE, unused_days=2, user="b@meridian.example")  # 3 points, in use
+    sign_in = scored("openid", unused_days=200, user="c@meridian.example")
+    calendar_only = scored(
+        G + "calendar.readonly",
+        unused_days=200,
+        user="d@meridian.example",
+        verified_publisher=False,
+    )
     result = run([no_record, medium, sign_in, calendar_only], DAY0)
-    reasons = {r.score.grant.scopes: r.reason for r in result.to_a_person}
-    assert reasons[(DRIVE,)] in {
-        "Holds a restricted scope, with no record of use.",
-        "Rated medium by the rubric (3 points).",
+    reasons = {r.score.grant.user_key: r.reason for r in result.to_a_person}
+    assert reasons == {
+        "a@meridian.example": "Holds a restricted scope, with no record of use.",
+        "b@meridian.example": "Rated medium by the rubric (3 points).",
+        "d@meridian.example": "Rated medium by the rubric (4 points).",
     }
-    assert len(result.to_a_person) == 3
     assert result.new_notices == ()
     assert result.no_action == 1
+
+
+def test_a_compromised_app_beats_a_current_exception() -> None:
+    advisory = Advisory(APP, "Fake App", "tokens stolen", date(2026, 11, 14))
+    entry = ExceptionEntry(APP, None, "team need", "IT lead", date(2026, 11, 1), date(2027, 1, 1))
+    result = run(
+        [scored(DRIVE, unused_days=1)], DAY0, exceptions=[entry], compromised={APP: advisory}
+    )
+    assert result.excepted == ()
+    assert [i.client_id for i in result.emergency.items] == [APP]
+
+
+def test_the_emergency_plan_has_the_same_blast_radius_limit() -> None:
+    advisory = Advisory(APP, "Fake App", "tokens stolen", date(2026, 11, 14))
+    found = [scored(DRIVE, unused_days=1, user=f"u{i:02d}@meridian.example") for i in range(11)]
+    over = run(found, DAY0, compromised={APP: advisory}, settings=Settings(max_grants_per_plan=10))
+    assert (over.emergency.status, over.emergency.items, over.emergency.would_touch) == (
+        "refused",
+        (),
+        11,
+    )
+    routed = [r for r in over.to_a_person if "emergency plan was over" in r.reason]
+    assert len(routed) == 11
+    ten = run(found[:10], DAY0, compromised={APP: advisory}, settings=Settings())
+    assert (ten.emergency.status, len(ten.emergency.items)) == ("proposed", 10)
+
+
+def test_an_exception_counts_on_its_expiry_day_and_not_the_day_after() -> None:
+    entry = ExceptionEntry(APP, None, "x", "IT lead", date(2026, 9, 1), date(2026, 11, 16))
+    on_the_day = run([scored(DRIVE)], DAY0, exceptions=[entry])
+    assert len(on_the_day.excepted) == 1 and on_the_day.expired_exceptions == ()
+    day_after = run([scored(DRIVE)], DAY0 + timedelta(days=1), exceptions=[entry])
+    assert day_after.excepted == () and day_after.expired_exceptions == (entry,)
+
+
+def test_an_exception_not_yet_approved_is_not_reported_as_expired() -> None:
+    later = ExceptionEntry(APP, None, "x", "IT lead", DAY0 + timedelta(days=1), date(2027, 1, 1))
+    result = run([scored(DRIVE)], DAY0, exceptions=[later])
+    assert result.excepted == ()
+    assert result.expired_exceptions == ()
+
+
+def test_dormant_means_unused_for_more_than_90_days() -> None:
+    ninety = run([scored(DRIVE, unused_days=90)], DAY0)
+    assert (ninety.new_notices, ninety.dormant_restricted) == ((), 0)
+    ninety_one = run([scored(DRIVE, unused_days=91)], DAY0)
+    assert (len(ninety_one.new_notices), ninety_one.dormant_restricted) == (1, 1)
 
 
 def test_notice_drafts_say_nothing_was_removed(tmp_path: Path) -> None:

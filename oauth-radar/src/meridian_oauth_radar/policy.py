@@ -376,9 +376,10 @@ def decide(
         excepted=tuple(
             sorted(excepted, key=lambda e: (e.grant.display_text.casefold(), e.grant.key))
         ),
+        # Past their expiry only: one not yet approved on `today` hasn't expired.
         expired_exceptions=tuple(
             sorted(
-                (e for e in exceptions if not e.current(today)),
+                (e for e in exceptions if e.expires < today),
                 key=lambda e: (e.client_id, e.user_key or ""),
             )
         ),
