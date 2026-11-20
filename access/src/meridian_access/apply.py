@@ -19,8 +19,15 @@ again. A final break-glass
 guard drops any change that names a break-glass account, whatever the diff did. Every change
 checks the current state first, so a second run does nothing. Suspension comes before removal
 where the API allows it.
-After a mock-live apply the state is read again and every applied change is checked to have
-taken effect; one that did not is reported as failed.
+A change names one account (system, app, name). Names are compared with case and spaces
+ignored, as the diff does; when two or more accounts match, the one whose name is exactly the
+change's is meant, and when no single one is, the change is failed and none of them is changed.
+An Okta app add is failed, and nobody is assigned, when two or more Okta apps carry the app's
+name.
+After a mock-live apply that sent any write, the state is read again and every applied change is
+checked to have taken effect; one that did not is reported as failed. Every account that changed
+during the apply but that no change of the plan names (a write that reached another account) is
+reported too (`unexpected`), and the command line exits 1.
 
     ACCESS_APPLY_MODE=mock-live python -m meridian_access.apply --plan plan.json \\
         --world out/access/seed-6108 --approvals 1
@@ -31,12 +38,13 @@ refuses a held plan; `apply_plan` (the function) supports the held part.
 """
 
 import argparse
+import collections
 import dataclasses
 import json
 import os
 import re
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -90,6 +98,9 @@ class ApplyResult:
     deferred_deletes: list[dict[str, Any]] = field(default_factory=list)  # "delete in a later plan"
     not_applied: list[dict[str, Any]] = field(default_factory=list)  # adds, HR flags, ...
     held_not_applied: int = 0
+    # accounts that changed during a mock-live apply although no change of the plan names them
+    unexpected: list[dict[str, Any]] = field(default_factory=list)
+    writes_sent: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -104,8 +115,59 @@ class ApplyResult:
             "deferred_deletes": self.deferred_deletes,
             "not_applied": self.not_applied,
             "held_not_applied": self.held_not_applied,
+            "unexpected": self.unexpected,
             "log": self.log,
         }
+
+
+class Ambiguous(Exception):
+    """A change's name matches more than one account and does not tell which one it means."""
+
+    def __init__(self, count: int) -> None:
+        super().__init__(f"{count} accounts go by this name")
+        self.count = count
+
+
+class _Accounts:
+    """The accounts of one state, found by the name a change gives.
+
+    A change names an account by system, app and name; names are compared with case and spaces
+    ignored, as the diff does. An account listed twice is one account. When the name matches
+    one account, that is it. When it matches more, the one whose name is exactly the change's
+    (spaces ignored) is it; when no single one is, `find` raises `Ambiguous`, and apply changes
+    none of them: the list order must never pick the account."""
+
+    def __init__(self, accounts: Iterable[Account]) -> None:
+        self._by: dict[tuple[str, str, str], list[Account]] = {}
+        for a in accounts:
+            self.add(a)
+
+    @staticmethod
+    def _key(system: str, app_id: str, name: str) -> tuple[str, str, str]:
+        return (system, app_id, _norm(name))
+
+    def add(self, a: Account) -> None:
+        group = self._by.setdefault(self._key(a.system, a.app_id, a.account), [])
+        if a not in group:
+            group.append(a)
+
+    def find(self, system: str, app_id: str, name: str) -> Account | None:
+        group = self._by.get(self._key(system, app_id, name), [])
+        if len(group) < 2:
+            return group[0] if group else None
+        exact = [a for a in group if a.account.strip() == name.strip()]
+        if len(exact) == 1:
+            return exact[0]
+        raise Ambiguous(len(group))
+
+    def remove(self, old: Account) -> None:
+        """Keep the local view in step with a write that ended `old` (an app assignment)."""
+        self._by[self._key(old.system, old.app_id, old.account)].remove(old)
+
+    def replace(self, old: Account, new: Account) -> None:
+        """Keep the local view in step with a write that turned `old` into `new`."""
+        self.remove(old)
+        self.add(new)
 
 
 def issue_write_tokens(mocks: Mocks) -> dict[str, Token]:
@@ -276,9 +338,7 @@ def apply_plan(
         result.log.append("refused: mock-live needs write tokens")
         return result
 
-    index: dict[tuple[str, str, str], Account] = {}
-    for a in state.accounts:
-        index.setdefault((a.system, a.app_id, _norm(a.account)), a)
+    accounts = _Accounts(state.accounts)
     bg_names = _break_glass_names(state, policy)
     clients: dict[str, HttpishClient] = {}
     if mode == MOCK_LIVE and write_token is not None:
@@ -301,15 +361,17 @@ def apply_plan(
         kept.append(c)
     result.manual_tasks = plan_manual_tasks(kept)
 
-    app_ids: dict[str, str] = {}
+    # Okta app name -> every Okta app id with that name (two or more: no add can be made)
+    app_ids: dict[str, list[str]] = {}
     if any(c["system"] == "okta" and c["app_id"] and c["action"] == "add" for c in kept):
         reader = HttpishClient(
             mocks.okta, mocks.okta.issue_token("apply-read", {"read"}), sleep=sleep
         )
         try:
-            app_ids = {
-                a["name"]: a["id"] for a in reader.okta_pages("/api/v1/apps", {"limit": 200})
-            }
+            for a in reader.okta_pages("/api/v1/apps", {"limit": 200}):
+                ids = app_ids.setdefault(a["name"], [])
+                if a["id"] not in ids:
+                    ids.append(a["id"])
         except CollectorError as exc:
             result.refused_reason = f"cannot read the Okta apps: {exc}"
             result.log.append(f"refused: {result.refused_reason}")
@@ -317,14 +379,15 @@ def apply_plan(
 
     ordered = sorted(enumerate(kept), key=lambda ic: (_step(ic[1]), ic[0]))
     for _, c in ordered:
-        _one(c, index, clients, app_ids, result, dry=mode != MOCK_LIVE)
-    if mode == MOCK_LIVE and result.applied:
-        _verify(result, mocks, policy, exports_dir, sleep)
+        _one(c, accounts, clients, app_ids, result, dry=mode != MOCK_LIVE)
+    if mode == MOCK_LIVE and result.writes_sent:
+        _verify(result, mocks, policy, exports_dir, sleep, before=state, named=kept)
     verb = "would apply" if mode != MOCK_LIVE else "applied"
     result.log.append(
         f"{verb} {len(result.applied)}, already done {len(result.skipped_already_done)}, "
         f"dropped break-glass {len(result.dropped_break_glass)}, "
-        f"manual tasks {len(result.manual_tasks)}, failed {len(result.failed)}"
+        f"manual tasks {len(result.manual_tasks)}, failed {len(result.failed)}, "
+        f"changed outside the plan {len(result.unexpected)}"
     )
     return result
 
@@ -335,29 +398,85 @@ def _verify(
     policy: Policy,
     exports_dir: Path | str | None,
     sleep: Callable[[float], None],
+    *,
+    before: ActualState,
+    named: Sequence[Mapping[str, Any]],
 ) -> None:
     """Read the state again and check each applied change took effect; a change that did not
-    (or cannot be checked) moves from `applied` to `failed`."""
+    (or cannot be checked) moves from `applied` to `failed`. Then report every account that
+    changed since `before` although no change in `named` names it (see `_unexpected`). An
+    answer the collectors cannot read (a missing field, a wrong type) is a failed read too: the
+    writes are made, so the record of them must not be lost to a crash."""
     try:
         after = actual_state(mocks, policy, exports_dir, sleep=sleep)
-    except CollectorError as exc:
-        reason = f"could not read the state to verify: {exc}"
+    except (CollectorError, KeyError, TypeError, ValueError, AttributeError) as exc:
+        why = str(exc) if isinstance(exc, CollectorError) else f"{type(exc).__name__} {exc}"
+        reason = f"could not read the state to verify: {why}"
         result.failed += [{**c, "error": reason} for c in result.applied]
         result.log.append(f"failed: {reason}")
         result.applied = []
         return
-    now: dict[tuple[str, str, str], Account] = {}
-    for a in after.accounts:
-        now.setdefault((a.system, a.app_id, _norm(a.account)), a)
+    now = _Accounts(after.accounts)
     kept: list[dict[str, Any]] = []
     for c in result.applied:
-        a = now.get((c["system"], c["app_id"], _norm(c["account"])))
+        try:
+            a = now.find(c["system"], c["app_id"], c["account"])
+        except Ambiguous as exc:
+            result.failed.append({**c, "error": f"cannot be checked: {exc}"})
+            result.log.append(f"failed: {c['action']} {c['account']}: cannot be checked: {exc}")
+            continue
         if _took_effect(c, a):
             kept.append(c)
         else:
             result.failed.append({**c, "error": "not in the wanted state after the call"})
             result.log.append(f"failed: {c['action']} {c['account']}: not in the wanted state")
     result.applied = kept
+    _unexpected(result, before, after, named)
+
+
+def _unexpected(
+    result: ApplyResult,
+    before: ActualState,
+    after: ActualState,
+    named: Sequence[Mapping[str, Any]],
+) -> None:
+    """Every account that appeared, went or changed between `before` and `after` and that no
+    change in `named` names (same system, app and name, case and spaces ignored; an Okta user's
+    change also names their app assignments, whose state follows the user's). Such a change was
+    made by a write that reached another account, or by someone else during the apply: either
+    way the plan did not ask for it, so it is reported."""
+    names = {(c["system"], c["app_id"], _norm(c["account"])) for c in named}
+
+    def is_named(a: Account) -> bool:
+        key = (a.system, a.app_id, _norm(a.account))
+        return key in names or (a.system == "okta" and (a.system, "", key[2]) in names)
+
+    was, now = collections.Counter(before.accounts), collections.Counter(after.accounts)
+    rows: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    for side, gone_or_new in (("was", was - now), ("now", now - was)):
+        for a in gone_or_new:
+            if is_named(a):
+                continue
+            row = rows.setdefault(
+                (a.system, a.app_id, a.account, a.source_ref),
+                {
+                    "system": a.system,
+                    "app_id": a.app_id,
+                    "account": a.account,
+                    "source_ref": a.source_ref,
+                    "was": "absent",
+                    "now": "absent",
+                },
+            )
+            row[side] = a.state or "unknown"
+    for key in sorted(rows):
+        row = rows[key]
+        result.unexpected.append(row)
+        where = f"{row['system']}/{row['app_id']}" if row["app_id"] else row["system"]
+        result.log.append(
+            f"failed: {row['account']} ({where}) changed during the apply "
+            f"({row['was']} -> {row['now']}), but no change in the plan names it"
+        )
 
 
 def _took_effect(c: dict[str, Any], a: Account | None) -> bool:
@@ -374,11 +493,18 @@ def _took_effect(c: dict[str, Any], a: Account | None) -> bool:
     return a.state == ("suspended" if system == "google" else "deprovisioned")
 
 
+def _ambiguous(c: dict[str, Any], label: str, exc: Ambiguous, result: ApplyResult) -> None:
+    result.failed.append({**c, "error": f"{exc}; none was changed"})
+    result.log.append(
+        f"failed: {label}: {exc}, so it is not clear which one the plan means; none was changed"
+    )
+
+
 def _one(
     c: dict[str, Any],
-    index: dict[tuple[str, str, str], Account],
+    accounts: _Accounts,
     clients: dict[str, HttpishClient],
-    app_ids: dict[str, str],
+    app_ids: dict[str, list[str]],
     result: ApplyResult,
     *,
     dry: bool,
@@ -412,9 +538,13 @@ def _one(
         result.log.append(f"not applied: {label}")
         return
     if action == "add":
-        _assign(c, label, index, clients, app_ids, result, dry=dry)
+        _assign(c, label, accounts, clients, app_ids, result, dry=dry)
         return
-    current = index.get((system, app_id, _norm(c["account"])))
+    try:
+        current = accounts.find(system, app_id, c["account"])
+    except Ambiguous as exc:
+        _ambiguous(c, label, exc, result)
+        return
     if current is None:
         result.skipped_already_done.append({**c, "why": "already absent"})
         result.log.append(f"already done: {label} (absent)")
@@ -434,9 +564,9 @@ def _one(
         return
     # keep the local view in step with what was (or would be) done
     if current.app_id and system == "okta":
-        index.pop((system, app_id, _norm(c["account"])), None)
+        accounts.remove(current)
     else:
-        index[(system, app_id, _norm(c["account"]))] = _with_state(current, new_state)
+        accounts.replace(current, _with_state(current, new_state))
     _defer_delete(c, result)
 
 
@@ -458,6 +588,7 @@ def _send(
     result: ApplyResult,
 ) -> bool:
     """Make one write. True when the change is applied (or already done); False when it failed."""
+    result.writes_sent += 1
     try:
         response = client.request(method, path, body=body)
     except CollectorError as exc:
@@ -482,9 +613,9 @@ def _send(
 def _assign(
     c: dict[str, Any],
     label: str,
-    index: dict[tuple[str, str, str], Account],
+    accounts: _Accounts,
     clients: dict[str, HttpishClient],
-    app_ids: dict[str, str],
+    app_ids: dict[str, list[str]],
     result: ApplyResult,
     *,
     dry: bool,
@@ -495,20 +626,33 @@ def _assign(
         result.not_applied.append(dict(c))
         result.log.append(f"not applied: {label} (only Okta SSO apps can be assigned)")
         return
-    user = index.get(("okta", "", _norm(c["account"])))
+    try:
+        user = accounts.find("okta", "", c["account"])
+        assigned = accounts.find("okta", app_id, c["account"])
+    except Ambiguous as exc:
+        _ambiguous(c, label, exc, result)
+        return
     if user is None or user.state == "deprovisioned":
         result.not_applied.append(dict(c))
         result.log.append(f"not applied: {label} (no active Okta user)")
         return
-    if ("okta", app_id, _norm(c["account"])) in index:
+    if assigned is not None:
         result.skipped_already_done.append({**c, "why": "already assigned"})
         result.log.append(f"already done: {label} (assigned)")
         return
-    okta_app = app_ids.get(app_id)
-    if okta_app is None:
+    okta_apps = app_ids.get(app_id, [])
+    if not okta_apps:
         result.not_applied.append(dict(c))
         result.log.append(f"not applied: {label} (no such app in Okta)")
         return
+    if len(okta_apps) > 1:
+        why = f"{len(okta_apps)} Okta apps are named {app_id}"
+        result.failed.append({**c, "error": f"{why}; assigned to none"})
+        result.log.append(
+            f"failed: {label}: {why}, so it is not clear which one the plan means; assigned to none"
+        )
+        return
+    okta_app = okta_apps[0]
     path = f"/api/v1/apps/{okta_app}/users"
     body = {"id": user.source_ref, "scope": "USER", "profile": {"role": "member"}}
     entry = {**c, "call": f"POST {path}"}
@@ -517,8 +661,10 @@ def _assign(
         result.log.append(f"would: {label} via POST {path}")
     elif not _send(clients["okta"], "okta", "POST", path, body, c, entry, label, result):
         return
-    index[("okta", app_id, _norm(c["account"]))] = dataclasses.replace(
-        user, app_id=app_id, state="active", source_ref=f"{user.source_ref}@{okta_app}"
+    accounts.add(
+        dataclasses.replace(
+            user, app_id=app_id, state="active", source_ref=f"{user.source_ref}@{okta_app}"
+        )
     )
 
 
@@ -650,9 +796,10 @@ def main(argv: list[str] | None = None) -> int:
         f"applied: {len(result.applied)}  already done: {len(result.skipped_already_done)}  "
         f"dropped break-glass: {len(result.dropped_break_glass)}  "
         f"manual tasks: {len(result.manual_tasks)}  failed: {len(result.failed)}  "
+        f"changed outside the plan: {len(result.unexpected)}  "
         f"held (never applied): {result.held_not_applied}"
     )
-    return 1 if result.refused_reason or result.failed else 0
+    return 1 if result.refused_reason or result.failed or result.unexpected else 0
 
 
 if __name__ == "__main__":
