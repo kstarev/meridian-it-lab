@@ -99,7 +99,10 @@ class StubModel:
 
         It never copies a word of the employees' questions: an update returns the existing
         guide with one closing step, and a new guide is three generic steps on the topic. It
-        only proves the wiring; a real draft needs a real model and a later budget (ADR-037)."""
+        reads the guide, the topic and the tag only from the part of the request before the
+        questions. It only proves the wiring; a real draft needs a real model and a later
+        budget (ADR-037)."""
+        user_text = user_text.split("<questions>", 1)[0]
         start, end = user_text.find("<guide>"), user_text.find("</guide>")
         if 0 <= start < end:
             guide = json.loads(user_text[start + len("<guide>") : end])

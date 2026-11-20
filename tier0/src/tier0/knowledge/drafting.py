@@ -26,14 +26,20 @@ Step by step, all in code except one model call per draft:
 4. **The threshold.** A group is drafted only with at least 3 tickets from at least 3 different
    requesters in the window (`MIN_TICKETS`, `MIN_REQUESTERS`; why in the plan).
 5. **Personal details are removed before the request is built** (`tier0.knowledge.scrub`), and
-   the request leaves out who asked, who answered, when, and which ticket. The finished
+   the request leaves out who asked, who answered, when, and which ticket. Ticket text can't
+   open or close a block of the request: its "<" and ">" are written out. The finished
    request is checked again; if any personal detail is still found, it is not sent.
 6. **The draft is checked in code:** strict format, the guide screen (a flagged draft is not
-   proposed), the hand-off screen on its title and summary, and no personal detail or marker.
-   The reason a draft is not proposed is logged as a code, never as text.
-7. **One pull request per draft,** with CODEOWNERS (the IT team) asked to review. Idempotent:
-   a window's draft for a guide or topic is proposed once, and while a draft for a guide or
-   topic is open, no other is opened for it.
+   proposed), the hand-off screen on its title and summary, no personal detail or marker
+   (also looked for with hidden characters, look-alike letters and accents taken out), and
+   plain text only (no "<", no web address outside meridian.example, no control, hidden or
+   look-alike character). The reason a draft is not proposed is logged as a code, never as
+   text.
+7. **One pull request per draft,** with CODEOWNERS (the active IT team) asked to review. It
+   shows the draft as plain text, in a code block. Idempotent: a window's draft for a guide or
+   topic is proposed once, and while a draft for a guide or topic is open, no other is opened
+   for it. The pull requests are read again after the model call, so a second run at the same
+   time proposes nothing twice and takes no new guide id twice.
 """
 
 import argparse
@@ -53,7 +59,8 @@ from meridian_dataset import DEFAULT_SEED, World, generate
 from meridian_dataset import knowledge as kn
 from meridian_dataset.knowledge import Guide, ResolvedTicket
 from tier0.clock import Clock, MockClock, format_time, parse_time
-from tier0.knowledge.guide_screen import flag_guide, flag_text
+from tier0.knowledge import lookalikes, review
+from tier0.knowledge.guide_screen import DOMAIN, flag_guide, flag_text, pieces
 from tier0.knowledge.screen import hand_off_signal
 from tier0.knowledge.scrub import PersonalDetails, Scrubber
 from tier0.mocks.github import (
@@ -97,6 +104,12 @@ MODEL_ERROR = "model_error"
 OFF_FORMAT = "off_format"
 PERSONAL_DETAIL_IN_DRAFT = "personal_detail_in_draft"
 UNCHANGED = "unchanged"
+# A draft that is not plain text, as "draft_text:<kind>" (check_draft). Drafts only: the
+# posting gate and the screens are unchanged.
+DRAFT_TEXT = "draft_text"
+CHARACTER = "character"  # a control, hidden or look-alike character, or another script
+MARKUP = "markup"  # "<": Slack's <!channel>, <@U...> and <link|label>, and HTML
+WEB_ADDRESS = "web_address"  # a web address without https:// or www., outside meridian.example
 
 DRAFT_PROMPT_VERSION = "D1"
 DRAFT_PROMPT = """\
@@ -395,6 +408,13 @@ def _one_line(text: str) -> str:
     return " ".join(text.split())
 
 
+def _data(text: str, scrubber: Scrubber) -> str:
+    """Untrusted ticket text as one scrubbed line. Its "<" and ">" are written as "&lt;" and
+    "&gt;", so it can't close the questions block or open a guide block of its own (the stub
+    drafts from the first guide block it finds)."""
+    return _one_line(scrubber.scrub(text)).replace("<", "&lt;").replace(">", "&gt;")
+
+
 def draft_request(group: Group, scrubber: Scrubber) -> ModelRequest:
     """The model call for one group. Only scrubbed question text, the resolver's scrubbed
     note and the language go in: no requester, resolver, date or ticket id."""
@@ -423,9 +443,9 @@ def draft_request(group: Group, scrubber: Scrubber) -> ModelRequest:
         ]
     questions = []
     for number, ticket in enumerate(group.tickets, 1):
-        questions.append(f"{number}. ({ticket.lang}) {_one_line(scrubber.scrub(ticket.text))}")
+        questions.append(f"{number}. ({ticket.lang}) {_data(ticket.text, scrubber)}")
         if ticket.note:
-            questions.append(f"   Note from IT: {_one_line(scrubber.scrub(ticket.note))}")
+            questions.append(f"   Note from IT: {_data(ticket.note, scrubber)}")
     user = "\n".join(
         [
             *head,
@@ -507,9 +527,69 @@ def check_draft(draft: Guide, scrubber: Scrubber) -> str | None:
     signal = hand_off_signal(f"{draft.title}. {draft.summary}")
     if signal is not None:
         return f"{MESSAGE_SCREEN}:{signal}"
-    pieces = "\n".join((draft.title, draft.summary, *draft.steps, *draft.tags))
-    if scrubber.find(pieces, markers=True):
+    text = "\n".join((draft.title, draft.summary, *draft.steps, *draft.tags))
+    if any(scrubber.find(reading, markers=True) for reading in _readings(text)):
         return PERSONAL_DETAIL_IN_DRAFT
+    kind = draft_text_problem(draft)
+    if kind is not None:
+        return f"{DRAFT_TEXT}:{kind}"
+    return None
+
+
+# Letters joined by "_", "-" or ".", as in "First_Last": read as two words too.
+_JOINED = re.compile(r"(?<=[^\W\d_])[._-]+(?=[^\W\d_])")
+
+
+def _readings(text: str) -> tuple[str, ...]:
+    """The draft as written, then without accents, then in the forms the screens read
+    (lookalikes.py: hidden characters taken out, look-alike letters of other scripts read as
+    Latin ones), and each of those with letters joined by "_", "-" or "." read as two words.
+    So a name from the directory is still found when a zero-width space splits it, a
+    look-alike letter or an added accent changes it, or "_" joins it to another. More
+    readings can only find more."""
+    plain = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    base = (text, plain, *lookalikes.forms(text))
+    return tuple(dict.fromkeys((*base, *(_JOINED.sub(" ", r) for r in base))))
+
+
+# What a draft may hold: printable ASCII; the Latin-1 letters and marks, for guides in other
+# languages later (not the soft hyphen, which is not shown); and typographic quotes, dashes,
+# the ellipsis and the euro sign. The 30 runbooks hold printable ASCII only.
+_TYPOGRAPHIC = frozenset("\u2018\u2019\u201c\u201d\u2013\u2014\u2026\u20ac")
+# A host name with no "https://" or "www." in front, such as "meridian-help.com/login": Slack
+# and GitHub may show it as a link, and an employee can type it. The guide screen reads only
+# links that start with one of those, so they are taken out first.
+_BARE_HOST = re.compile(
+    r"(?<![\w@.-])((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z](?:[a-z0-9-]*[a-z0-9]))(?![\w-])",
+    re.IGNORECASE,
+)
+_SCHEMED_LINK = re.compile(r"\b(?:https?://|www\.)\S*", re.IGNORECASE)
+
+
+def _plain_character(c: str) -> bool:
+    return " " <= c <= "~" or ("\u00a1" <= c <= "\u00ff" and c != "\u00ad") or c in _TYPOGRAPHIC
+
+
+def _ours(host: str) -> bool:
+    host = host.lower().rstrip(".")
+    return host == DOMAIN or host.endswith("." + DOMAIN)
+
+
+def draft_text_problem(draft: Guide) -> str | None:
+    """Why a draft's text is not plain text, as a kind; None when it is. For drafts only.
+
+    A guide's steps are posted word for word, and the pull request is where a person reads
+    them first. So a draft holds no control, hidden or look-alike character (a carriage return
+    ends a list item on GitHub, a zero-width space or a Unicode tag character is not shown);
+    no "<", which starts Slack's <!channel>, <@U...> and <link|label> and every HTML tag; and
+    no web address outside meridian.example, with or without https://."""
+    for piece in pieces(draft):
+        if not all(_plain_character(c) for c in piece):
+            return CHARACTER
+        if "<" in piece:
+            return MARKUP
+        if not all(_ours(h) for h in _BARE_HOST.findall(_SCHEMED_LINK.sub(" ", piece))):
+            return WEB_ADDRESS
     return None
 
 
@@ -601,7 +681,7 @@ def run_job(
     window = window_label(since, until)
     on_main = guides_on(github)
     approved = {i: found for i, found in on_main.items() if found[1].approved}
-    mine = [p for p in github.pulls() if p["author"] == github.actor]
+    mine = _mine(github)
     in_window = [t for t in tickets if since <= t.resolved_at < until]
     report = Report(window=window, tickets=len(in_window))
     groups, report.left_out = sort_tickets(in_window, approved)
@@ -614,8 +694,22 @@ def run_job(
             GroupResult(group.key, len(group.tickets), group.requesters, outcome, pull)
         )
         if outcome == PROPOSED:  # its id, path and branch are taken now
-            mine = [p for p in github.pulls() if p["author"] == github.actor]
+            mine = _mine(github)
     return report
+
+
+def _mine(github: GitHubSession) -> list[dict[str, Any]]:
+    """The job's own pull requests, open, closed or merged."""
+    return [p for p in github.pulls() if p["author"] == github.actor]
+
+
+def _taken(branch: str, group: Group, mine: Sequence[dict[str, Any]]) -> str | None:
+    """ALREADY_PROPOSED or ALREADY_OPEN when this group must not get a new pull request."""
+    if any(p["branch"] == branch for p in mine):
+        return ALREADY_PROPOSED
+    if any(p["state"] == OPEN and p["branch"].endswith(f"/{group.slug}") for p in mine):
+        return ALREADY_OPEN
+    return None
 
 
 def _one_group(
@@ -632,10 +726,9 @@ def _one_group(
     if not enough(group):
         return BELOW_THRESHOLD, None
     branch = f"{BRANCH_PREFIX}/{window}/{group.slug}"
-    if any(p["branch"] == branch for p in mine):
-        return ALREADY_PROPOSED, None
-    if any(p["state"] == OPEN and p["branch"].endswith(f"/{group.slug}") for p in mine):
-        return ALREADY_OPEN, None
+    taken = _taken(branch, group, mine)
+    if taken is not None:
+        return taken, None
     request = draft_request(group, scrubber)
     if scrubber.find(f"{request.system}\n{request.user}"):
         return PERSONAL_DETAIL_IN_REQUEST, None
@@ -646,6 +739,13 @@ def _one_group(
     text = parse_draft(response)
     if text is None:
         return OFF_FORMAT, None
+    # The model call is the slow part. Another run of the job may have proposed this group,
+    # taken a new guide id or had a draft merged meanwhile: read both again before choosing.
+    mine = _mine(github)
+    taken = _taken(branch, group, mine)
+    if taken is not None:
+        return taken, None
+    on_main = guides_on(github)
     if group.guide is not None:
         guide_id, slug = group.guide.id, group.guide.slug
     else:
@@ -705,7 +805,13 @@ def _title(group: Group, draft: Guide) -> str:
 
 
 def _body(group: Group, draft: Guide, window: str, model: str) -> str:
-    """Counts, codes and ticket ids for the reviewer. No ticket text: it is untrusted."""
+    """Counts, codes and ticket ids for the reviewer. No ticket text: it is untrusted.
+
+    The draft is shown in a code block, as plain text: GitHub renders nothing in it, so the
+    reviewer reads the exact characters code would post. As Markdown, a step could
+    render differently (a link definition vanishes, an HTML entity becomes a hidden or a
+    right-to-left character). The fence is longer than any run of backticks in the draft, so
+    no step can close it."""
     if group.guide is not None:
         why = (
             f"A person answered {len(group.tickets)} tickets from {group.requesters} people "
@@ -718,6 +824,15 @@ def _body(group: Group, draft: Guide, window: str, model: str) -> str:
             f"A person answered {len(group.tickets)} tickets from {group.requesters} people by "
             f'hand: no guide covers the topic "{group.topic.label}". The draft is a new guide.'
         )
+    shown = [
+        draft.title,
+        "",
+        draft.summary,
+        "",
+        *(f"{i}. {step}" for i, step in enumerate(draft.steps, 1)),
+    ]
+    longest = max((len(run) for line in shown for run in re.findall(r"`+", line)), default=0)
+    fence = "`" * max(3, longest + 1)
     lines = [
         f"**A drafted guide, not approved.** {why}",
         "",
@@ -726,18 +841,19 @@ def _body(group: Group, draft: Guide, window: str, model: str) -> str:
         "team) approves and merges this pull request; the merge sets `approved: true`. This "
         "job never approves or merges.",
         "- Personal details were removed before anything reached the drafting model. The "
-        "draft passed the guide screen, the hand-off screen and the personal-detail check.",
+        "draft passed the guide screen, the hand-off screen, the personal-detail check and "
+        "the plain-text check.",
         f"- Drafted by `{model}` with prompt {DRAFT_PROMPT_VERSION}. The offline stub writes "
         "a placeholder in the runbook format, not advice: a real drafting model needs a later "
         "budget (ADR-037).",
         "- Source tickets, to read in the tracker (their text is untrusted and not copied "
         "here): " + ", ".join(f"`{t.id}`" for t in group.tickets) + ".",
         "",
-        f"### {draft.title}",
+        "### The draft, as plain text",
         "",
-        draft.summary,
-        "",
-        *(f"{i}. {step}" for i, step in enumerate(draft.steps, 1)),
+        f"{fence}text",
+        *shown,
+        fence,
         "",
         "Tags: " + ", ".join(f"`{t}`" for t in draft.tags),
     ]
@@ -808,10 +924,14 @@ def tuning_tickets(
 
 
 def it_team(world: World) -> tuple[str, ...]:
-    """The mock's IT team: the world's IT department, as GitHub logins."""
+    """The mock's IT team, as GitHub logins: the same people whose click may send a guide
+    (tier0.knowledge.review.it_team, ADR-053), the world's IT department, active in the
+    directory and in Slack. A suspended person is not a code owner, so can't approve or merge
+    a guide."""
+    clickers = review.it_team(world)
     return tuple(
         sorted(p.primary_email.split("@")[0].replace(".", "-") for p in world.people
-               if p.department == "IT")
+               if p.slack_user_id in clickers)
     )  # fmt: skip
 
 
