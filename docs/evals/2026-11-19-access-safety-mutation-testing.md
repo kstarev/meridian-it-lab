@@ -115,6 +115,18 @@ No surviving mutant showed a bug. The property tests found one place where the c
 1. **Rule 2 of identity matching ignores more than case, accents and a `+tag`.** `match.py:83`, `fold` runs NFKD and drops every character that is not ASCII, so a zero-width space, a soft hyphen, a Cyrillic or a CJK letter disappears. `ana.smith\u200b@meridian.example` is matched to the person `ana.smith@meridian.example` by `normalised_email`. An account under such an address is attributed to a real person, so it is never reported as an orphan. Pinned by `test_match_properties.py::test_rule_2_does_not_ignore_characters_other_than_accents` (4 cases).
    - **Update, 2026-11-19:** fixed under the owner's ruling 5 ([AAC-016](../../access/docs/adr/016-rule-2-refuses-non-ascii-addresses.md)). Rule 2 now refuses such an address and the account stays an orphan; the test is no longer an xfail.
 
+Item 1 is gap G1. A later gap of the same kind is below.
+
+### G4: rules 4 and 5 still fold usernames
+
+- **Rule:** none yet for usernames. Rule 2 ignores case, accents and a `+tag`, and refuses an address with any other non-ASCII character ([AAC-016](../../access/docs/adr/016-rule-2-refuses-non-ascii-addresses.md)). Rules 4 and 5 have no such check.
+- **What happens:** rules 4 and 5 compare usernames through `fold()`, which drops a zero-width space, a soft hyphen, a Cyrillic or a CJK letter.
+  - A Slack userName `ana.smith` + a zero-width space, with no email, is matched to `ana.smith@meridian.example` by `slack_username`.
+  - An export username `asmith` + a zero-width space is matched to the same person by `username`.
+  - `anas` + a zero-width space, with a family name that picks one of two people, is matched by `username_names`.
+- **Why it matters:** as with G1, such an account is attributed to a real person, so it is never reported as an orphan.
+- **Pinned:** the `test_g4_*` tests in `test_match_properties.py` (12 cases: 3 rules, 4 characters, each a strict xfail). Each first checks that the username without the character is matched by its rule. The source is unchanged.
+
 ## Property tests
 
 All use hypothesis with `derandomize=True` and `database=None`. Every person, account and plan is made up; apply runs on tiny in-process mocks.
