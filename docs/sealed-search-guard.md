@@ -39,7 +39,7 @@ On 2026-11-17 a helper ran one `git grep` whose paths covered a sealed pool file
 | # | Tool | Blocked | Examples |
 |---|---|---|---|
 | 1 | Read | the file is a sealed file, or a symlink to one. The case of the name doesn't matter: macOS opens `HELD_OUT_V6.JSON` too | Read of `.../pools/held_out_v6.json` |
-| 2 | Grep | the path is a sealed file, or the glob names `held_out_` | Grep with `glob: held_out_*.json` |
+| 2 | Grep | the path is a sealed file or a symlink to one, or the glob names `held_out_`. With a `glob` or `type`, or with no path: the path (the session's folder when none is given) holds a sealed file that the glob or type may let in. See below | Grep with `glob: held_out_*.json`; Grep with `path: dataset, glob: *.json`; Grep with no path in the repository |
 | 3 | Bash | a program that prints file content, with a sealed file among its arguments. A glob is expanded as zsh would, `**` included, and a symlink counts as the file it points to. The programs: `cat head tail less more bat nl tac cut sort uniq sed awk jq diff cmp strings xxd hexdump od zcat gzcat gunzip open code vim vi nano`, and the searches in row 5 | `cat x/held_out_k1.json`, `jq . x/held_out_v5.json`, `cat pools/*.json` when the pattern expands to a sealed file |
 | 4 | Bash | `git show`, `git diff`, `git blame`, `git cat-file` or `git log -p` that names a sealed file | `git show HEAD:x/held_out_v6.json` |
 | 5 | Bash | a search, unless it is limited to explicit paths, the hook resolves every one, and none is or holds a sealed file. The searches: `grep egrep fgrep rgrep ggrep zgrep zegrep zfgrep bzgrep xzgrep rg ag ack ugrep ug`, `git grep`, and `find -exec` or `xargs` running any program in row 3. See below | `git grep foo`, `rg foo`, `grep -rn foo .`, `grep -rn foo dataset` |
@@ -79,6 +79,34 @@ It blocks, when:
 
 Before this ruling, rule 5 asked `git ls-files` what the paths covered. That missed untracked and ignored files, symlinks, folders outside the repository and old revisions, and it let `rg` through unless `--no-ignore` was given, although `rg -g '*.json'` overrides `.rgignore`. All of those now block. `rg foo`, `git grep foo -- ':!*held_out_*'` and a path that doesn't exist were allowed and now block. For a search of the whole repository, `tools/search.py` is still the one to use.
 
+### The Grep tool (rule 2)
+
+Claude Code's Grep tool runs ripgrep. `.rgignore` leaves sealed files out of a folder, but the tool's `glob` overrides it, as `rg -g` does. So the rule from ruling 3 applies to Grep too, whenever a `glob` or `type` is given, or no path:
+
+- **The path** is resolved from the session's folder, and is that folder when none is given. A path that doesn't exist blocks.
+- **The hook walks it,** names only, never content, as in rule 5: it follows every symlink, visits each folder once (so a symlink loop ends), and leaves out a set in `OPENED`.
+- **It blocks if any file the glob or type may let in is sealed,** or is a symlink to one. A folder with a sealed name always counts.
+
+How the hook reads a glob, so that it lets in at least what ripgrep does:
+
+- **Only the last part counts.** ripgrep judges a file by its own name: `pools/*.json` lets in what `*.json` does, and a glob that names a folder (`pools`) lets in none of the files below it. A last part of `*` or `**`, or none (`pools/`), lets in any file.
+- **The glob is read whole, and split at spaces and commas,** as Claude Code may split it. Braces are expanded: `*.{md,json}` is `*.md` and `*.json`. More than 1,000 globs blocks.
+- **A `[...]` class or an escaped character** counts as any one character. **Case doesn't matter.**
+- **A glob that starts with `!`** only leaves files out, so it is skipped. Only `!` globs let in any file.
+- **A `type`** (`py`, `json`) counts as any file: the hook doesn't know ripgrep's type list. ripgrep's `-t` does not override `.rgignore`, so this is stricter than it needs to be; it is the safe default until the owner rules.
+
+A Grep with a path and neither `glob` nor `type` keeps the rule from before: `.rgignore` leaves the sealed files out of a folder, and only a sealed path, or a symlink to one, blocks.
+
+| Allowed | Blocked, and why |
+|---|---|
+| `path: tier0, glob: *.py` | `path: dataset, glob: *.json`: it holds sealed pools |
+| `path: dataset, glob: *.py` | `glob: *.py` with no path: the repository holds sealed files, or is too big to check |
+| `path: tier0/src, type: py` | `path: dataset, type: py`: a type counts as any file |
+| `path: dataset` | no path at all, in the repository |
+| `path: ., glob: pools` (a folder's name) | `path: ., glob: pools/*` or `held_ou[t]_*` |
+
+Allowed before, blocked now: Grep with no path in a folder that holds a sealed file (the repository root, say), with or without a glob; Grep with a `glob` or `type` whose path holds a sealed file the glob may let in; Grep whose path is a symlink to a sealed file; and Grep whose path doesn't exist when a glob, a type or no path is given.
+
 ### What it never blocks
 
 - **Any program that runs code:** `python`, `pytest`, `make`, `uv`, `gh`, a shell script. So the sealed runner, the tests and CI commands are never blocked. CI doesn't run the hook at all: only Claude Code does.
@@ -86,7 +114,7 @@ Before this ruling, rule 5 asked `git ls-files` what the paths covered. That mis
 - **A search limited to paths that don't hold a sealed file:** `git grep foo -- tier0 tools`, `grep -rn foo tier0/src`, `rg foo tier0`.
 - **A pattern that is a sealed file's name:** `grep held_out_k1.json docs/sealed-search-guard.md`.
 - **A set in `OPENED`,** and `names.py`.
-- **Glob, Edit, Write and every other tool.**
+- **Glob, Edit, Write and every other tool.** Glob lists file names only, never content, so it may name sealed files and is not blocked; `.claude/settings.json` doesn't even send it to the hook.
 
 ### What it misses
 
@@ -94,7 +122,7 @@ Before this ruling, rule 5 asked `git ls-files` what the paths covered. That mis
 - A sealed file that a program which only prints (row 3) reaches through a variable, a `$(...)` result or a script: `cat "$f"`. A search in that shape is blocked.
 - A hard link or a copy of a sealed file under another name, and a sealed file inside an archive with another name.
 - Shell aliases and functions, and git aliases: the hook judges the words typed, not what an alias runs.
-- The Grep tool's `glob`, which overrides `.rgignore` as `rg -g` does. Rule 2 checks only that it doesn't name `held_out_`.
+- A Grep with a folder path and neither `glob` nor `type`. It relies on `.rgignore`, which goes by names, so if ripgrep follows symlinks it doesn't leave out a symlink to a sealed file that has another name.
 - Any shell outside Claude Code.
 
 ### How to turn it off
