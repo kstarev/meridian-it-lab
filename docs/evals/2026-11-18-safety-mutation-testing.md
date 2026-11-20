@@ -189,6 +189,8 @@ It is a hole in the tests, not a bug: the route still hands off, and `grade` sco
 
 Noticed, not tested here: triage's parser and the picker's `parse_pick` read a doubled key the same way, by its last value.
 
+**Since then (branch `tier0-strict-duplicate-keys`, waiting for the owner's yes):** gap 3F-1 is fixed in every tier0 parser of a model's reply: triage, the own-account check, the gate, the picker and its fit check, and the guide draft. Each reads the reply with `loads_reply` (`tier0/src/tier0/models/reply_json.py`), which refuses an object that names a key twice. Such a reply is then off the schema like any other: the gate's answer is `None`, triage is off format, the own-account check fails, the picker's pick is off format, and the message goes to a person. The two 3F-1 tests pass and are no longer marked xfail. A property test checks that for any reply with no doubled name, each parser gives what it gave before (`tier0/tests/test_reply_json.py`). The new target `tier0 reply json` has 4 mutants; the tests kill all 4.
+
 The new tests (hypothesis, `derandomize=True`, `database=None`, 300 examples each; made-up messages and fake models only):
 - `parse_gate` gives `True` only for exactly one object with one member, `plain_how_to`, whose value is `true`, from a reply that finished with `stop`, and `False` only for the same with `false`; anything else is `None`. Checked for any reply text, any finish reason and any JSON shape: near objects, extra keys, other values, text around the object, replies too big or too deep to read, and no reply.
 - The expected object parses whatever its spacing. The gate's request puts the message in the user turn, inside its tags, with the frozen rules as its system prompt.

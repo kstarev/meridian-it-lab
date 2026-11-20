@@ -71,6 +71,7 @@ from tier0.models import (
     ModelRequest,
     ModelResponse,
 )
+from tier0.models.reply_json import loads_reply
 from tier0.policy import (
     POLICY,
     TOOL_GET_MY_USERNAME,
@@ -288,7 +289,7 @@ def parse_triage(response: ModelResponse | None) -> str:
 def _triage_value(response: ModelResponse) -> str | None:
     """The category, or None when the reply isn't exactly the schema."""
     try:
-        parsed = json.loads(response.text)
+        parsed = loads_reply(response.text)
     except ValueError:
         return None
     # Exactly the schema: one key. Extra keys such as "tier" mean the model is off-script.
@@ -345,7 +346,7 @@ def parse_own_account_check(response: ModelResponse | None) -> bool | None:
     if response is None or response.finish_reason == "refusal":
         return None
     try:
-        parsed = json.loads(response.text)
+        parsed = loads_reply(response.text)
     except ValueError:
         return None
     if not isinstance(parsed, dict) or set(parsed) != {"own_account_only"}:

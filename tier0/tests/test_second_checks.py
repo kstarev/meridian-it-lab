@@ -141,6 +141,9 @@ def _resp(text: str, finish: str = "stop") -> ModelResponse:
         (_resp('{"own_account_only": "yes"}'), None),
         (_resp('{"own_account_only": true, "why": "x"}'), None),
         (_resp("[true]"), None),
+        # A doubled name: json.loads kept the last, so these were a yes (gap 3F-1's kin).
+        (_resp('{"own_account_only": false, "own_account_only": true}'), None),
+        (_resp('{"own_account_only": true, "own_account_only": true}'), None),
     ],
 )
 def test_parse(response: ModelResponse | None, expected: bool | None) -> None:
@@ -268,8 +271,9 @@ def test_unnamed_colleague_with_no_role_word_relies_on_the_model_check(
         Model(check_error=True),
         Model(check=YES, check_finish="refusal"),
         Model(check='{"own_account_only": true, "extra": 1}'),
+        Model(check='{"own_account_only": false, "own_account_only": true}'),
     ],
-    ids=["garbage", "model_error", "refusal", "extra_key"],
+    ids=["garbage", "model_error", "refusal", "extra_key", "doubled_key"],
 )
 def test_check_failure_goes_to_a_person(world: World, model: Model) -> None:
     rt, outcome = _go(world, "TKT-001", model)

@@ -306,10 +306,16 @@ model_replies = (
 )
 
 
+def _one_of_each(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    if len({key for key, _ in pairs}) != len(pairs):
+        raise ValueError("an object names a key twice")
+    return dict(pairs)
+
+
 def _parsed(text: str) -> Any:
-    """The reply as JSON, or None when it is not JSON."""
+    """The reply as JSON, or None when it is not JSON or an object in it names a key twice."""
     try:
-        return json.loads(text)
+        return json.loads(text, object_pairs_hook=_one_of_each)
     except ValueError:
         return None
 

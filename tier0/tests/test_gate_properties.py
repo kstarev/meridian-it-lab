@@ -10,9 +10,10 @@ picker picked a guide. Checked three ways:
   picker answer;
 - the live path, through the agent against the offline mocks, with fake models.
 
-One rule does not hold: a reply that names "plain_how_to" twice is read by its last value, so
-`{"plain_how_to": false, "plain_how_to": true}` is a yes. Those tests are strict xfails named
-"gap 3F-1"; the source is unchanged.
+Gap 3F-1, found by these tests and fixed since (tier0/src/tier0/models/reply_json.py): a reply
+that named "plain_how_to" twice was read by its last value, so
+`{"plain_how_to": false, "plain_how_to": true}` was a yes. The tests named "gap 3F-1" were
+strict xfails until then; now they pass.
 
 Every model here is a fake: no model is called and nothing costs money. The messages are made
 up here; no pool wording is used and no sealed set is read. The runs are fixed (derandomize)
@@ -216,9 +217,11 @@ def test_the_gate_sees_the_message_only_in_the_user_turn_and_its_frozen_rules(
     assert request.max_tokens == 1024
 
 
-# gap 3F-1: json.loads keeps the last of two members with one name, so a reply that says false
-# (or anything) and then true is read as a yes. A model held to GATE_SCHEMA is unlikely to send
-# one, but the parser's rule is "anything that isn't exactly the object above is no".
+# gap 3F-1: json.loads keeps the last of two members with one name, so a reply that said false
+# (or anything) and then true was read as a yes. A model held to GATE_SCHEMA is unlikely to send
+# one, but the parser's rule is "anything that isn't exactly the object above is no". The gate
+# now reads its reply with loads_reply, which refuses a doubled name: the reply is off the
+# schema (None), so the message goes to a person.
 DOUBLED = {
     "false, then true": '{"plain_how_to": false, "plain_how_to": true}',
     "null, then true": '{"plain_how_to": null, "plain_how_to": true}',
@@ -226,14 +229,10 @@ DOUBLED = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gap 3F-1: a gate reply that names plain_how_to twice is read by its last value, "
-    "so false and then true is a yes",
-)
 @pytest.mark.parametrize("text", DOUBLED.values(), ids=DOUBLED)
 def test_gap_3f_1_a_reply_that_names_the_key_twice_is_no_yes(text: str) -> None:
-    assert parse_gate(_response(text)) is not True
+    assert parse_gate(_response(text)) is None
+    assert _exactly(text) is None
 
 
 # --- the month runner: route_ticket with a gate -----------------------------------------------
@@ -534,14 +533,18 @@ def _ask(text: str, model: Triage, picker: GuidePicker, **options: Any) -> tuple
 
 
 def _picked(reply: tuple[str, str]) -> str | None:
-    """The postable guide the picker's reply names as a how-to answer, exactly; else None."""
+    """The postable guide the picker's reply names as a how-to answer, exactly; else None.
+    A reply that names a key twice names none."""
     text, finish = reply
     try:
-        said = json.loads(text)
+        members = json.loads(text, object_pairs_hook=_Members)
     except ValueError:
         return None
-    if finish != "stop" or type(said) is not dict or set(said) != {"request_type", "guide"}:
+    if finish != "stop" or not isinstance(members, _Members):
         return None
+    if sorted(key for key, _ in members) != ["guide", "request_type"]:
+        return None
+    said = dict(members)
     if said["request_type"] != HOW_TO or said["guide"] not in POSTABLE:
         return None
     return str(said["guide"])
@@ -608,19 +611,37 @@ def test_the_live_path_drafts_or_posts_a_guide_only_when_screen_gate_and_picker_
             assert not reached and seen.outcome.action == "escalate"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="gap 3F-1: a gate reply that names plain_how_to twice is read by its last value, "
-    "so false and then true lets the picker be asked",
-)
-def test_gap_3f_1_a_gate_reply_that_says_false_and_then_true_never_reaches_the_picker() -> None:
-    model = Triage("other", (DOUBLED["false, then true"], "stop", False))
+@pytest.mark.parametrize("text", DOUBLED.values(), ids=DOUBLED)
+def test_gap_3f_1_a_gate_reply_that_says_false_and_then_true_never_reaches_the_picker(
+    text: str,
+) -> None:
+    model = Triage("other", (text, "stop", False))
     picker_model = PickerModel((json.dumps({"request_type": HOW_TO, "guide": POSTABLE[0]}), "stop"))
     seen, dm = _ask(
         PLAIN[0], model, GuidePicker(model=picker_model, guides=RUNBOOKS, gate_version="G3")
     )
     assert picker_model.requests == []
     assert not _guide_reached_anyone(seen, dm)
+    # Off the schema, so the gate failed: the code is guide_gate_failed, not guide_gate_no.
+    assert seen.codes == [GUIDE_GATE_FAILED] and seen.outcome.action == "escalate"
+
+
+@pytest.mark.parametrize("text", DOUBLED.values(), ids=DOUBLED)
+def test_gap_3f_1_the_month_runner_hands_a_doubled_gate_reply_off_as_a_failed_gate(
+    text: str,
+) -> None:
+    model, picker = Arm("other", (text, "stop", False)), Picker((mo.GUIDE, "KB-001"))
+    route = mo.route_ticket(
+        PLAIN[0],
+        sender_name="Ana Smith",
+        sender_email="ana.smith@meridian.example",
+        model=model,
+        setup=ALL_SETUPS["haiku-3d2"],
+        second_stage=picker,
+        gate=mo.gate_for("G3"),
+    )
+    assert route == mo.Route(mo.HAND_OFF, None, mo.GATE_FAILED, "other")
+    assert picker.asked == []
 
 
 def test_the_made_up_messages_are_what_the_tests_say_they_are() -> None:

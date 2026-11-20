@@ -382,8 +382,20 @@ def test_wrong_triage_still_only_returns_the_requesters_own_username(
         ScriptedModel(triage='{"category": "admin_reset"}'),
         ScriptedModel(triage='{"category": "own_username"}', triage_finish="refusal"),
         ScriptedModel(triage_error=True),
+        # Gap 3F-1's kin: json.loads kept the last of a doubled name, so these read as
+        # own_username and the username was sent. Off the schema now (tier0.models.reply_json).
+        ScriptedModel(triage='{"category": "about_someone_else", "category": "own_username"}'),
+        ScriptedModel(triage='{"category": "own_username", "category": "own_username"}'),
     ],
-    ids=["extra_key", "bad_json", "unknown_category", "refusal", "model_error"],
+    ids=[
+        "extra_key",
+        "bad_json",
+        "unknown_category",
+        "refusal",
+        "model_error",
+        "doubled_key",
+        "doubled_key_same_value",
+    ],
 )
 def test_bad_triage_escalates(world: World, model: ScriptedModel) -> None:
     async def body(rt: Runtime) -> tuple[Runtime, Outcome]:
