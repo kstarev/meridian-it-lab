@@ -129,6 +129,16 @@ Item 1 is gap G1. One more gap was pinned later the same day.
   - One module, `break_glass.py`, works out every name of a protected account, and matching, the diff and apply ask it.
   - The break-glass helpers named in the tables above (`match._break_glass`, `diff._break_glass_strings`, `diff._touches_break_glass`, `apply._break_glass_names`, `apply._is_listed`, `apply._touches_break_glass`) are gone. The break-glass target in `tools/mutate.py` now mutates `break_glass.py`.
 
+### G7: break-glass protection spreads through a record the person can edit
+
+- **Rule:** no plan changes a break-glass account, and a leaver's access is removed ([AAC-007](../../access/docs/adr/007-safety-rails.md)). Since AAC-018, every record that shares a name is one account, whoever can edit the record.
+- **What happens:** a person can edit their own Slack profile email, and a Slack user can plant their userName ([red-team.md](../../access/docs/red-team.md)). A Slack user `ana.smith` with the email `breakglass-01@meridian.example` links `ana.smith`, `ana.smith@meridian.example` and the listed address into one protected account. So does a Slack userName `breakglass-01` with the email `ana.smith@meridian.example`.
+  - Matching marks the leaver's Okta and Google users break-glass, so they are never placed on the leaver.
+  - The diff's last word and apply's guard drop the suspension of `ana.smith@meridian.example`.
+  - The plan has no warning. The never_touch rows for the leaver's own address say "listed in the break-glass policy", which it is not.
+- **Why it matters:** one edit to a person's own Slack profile keeps their Okta and Google access after they leave. Found in review on 2026-11-20 (finding F2).
+- **Pinned:** the `test_g7_*` tests in `test_break_glass_properties.py` (10 cases: 5 tests, each for the Slack email and the Slack userName, each a strict xfail). The source is unchanged.
+
 ## Property tests
 
 All use hypothesis with `derandomize=True` and `database=None`. Every person, account and plan is made up; apply runs on tiny in-process mocks.
